@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 # Import routers
 from admin.routes import router as admin_router
+from payments.routes import router as payments_router
 from agents.manager_agent import ManagerAgent
 
 # Initialize FastAPI
@@ -100,6 +101,7 @@ async def chat(chat_msg: ChatMessage):
 
 # Include admin routes
 app.include_router(admin_router, prefix="/api/admin", tags=["admin"])
+app.include_router(payments_router, prefix="/api/payments", tags=["payments"])
 
 @app.get("/")
 async def root():

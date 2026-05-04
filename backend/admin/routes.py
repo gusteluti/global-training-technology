@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 router = APIRouter()
+COURSES_DIR = Path(__file__).parent.parent / "courses"
 
 class CourseInput(BaseModel):
     """Schema for creating/updating a course"""
@@ -190,3 +191,18 @@ def reload_manager_agent_courses(request: Request, reason: str):
 
     manager_agent.load_courses(reload=True)
     print(f"🔄 Manager agent reloaded after {reason}")
+
+def load_course_data(course_id: str) -> Dict:
+    course_file = COURSES_DIR / f"{course_id}.json"
+    if course_file.exists():
+        with open(course_file, 'r', encoding='utf-8') as f:
+            return json.load(f)
+
+    if COURSES_DIR.exists():
+        for candidate in COURSES_DIR.glob("*.json"):
+            with open(candidate, 'r', encoding='utf-8') as f:
+                course_data = json.load(f)
+            if course_data.get("id") == course_id:
+                return course_data
+
+    raise HTTPException(status_code=404, detail="Course not found")
