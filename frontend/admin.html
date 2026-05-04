@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin - Global Training Technology</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;900&family=Barlow+Condensed:wght@700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --dark: #ffffff;
+    --dark2: #f7f9fb;
+    --teal: #0096c7;
+    --teal2: #0077a3;
+    --blue: #00a6d6;
+    --nav: #212830;
+    --text: #17212b;
+    --muted: #66707c;
+    --card: #ffffff;
+    --card-border: #d8e0e8;
+    --soft-blue: #eaf8fc;
+    --danger: #ff5c77;
+    --success: #35d18f;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    min-height: 100vh;
+    background: var(--dark2);
+    color: var(--text);
+    font-family: 'Barlow', sans-serif;
+  }
+  nav {
+    height: 88px;
+    padding: 0 max(28px, calc((100vw - 1180px) / 2));
+    background: var(--nav);
+    border-bottom: 1px solid #1b2229;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .logo { display: flex; align-items: center; gap: 12px; text-decoration: none; color: inherit; }
+  .logo-circle {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: linear-gradient(145deg, #00a6d6 0%, #0076ba 48%, #0dd7d2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+    color: #fff;
+  }
+  .logo-text { line-height: 1.15; }
+  .logo-text span:first-child { display: block; font-weight: 900; font-size: 15px; color: #ff7a18; }
+  .logo-text span:last-child { display: block; font-size: 11px; color: #ffffff; letter-spacing: 1px; text-transform: uppercase; }
+  .nav-link {
+    color: #ffffff;
+    border: 1.5px solid rgba(255,255,255,0.75);
+    border-radius: 8px;
+    padding: 10px 16px;
+    text-decoration: none;
+    font-weight: 700;
+    transition: all .2s;
+  }
+  .nav-link:hover { border-color: var(--teal); color: var(--teal); }
+  main { padding: 48px max(24px, calc((100vw - 1180px) / 2)) 64px; }
+  .header {
+    display: flex;
+    justify-content: space-between;
+    gap: 24px;
+    align-items: flex-end;
+    max-width: 1180px;
+    margin: 0 auto 28px;
+  }
+  .eyebrow { color: var(--teal); font-size: 12px; font-weight: 700; letter-spacing: 4px; text-transform: uppercase; margin-bottom: 10px; }
+  h1 {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 46px;
+    line-height: 1;
+    color: var(--text);
+  }
+  .header p { color: var(--muted); line-height: 1.6; margin-top: 12px; max-width: 560px; }
+  .status-pill {
+    border: 1px solid var(--card-border);
+    background: var(--card);
+    color: var(--muted);
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .layout {
+    max-width: 1180px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(320px, .9fr);
+    gap: 24px;
+    align-items: start;
+  }
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    padding: 28px;
+    box-shadow: 0 10px 32px rgba(20,35,50,0.07);
+  }
+  .panel h2 {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 28px;
+    color: var(--text);
+    margin-bottom: 18px;
+  }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .form-group { margin-bottom: 16px; }
+  .form-group.full { grid-column: 1 / -1; }
+  label {
+    display: block;
+    margin-bottom: 7px;
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 13px;
+  }
+  input, textarea, select {
+    width: 100%;
+    background: #ffffff;
+    border: 1px solid var(--card-border);
+    color: var(--text);
+    padding: 11px 13px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+  }
+  textarea { resize: vertical; min-height: 92px; }
+  input:focus, textarea:focus, select:focus { border-color: var(--teal); }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 6px; line-height: 1.45; }
+  .actions { display: flex; gap: 12px; align-items: center; margin-top: 8px; }
+  button {
+    border: none;
+    cursor: pointer;
+    border-radius: 8px;
+    padding: 13px 20px;
+    font-family: inherit;
+    font-weight: 800;
+    transition: all .2s;
+  }
+  button:hover { transform: translateY(-1px); }
+  .btn-primary { background: var(--teal); color: #ffffff; flex: 1; }
+  .btn-primary:hover { background: var(--teal2); }
+  .btn-secondary { background: transparent; color: var(--text); border: 1px solid var(--card-border); }
+  .message {
+    display: none;
+    padding: 13px 15px;
+    border-radius: 8px;
+    margin-bottom: 18px;
+    font-weight: 700;
+    line-height: 1.4;
+  }
+  .message.success { display: block; background: rgba(53,209,143,.12); color: var(--success); border: 1px solid rgba(53,209,143,.35); }
+  .message.error { display: block; background: rgba(255,92,119,.12); color: var(--danger); border: 1px solid rgba(255,92,119,.35); }
+  .course-list { display: flex; flex-direction: column; gap: 12px; }
+  .course-item {
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    padding: 16px;
+    background: #ffffff;
+  }
+  .course-item h3 { font-size: 17px; color: var(--text); margin-bottom: 6px; }
+  .course-meta { display: flex; flex-wrap: wrap; gap: 8px; color: var(--muted); font-size: 12px; }
+  .badge {
+    background: var(--soft-blue);
+    color: var(--teal);
+    border-radius: 999px;
+    padding: 4px 9px;
+    font-weight: 700;
+  }
+  .empty { color: var(--muted); line-height: 1.6; }
+  @media (max-width: 900px) {
+    nav, main { padding-left: 20px; padding-right: 20px; }
+    .header { flex-direction: column; align-items: flex-start; }
+    .layout { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 620px) {
+    h1 { font-size: 36px; }
+    .form-grid { grid-template-columns: 1fr; }
+    .actions { flex-direction: column; }
+    .actions button { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<nav>
+  <a class="logo" href="landing_global_training.html">
+    <div class="logo-circle">G</div>
+    <div class="logo-text">
+      <span>Global Training</span>
+      <span>Admin Technology</span>
+    </div>
+  </a>
+  <a class="nav-link" href="landing_global_training.html">Ver landing</a>
+</nav>
+
+<main>
+  <section class="header">
+    <div>
+      <div class="eyebrow">Painel administrativo</div>
+      <h1>Cadastrar cursos</h1>
+      <p>Os cursos criados aqui são salvos no backend e aparecem automaticamente na landing Global Training quando a API estiver rodando.</p>
+    </div>
+    <div class="status-pill" id="api-status">API: verificando...</div>
+  </section>
+
+  <section class="layout">
+    <form class="panel" id="courseForm">
+      <h2>Novo curso</h2>
+      <div id="formMessage" class="message"></div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="name">Nome do curso</label>
+          <input type="text" id="name" name="name" placeholder="Excel Profissional" required>
+        </div>
+        <div class="form-group">
+          <label for="id">ID do curso</label>
+          <input type="text" id="id" name="id" placeholder="excel_profissional" required>
+          <div class="hint">Gerado automaticamente pelo nome, mas pode ser ajustado.</div>
+        </div>
+        <div class="form-group">
+          <label for="price">Preco (R$)</label>
+          <input type="number" id="price" name="price" min="0" step="0.01" placeholder="497.00" required>
+        </div>
+        <div class="form-group">
+          <label for="duration_hours">Duracao em horas</label>
+          <input type="number" id="duration_hours" name="duration_hours" min="1" step="1" placeholder="24" required>
+        </div>
+        <div class="form-group">
+          <label for="level">Nivel</label>
+          <select id="level" name="level" required>
+            <option>Iniciante</option>
+            <option>Intermediario</option>
+            <option>Avancado</option>
+            <option>Iniciante ao Avancado</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="modality">Modalidade</label>
+          <select id="modality" name="modality" required>
+            <option>Presencial · Online · EAD</option>
+            <option>Presencial · Online</option>
+            <option>Online · EAD</option>
+            <option>EAD</option>
+            <option>In Company</option>
+          </select>
+        </div>
+        <div class="form-group full">
+          <label for="description">Descricao</label>
+          <textarea id="description" name="description" placeholder="Resumo comercial do curso para alunos interessados." required></textarea>
+        </div>
+        <div class="form-group full">
+          <label for="target_audience">Publico-alvo</label>
+          <textarea id="target_audience" name="target_audience" placeholder="Profissionais, estudantes e empresas que precisam..." required></textarea>
+        </div>
+        <div class="form-group full">
+          <label for="objectives">Objetivos</label>
+          <textarea id="objectives" name="objectives" placeholder="Um objetivo por linha" required></textarea>
+        </div>
+        <div class="form-group full">
+          <label for="topics">Topicos do curso</label>
+          <textarea id="topics" name="topics" placeholder="Um topico por linha" required></textarea>
+        </div>
+        <div class="form-group full">
+          <label for="benefits">Beneficios</label>
+          <textarea id="benefits" name="benefits" placeholder="Um beneficio por linha" required></textarea>
+        </div>
+        <div class="form-group full">
+          <label for="faq">FAQ</label>
+          <textarea id="faq" name="faq" placeholder="Pergunta? | Resposta&#10;Outra pergunta? | Outra resposta"></textarea>
+          <div class="hint">Use uma pergunta por linha no formato: pergunta | resposta.</div>
+        </div>
+        <div class="form-group full">
+          <label for="system_prompt">Instrucao para o agente de IA</label>
+          <textarea id="system_prompt" name="system_prompt" placeholder="Voce é um assistente especialista neste curso..." required></textarea>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button type="submit" class="btn-primary">Criar curso</button>
+        <button type="button" class="btn-secondary" id="clearBtn">Limpar</button>
+      </div>
+    </form>
+
+    <aside class="panel">
+      <h2>Cursos cadastrados</h2>
+      <div class="course-list" id="courseList">
+        <p class="empty">Carregando cursos...</p>
+      </div>
+    </aside>
+  </section>
+</main>
+
+<script>
+const API_URL = 'http://localhost:8000/api/admin';
+
+const form = document.getElementById('courseForm');
+const message = document.getElementById('formMessage');
+const statusPill = document.getElementById('api-status');
+const courseList = document.getElementById('courseList');
+const nameInput = document.getElementById('name');
+const idInput = document.getElementById('id');
+
+function slugify(value) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function linesToArray(value) {
+  return value.split('\n').map(item => item.trim()).filter(Boolean);
+}
+
+function parseFaq(value) {
+  const rows = linesToArray(value);
+  if (!rows.length) {
+    return [{
+      question: 'Vou receber certificado?',
+      answer: 'Sim, ao concluir o curso voce recebe certificado da Global Training Technology.'
+    }];
+  }
+  return rows.map(row => {
+    const [question, ...answerParts] = row.split('|');
+    return {
+      question: question.trim(),
+      answer: answerParts.join('|').trim() || 'Entre em contato com a Global Training para mais detalhes.'
+    };
+  }).filter(item => item.question);
+}
+
+function escapeHTML(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function setMessage(type, text) {
+  message.className = `message ${type}`;
+  message.textContent = text;
+  clearTimeout(setMessage.timer);
+  setMessage.timer = setTimeout(() => {
+    message.className = 'message';
+    message.textContent = '';
+  }, 6000);
+}
+
+function formatPrice(value) {
+  return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+async function loadCourses() {
+  try {
+    const response = await fetch(`${API_URL}/courses`);
+    const data = await response.json();
+    if (!response.ok || data.status !== 'success') {
+      throw new Error(data.detail || 'Erro ao carregar cursos');
+    }
+    statusPill.textContent = `API: online · ${data.total} curso(s)`;
+    courseList.innerHTML = data.courses.length
+      ? data.courses.map(course => `
+          <div class="course-item">
+            <h3>${escapeHTML(course.name)}</h3>
+            <div class="course-meta">
+              <span class="badge">${formatPrice(course.price)}</span>
+              <span>${escapeHTML(course.level || 'Nivel nao informado')}</span>
+              <span>ID: ${escapeHTML(course.id)}</span>
+            </div>
+          </div>
+        `).join('')
+      : '<p class="empty">Nenhum curso cadastrado ainda.</p>';
+  } catch (error) {
+    statusPill.textContent = 'API: offline';
+    courseList.innerHTML = '<p class="empty">Nao foi possivel carregar os cursos. Inicie o backend em http://localhost:8000.</p>';
+  }
+}
+
+nameInput.addEventListener('input', () => {
+  if (!idInput.dataset.edited) {
+    idInput.value = slugify(nameInput.value);
+  }
+});
+
+idInput.addEventListener('input', () => {
+  idInput.dataset.edited = 'true';
+  idInput.value = slugify(idInput.value);
+});
+
+document.getElementById('clearBtn').addEventListener('click', () => {
+  form.reset();
+  delete idInput.dataset.edited;
+});
+
+form.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const formData = new FormData(form);
+  const courseName = formData.get('name').trim();
+  const modality = formData.get('modality');
+
+  const courseData = {
+    id: slugify(formData.get('id')),
+    name: courseName,
+    description: formData.get('description').trim(),
+    price: Number(formData.get('price')),
+    duration_hours: Number.parseInt(formData.get('duration_hours'), 10),
+    level: `${formData.get('level')} · ${modality}`,
+    target_audience: formData.get('target_audience').trim(),
+    objectives: linesToArray(formData.get('objectives')),
+    topics: linesToArray(formData.get('topics')),
+    benefits: linesToArray(formData.get('benefits')),
+    faq: parseFaq(formData.get('faq')),
+    system_prompt: formData.get('system_prompt').trim()
+  };
+
+  try {
+    const response = await fetch(`${API_URL}/create-course`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(courseData)
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.detail || 'Erro ao criar curso');
+    }
+    setMessage('success', `Curso "${courseName}" criado com sucesso.`);
+    form.reset();
+    delete idInput.dataset.edited;
+    await loadCourses();
+  } catch (error) {
+    setMessage('error', error.message);
+  }
+});
+
+loadCourses();
+</script>
+</body>
+</html>

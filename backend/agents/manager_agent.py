@@ -1,0 +1,192 @@
+import json
+import os
+from pathlib import Path
+from typing import Dict, List, Tuple
+from agents.course_agent import CourseAgent
+from agents.groq_client import GroqChatClient
+
+# Load environment variables if not already loaded
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+class ManagerAgent:
+    """
+    Manager agent that identifies user intent and routes to appropriate course agents
+    Uses Groq LLM for fast inference
+    """
+    
+    def __init__(self):
+        self.courses: Dict = {}
+        self.course_agents: Dict[str, CourseAgent] = {}
+        self.sessions: Dict = {}  # Store conversation history per session
+        
+        # Initialize Groq chat client
+        self.llm = GroqChatClient()
+        self.courses_dir = Path(__file__).parent.parent / "courses"
+        print(f"✅ ManagerAgent using Groq model: {self.llm.model}")
+        
+    def load_courses(self, reload: bool = False):
+        """Load all courses from JSON files in courses directory"""
+        if reload:
+            self.courses = {}
+            self.course_agents = {}
+
+        if not self.courses_dir.exists():
+            print(f"⚠️  Courses directory not found: {self.courses_dir}")
+            return
+            
+        for course_file in self.courses_dir.glob("*.json"):
+            try:
+                with open(course_file, 'r', encoding='utf-8') as f:
+                    course_data = json.load(f)
+                    course_id = course_data.get('id', course_file.stem)
+                    self.courses[course_id] = course_data
+                    
+                    # Create course agent for this course
+                    self.course_agents[course_id] = CourseAgent(course_data)
+                    print(f"✓ Loaded course: {course_data.get('name')}")
+            except Exception as e:
+                print(f"✗ Error loading {course_file}: {str(e)}")
+    
+    def get_course_names_list(self) -> str:
+        """Return formatted list of available courses"""
+        if not self.courses:
+            return "Nenhum curso disponível no momento."
+        
+        courses_list = []
+        for course in self.courses.values():
+            name = course.get('name', 'Unknown')
+            price = course.get('price', 'N/A')
+            courses_list.append(f"• {name} (R$ {price})")
+        
+        return "\n".join(courses_list)
+    
+    def create_system_prompt(self) -> str:
+        """Create the system prompt for the manager agent"""
+        courses_info = self.get_course_names_list()
+        
+        return f"""Você é um assistente gerenciador de cursos de uma escola de tecnologia.
+
+CURSOS DISPONÍVEIS:
+{courses_info}
+
+Sua função é:
+1. Entender o que o usuário quer (qual curso, informações gerais, preço, etc)
+2. Fornecer informações persuasivas sobre os cursos
+3. Ajudar na decisão de compra
+4. Rotear para agentes especializados quando necessário
+
+INSTRUÇÕES IMPORTANTES:
+- Seja amigável e profissional
+- Se não conseguir entender, peça clarificação
+- Incentive o usuário a conhecer os cursos
+- Esteja sempre pronto para discutir preços, duração, objetivos
+- Se o usuário pedir detalhes muito específicos de um curso, mencione que pode ajudar melhor
+
+Responda em português (pt-BR)."""
+    
+    def identify_course_intent(self, user_message: str) -> Tuple[str, bool]:
+        """
+        Identify which course (if any) the user is interested in
+        Returns: (course_id, is_course_specific)
+        """
+        # Simple keyword matching first (fast)
+        message_lower = user_message.lower()
+        
+        for course_id, course_data in self.courses.items():
+            course_name = course_data.get('name', '').lower()
+            if course_name and course_name in message_lower:
+                return course_id, True
+            if course_id.lower().replace("_", " ") in message_lower:
+                return course_id, True
+        
+        # If no direct match, use LLM to identify
+        try:
+            identify_prompt = f"""Dado o seguinte texto do usuário, identifique se ele está perguntando sobre um curso específico.
+
+CURSOS DISPONÍVEIS:
+{self._get_courses_for_routing()}
+
+MENSAGEM DO USUÁRIO: {user_message}
+
+Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
+"""
+            response_text = self.llm.create_chat_completion([
+                {"role": "system", "content": "Você é um assistente que identifica intenções. Responda com apenas uma palavra."},
+                {"role": "user", "content": identify_prompt}
+            ], max_tokens=200, temperature=0.3)
+            result = response_text.strip().strip('`"\'').split()[0]
+            course_lookup = {course_id.lower(): course_id for course_id in self.courses}
+            
+            if result.lower() in course_lookup:
+                return course_lookup[result.lower()], True
+                
+        except Exception as e:
+            print(f"Error in course identification: {str(e)}")
+        
+        return "GENERAL", False
+    
+    def _get_courses_for_routing(self) -> str:
+        """Get courses list for routing prompt"""
+        courses_list = []
+        for course_id, course_data in self.courses.items():
+            name = course_data.get('name', 'Unknown')
+            courses_list.append(f"{course_id}: {name}")
+        return "\n".join(courses_list)
+    
+    def process_message(self, user_message: str, session_id: str = "default") -> str:
+        """
+        Process user message and route to appropriate agent or respond directly
+        """
+        # Initialize session if not exists
+        if session_id not in self.sessions:
+            self.sessions[session_id] = []
+        
+        # Identify course intent
+        course_id, is_specific = self.identify_course_intent(user_message)
+        
+        # Get conversation history for context
+        conversation_history = self.sessions[session_id].copy()
+        conversation_history.append({"role": "user", "content": user_message})
+        
+        # If course-specific, use course agent
+        if is_specific and course_id in self.course_agents:
+            response = self.course_agents[course_id].answer_question(
+                user_message, 
+                conversation_history
+            )
+        else:
+            # Use manager agent for general questions
+            response = self._answer_general_question(user_message, conversation_history)
+        
+        # Store in history
+        self.sessions[session_id].append({"role": "user", "content": user_message})
+        self.sessions[session_id].append({"role": "assistant", "content": response})
+        
+        # Keep only last 20 messages in history to avoid context overflow
+        if len(self.sessions[session_id]) > 40:
+            self.sessions[session_id] = self.sessions[session_id][-40:]
+        
+        return response
+    
+    def _answer_general_question(self, user_message: str, history: List) -> str:
+        """Answer a general question using the LLM"""
+        try:
+            # Build messages for LLM
+            messages = [{"role": "system", "content": self.create_system_prompt()}]
+            
+            # Add conversation history (last 10 entries to avoid overflow)
+            for msg in history[-10:]:
+                messages.append({"role": msg["role"], "content": msg["content"]})
+            
+            # Get response from Groq
+            response_text = self.llm.create_chat_completion(messages, max_tokens=600)
+            return response_text
+            
+        except Exception as e:
+            error_response = f"Desculpe, ocorreu um erro ao processar sua mensagem: {str(e)}"
+            print(f"Error in general question: {error_response}")
+            return error_response

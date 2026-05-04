@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Global Training Technology</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;900&family=Barlow+Condensed:wght@700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --dark: #ffffff;
+    --dark2: #f7f9fb;
+    --teal: #0096c7;
+    --teal2: #0077a3;
+    --blue: #00a6d6;
+    --nav: #212830;
+    --text: #17212b;
+    --muted: #66707c;
+    --card: #ffffff;
+    --card-border: #d8e0e8;
+    --soft-blue: #eaf8fc;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Barlow', sans-serif; background: var(--dark); color: var(--text); overflow-x: hidden; }
+
+  /* NAV */
+  nav {
+    background: var(--nav);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 max(28px, calc((100vw - 1180px) / 2)); height: 88px;
+    border-bottom: 1px solid #1b2229;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-circle {
+    width: 48px; height: 48px; border-radius: 50%;
+    background: linear-gradient(145deg, #00a6d6 0%, #0076ba 48%, #0dd7d2 100%);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 900; font-size: 18px; color: #fff;
+  }
+  .logo-text { line-height: 1.15; }
+  .logo-text span:first-child { display: block; font-weight: 900; font-size: 15px; color: #ff7a18; }
+  .logo-text span:last-child { display: block; font-size: 11px; color: #ffffff; letter-spacing: 1px; text-transform: uppercase; }
+  nav ul { list-style: none; display: flex; gap: 32px; }
+  nav ul li a { color: #ffffff; text-decoration: none; font-size: 15px; font-weight: 500; letter-spacing: 0; transition: color .2s; }
+  nav ul li a:hover { color: #00b7df; }
+  .nav-cta {
+    background: transparent; color: #ffffff; padding: 9px 22px;
+    border-radius: 6px; font-weight: 700; font-size: 14px; text-decoration: none;
+    border: 1.5px solid rgba(255,255,255,0.75); transition: all .2s;
+  }
+  .nav-cta:hover { border-color: #00b7df; color: #00b7df; }
+
+  /* HERO */
+  .hero {
+    background: #ffffff;
+    width: min(100%, 1180px);
+    margin: 0 auto;
+    padding: 72px 24px 58px;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 72px;
+    border-bottom: none;
+    position: relative; overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute; top: -80px; right: -80px;
+    width: 500px; height: 500px;
+    background: radial-gradient(circle, rgba(0,150,199,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero-left { max-width: 560px; flex: 1 1 0; }
+  .hero-badge {
+    display: inline-block;
+    background: transparent; color: var(--teal);
+    padding: 0; border-radius: 0; font-size: 26px;
+    font-weight: 700; letter-spacing: 5px; text-transform: uppercase;
+    margin-bottom: 20px; border: none;
+  }
+  .hero h1 {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 58px; font-weight: 900; line-height: 1.0;
+    color: var(--text); margin-bottom: 20px;
+  }
+  .hero h1 span { color: var(--teal); }
+  .hero p { font-size: 17px; color: var(--muted); line-height: 1.7; margin-bottom: 32px; max-width: 460px; }
+  .hero-btns { display: flex; gap: 14px; flex-wrap: wrap; }
+  .btn-primary {
+    background: var(--teal); color: #ffffff;
+    padding: 14px 32px; border-radius: 8px; font-weight: 700;
+    font-size: 15px; text-decoration: none; transition: all .2s;
+    border: none; cursor: pointer;
+  }
+  .btn-primary:hover { background: var(--teal2); transform: translateY(-1px); }
+  .btn-outline {
+    background: transparent; color: var(--text);
+    padding: 14px 32px; border-radius: 8px; font-weight: 600;
+    font-size: 15px; text-decoration: none; transition: all .2s;
+    border: 1.5px solid #17212b; cursor: pointer;
+  }
+  .btn-outline:hover { border-color: var(--teal); color: var(--teal); }
+  .hero-stats { display: flex; gap: 40px; margin-top: 40px; }
+  .stat-item .stat-num { font-family: 'Barlow Condensed', sans-serif; font-size: 38px; font-weight: 900; color: var(--teal); }
+  .stat-item .stat-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .hero-right { flex: 0 0 320px; display: flex; justify-content: flex-end; }
+  .trust-card {
+    background: var(--card); border: 1px solid var(--card-border);
+    border-radius: 8px; padding: 28px 32px; width: 300px;
+    box-shadow: 0 8px 24px rgba(16,31,45,0.06);
+  }
+  .trust-card h3 { font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 20px; }
+  .trust-list { display: flex; flex-direction: column; gap: 14px; }
+  .trust-item { display: flex; align-items: center; gap: 12px; font-size: 14px; color: var(--text); }
+  .trust-icon { width: 32px; height: 32px; border-radius: 8px; background: var(--soft-blue); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+
+  /* SECTION TITLES */
+  .section { padding: 72px max(24px, calc((100vw - 1180px) / 2)); }
+  .section-header { text-align: center; margin-bottom: 48px; }
+  .section-tag { font-size: 13px; font-weight: 700; color: var(--teal); letter-spacing: 4px; text-transform: uppercase; margin-bottom: 12px; }
+  .section-title { font-family: 'Barlow Condensed', sans-serif; font-size: 42px; font-weight: 900; color: var(--text); }
+  .section-sub { font-size: 16px; color: var(--muted); margin-top: 10px; }
+
+  /* COURSES */
+  .courses-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;
+    max-width: 1100px; margin: 0 auto;
+  }
+  .course-card {
+    background: var(--card); border: 1px solid var(--card-border);
+    border-radius: 6px; padding: 32px 24px;
+    transition: all .25s; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+    gap: 12px;
+  }
+  .course-card:hover { border-color: #9fd3e4; transform: translateY(-3px); box-shadow: 0 12px 32px rgba(20,35,50,0.10); }
+  .course-icon { font-size: 44px; line-height: 1; }
+  .course-name { font-size: 22px; font-weight: 800; color: var(--text); }
+  .course-type { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .course-meta { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 4px; }
+  .badge { background: var(--soft-blue); color: var(--teal); padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .badge-gray { background: rgba(255,255,255,0.06); color: var(--muted); padding: 3px 10px; border-radius: 20px; font-size: 11px; }
+  .course-price { font-family: 'Barlow Condensed', sans-serif; font-size: 28px; font-weight: 900; color: var(--teal); margin-top: 4px; }
+  .course-price span { font-size: 14px; font-weight: 400; color: var(--muted); }
+  .btn-enroll {
+    width: 100%; padding: 11px; border-radius: 8px;
+    background: transparent; color: var(--text);
+    font-weight: 700; font-size: 14px; border: none; cursor: pointer;
+    border: 1.5px solid #17212b;
+    transition: all .2s; margin-top: 4px;
+  }
+  .btn-enroll:hover { background: var(--text); color: #ffffff; }
+  .btn-contact {
+    width: 100%; padding: 11px; border-radius: 8px;
+    background: transparent; color: var(--text);
+    font-weight: 600; font-size: 14px;
+    border: 1.5px solid var(--card-border); cursor: pointer;
+    transition: all .2s;
+  }
+  .btn-contact:hover { border-color: var(--teal); color: var(--teal); }
+
+  /* COMO FUNCIONA */
+  .steps { background: var(--dark2); border-block: 1px solid var(--card-border); }
+  .steps-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; max-width: 1100px; margin: 0 auto; }
+  .step-card { text-align: center; padding: 24px 16px; }
+  .step-num {
+    width: 48px; height: 48px; border-radius: 50%;
+    background: var(--soft-blue); border: 1.5px solid #b8e7f1;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 900;
+    color: var(--teal); margin: 0 auto 16px;
+  }
+  .step-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 8px; color: var(--text); }
+  .step-card p { font-size: 14px; color: var(--muted); line-height: 1.6; }
+
+  /* CHATBOT */
+  #chat-btn {
+    position: fixed; bottom: 28px; right: 28px; z-index: 200;
+    width: 58px; height: 58px; border-radius: 50%;
+    background: #40c351; border: none; cursor: pointer;
+    box-shadow: 0 4px 24px rgba(64,195,81,0.35);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px; transition: transform .2s;
+  }
+  #chat-btn:hover { transform: scale(1.08); }
+  #chat-bubble {
+    position: fixed; bottom: 96px; right: 28px; z-index: 200;
+    width: 340px; background: #ffffff;
+    border: 1px solid var(--card-border);
+    border-radius: 16px; overflow: hidden;
+    box-shadow: 0 20px 60px rgba(20,35,50,0.22);
+    display: none; flex-direction: column;
+  }
+  #chat-bubble.open { display: flex; }
+  .chat-header {
+    background: var(--nav);
+    padding: 16px 20px; display: flex; align-items: center; gap: 12px;
+    border-bottom: 1px solid var(--card-border);
+  }
+  .chat-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, var(--blue), var(--teal)); display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .chat-header-info h4 { font-size: 14px; font-weight: 700; color: #fff; }
+  .chat-header-info span { font-size: 12px; color: var(--teal); }
+  .chat-close { margin-left: auto; background: none; border: none; color: #ffffff; font-size: 20px; cursor: pointer; }
+  .chat-messages { padding: 16px; display: flex; flex-direction: column; gap: 12px; max-height: 280px; overflow-y: auto; }
+  .msg { max-width: 80%; padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.5; }
+  .msg-bot { background: #f0f4f7; color: var(--text); align-self: flex-start; border-bottom-left-radius: 4px; }
+  .msg-user { background: var(--teal); color: #ffffff; align-self: flex-end; border-bottom-right-radius: 4px; font-weight: 600; }
+  .chat-quick { padding: 0 16px 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .quick-btn {
+    background: #ffffff; border: 1px solid var(--card-border);
+    color: var(--text); padding: 6px 12px; border-radius: 20px;
+    font-size: 12px; cursor: pointer; transition: all .2s;
+  }
+  .quick-btn:hover { border-color: var(--teal); color: var(--teal); }
+  .chat-input-row { padding: 12px 16px; display: flex; gap: 8px; border-top: 1px solid var(--card-border); }
+  .chat-input {
+    flex: 1; background: #ffffff; border: 1px solid var(--card-border);
+    color: var(--text); padding: 9px 14px; border-radius: 8px;
+    font-size: 13px; outline: none; font-family: inherit;
+  }
+  .chat-input:focus { border-color: var(--teal); }
+  .chat-send {
+    background: var(--teal); border: none; border-radius: 8px;
+    width: 36px; height: 36px; cursor: pointer; font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .2s;
+  }
+  .chat-send:hover { background: var(--teal2); }
+
+  /* PAYMENT MODAL */
+  #modal-overlay {
+    display: none; position: fixed; inset: 0; z-index: 300;
+    background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+    align-items: center; justify-content: center;
+  }
+  #modal-overlay.open { display: flex; }
+  .modal {
+    background: #ffffff; border: 1px solid var(--card-border);
+    border-radius: 8px; padding: 36px; width: 460px; max-width: 94vw;
+    box-shadow: 0 24px 70px rgba(20,35,50,0.25);
+  }
+  .modal h2 { font-family: 'Barlow Condensed', sans-serif; font-size: 28px; font-weight: 900; margin-bottom: 6px; }
+  .modal-course-name { color: var(--teal); font-size: 16px; font-weight: 600; margin-bottom: 24px; }
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+  .form-group input, .form-group select {
+    width: 100%; background: #ffffff; border: 1px solid var(--card-border);
+    color: var(--text); padding: 11px 14px; border-radius: 8px;
+    font-size: 14px; outline: none; font-family: inherit;
+  }
+  .form-group input:focus, .form-group select:focus { border-color: var(--teal); }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .payment-methods { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+  .pay-opt {
+    flex: 1; min-width: 80px; padding: 10px;
+    background: #ffffff; border: 1.5px solid var(--card-border);
+    border-radius: 8px; text-align: center; cursor: pointer;
+    font-size: 12px; font-weight: 600; color: var(--muted); transition: all .2s;
+  }
+  .pay-opt.active { border-color: var(--teal); color: var(--teal); background: var(--soft-blue); }
+  .pay-opt .pay-icon { font-size: 22px; display: block; margin-bottom: 4px; }
+  .modal-footer { display: flex; gap: 12px; margin-top: 8px; }
+  .modal-footer .btn-primary { flex: 1; text-align: center; font-size: 15px; }
+  .modal-close-btn { background: none; border: 1.5px solid var(--card-border); color: var(--muted); padding: 14px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all .2s; }
+  .modal-close-btn:hover { border-color: var(--muted); }
+
+  /* FOOTER */
+  footer {
+    background: var(--nav); border-top: 1px solid #1b2229;
+    padding: 32px 48px; text-align: center;
+    color: #dfe6ec; font-size: 13px;
+  }
+  footer strong { color: #ffffff; }
+
+  @media (max-width: 768px) {
+    nav { padding: 0 20px; }
+    nav ul { display: none; }
+    .hero { flex-direction: column; padding: 48px 20px; gap: 32px; }
+    .hero-badge { font-size: 18px; letter-spacing: 3px; }
+    .hero h1 { font-size: 40px; }
+    .hero-right { width: 100%; flex-basis: auto; justify-content: stretch; }
+    .trust-card { width: 100%; }
+    .courses-grid { grid-template-columns: 1fr 1fr; }
+    .steps-grid { grid-template-columns: 1fr 1fr; }
+    .section { padding: 48px 20px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="logo">
+    <div class="logo-circle">G</div>
+    <div class="logo-text">
+      <span>Global Training</span>
+      <span>Technology</span>
+    </div>
+  </div>
+  <ul>
+    <li><a href="#">Cursos</a></li>
+    <li><a href="#">Global EAD</a></li>
+    <li><a href="#">In Company</a></li>
+    <li><a href="#">Quem Somos</a></li>
+    <li><a href="admin.html">Admin</a></li>
+  </ul>
+  <a href="#cursos" class="nav-cta">Ver cursos</a>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-left">
+    <div class="hero-badge">Matrículas abertas 2026</div>
+    <h1>Treinamentos<br>que <span>transformam</span><br>carreiras.</h1>
+    <p>Presencial, Online ao Vivo e EAD. Do Excel ao SolidWorks — domine as ferramentas que o mercado exige.</p>
+    <div class="hero-btns">
+      <a href="#cursos" class="btn-primary">Ver todos os cursos</a>
+      <button class="btn-outline" onclick="toggleChat()">💬 Falar com IA</button>
+    </div>
+    <div class="hero-stats">
+      <div class="stat-item">
+        <div class="stat-num">10k+</div>
+        <div class="stat-label">Alunos formados</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">500+</div>
+        <div class="stat-label">Empresas parceiras</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">100%</div>
+        <div class="stat-label">Taxa de aprovação</div>
+      </div>
+    </div>
+  </div>
+  <div class="hero-right">
+    <div class="trust-card">
+      <h3>Por que a Global?</h3>
+      <div class="trust-list">
+        <div class="trust-item"><div class="trust-icon">🎓</div> Certificado reconhecido pelo mercado</div>
+        <div class="trust-item"><div class="trust-icon">👨‍💻</div> Instrutores especialistas e ativos</div>
+        <div class="trust-item"><div class="trust-icon">📅</div> Turmas presenciais e online</div>
+        <div class="trust-item"><div class="trust-icon">🏢</div> Treinamentos In-Company disponíveis</div>
+        <div class="trust-item"><div class="trust-icon">⚡</div> Suporte antes, durante e após o curso</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- COMO FUNCIONA -->
+<section class="section steps">
+  <div class="section-header">
+    <div class="section-tag">Simples assim</div>
+    <div class="section-title">Do interesse à matrícula em minutos</div>
+  </div>
+  <div class="steps-grid">
+    <div class="step-card">
+      <div class="step-num">1</div>
+      <h3>Escolha o curso</h3>
+      <p>Navegue pelos cursos disponíveis e encontre o que se encaixa no seu perfil.</p>
+    </div>
+    <div class="step-card">
+      <div class="step-num">2</div>
+      <h3>Tire suas dúvidas</h3>
+      <p>Use nosso chatbot com IA ou fale com um especialista para esclarecer tudo.</p>
+    </div>
+    <div class="step-card">
+      <div class="step-num">3</div>
+      <h3>Faça sua matrícula</h3>
+      <p>Preencha seus dados e escolha a forma de pagamento — tudo aqui mesmo.</p>
+    </div>
+    <div class="step-card">
+      <div class="step-num">4</div>
+      <h3>Comece a aprender</h3>
+      <p>Receba as instruções de acesso e inicie sua jornada imediatamente.</p>
+    </div>
+  </div>
+</section>
+
+<!-- CURSOS -->
+<section class="section" id="cursos">
+  <div class="section-header">
+    <div class="section-tag">Formações profissionais</div>
+    <div class="section-title">Cursos com matrículas abertas</div>
+    <div class="section-sub">Treinamentos Presenciais, Online ao Vivo e EAD disponíveis</div>
+  </div>
+  <div class="courses-grid" id="courses-grid">
+    <!-- Cards gerados por JS -->
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <strong>Global Training Technology</strong> · Todos os direitos reservados · 
+  <span>Este é um protótipo de MVP desenvolvido como TCC</span>
+</footer>
+
+<!-- CHATBOT -->
+<button id="chat-btn" onclick="toggleChat()">💬</button>
+<div id="chat-bubble">
+  <div class="chat-header">
+    <div class="chat-avatar">🤖</div>
+    <div class="chat-header-info">
+      <h4>Assistente Global Training</h4>
+      <span>● Online agora</span>
+    </div>
+    <button class="chat-close" onclick="toggleChat()">×</button>
+  </div>
+  <div class="chat-messages" id="chat-messages">
+    <div class="msg msg-bot">Olá! 👋 Sou o assistente da Global Training Technology. Posso te ajudar a escolher um curso ou responder suas dúvidas!</div>
+  </div>
+  <div class="chat-quick" id="quick-replies">
+    <button class="quick-btn" onclick="quickReply('Quais cursos têm vagas?')">Quais cursos têm vagas?</button>
+    <button class="quick-btn" onclick="quickReply('Como funciona o EAD?')">Como funciona o EAD?</button>
+    <button class="quick-btn" onclick="quickReply('Tem curso de Excel?')">Tem curso de Excel?</button>
+  </div>
+  <div class="chat-input-row">
+    <input type="text" class="chat-input" id="chat-input" placeholder="Digite sua dúvida..." onkeydown="if(event.key==='Enter') sendMsg()">
+    <button class="chat-send" onclick="sendMsg()">➤</button>
+  </div>
+</div>
+
+<!-- MODAL DE MATRÍCULA -->
+<div id="modal-overlay">
+  <div class="modal">
+    <h2>Fazer Matrícula</h2>
+    <div class="modal-course-name" id="modal-course-name">Excel Profissional</div>
+    <div class="form-group">
+      <label>Nome completo</label>
+      <input type="text" placeholder="Seu nome">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>E-mail</label>
+        <input type="email" placeholder="seu@email.com">
+      </div>
+      <div class="form-group">
+        <label>Telefone / WhatsApp</label>
+        <input type="text" placeholder="(11) 99999-0000">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Modalidade</label>
+      <select>
+        <option>Presencial</option>
+        <option>Online ao Vivo</option>
+        <option>EAD (gravado)</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Forma de pagamento</label>
+      <div class="payment-methods">
+        <div class="pay-opt active" onclick="selectPay(this)"><span class="pay-icon">💳</span>Cartão</div>
+        <div class="pay-opt" onclick="selectPay(this)"><span class="pay-icon">📱</span>PIX</div>
+        <div class="pay-opt" onclick="selectPay(this)"><span class="pay-icon">🏦</span>Boleto</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="modal-close-btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn-primary" onclick="submitEnroll()">Confirmar matrícula →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const defaultCourses = [
+  { name: "Excel Profissional", icon: "📊", type: "Presencial · Online · EAD", tags: ["Iniciante ao Avançado"], price: "R$ 497" },
+  { name: "Excel Avançado", icon: "📈", type: "Presencial · Online", tags: ["Avançado"], price: "R$ 397" },
+  { name: "Power BI Profissional", icon: "📉", type: "Presencial · Online · EAD", tags: ["Análise de Dados"], price: "R$ 597" },
+];
+
+async function loadCoursesFromBackend() {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/admin/courses`);
+    const data = await response.json();
+    if (data.status === 'success' && data.courses && data.courses.length > 0) {
+      renderCourses(data.courses.map(course => ({
+        name: course.name,
+        icon: '🎓',
+        type: course.level || 'Curso disponível',
+        tags: [course.level || 'Curso'],
+        price: course.price ? `R$ ${course.price}` : 'R$ N/A',
+        id: course.id
+      })));
+      return;
+    }
+  } catch (error) {
+    console.warn('Não foi possível carregar cursos do backend, usando lista padrão.', error);
+  }
+  renderCourses(defaultCourses);
+}
+
+function renderCourses(courses) {
+  const grid = document.getElementById('courses-grid');
+  grid.innerHTML = courses.map(c => `
+    <div class="course-card">
+      <div class="course-icon">${escapeHTML(c.icon)}</div>
+      <div class="course-name">${escapeHTML(c.name)}</div>
+      <div class="course-type">${escapeHTML(c.type)}</div>
+      <div class="course-meta">
+        ${c.tags.map(t => `<span class="badge">${escapeHTML(t)}</span>`).join('')}
+      </div>
+      <div class="course-price">${escapeHTML(c.price)} <span>/ curso</span></div>
+      <button class="btn-enroll" onclick="openModal(decodeURIComponent('${encodeURIComponent(c.name)}'))">Matricular agora</button>
+      <button class="btn-contact" onclick="chatAbout(decodeURIComponent('${encodeURIComponent(c.name)}'))">Tirar dúvidas com IA</button>
+    </div>
+  `).join('');
+}
+
+// MODAL
+function openModal(name) {
+  document.getElementById('modal-course-name').textContent = name;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+function selectPay(el) {
+  document.querySelectorAll('.pay-opt').forEach(e => e.classList.remove('active'));
+  el.classList.add('active');
+}
+function submitEnroll() {
+  closeModal();
+  setTimeout(() => alert('✅ Matrícula recebida! Em breve você receberá as instruções no e-mail cadastrado.'), 100);
+}
+document.getElementById('modal-overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+// CHATBOT
+let chatOpen = false;
+const BACKEND_URL = 'http://localhost:8000';
+function toggleChat() {
+  chatOpen = !chatOpen;
+  document.getElementById('chat-bubble').classList.toggle('open', chatOpen);
+}
+function escapeHTML(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+function markdownToHtml(text) {
+  const escaped = escapeHTML(text);
+  const linkified = escaped.replace(/\[(.*?)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+  const codeInline = linkified.replace(/`([^`]+)`/g, '<code>$1</code>');
+  const bolded = codeInline.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/__(.*?)__/g, '<strong>$1</strong>');
+  const italicized = bolded.replace(/\*(.*?)\*/g, '<em>$1</em>').replace(/_(.*?)_/g, '<em>$1</em>');
+  const lines = italicized.split('\n');
+  let html = '';
+  let listType = null;
+
+  const closeList = () => {
+    if (listType === 'ul') html += '</ul>';
+    if (listType === 'ol') html += '</ol>';
+    listType = null;
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) {
+      closeList();
+      continue;
+    }
+    const unorderedMatch = line.match(/^(?:\*|\+|\-)\s+(.*)$/);
+    const orderedMatch = line.match(/^(\d+)\.\s+(.*)$/);
+    if (unorderedMatch) {
+      if (listType !== 'ul') {
+        closeList();
+        listType = 'ul';
+        html += '<ul>';
+      }
+      html += `<li>${unorderedMatch[1]}</li>`;
+      continue;
+    }
+    if (orderedMatch) {
+      if (listType !== 'ol') {
+        closeList();
+        listType = 'ol';
+        html += '<ol>';
+      }
+      html += `<li>${orderedMatch[2]}</li>`;
+      continue;
+    }
+    closeList();
+    html += `<p>${line}</p>`;
+  }
+
+  closeList();
+  return html;
+}
+function addMsg(text, type) {
+  const msgs = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = `msg msg-${type}`;
+  if (type === 'bot') {
+    div.innerHTML = markdownToHtml(text);
+  } else {
+    div.textContent = text;
+  }
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+function setChatStatus(text) {
+  const status = document.querySelector('.chat-header-info span');
+  if (status) status.textContent = text;
+}
+async function sendMsg() {
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+  addMsg(text, 'user');
+  input.value = '';
+  document.getElementById('quick-replies').style.display = 'none';
+  addMsg('⌛ Processando...', 'bot');
+  setChatStatus('Conectando...');
+
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text, session_id: 'web-chat-session' })
+    });
+    const data = await response.json();
+    const botMsg = data.status === 'success' ? data.message : `Erro: ${data.message || 'não foi possível responder'}`;
+    const msgs = document.getElementById('chat-messages');
+    const lastMsg = msgs.lastElementChild;
+    if (lastMsg && lastMsg.classList.contains('msg-bot') && lastMsg.textContent === '⌛ Processando...') {
+      lastMsg.innerHTML = markdownToHtml(botMsg);
+    } else {
+      addMsg(botMsg, 'bot');
+    }
+    setChatStatus('Online agora');
+  } catch (error) {
+    const msgs = document.getElementById('chat-messages');
+    const lastMsg = msgs.lastElementChild;
+    const errorText = 'Desculpe, não foi possível conectar ao servidor.';
+    if (lastMsg && lastMsg.classList.contains('msg-bot') && lastMsg.textContent === '⌛ Processando...') {
+      lastMsg.textContent = errorText;
+    } else {
+      addMsg(errorText, 'bot');
+    }
+    setChatStatus('Offline');
+    console.error(error);
+  }
+}
+function quickReply(text) {
+  if (!chatOpen) toggleChat();
+  document.getElementById('chat-input').value = text;
+  sendMsg();
+}
+function chatAbout(courseName) {
+  if (!chatOpen) toggleChat();
+  const question = `Quero saber mais sobre o curso ${courseName}.`;
+  document.getElementById('chat-input').value = question;
+  sendMsg();
+}
+
+loadCoursesFromBackend();
+</script>
+</body>
+</html>
