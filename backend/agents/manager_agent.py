@@ -1,5 +1,6 @@
 import json
 import os
+import unicodedata
 from pathlib import Path
 from typing import Dict, List, Tuple
 from agents.course_agent import CourseAgent
@@ -30,26 +31,31 @@ class ManagerAgent:
         
     def load_courses(self, reload: bool = False):
         """Load all courses from JSON files in courses directory"""
-        if reload:
-            self.courses = {}
-            self.course_agents = {}
-
         if not self.courses_dir.exists():
             print(f"⚠️  Courses directory not found: {self.courses_dir}")
-            return
+            self.courses = {}
+            self.course_agents = {}
+            return 0
+
+        courses: Dict = {}
+        course_agents: Dict[str, CourseAgent] = {}
             
         for course_file in self.courses_dir.glob("*.json"):
             try:
                 with open(course_file, 'r', encoding='utf-8') as f:
                     course_data = json.load(f)
                     course_id = course_data.get('id', course_file.stem)
-                    self.courses[course_id] = course_data
+                    courses[course_id] = course_data
                     
                     # Create course agent for this course
-                    self.course_agents[course_id] = CourseAgent(course_data)
+                    course_agents[course_id] = CourseAgent(course_data)
                     print(f"✓ Loaded course: {course_data.get('name')}")
             except Exception as e:
                 print(f"✗ Error loading {course_file}: {str(e)}")
+
+        self.courses = courses
+        self.course_agents = course_agents
+        return len(self.courses)
     
     def get_course_names_list(self) -> str:
         """Return formatted list of available courses"""
@@ -94,13 +100,16 @@ Responda em português (pt-BR)."""
         Returns: (course_id, is_course_specific)
         """
         # Simple keyword matching first (fast)
-        message_lower = user_message.lower()
+        message_lower = self._normalize_text(user_message)
         
         for course_id, course_data in self.courses.items():
-            course_name = course_data.get('name', '').lower()
+            course_name = self._normalize_text(course_data.get('name', ''))
+            normalized_course_id = self._normalize_text(course_id.replace("_", " "))
             if course_name and course_name in message_lower:
                 return course_id, True
-            if course_id.lower().replace("_", " ") in message_lower:
+            if normalized_course_id and normalized_course_id in message_lower:
+                return course_id, True
+            if self._matches_course_keywords(message_lower, course_name, normalized_course_id):
                 return course_id, True
         
         # If no direct match, use LLM to identify
@@ -128,6 +137,22 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
             print(f"Error in course identification: {str(e)}")
         
         return "GENERAL", False
+
+    def _normalize_text(self, value: str) -> str:
+        """Normalize text for accent-insensitive and case-insensitive matching."""
+        normalized = unicodedata.normalize("NFD", value or "")
+        without_accents = "".join(char for char in normalized if unicodedata.category(char) != "Mn")
+        return " ".join(without_accents.lower().replace("_", " ").split())
+
+    def _matches_course_keywords(self, message: str, course_name: str, course_id: str) -> bool:
+        """Match important course words so "tem Python?" finds "Python Básico"."""
+        ignored_terms = {
+            "curso", "basico", "avancado", "intermediario", "profissional",
+            "online", "ead", "presencial", "in", "company", "de", "do", "da",
+        }
+        terms = set(course_name.split()) | set(course_id.split())
+        relevant_terms = [term for term in terms if len(term) >= 3 and term not in ignored_terms]
+        return any(term in message for term in relevant_terms)
     
     def _get_courses_for_routing(self) -> str:
         """Get courses list for routing prompt"""

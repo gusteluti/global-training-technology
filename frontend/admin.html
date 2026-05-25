@@ -559,7 +559,10 @@ form.addEventListener('submit', async (event) => {
     if (!response.ok) {
       throw new Error(data.detail || 'Erro ao criar curso');
     }
-    setMessage('success', `Curso "${courseName}" criado com sucesso.`);
+    const agentCount = Number.isFinite(Number(data.agent_courses_loaded))
+      ? ` IA atualizada com ${data.agent_courses_loaded} curso(s).`
+      : '';
+    setMessage('success', `Curso "${courseName}" criado com sucesso.${agentCount}`);
     form.reset();
     delete idInput.dataset.edited;
     await loadCourses();

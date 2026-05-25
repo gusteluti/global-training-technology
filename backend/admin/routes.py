@@ -120,13 +120,14 @@ async def create_course(course: CourseInput, request: Request, _: bool = Depends
         with open(course_file, 'w', encoding='utf-8') as f:
             json.dump(course_data, f, ensure_ascii=False, indent=2)
         
-        reload_manager_agent_courses(request, f"course creation: {course.id}")
+        loaded_courses = reload_manager_agent_courses(request, f"course creation: {course.id}")
         
         return {
             "status": "success",
             "message": f"Course '{course.name}' created successfully",
             "course_id": course.id,
-            "file": str(course_file)
+            "file": str(course_file),
+            "agent_courses_loaded": loaded_courses
         }
         
     except HTTPException:
@@ -196,12 +197,13 @@ async def update_course(course_id: str, course: CourseInput, request: Request, _
         with open(course_file, 'w', encoding='utf-8') as f:
             json.dump(course_data, f, ensure_ascii=False, indent=2)
 
-        reload_manager_agent_courses(request, f"course update: {course_id}")
+        loaded_courses = reload_manager_agent_courses(request, f"course update: {course_id}")
         
         return {
             "status": "success",
             "message": f"Course '{course.name}' updated successfully",
-            "course_id": course_id
+            "course_id": course_id,
+            "agent_courses_loaded": loaded_courses
         }
         
     except HTTPException:
@@ -227,12 +229,13 @@ async def delete_course(course_id: str, request: Request, _: bool = Depends(veri
         # Delete file
         course_file.unlink()
 
-        reload_manager_agent_courses(request, f"course deletion: {course_id}")
+        loaded_courses = reload_manager_agent_courses(request, f"course deletion: {course_id}")
         
         return {
             "status": "success",
             "message": f"Course '{course_name}' deleted successfully",
-            "course_id": course_id
+            "course_id": course_id,
+            "agent_courses_loaded": loaded_courses
         }
         
     except HTTPException:
@@ -245,10 +248,11 @@ def reload_manager_agent_courses(request: Request, reason: str):
     manager_agent = getattr(request.app.state, "manager_agent", None)
     if not manager_agent:
         print(f"⚠️ Manager agent not available to reload after {reason}")
-        return
+        return 0
 
-    manager_agent.load_courses(reload=True)
-    print(f"🔄 Manager agent reloaded after {reason}")
+    loaded_courses = manager_agent.load_courses(reload=True)
+    print(f"🔄 Manager agent reloaded after {reason}. Courses loaded: {loaded_courses}")
+    return loaded_courses
 
 def load_course_data(course_id: str) -> Dict:
     course_file = COURSES_DIR / f"{course_id}.json"

@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import json
@@ -22,9 +22,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize manager agent
-manager_agent = None
-
 # Pydantic models
 class ChatMessage(BaseModel):
     message: str
@@ -33,7 +30,6 @@ class ChatMessage(BaseModel):
 @app.on_event("startup")
 async def startup_event():
     """Load courses and initialize manager agent on startup"""
-    global manager_agent
     try:
         manager_agent = ManagerAgent()
         manager_agent.load_courses()
@@ -48,6 +44,7 @@ async def startup_event():
 async def health_check():
     """Health check endpoint"""
     try:
+        manager_agent = getattr(app.state, "manager_agent", None)
         courses_count = len(manager_agent.courses) if manager_agent else 0
         return {
             "status": "ok",
@@ -62,12 +59,13 @@ async def health_check():
         }
 
 @app.post("/api/chat")
-async def chat(chat_msg: ChatMessage):
+async def chat(chat_msg: ChatMessage, request: Request):
     """
     Main chat endpoint
     Expected input: {"message": "user message", "session_id": "optional"}
     """
     try:
+        manager_agent = getattr(request.app.state, "manager_agent", None)
         if not manager_agent:
             return {
                 "status": "error",
