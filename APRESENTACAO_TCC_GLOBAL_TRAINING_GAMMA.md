@@ -274,7 +274,7 @@ Abordagem inspirada em Scrum, com entregas incrementais.
 
 ### Resultados alcançados
 
-- MVP funcional.
+- Sistema funcional.
 - Chatbot integrado.
 - Cursos dinâmicos.
 - Admin protegido.
@@ -322,88 +322,250 @@ A solução demonstra como IA, automação administrativa e checkout seguro pode
 Copie e cole no Gamma:
 
 ```text
-Crie uma apresentação acadêmica profissional para uma banca de TCC, em português do Brasil, com exatamente 10 slides.
+Crie uma apresentação acadêmica profissional para uma banca de TCC, em português do Brasil, com exatamente 10 cartões/slides.
 
-Tema:
+Tema geral:
 "Global Training Technology: Plataforma de cursos com atendimento inteligente, gestão administrativa e integração de pagamentos".
 
-Contexto:
-O projeto é um MVP web para uma escola de cursos profissionalizantes. A plataforma possui landing page pública, chatbot com IA, painel administrativo protegido por login, cadastro dinâmico de cursos, cursos armazenados em JSON, backend em FastAPI, agentes de IA usando Groq, estrutura SQLite preparada para matrículas/pagamentos e integração com Mercado Pago Checkout Pro.
+Contexto geral do projeto:
+O projeto é uma aplicação web para uma escola de cursos profissionalizantes. A plataforma possui landing page pública, chatbot com IA, painel administrativo protegido por login, cadastro dinâmico de cursos, cursos armazenados em JSON, backend em FastAPI, agentes de IA usando Groq, estrutura SQLite preparada para matrículas/pagamentos e integração com Mercado Pago Checkout Pro.
 
-Estilo visual:
-- moderno, limpo e tecnológico;
+Direção visual:
+- visual acadêmico, moderno, limpo e tecnológico;
 - paleta grafite escuro, branco, azul/ciano e detalhes laranja;
-- ícones simples;
-- pouco texto por slide;
-- usar diagramas visuais;
+- usar ícones simples para IA, cursos, admin, pagamento, segurança e banco de dados;
+- pouco texto por cartão;
+- priorizar diagramas visuais, fluxos e blocos;
 - adequado para apresentação de TCC em até 20 minutos.
 
-Slides:
+---
 
-1. Capa
-Título: Global Training Technology
-Subtítulo: Plataforma de cursos com IA, administração dinâmica e pagamento online
-Campos: integrantes, orientador, instituição, data.
+Cartão 1 - Capa
 
-2. Problema, motivação e mercado
-Explicar a dificuldade de atendimento manual em escolas de cursos livres, dúvidas repetitivas dos alunos, atualização manual de catálogo e perda de conversão. Mostrar oportunidade com IA, automação e checkout online.
+Título:
+Global Training Technology
 
-3. Objetivo da proposta
-Objetivo geral: desenvolver uma plataforma web para cursos profissionalizantes que centralize catálogo, atendimento com IA, cadastro administrativo e início de matrícula com pagamento online seguro.
-Objetivos específicos: landing, chatbot, admin, cursos dinâmicos, checkout seguro e proteção de dados.
+Subtítulo:
+Plataforma de cursos com IA, administração dinâmica e pagamento online
 
-4. Solução desenvolvida e funcionalidades
-Mostrar quatro blocos:
-Landing page pública, Chatbot com IA, Painel administrativo, Pagamento online.
-Explicar que os cursos cadastrados alimentam tanto a landing quanto a IA.
+Elementos no cartão:
+- Integrantes: preencher nomes
+- Orientador(a): preencher
+- Instituição: preencher
+- Curso/disciplina: preencher
+- Data: preencher
 
-5. Caso de uso geral
-Criar diagrama com atores:
-Aluno, Administrador, Assistente de IA e Mercado Pago.
-Casos:
-Visualizar cursos, tirar dúvidas, preencher matrícula, realizar pagamento, fazer login admin, cadastrar curso, listar cursos e atualizar base da IA.
+Sugestão visual:
+Usar fundo grafite escuro, logotipo/nome Global Training Technology em destaque, detalhe em azul/ciano e laranja, com composição limpa e acadêmica.
 
-6. Modelo físico de banco e dados
-Mostrar ER com:
-students(id, email, name, created_at)
-enrollments(id, student_id, course_id, status, enrolled_at)
-payments(id, enrollment_id, amount, status, payment_method, transaction_id, created_at, updated_at)
-Explicar que SQLite está preparado e cursos estão em JSON no MVP.
+---
 
-7. Modelo arquitetural e tecnologias
-Diagrama em camadas:
-Frontend: Landing, Admin, Chatbot, Modal.
-Backend: FastAPI, Admin Routes, Chat Route, Payments Routes, ManagerAgent, CourseAgent.
-Dados: JSON, SQLite, .env.
-Externos: Groq e Mercado Pago.
-Listar tecnologias por categoria.
+Cartão 2 - Problema, motivação e mercado
 
-8. Metodologia utilizada
-Mostrar 5 Sprints:
-1 Requisitos e arquitetura
-2 Backend e cursos
-3 Frontend
-4 Admin e IA
-5 Segurança e pagamento
-Destacar Sprint 4: curso criado no admin vira JSON, recarrega ManagerAgent e aparece na landing/chatbot.
+Título:
+Problema e oportunidade
 
-9. Segurança, demonstração e resultados
-Segurança: .env, login admin, token temporário, Bearer Token, checkout hospedado, cartão não passa pelo sistema.
-Demonstração: landing → IA → login admin → cadastro curso → matrícula → checkout.
-Resultados: MVP funcional, chatbot, cursos dinâmicos, admin protegido, Mercado Pago.
+Pontos-chave:
+- Escolas de cursos livres dependem de atendimento manual.
+- Alunos fazem dúvidas repetitivas sobre preço, certificado, modalidade e conteúdo.
+- Catálogo de cursos costuma exigir atualização manual.
+- A demora no atendimento pode reduzir conversões.
+- Há oportunidade de usar IA, automação e checkout online.
 
-10. Next Steps e encerramento
-Próximos passos:
-persistir matrículas e pagamentos no SQLite;
-finalizar webhook;
-criar área do aluno;
-editar/deletar cursos pelo admin;
-dashboard;
-deploy;
-certificados;
-analytics.
-Fechar com: "A solução demonstra como IA, automação administrativa e checkout seguro podem melhorar a jornada de matrícula em escolas de cursos profissionalizantes."
+Sugestão visual:
+Usar um fluxo simples com "Dúvida do aluno → Demora no atendimento → Perda de matrícula" e, ao lado, "IA + Admin + Pagamento → Jornada mais rápida".
 
-Inclua notas curtas de fala para cada slide.
+---
+
+Cartão 3 - Objetivo da proposta
+
+Título:
+Objetivo do projeto
+
+Objetivo geral:
+Desenvolver uma plataforma web para cursos profissionalizantes que centralize catálogo, atendimento com IA, cadastro administrativo e início de matrícula com pagamento online seguro.
+
+Objetivos específicos:
+- Criar uma landing page pública para apresentar cursos.
+- Implementar chatbot integrado ao backend.
+- Permitir cadastro dinâmico de cursos.
+- Fazer os cursos cadastrados alimentarem a landing e a IA.
+- Integrar checkout seguro por Mercado Pago.
+- Proteger dados sensíveis e rotas administrativas.
+
+Sugestão visual:
+Usar seis cards pequenos com ícones: Landing, IA, Admin, Cursos, Pagamento, Segurança.
+
+---
+
+Cartão 4 - Solução desenvolvida e funcionalidades
+
+Título:
+Solução implementada
+
+Quatro blocos principais:
+- Landing page pública: apresenta a escola e lista cursos vindos do backend.
+- Chatbot com IA: responde dúvidas do aluno com base nos dados cadastrados.
+- Painel administrativo: permite cadastrar cursos após login.
+- Pagamento online: cria checkout seguro no Mercado Pago.
+
+Ponto de destaque:
+O curso cadastrado no painel administrativo passa a alimentar tanto a landing quanto o chatbot.
+
+Sugestão visual:
+Diagrama em quatro blocos conectados:
+Admin → Cursos JSON → Landing + Chatbot → Checkout.
+
+---
+
+Cartão 5 - Caso de uso geral
+
+Título:
+Caso de uso geral
+
+Atores:
+- Aluno
+- Administrador
+- Assistente de IA
+- Mercado Pago
+
+Casos de uso do aluno:
+- Visualizar cursos
+- Tirar dúvidas
+- Preencher matrícula
+- Realizar pagamento
+
+Casos de uso do administrador:
+- Fazer login
+- Cadastrar curso
+- Listar cursos
+- Atualizar base da IA
+
+Sugestão visual:
+Criar um diagrama de caso de uso com os quatro atores e os casos conectados.
+
+---
+
+Cartão 6 - Modelo físico de banco e dados
+
+Título:
+Modelo físico e estrutura de dados
+
+Modelo SQLite preparado:
+- students(id, email, name, created_at)
+- enrollments(id, student_id, course_id, status, enrolled_at)
+- payments(id, enrollment_id, amount, status, payment_method, transaction_id, created_at, updated_at)
+
+Relacionamentos:
+- students 1:N enrollments
+- enrollments 1:N payments
+
+Estado atual:
+- Na versão atual, cursos estão em JSON para facilitar cadastro e leitura pela IA.
+- SQLite está preparado para persistir alunos, matrículas e pagamentos em uma próxima etapa.
+
+Sugestão visual:
+Mostrar um mini diagrama ER com as três tabelas e, ao lado, um card "Cursos em JSON".
+
+---
+
+Cartão 7 - Modelo arquitetural e tecnologias
+
+Título:
+Arquitetura da solução
+
+Camadas:
+- Frontend: Landing, Admin, Chatbot, Modal de matrícula.
+- Backend: FastAPI, Admin Routes, Chat Route, Payments Routes.
+- IA: ManagerAgent, CourseAgent, Groq API.
+- Dados: JSON, SQLite preparado, .env.
+- Serviços externos: Mercado Pago Checkout Pro.
+
+Tecnologias:
+- HTML5, CSS3, JavaScript
+- Python, FastAPI, Uvicorn, Pydantic, Requests
+- Groq API
+- Mercado Pago Checkout Pro
+- SQLite e JSON
+
+Sugestão visual:
+Criar diagrama em camadas com setas:
+Frontend → FastAPI → Agents/Dados/Pagamento.
+
+---
+
+Cartão 8 - Metodologia utilizada
+
+Título:
+Metodologia e Sprints
+
+Abordagem:
+Desenvolvimento incremental inspirado em Scrum, com ciclos curtos de entrega, validação e ajuste.
+
+Sprints:
+- Sprint 1: Requisitos e arquitetura.
+- Sprint 2: Backend e estrutura de cursos.
+- Sprint 3: Frontend e landing page.
+- Sprint 4: Painel administrativo e IA.
+- Sprint 5: Segurança, pagamento e preparação da apresentação.
+
+Sprint em destaque:
+Sprint 4 - O curso criado no admin vira JSON, recarrega o ManagerAgent e aparece na landing/chatbot.
+
+Sugestão visual:
+Linha do tempo com 5 Sprints.
+
+---
+
+Cartão 9 - Segurança, demonstração e resultados
+
+Título:
+Segurança e resultados alcançados
+
+Segurança:
+- .env não versionado.
+- Admin protegido por login.
+- Token administrativo temporário.
+- Rotas administrativas protegidas com Bearer Token.
+- Token Mercado Pago apenas no backend.
+- Cartão não passa pelo sistema.
+- Checkout hospedado no Mercado Pago.
+
+Demonstração:
+Landing → IA → login admin → cadastro de curso → matrícula → checkout.
+
+Resultados:
+- Sistema funcional.
+- Chatbot integrado.
+- Cursos dinâmicos.
+- Admin protegido.
+- Checkout Mercado Pago.
+- Arquitetura modular.
+
+Sugestão visual:
+Dividir em três colunas: Segurança, Demo, Resultados.
+
+---
+
+Cartão 10 - Next Steps e encerramento
+
+Título:
+Próximos passos
+
+Next Steps:
+- Persistir matrículas e pagamentos no SQLite.
+- Finalizar webhook para liberar matrícula apenas com pagamento aprovado.
+- Criar área do aluno.
+- Implementar edição e exclusão de cursos pelo painel.
+- Criar dashboard administrativo.
+- Fazer deploy com URL pública para webhook.
+- Adicionar certificados.
+- Adicionar analytics de dúvidas e conversões.
+
+Mensagem final:
+"A solução demonstra como IA, automação administrativa e checkout seguro podem melhorar a jornada de matrícula em escolas de cursos profissionalizantes."
+
+Sugestão visual:
+Roadmap em três fases:
+Versão atual → Validação com banco/webhook → Produto completo com área do aluno e dashboard.
 ```
-
