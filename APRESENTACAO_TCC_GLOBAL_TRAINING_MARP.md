@@ -398,9 +398,11 @@ style: |
 <div class="subtitle">Plataforma de cursos com atendimento inteligente, gestão administrativa e integração de pagamentos</div>
 
 <div class="meta">
-Integrantes: preencher nomes da equipe<br>
-Orientador(a): preencher nome<br>
-Curso / Instituição: preencher<br>
+Integrantes:<br>
+Gustavo Santos Steluti<br>
+João Pedro Costa Malta<br>
+Victor Hugo<br>
+Instituição: PUC-Campinas<br>
 Tema: solução web para jornada de matrícula em cursos profissionalizantes
 </div>
 
