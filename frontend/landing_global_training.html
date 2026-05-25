@@ -306,7 +306,6 @@
     <li><a href="#">Global EAD</a></li>
     <li><a href="#">In Company</a></li>
     <li><a href="#">Quem Somos</a></li>
-    <li><a href="admin.html">Admin</a></li>
   </ul>
   <a href="#cursos" class="nav-cta">Ver cursos</a>
 </nav>
@@ -475,7 +474,7 @@ const defaultCourses = [
 
 async function loadCoursesFromBackend() {
   try {
-    const response = await fetch(`${BACKEND_URL}/api/admin/courses`);
+    const response = await fetch(`${BACKEND_URL}/api/courses`);
     const data = await response.json();
     if (data.status === 'success' && data.courses && data.courses.length > 0) {
       renderCourses(data.courses.map(course => ({

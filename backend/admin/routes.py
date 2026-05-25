@@ -1,11 +1,20 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel
 from typing import List, Dict
+from dotenv import load_dotenv
+import base64
+import hashlib
+import hmac
 import json
+import os
 from pathlib import Path
+import secrets
+import time
 
+load_dotenv()
 router = APIRouter()
 COURSES_DIR = Path(__file__).parent.parent / "courses"
+TOKEN_TTL_SECONDS = 60 * 60 * 8
 
 class CourseInput(BaseModel):
     """Schema for creating/updating a course"""
@@ -22,8 +31,70 @@ class CourseInput(BaseModel):
     faq: List[Dict[str, str]]
     system_prompt: str
 
+class AdminLoginInput(BaseModel):
+    password: str
+
+def get_admin_password() -> str:
+    password = os.getenv("ADMIN_PASSWORD")
+    if not password:
+        raise HTTPException(status_code=500, detail="ADMIN_PASSWORD não configurado no backend.")
+    return password
+
+def get_admin_secret() -> str:
+    secret = os.getenv("ADMIN_TOKEN_SECRET") or os.getenv("ADMIN_PASSWORD")
+    if not secret:
+        raise HTTPException(status_code=500, detail="ADMIN_TOKEN_SECRET não configurado no backend.")
+    return secret
+
+def sign_payload(payload: str) -> str:
+    signature = hmac.new(
+        get_admin_secret().encode("utf-8"),
+        payload.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    return signature
+
+def create_admin_token() -> str:
+    expires_at = int(time.time()) + TOKEN_TTL_SECONDS
+    nonce = secrets.token_urlsafe(12)
+    payload = f"admin:{expires_at}:{nonce}"
+    signature = sign_payload(payload)
+    token = f"{payload}:{signature}"
+    return base64.urlsafe_b64encode(token.encode("utf-8")).decode("utf-8")
+
+def verify_admin_token(authorization: str = Header(default="")):
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Token de admin ausente.")
+
+    token = authorization.replace("Bearer ", "", 1).strip()
+    try:
+        decoded = base64.urlsafe_b64decode(token.encode("utf-8")).decode("utf-8")
+        role, expires_at, nonce, signature = decoded.split(":", 3)
+    except Exception:
+        raise HTTPException(status_code=401, detail="Token de admin inválido.")
+
+    payload = f"{role}:{expires_at}:{nonce}"
+    expected_signature = sign_payload(payload)
+    if role != "admin" or not hmac.compare_digest(signature, expected_signature):
+        raise HTTPException(status_code=401, detail="Token de admin inválido.")
+    if int(expires_at) < int(time.time()):
+        raise HTTPException(status_code=401, detail="Sessão de admin expirada.")
+
+    return True
+
+@router.post("/login")
+async def admin_login(credentials: AdminLoginInput):
+    if not secrets.compare_digest(credentials.password, get_admin_password()):
+        raise HTTPException(status_code=401, detail="Senha administrativa inválida.")
+
+    return {
+        "status": "success",
+        "token": create_admin_token(),
+        "expires_in_seconds": TOKEN_TTL_SECONDS,
+    }
+
 @router.post("/create-course")
-async def create_course(course: CourseInput, request: Request):
+async def create_course(course: CourseInput, request: Request, _: bool = Depends(verify_admin_token)):
     """
     Create a new course from form data
     Saves as JSON file in courses directory
@@ -64,23 +135,10 @@ async def create_course(course: CourseInput, request: Request):
         raise HTTPException(status_code=500, detail=f"Error creating course: {str(e)}")
 
 @router.get("/courses")
-async def list_courses():
+async def list_courses(_: bool = Depends(verify_admin_token)):
     """List all available courses"""
     try:
-        courses_dir = Path(__file__).parent.parent / "courses"
-        courses = []
-        
-        if courses_dir.exists():
-            for course_file in courses_dir.glob("*.json"):
-                with open(course_file, 'r', encoding='utf-8') as f:
-                    course_data = json.load(f)
-                    courses.append({
-                        "id": course_data.get('id'),
-                        "name": course_data.get('name'),
-                        "price": course_data.get('price'),
-                        "level": course_data.get('level')
-                    })
-        
+        courses = list_course_summaries()
         return {
             "status": "success",
             "total": len(courses),
@@ -91,7 +149,7 @@ async def list_courses():
         raise HTTPException(status_code=500, detail=f"Error listing courses: {str(e)}")
 
 @router.get("/course/{course_id}")
-async def get_course(course_id: str):
+async def get_course(course_id: str, _: bool = Depends(verify_admin_token)):
     """Get full details of a specific course"""
     try:
         courses_dir = Path(__file__).parent.parent / "courses"
@@ -114,7 +172,7 @@ async def get_course(course_id: str):
         raise HTTPException(status_code=500, detail=f"Error retrieving course: {str(e)}")
 
 @router.put("/course/{course_id}")
-async def update_course(course_id: str, course: CourseInput, request: Request):
+async def update_course(course_id: str, course: CourseInput, request: Request, _: bool = Depends(verify_admin_token)):
     """Update an existing course"""
     try:
         courses_dir = Path(__file__).parent.parent / "courses"
@@ -152,7 +210,7 @@ async def update_course(course_id: str, course: CourseInput, request: Request):
         raise HTTPException(status_code=500, detail=f"Error updating course: {str(e)}")
 
 @router.delete("/course/{course_id}")
-async def delete_course(course_id: str, request: Request):
+async def delete_course(course_id: str, request: Request, _: bool = Depends(verify_admin_token)):
     """Delete a course"""
     try:
         courses_dir = Path(__file__).parent.parent / "courses"
@@ -206,3 +264,17 @@ def load_course_data(course_id: str) -> Dict:
                 return course_data
 
     raise HTTPException(status_code=404, detail="Course not found")
+
+def list_course_summaries() -> List[Dict]:
+    courses = []
+    if COURSES_DIR.exists():
+        for course_file in COURSES_DIR.glob("*.json"):
+            with open(course_file, 'r', encoding='utf-8') as f:
+                course_data = json.load(f)
+                courses.append({
+                    "id": course_data.get('id'),
+                    "name": course_data.get('name'),
+                    "price": course_data.get('price'),
+                    "level": course_data.get('level')
+                })
+    return courses
