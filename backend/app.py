@@ -45,6 +45,8 @@ async def health_check():
     """Health check endpoint"""
     try:
         manager_agent = getattr(app.state, "manager_agent", None)
+        if manager_agent:
+            manager_agent.refresh_courses_if_changed()
         courses_count = len(manager_agent.courses) if manager_agent else 0
         return {
             "status": "ok",
@@ -57,6 +59,32 @@ async def health_check():
             "status": "error",
             "message": str(e)
         }
+
+@app.get("/api/chat/courses-debug")
+async def chat_courses_debug(request: Request):
+    """Debug endpoint to inspect which courses are loaded by the chat agent."""
+    manager_agent = getattr(request.app.state, "manager_agent", None)
+    if not manager_agent:
+        return {
+            "status": "error",
+            "message": "Manager agent not initialized",
+            "courses": []
+        }
+
+    manager_agent.refresh_courses_if_changed()
+    return {
+        "status": "success",
+        "total": len(manager_agent.courses),
+        "courses": [
+            {
+                "id": course_id,
+                "name": course_data.get("name"),
+                "price": course_data.get("price"),
+                "level": course_data.get("level"),
+            }
+            for course_id, course_data in manager_agent.courses.items()
+        ]
+    }
 
 @app.post("/api/chat")
 async def chat(chat_msg: ChatMessage, request: Request):

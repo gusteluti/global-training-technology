@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import unicodedata
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -23,6 +24,7 @@ class ManagerAgent:
         self.courses: Dict = {}
         self.course_agents: Dict[str, CourseAgent] = {}
         self.sessions: Dict = {}  # Store conversation history per session
+        self.courses_fingerprint: Dict[str, Tuple[int, int]] = {}
         
         # Initialize Groq chat client
         self.llm = GroqChatClient()
@@ -35,10 +37,12 @@ class ManagerAgent:
             print(f"⚠️  Courses directory not found: {self.courses_dir}")
             self.courses = {}
             self.course_agents = {}
+            self.courses_fingerprint = {}
             return 0
 
         courses: Dict = {}
         course_agents: Dict[str, CourseAgent] = {}
+        fingerprint = self._get_courses_fingerprint()
             
         for course_file in self.courses_dir.glob("*.json"):
             try:
@@ -55,7 +59,35 @@ class ManagerAgent:
 
         self.courses = courses
         self.course_agents = course_agents
+        self.courses_fingerprint = fingerprint
         return len(self.courses)
+
+    def refresh_courses_if_changed(self) -> bool:
+        """Reload course agents if JSON files changed since the last load."""
+        current_fingerprint = self._get_courses_fingerprint()
+        if current_fingerprint != self.courses_fingerprint:
+            previous_count = len(self.courses)
+            loaded_count = self.load_courses(reload=True)
+            print(
+                "🔄 Course files changed. "
+                f"ManagerAgent refreshed from {previous_count} to {loaded_count} course(s)."
+            )
+            return True
+        return False
+
+    def _get_courses_fingerprint(self) -> Dict[str, Tuple[int, int]]:
+        """Return a lightweight signature for all course JSON files."""
+        if not self.courses_dir.exists():
+            return {}
+
+        fingerprint = {}
+        for course_file in self.courses_dir.glob("*.json"):
+            try:
+                stat = course_file.stat()
+                fingerprint[str(course_file)] = (stat.st_mtime_ns, stat.st_size)
+            except OSError:
+                continue
+        return fingerprint
     
     def get_course_names_list(self) -> str:
         """Return formatted list of available courses"""
@@ -150,9 +182,24 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
             "curso", "basico", "avancado", "intermediario", "profissional",
             "online", "ead", "presencial", "in", "company", "de", "do", "da",
         }
+        short_technical_terms = {
+            "c", "c#", "c++", "js", "ts", "bi", "ui", "ux", "sql", "vba", "ia", "ai",
+        }
         terms = set(course_name.split()) | set(course_id.split())
-        relevant_terms = [term for term in terms if len(term) >= 3 and term not in ignored_terms]
-        return any(term in message for term in relevant_terms)
+        relevant_terms = [
+            term
+            for term in terms
+            if term not in ignored_terms
+            and (len(term) >= 3 or term in short_technical_terms or any(char in term for char in "#+"))
+        ]
+        return any(self._contains_term(message, term) for term in relevant_terms)
+
+    def _contains_term(self, message: str, term: str) -> bool:
+        if not term:
+            return False
+        if any(char in term for char in "#+"):
+            return term in message
+        return re.search(rf"(^|\s){re.escape(term)}($|\s)", message) is not None
     
     def _get_courses_for_routing(self) -> str:
         """Get courses list for routing prompt"""
@@ -166,6 +213,8 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
         """
         Process user message and route to appropriate agent or respond directly
         """
+        self.refresh_courses_if_changed()
+
         # Initialize session if not exists
         if session_id not in self.sessions:
             self.sessions[session_id] = []
