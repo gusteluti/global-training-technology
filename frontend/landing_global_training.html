@@ -91,6 +91,7 @@
     border: none; cursor: pointer;
   }
   .btn-primary:hover { background: var(--teal2); transform: translateY(-1px); }
+  .btn-primary:disabled { opacity: 0.65; cursor: not-allowed; transform: none; }
   .btn-outline {
     background: transparent; color: var(--text);
     padding: 14px 32px; border-radius: 8px; font-weight: 600;
@@ -240,6 +241,10 @@
   }
   .modal h2 { font-family: 'Barlow Condensed', sans-serif; font-size: 28px; font-weight: 900; margin-bottom: 6px; }
   .modal-course-name { color: var(--teal); font-size: 16px; font-weight: 600; margin-bottom: 24px; }
+  .payment-status { display: none; margin-bottom: 16px; padding: 11px 13px; border-radius: 8px; font-size: 13px; line-height: 1.4; }
+  .payment-status.show { display: block; }
+  .payment-status.error { background: #fff0f3; color: #b4233c; border: 1px solid #ffd0d9; }
+  .payment-status.info { background: var(--soft-blue); color: var(--teal); border: 1px solid #b8e7f1; }
   .form-group { margin-bottom: 16px; }
   .form-group label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
   .form-group input, .form-group select {
@@ -301,7 +306,6 @@
     <li><a href="#">Global EAD</a></li>
     <li><a href="#">In Company</a></li>
     <li><a href="#">Quem Somos</a></li>
-    <li><a href="admin.html">Admin</a></li>
   </ul>
   <a href="#cursos" class="nav-cta">Ver cursos</a>
 </nav>
@@ -423,18 +427,19 @@
   <div class="modal">
     <h2>Fazer Matrícula</h2>
     <div class="modal-course-name" id="modal-course-name">Excel Profissional</div>
+    <div class="payment-status" id="payment-status"></div>
     <div class="form-group">
       <label>Nome completo</label>
-      <input type="text" placeholder="Seu nome">
+      <input type="text" id="enroll-name" placeholder="Seu nome">
     </div>
     <div class="form-row">
       <div class="form-group">
         <label>E-mail</label>
-        <input type="email" placeholder="seu@email.com">
+        <input type="email" id="enroll-email" placeholder="seu@email.com">
       </div>
       <div class="form-group">
         <label>Telefone / WhatsApp</label>
-        <input type="text" placeholder="(11) 99999-0000">
+        <input type="text" id="enroll-phone" placeholder="(11) 99999-0000">
       </div>
     </div>
     <div class="form-group">
@@ -455,21 +460,21 @@
     </div>
     <div class="modal-footer">
       <button class="modal-close-btn" onclick="closeModal()">Cancelar</button>
-      <button class="btn-primary" onclick="submitEnroll()">Confirmar matrícula →</button>
+      <button class="btn-primary" id="checkout-btn" onclick="submitEnroll()">Ir para pagamento →</button>
     </div>
   </div>
 </div>
 
 <script>
 const defaultCourses = [
-  { name: "Excel Profissional", icon: "📊", type: "Presencial · Online · EAD", tags: ["Iniciante ao Avançado"], price: "R$ 497" },
-  { name: "Excel Avançado", icon: "📈", type: "Presencial · Online", tags: ["Avançado"], price: "R$ 397" },
-  { name: "Power BI Profissional", icon: "📉", type: "Presencial · Online · EAD", tags: ["Análise de Dados"], price: "R$ 597" },
+  { id: "excel_profissional", name: "Excel Profissional", icon: "📊", type: "Presencial · Online · EAD", tags: ["Iniciante ao Avançado"], price: "R$ 497" },
+  { id: "excel_avancado", name: "Excel Avançado", icon: "📈", type: "Presencial · Online", tags: ["Avançado"], price: "R$ 397" },
+  { id: "power_bi_profissional", name: "Power BI Profissional", icon: "📉", type: "Presencial · Online · EAD", tags: ["Análise de Dados"], price: "R$ 597" },
 ];
 
 async function loadCoursesFromBackend() {
   try {
-    const response = await fetch(`${BACKEND_URL}/api/admin/courses`);
+    const response = await fetch(`${BACKEND_URL}/api/courses`);
     const data = await response.json();
     if (data.status === 'success' && data.courses && data.courses.length > 0) {
       renderCourses(data.courses.map(course => ({
@@ -499,27 +504,76 @@ function renderCourses(courses) {
         ${c.tags.map(t => `<span class="badge">${escapeHTML(t)}</span>`).join('')}
       </div>
       <div class="course-price">${escapeHTML(c.price)} <span>/ curso</span></div>
-      <button class="btn-enroll" onclick="openModal(decodeURIComponent('${encodeURIComponent(c.name)}'))">Matricular agora</button>
+      <button class="btn-enroll" onclick="openModal(decodeURIComponent('${encodeURIComponent(c.name)}'), decodeURIComponent('${encodeURIComponent(c.id || '')}'))">Matricular agora</button>
       <button class="btn-contact" onclick="chatAbout(decodeURIComponent('${encodeURIComponent(c.name)}'))">Tirar dúvidas com IA</button>
     </div>
   `).join('');
 }
 
 // MODAL
-function openModal(name) {
+let selectedCourse = { id: '', name: '' };
+function openModal(name, courseId) {
+  selectedCourse = { id: courseId, name };
   document.getElementById('modal-course-name').textContent = name;
+  const checkoutBtn = document.getElementById('checkout-btn');
+  checkoutBtn.disabled = false;
+  checkoutBtn.textContent = 'Ir para pagamento →';
+  setPaymentStatus('', '');
   document.getElementById('modal-overlay').classList.add('open');
 }
 function closeModal() {
   document.getElementById('modal-overlay').classList.remove('open');
 }
+function setPaymentStatus(type, text) {
+  const status = document.getElementById('payment-status');
+  status.className = text ? `payment-status show ${type}` : 'payment-status';
+  status.textContent = text;
+}
 function selectPay(el) {
   document.querySelectorAll('.pay-opt').forEach(e => e.classList.remove('active'));
   el.classList.add('active');
 }
-function submitEnroll() {
-  closeModal();
-  setTimeout(() => alert('✅ Matrícula recebida! Em breve você receberá as instruções no e-mail cadastrado.'), 100);
+async function submitEnroll() {
+  const name = document.getElementById('enroll-name').value.trim();
+  const email = document.getElementById('enroll-email').value.trim();
+  const phone = document.getElementById('enroll-phone').value.trim();
+  const checkoutBtn = document.getElementById('checkout-btn');
+
+  if (!selectedCourse.id) {
+    setPaymentStatus('error', 'Não foi possível identificar o curso. Atualize a página e tente novamente.');
+    return;
+  }
+  if (name.length < 3 || !email.includes('@')) {
+    setPaymentStatus('error', 'Informe nome completo e e-mail válido para continuar.');
+    return;
+  }
+
+  checkoutBtn.disabled = true;
+  checkoutBtn.textContent = 'Criando pagamento...';
+  setPaymentStatus('info', 'Criando checkout seguro no Mercado Pago...');
+
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/payments/create-checkout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        course_id: selectedCourse.id,
+        payer: { name, email, phone }
+      })
+    });
+    const data = await response.json();
+    if (!response.ok || data.status !== 'success') {
+      throw new Error(data.detail || 'Não foi possível criar o pagamento.');
+    }
+    window.open(data.checkout_url, '_blank', 'noopener,noreferrer');
+    setPaymentStatus('info', 'Checkout aberto em uma nova aba. Finalize o pagamento no Mercado Pago.');
+    checkoutBtn.disabled = false;
+    checkoutBtn.textContent = 'Abrir pagamento novamente →';
+  } catch (error) {
+    setPaymentStatus('error', error.message);
+    checkoutBtn.disabled = false;
+    checkoutBtn.textContent = 'Ir para pagamento →';
+  }
 }
 document.getElementById('modal-overlay').addEventListener('click', function(e) {
   if (e.target === this) closeModal();

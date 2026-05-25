@@ -177,6 +177,41 @@
     font-weight: 700;
   }
   .empty { color: var(--muted); line-height: 1.6; }
+  .login-screen {
+    min-height: calc(100vh - 88px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 20px;
+  }
+  .login-card {
+    width: min(100%, 420px);
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    padding: 32px;
+    box-shadow: 0 18px 50px rgba(20,35,50,0.12);
+  }
+  .login-card h1 {
+    font-size: 38px;
+    margin-bottom: 10px;
+  }
+  .login-card p {
+    color: var(--muted);
+    line-height: 1.6;
+    margin-bottom: 22px;
+  }
+  .admin-app.locked { display: none; }
+  .login-screen.authenticated { display: none; }
+  .nav-actions { display: flex; gap: 12px; align-items: center; }
+  .logout-btn {
+    display: none;
+    background: transparent;
+    color: #ffffff;
+    border: 1.5px solid rgba(255,255,255,0.75);
+    padding: 10px 16px;
+  }
+  .logout-btn.authenticated { display: inline-flex; }
   @media (max-width: 900px) {
     nav, main { padding-left: 20px; padding-right: 20px; }
     .header { flex-direction: column; align-items: flex-start; }
@@ -200,9 +235,24 @@
     </div>
   </a>
   <a class="nav-link" href="landing_global_training.html">Ver landing</a>
+  <button type="button" class="logout-btn" id="logoutBtn">Sair</button>
 </nav>
 
-<main>
+<section class="login-screen" id="loginScreen">
+  <form class="login-card" id="loginForm">
+    <div class="eyebrow">Acesso restrito</div>
+    <h1>Login Admin</h1>
+    <p>Entre com a senha administrativa para gerenciar os cursos exibidos na landing e usados pela IA.</p>
+    <div id="loginMessage" class="message"></div>
+    <div class="form-group">
+      <label for="admin-password">Senha</label>
+      <input type="password" id="admin-password" placeholder="Senha administrativa" required>
+    </div>
+    <button type="submit" class="btn-primary">Entrar no painel</button>
+  </form>
+</section>
+
+<main class="admin-app locked" id="adminApp">
   <section class="header">
     <div>
       <div class="eyebrow">Painel administrativo</div>
@@ -302,13 +352,51 @@
 
 <script>
 const API_URL = 'http://localhost:8000/api/admin';
+const AUTH_STORAGE_KEY = 'global_training_admin_token';
 
 const form = document.getElementById('courseForm');
 const message = document.getElementById('formMessage');
+const loginForm = document.getElementById('loginForm');
+const loginMessage = document.getElementById('loginMessage');
+const loginScreen = document.getElementById('loginScreen');
+const adminApp = document.getElementById('adminApp');
+const logoutBtn = document.getElementById('logoutBtn');
 const statusPill = document.getElementById('api-status');
 const courseList = document.getElementById('courseList');
 const nameInput = document.getElementById('name');
 const idInput = document.getElementById('id');
+
+function getAdminToken() {
+  return localStorage.getItem(AUTH_STORAGE_KEY) || '';
+}
+
+function setAuthenticated(isAuthenticated) {
+  loginScreen.classList.toggle('authenticated', isAuthenticated);
+  adminApp.classList.toggle('locked', !isAuthenticated);
+  logoutBtn.classList.toggle('authenticated', isAuthenticated);
+}
+
+function authHeaders(extra = {}) {
+  return {
+    ...extra,
+    Authorization: `Bearer ${getAdminToken()}`
+  };
+}
+
+function setLoginMessage(type, text) {
+  loginMessage.className = `message ${type}`;
+  loginMessage.textContent = text;
+}
+
+async function handleUnauthorized(response) {
+  if (response.status === 401) {
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+    setAuthenticated(false);
+    setLoginMessage('error', 'Sessão expirada. Entre novamente.');
+    return true;
+  }
+  return false;
+}
 
 function slugify(value) {
   return value
@@ -365,7 +453,10 @@ function formatPrice(value) {
 
 async function loadCourses() {
   try {
-    const response = await fetch(`${API_URL}/courses`);
+    const response = await fetch(`${API_URL}/courses`, {
+      headers: authHeaders()
+    });
+    if (await handleUnauthorized(response)) return;
     const data = await response.json();
     if (!response.ok || data.status !== 'success') {
       throw new Error(data.detail || 'Erro ao carregar cursos');
@@ -388,6 +479,37 @@ async function loadCourses() {
     courseList.innerHTML = '<p class="empty">Nao foi possivel carregar os cursos. Inicie o backend em http://localhost:8000.</p>';
   }
 }
+
+loginForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const password = document.getElementById('admin-password').value;
+  setLoginMessage('success', 'Validando acesso...');
+
+  try {
+    const response = await fetch(`${API_URL}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password })
+    });
+    const data = await response.json();
+    if (!response.ok || data.status !== 'success') {
+      throw new Error(data.detail || 'Não foi possível autenticar.');
+    }
+    localStorage.setItem(AUTH_STORAGE_KEY, data.token);
+    document.getElementById('admin-password').value = '';
+    setAuthenticated(true);
+    await loadCourses();
+  } catch (error) {
+    setLoginMessage('error', error.message);
+  }
+});
+
+logoutBtn.addEventListener('click', () => {
+  localStorage.removeItem(AUTH_STORAGE_KEY);
+  setAuthenticated(false);
+  courseList.innerHTML = '<p class="empty">Faça login para carregar os cursos.</p>';
+  statusPill.textContent = 'API: aguardando login';
+});
 
 nameInput.addEventListener('input', () => {
   if (!idInput.dataset.edited) {
@@ -429,9 +551,10 @@ form.addEventListener('submit', async (event) => {
   try {
     const response = await fetch(`${API_URL}/create-course`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(courseData)
     });
+    if (await handleUnauthorized(response)) return;
     const data = await response.json();
     if (!response.ok) {
       throw new Error(data.detail || 'Erro ao criar curso');
@@ -445,7 +568,13 @@ form.addEventListener('submit', async (event) => {
   }
 });
 
-loadCourses();
+if (getAdminToken()) {
+  setAuthenticated(true);
+  loadCourses();
+} else {
+  setAuthenticated(false);
+  statusPill.textContent = 'API: aguardando login';
+}
 </script>
 </body>
 </html>

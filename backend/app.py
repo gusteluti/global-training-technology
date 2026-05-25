@@ -6,7 +6,8 @@ from pathlib import Path
 from pydantic import BaseModel
 
 # Import routers
-from admin.routes import router as admin_router
+from admin.routes import list_course_summaries, router as admin_router
+from payments.routes import router as payments_router
 from agents.manager_agent import ManagerAgent
 
 # Initialize FastAPI
@@ -98,8 +99,19 @@ async def chat(chat_msg: ChatMessage):
             "message": error_msg
         }
 
+@app.get("/api/courses")
+async def public_courses():
+    """Public course listing used by the landing page."""
+    courses = list_course_summaries()
+    return {
+        "status": "success",
+        "total": len(courses),
+        "courses": courses
+    }
+
 # Include admin routes
 app.include_router(admin_router, prefix="/api/admin", tags=["admin"])
+app.include_router(payments_router, prefix="/api/payments", tags=["payments"])
 
 @app.get("/")
 async def root():
