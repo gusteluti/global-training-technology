@@ -1,0 +1,60 @@
+{
+  "id": "python_profissional",
+  "name": "Python Profissional",
+  "description": "Curso avançado de Python voltado ao uso profissional da linguagem, com foco em automação de tarefas, tratamento de dados, integração com planilhas, consumo de APIs e desenvolvimento de soluções práticas para otimizar processos do dia a dia.",
+  "price": 599.99,
+  "duration_hours": 80,
+  "level": "Avancado · Presencial · Online",
+  "target_audience": "Profissionais de áreas administrativas, financeiras, jurídicas, operações, tecnologia ou qualquer área que trabalhe com dados, planilhas, relatórios e processos repetitivos, e que desejam utilizar Python para automatizar rotinas e melhorar a análise de informações.",
+  "objectives": [
+    "Capacitar o profissional a utilizar Python de forma avançada para tratar dados, automatizar tarefas, integrar informações de diferentes fontes, manipular planilhas e desenvolver soluções mais eficientes para problemas reais do ambiente profissional."
+  ],
+  "topics": [
+    "Revisão avançada de estruturas de dados em Python",
+    "Programação orientada a objetos aplicada",
+    "Funções avançadas, decorators e generators",
+    "Manipulação avançada de arquivos e diretórios",
+    "Tratamento de exceções e boas práticas de debugging",
+    "Uso avançado de bibliotecas como Pandas, NumPy e Matplotlib",
+    "APIs, requisições HTTP e consumo de dados externos",
+    "Automação de tarefas com Python",
+    "Manipulação e análise de grandes volumes de dados",
+    "Ambientes virtuais, dependências e organização de projetos",
+    "Testes automatizados com Python",
+    "Boas práticas de performance, legibilidade e manutenção de código"
+  ],
+  "benefits": [
+    "Aprofundar o domínio da linguagem Python em contextos profissionais",
+    "Desenvolver códigos mais organizados, reutilizáveis e escaláveis",
+    "Automatizar tarefas repetitivas com maior eficiência",
+    "Trabalhar com análise, manipulação e visualização de dados",
+    "Consumir APIs e integrar Python com sistemas externos",
+    "Aplicar boas práticas de programação e estruturação de projetos",
+    "Melhorar a capacidade de resolver problemas complexos com código",
+    "Preparar-se para projetos reais em dados, automação e desenvolvimento"
+  ],
+  "faq": [
+    {
+      "question": "Preciso ter conhecimento prévio em Python?",
+      "answer": "Sim. Este curso é indicado para pessoas que já conhecem os fundamentos da linguagem e desejam avançar para aplicações mais robustas."
+    },
+    {
+      "question": "O curso é voltado para programação, dados ou automação?",
+      "answer": "O curso aborda os três temas, com foco em aplicações práticas e desenvolvimento de soluções completas em Python."
+    },
+    {
+      "question": "Vou aprender a trabalhar com bibliotecas como Pandas e NumPy?",
+      "answer": "Sim. O curso inclui o uso de bibliotecas importantes para manipulação, análise e visualização de dados."
+    },
+    {
+      "question": "O curso possui exercícios práticos?",
+      "answer": "Sim. Os conteúdos devem ser acompanhados de exemplos, desafios e aplicações práticas para fixação dos conceitos."
+    },
+    {
+      "question": "Esse curso serve para quem quer atuar profissionalmente com Python?",
+      "answer": "Sim. O objetivo é desenvolver habilidades aplicáveis em projetos reais, automações, análise de dados e desenvolvimento de sistemas."
+    }
+  ],
+  "system_prompt": "Você é um assistente especialista em Python avançado, com foco em programação prática, análise de dados, automação, integração com APIs e boas práticas de desenvolvimento.\n\nSeu papel é apoiar os alunos durante o curso, explicando conceitos de forma clara, objetiva e progressiva. Sempre que possível, utilize exemplos práticos em código Python, explique a lógica por trás da solução e destaque boas práticas de organização, legibilidade, performance e manutenção.\n\nAo responder dúvidas, considere que o aluno já conhece os fundamentos de Python, como variáveis, listas, dicionários, funções, condicionais e laços de repetição, mas pode precisar de apoio para entender temas mais avançados, como orientação a objetos, decorators, generators, manipulação de arquivos, bibliotecas externas, APIs, testes e estruturação de projetos.\n\nEvite respostas excessivamente teóricas. Priorize explicações aplicáveis, com exemplos comentados e orientações sobre quando e por que usar cada recurso. Quando houver mais de uma solução possível, apresente a alternativa mais recomendada e explique brevemente as diferenças.",
+  "created_at": "2026-05-25T18:48:41.915090"
+}

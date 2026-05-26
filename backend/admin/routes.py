@@ -155,8 +155,10 @@ async def get_course(course_id: str, _: bool = Depends(verify_admin_token)):
     try:
         courses_dir = Path(__file__).parent.parent / "courses"
         course_file = courses_dir / f"{course_id}.json"
-        
         if not course_file.exists():
+            course_file = _find_course_file_by_id(courses_dir, course_id)
+
+        if not course_file:
             raise HTTPException(status_code=404, detail="Course not found")
         
         with open(course_file, 'r', encoding='utf-8') as f:
@@ -178,8 +180,10 @@ async def update_course(course_id: str, course: CourseInput, request: Request, _
     try:
         courses_dir = Path(__file__).parent.parent / "courses"
         course_file = courses_dir / f"{course_id}.json"
-        
         if not course_file.exists():
+            course_file = _find_course_file_by_id(courses_dir, course_id)
+
+        if not course_file:
             raise HTTPException(status_code=404, detail="Course not found")
         
         # Load existing data to preserve creation date
@@ -217,8 +221,10 @@ async def delete_course(course_id: str, request: Request, _: bool = Depends(veri
     try:
         courses_dir = Path(__file__).parent.parent / "courses"
         course_file = courses_dir / f"{course_id}.json"
-        
         if not course_file.exists():
+            course_file = _find_course_file_by_id(courses_dir, course_id)
+
+        if not course_file:
             raise HTTPException(status_code=404, detail="Course not found")
         
         # Load course name before deleting
@@ -268,6 +274,22 @@ def load_course_data(course_id: str) -> Dict:
                 return course_data
 
     raise HTTPException(status_code=404, detail="Course not found")
+
+def _find_course_file_by_id(courses_dir: Path, course_id: str):
+    """Find a course JSON file whose internal id matches the requested id."""
+    if not courses_dir.exists():
+        return None
+
+    for candidate in courses_dir.glob("*.json"):
+        try:
+            with open(candidate, 'r', encoding='utf-8') as f:
+                course_data = json.load(f)
+            if course_data.get("id") == course_id:
+                return candidate
+        except Exception:
+            continue
+
+    return None
 
 def list_course_summaries() -> List[Dict]:
     courses = []

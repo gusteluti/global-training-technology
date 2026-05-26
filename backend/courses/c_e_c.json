@@ -1,0 +1,26 @@
+{
+  "id": "c_e_c",
+  "name": "C e C#",
+  "description": "Curso de C",
+  "price": 234.0,
+  "duration_hours": 12,
+  "level": "Avancado · Presencial · Online · EAD",
+  "target_audience": "Estudantes de TI",
+  "objectives": [
+    "Estudar C"
+  ],
+  "topics": [
+    "Estudar C"
+  ],
+  "benefits": [
+    "Estudar C"
+  ],
+  "faq": [
+    {
+      "question": "Estudar C",
+      "answer": "Entre em contato com a Global Training para mais detalhes."
+    }
+  ],
+  "system_prompt": "VOcê é especializado em vender o curso de C e C#",
+  "created_at": "2026-05-25T19:24:29.741028"
+}
