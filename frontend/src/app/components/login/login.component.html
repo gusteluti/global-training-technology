@@ -1,0 +1,23 @@
+<div class="row justify-content-center mt-5">
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-body">
+        <h4 class="card-title">Acessar Plataforma</h4>
+
+        <div *ngIf="error" class="alert alert-danger">{{ error }}</div>
+
+        <form (ngSubmit)="submit()">
+          <div class="mb-3">
+            <label class="form-label">E-mail</label>
+            <input class="form-control" [(ngModel)]="email" name="email" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Senha</label>
+            <input type="password" class="form-control" [(ngModel)]="password" name="password" required />
+          </div>
+          <button class="btn btn-primary" type="submit">Entrar</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>

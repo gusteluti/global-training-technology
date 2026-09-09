@@ -1,0 +1,28 @@
+<div class="row">
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-body">
+        <h5>Financeiro</h5>
+        <pre *ngIf="financial">{{ financial | json }}</pre>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-body">
+        <h5>Alunos</h5>
+        <pre *ngIf="students">{{ students | json }}</pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 mt-3">
+    <h5>Cursos</h5>
+    <pre *ngIf="courses">{{ courses | json }}</pre>
+  </div>
+
+  <div class="col-12 mt-3">
+    <h5>Audit Logs</h5>
+    <pre *ngIf="logs">{{ logs | json }}</pre>
+  </div>
+</div>

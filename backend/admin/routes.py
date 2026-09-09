@@ -249,6 +249,12 @@ def reload_manager_agent_courses(request: Request, reason: str):
 
     manager_agent.load_courses(reload=True)
     print(f"🔄 Manager agent reloaded after {reason}")
+    try:
+        # record audit log for admin actions that trigger reloads
+        from db import Database
+        Database.add_audit_log(None, "manager_reload", reason)
+    except Exception:
+        pass
 
 def load_course_data(course_id: str) -> Dict:
     course_file = COURSES_DIR / f"{course_id}.json"
