@@ -25,11 +25,31 @@ class ManagerAgent:
         self.course_agents: Dict[str, CourseAgent] = {}
         self.sessions: Dict = {}  # Store conversation history per session
         self.courses_fingerprint: Dict[str, Tuple[int, int]] = {}
-        
+
+        # Fase 2 - Observabilidade do Chatbot (RF24): contadores simples em
+        # memória usados pelo Dashboard de Observabilidade de IA.
+        self.metrics = {
+            "total_messages": 0,
+            "course_specific_messages": 0,
+            "unresolved_messages": 0,  # perguntas gerais que não bateram com nenhum curso
+            "messages_per_course": {},
+        }
+
         # Initialize Groq chat client
         self.llm = GroqChatClient()
         self.courses_dir = Path(__file__).parent.parent / "courses"
         print(f"✅ ManagerAgent using Groq model: {self.llm.model}")
+
+    def get_observability_snapshot(self) -> Dict:
+        """Métricas de uso do chatbot para o painel administrativo (RF24)."""
+        return {
+            "total_sessions": len(self.sessions),
+            "total_messages": self.metrics["total_messages"],
+            "course_specific_messages": self.metrics["course_specific_messages"],
+            "unresolved_messages": self.metrics["unresolved_messages"],
+            "messages_per_course": dict(self.metrics["messages_per_course"]),
+            "model": self.llm.model,
+        }
         
     def load_courses(self, reload: bool = False):
         """Load all courses from JSON files in courses directory"""
@@ -221,7 +241,18 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
         
         # Identify course intent
         course_id, is_specific = self.identify_course_intent(user_message)
-        
+
+        # Fase 2 - Observabilidade: contabiliza volume de requisições e
+        # tópicos não compreendidos pelo modelo (RF24).
+        self.metrics["total_messages"] += 1
+        if is_specific:
+            self.metrics["course_specific_messages"] += 1
+            self.metrics["messages_per_course"][course_id] = (
+                self.metrics["messages_per_course"].get(course_id, 0) + 1
+            )
+        else:
+            self.metrics["unresolved_messages"] += 1
+
         # Get conversation history for context
         conversation_history = self.sessions[session_id].copy()
         conversation_history.append({"role": "user", "content": user_message})

@@ -3,11 +3,13 @@ import os
 from typing import Optional
 
 import requests
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
 from admin.routes import load_course_data
+from core.security import AuthContext, Role, require_roles
+from db import Database
 
 load_dotenv()
 
@@ -119,6 +121,12 @@ async def create_checkout(payload: CheckoutInput, request: Request):
     if not checkout_url:
         raise HTTPException(status_code=502, detail="Mercado Pago não retornou URL de checkout.")
 
+    # Persiste aluno/matrícula/pagamento para alimentar os dashboards
+    # administrativos da Fase 2 (Dashboard de Alunos/Cursos/Financeiro).
+    student_id = Database.get_or_create_student(payload.payer.email, payload.payer.name)
+    enrollment_id = Database.create_enrollment(student_id, payload.course_id, external_reference)
+    Database.record_payment(enrollment_id, amount, "mercado_pago")
+
     return {
         "status": "success",
         "preference_id": preference.get("id"),
@@ -150,8 +158,8 @@ async def mercado_pago_webhook(request: Request):
     status = payment.get("status")
     external_reference = payment.get("external_reference")
 
-    # MVP: do not grant access here yet. In production, persist this event and
-    # release enrollment only when status == "approved".
+    if external_reference:
+        Database.update_payment_status_by_reference(external_reference, status, str(payment_id))
     print(f"💳 Payment update: {payment_id} | {status} | {external_reference}")
 
     return {
@@ -159,4 +167,32 @@ async def mercado_pago_webhook(request: Request):
         "payment_id": payment_id,
         "payment_status": status,
         "external_reference": external_reference,
+    }
+
+
+@router.post("/refund/{payment_id}")
+async def refund_payment(
+    payment_id: int,
+    current_user: AuthContext = Depends(require_roles(Role.ADMIN, Role.FINANCIAL)),
+):
+    """
+    Marca um pagamento como reembolsado localmente e registra a trilha de
+    auditoria (Fase 2 - Governança: reembolsos são eventos críticos).
+    A chamada ao gateway de pagamento em produção deve ser feita aqui também;
+    neste MVP apenas o status local é atualizado.
+    """
+    payment = Database.get_payment_by_id(payment_id)
+    if not payment:
+        raise HTTPException(status_code=404, detail="Pagamento não encontrado.")
+
+    Database.update_payment_status(payment_id, "refunded", payment.get("transaction_id"))
+    Database.add_audit_log(
+        current_user.role.value,
+        "payment.refund",
+        f"Pagamento #{payment_id} (R$ {float(payment.get('amount', 0)):.2f}) marcado como reembolsado"
+    )
+
+    return {
+        "status": "success",
+        "message": f"Pagamento #{payment_id} reembolsado.",
     }

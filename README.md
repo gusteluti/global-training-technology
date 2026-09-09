@@ -54,8 +54,8 @@ Crie um arquivo em `backend/courses/seu_curso.json` com a estrutura de `example_
 
 - [ ] Integrar LLM real (OpenAI/local)
 - [ ] Melhorar routing do manager agent
-- [ ] Adicionar histórico de conversas (sessões)
-- [ ] Integrar gateway de pagamento
+- [x] Adicionar histórico de conversas (sessões)
+- [x] Integrar gateway de pagamento
 - [ ] Criar landing page completa
 
 ## 🔒 Segurança
@@ -65,3 +65,38 @@ Crie um arquivo em `backend/courses/seu_curso.json` com a estrutura de `example_
 ✅ Dados sensíveis em .env
 ✅ CORS configurado
 ✅ SQL Injection prevenido (prepared statements)
+
+## 🧭 Fase 2 - Área do Funcionário e Governança
+
+A Fase 2 evolui o MVP com o painel administrativo completo descrito no
+escopo do TCC (`Escopo_Fase2_Global_Training_Technology.pdf`), priorizando
+a Área do Funcionário:
+
+- **RBAC (`backend/core/security.py`)**: três perfis de acesso —
+  `Gestão` (`ADMIN_PASSWORD`), `Financeiro` (`FINANCIAL_PASSWORD`, opcional)
+  e `Suporte` (`SUPPORT_PASSWORD`, opcional). Cada perfil recebe um token
+  assinado com o próprio papel; endpoints sensíveis usam
+  `Depends(require_roles(...))` para restringir acesso (ex.: apenas
+  Gestão/Financeiro veem o Dashboard Financeiro).
+- **Dashboards (`backend/dashboard/routes.py`)**: `/api/dashboard/alunos`,
+  `/cursos`, `/financeiro` e `/observabilidade-ia`, consumidos pelas novas
+  abas do `frontend/admin.html` (Dashboard de Alunos, Dashboard de Cursos,
+  Dashboard Financeiro e Observabilidade de IA), seguindo o mesmo design já
+  usado no cadastro de cursos.
+- **Trilhas de auditoria**: tabela `audit_logs` no SQLite; toda alteração
+  de preço, criação/edição/remoção de curso e reembolso é registrada com
+  perfil responsável e estampa de tempo, visível na aba "Auditoria"
+  (restrita ao perfil Gestão).
+- **Persistência real de matrículas/pagamentos**: `create-checkout` e o
+  webhook do Mercado Pago agora gravam aluno, matrícula e pagamento no
+  SQLite (antes eram apenas registrados em log), alimentando os
+  dashboards. Novo endpoint `POST /api/payments/refund/{payment_id}` marca
+  um pagamento como reembolsado (Gestão/Financeiro) com auditoria.
+- **Observabilidade do Chatbot (RF24)**: o `ManagerAgent` contabiliza
+  volume de mensagens, mensagens por curso e tópicos não compreendidos
+  (perguntas gerais sem curso identificado) em memória.
+
+Itens do escopo da Fase 2 não incluídos nesta entrega (fora da prioridade
+"tela administrativa" definida para esta etapa): Área do Aluno com login
+próprio via JWT, migração do frontend para Angular/SPA e os filtros de
+segurança de LLM contra prompt injection (OWASP for LLMs).
