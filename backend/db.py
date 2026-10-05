@@ -40,6 +40,20 @@ class Database:
             )
         """)
 
+        # Tokens de definição de senha (E2, D12). Guarda só o SHA-256 do token, nunca o token em claro.
+        # used_at marca o uso único; expires_at é UTC (48 h após a emissão).
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS password_setup_tokens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                token_hash TEXT NOT NULL UNIQUE,
+                expires_at TIMESTAMP NOT NULL,
+                used_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+
         # Audit logs table (Trilhas de auditoria). Schema único: aceita eventos de
         # conta (user_id) e de perfil de funcionário (role). Bases criadas pelas
         # versões anteriores recebem as colunas que faltam.
@@ -230,6 +244,90 @@ class Database:
             "role": row[4],
             "created_at": row[5]
         }
+
+    @staticmethod
+    def get_user_by_id(user_id: int) -> Optional[dict]:
+        conn = sqlite3.connect(Database.DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            row = conn.execute(
+                "SELECT id, email, name, password_hash, role FROM users WHERE id = ?", (user_id,)
+            ).fetchone()
+            return dict(row) if row else None
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_user_by_external_reference(external_reference: str) -> Optional[dict]:
+        """Conta dona da matrícula ligada a esta referência de compra (usada pelo webhook)."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            row = conn.execute(
+                """SELECT u.id, u.email, u.name, u.password_hash, u.role
+                   FROM enrollments e JOIN users u ON u.id = e.user_id
+                   WHERE e.external_reference = ? LIMIT 1""",
+                (external_reference,),
+            ).fetchone()
+            return dict(row) if row else None
+        finally:
+            conn.close()
+
+    @staticmethod
+    def insert_password_setup_token(user_id: int, token_hash: str, expires_at: str) -> int:
+        conn = sqlite3.connect(Database.DB_PATH)
+        try:
+            cursor = conn.execute(
+                "INSERT INTO password_setup_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?)",
+                (user_id, token_hash, expires_at),
+            )
+            conn.commit()
+            return cursor.lastrowid
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_password_setup_token(token_hash: str) -> Optional[dict]:
+        conn = sqlite3.connect(Database.DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            row = conn.execute(
+                "SELECT id, user_id, expires_at, used_at FROM password_setup_tokens WHERE token_hash = ?",
+                (token_hash,),
+            ).fetchone()
+            return dict(row) if row else None
+        finally:
+            conn.close()
+
+    @staticmethod
+    def definir_senha_com_token(token_id: int, user_id: int, password_hash: str) -> bool:
+        """Marca o token como usado e grava a senha da conta dona dele, numa só transação.
+
+        Recusa (False, sem alterar nada) se o token já foi usado ou se a conta já tem senha.
+        """
+        conn = sqlite3.connect(Database.DB_PATH, isolation_level=None)
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            try:
+                marcou = conn.execute(
+                    "UPDATE password_setup_tokens SET used_at = CURRENT_TIMESTAMP "
+                    "WHERE id = ? AND used_at IS NULL",
+                    (token_id,),
+                ).rowcount == 1
+                definiu = marcou and conn.execute(
+                    "UPDATE users SET password_hash = ? WHERE id = ? AND password_hash IS NULL",
+                    (password_hash, user_id),
+                ).rowcount == 1
+                if not definiu:
+                    conn.execute("ROLLBACK")
+                    return False
+                conn.execute("COMMIT")
+                return True
+            except Exception:
+                conn.execute("ROLLBACK")
+                raise
+        finally:
+            conn.close()
 
     @staticmethod
     def get_revenue_totals() -> Dict:

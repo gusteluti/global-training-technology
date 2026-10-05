@@ -9,6 +9,8 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 
 from admin.routes import load_course_data
+from core.notifications import send_password_setup_link
+from core.password_setup import emitir_token_definicao
 from core.security import AuthContext, Role, require_roles
 from db import Database
 
@@ -141,6 +143,16 @@ async def create_checkout(payload: CheckoutInput, request: Request):
     }
 
 
+def _entregar_definicao_de_senha(external_reference: str):
+    """Pagamento aprovado e conta sem senha: emite o token de definição e envia o link (E2, D12/D13)."""
+    conta = Database.get_user_by_external_reference(external_reference)
+    if not conta or conta["password_hash"] is not None:
+        return
+    token = emitir_token_definicao(conta["id"])
+    frontend_base_url = os.getenv("FRONTEND_BASE_URL", "http://localhost:8000").rstrip("/")
+    send_password_setup_link(conta["email"], f"{frontend_base_url}/definir-senha?token={token}")
+
+
 @router.post("/webhook")
 async def mercado_pago_webhook(request: Request):
     data = await request.json()
@@ -165,6 +177,8 @@ async def mercado_pago_webhook(request: Request):
 
     if external_reference:
         Database.update_payment_status_by_reference(external_reference, status, str(payment_id))
+        if status == "approved":
+            _entregar_definicao_de_senha(external_reference)
     print(f"💳 Payment update: {payment_id} | {status} | {external_reference}")
 
     return {
