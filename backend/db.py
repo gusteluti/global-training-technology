@@ -73,7 +73,7 @@ class Database:
 
         conn.commit()
         conn.close()
-        print("✓ Database initialized")
+        print("[OK] Database initialized")
 
     @staticmethod
     def _ensure_column(cursor: sqlite3.Cursor, table: str, column: str, definition: str):

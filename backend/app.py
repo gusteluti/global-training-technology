@@ -38,10 +38,10 @@ async def startup_event():
         manager_agent = ManagerAgent()
         manager_agent.load_courses()
         app.state.manager_agent = manager_agent
-        print(f"✅ Manager Agent initialized with {len(manager_agent.courses)} courses")
-        print(f"✅ Groq LLM loaded successfully")
+        print(f"[OK] Manager Agent initialized with {len(manager_agent.courses)} courses")
+        print(f"[OK] Groq LLM loaded successfully")
     except Exception as e:
-        print(f"❌ Error initializing manager agent: {str(e)}")
+        print(f"[ERRO] Error initializing manager agent: {str(e)}")
         raise
 
     # Contas de funcionário para o login da aplicação Angular (um por perfil de RBAC).
@@ -59,7 +59,7 @@ async def startup_event():
         if email and password and not Database.get_user_by_email(email):
             name = os.getenv(f"{env_prefix}_NAME", default_name)
             if Database.add_user(email, name, get_password_hash(password), role=role):
-                print(f"✅ Conta de {role} criada: {email}")
+                print(f"[OK] Conta de {role} criada: {email}")
 
 @app.get("/health")
 async def health_check():

@@ -243,11 +243,11 @@ def reload_manager_agent_courses(request: Request, reason: str):
     """Reload in-memory course agents so chat can see admin changes immediately."""
     manager_agent = getattr(request.app.state, "manager_agent", None)
     if not manager_agent:
-        print(f"⚠️ Manager agent not available to reload after {reason}")
+        print(f"[AVISO] Manager agent not available to reload after {reason}")
         return 0
 
     loaded_courses = manager_agent.load_courses(reload=True)
-    print(f"🔄 Manager agent reloaded after {reason}. Courses loaded: {loaded_courses}")
+    print(f"[RECARREGA] Manager agent reloaded after {reason}. Courses loaded: {loaded_courses}")
     try:
         # Registro do recarregamento (contribuição do Gustavo). Não pode derrubar a operação de cadastro.
         Database.add_audit_log("manager_reload", reason, role="system")

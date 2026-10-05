@@ -15,7 +15,7 @@ class GroqChatClient:
 
         self.model = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
         self.client = Groq(api_key=self.api_key)
-        print(f"✅ GroqChatClient initialized with model: {self.model}")
+        print(f"[OK] GroqChatClient initialized with model: {self.model}")
 
     def create_chat_completion(self, messages: List[Dict[str, str]], max_tokens: int = 1024, temperature: float = 0.7) -> str:
         response = self.client.chat.completions.create(

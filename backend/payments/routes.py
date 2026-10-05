@@ -179,7 +179,7 @@ async def mercado_pago_webhook(request: Request):
         Database.update_payment_status_by_reference(external_reference, status, str(payment_id))
         if status == "approved":
             _entregar_definicao_de_senha(external_reference)
-    print(f"💳 Payment update: {payment_id} | {status} | {external_reference}")
+    print(f"[PAGAMENTO] Payment update: {payment_id} | {status} | {external_reference}")
 
     return {
         "status": "received",
