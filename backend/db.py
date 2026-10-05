@@ -10,32 +10,20 @@ class Database:
     @staticmethod
     def init_db():
         """Initialize database tables"""
-        conn = sqlite3.connect(Database.DB_PATH)
+        # isolation_level=None: controle explícito da transação da migração.
+        conn = sqlite3.connect(Database.DB_PATH, isolation_level=None)
         cursor = conn.cursor()
 
-        # Students table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS students (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                email TEXT UNIQUE NOT NULL,
-                name TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-
-        # Enrollments table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS enrollments (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                student_id INTEGER NOT NULL,
-                course_id TEXT NOT NULL,
-                status TEXT DEFAULT 'pending',
-                external_reference TEXT,
-                enrolled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (student_id) REFERENCES students(id)
-            )
-        """)
-        Database._ensure_column(cursor, "enrollments", "external_reference", "TEXT")
+        # Identidade unificada (E1): users, enrollments.user_id e status padronizado.
+        # Tudo ou nada: se qualquer passo falhar, o banco volta ao estado anterior.
+        cursor.execute("BEGIN IMMEDIATE")
+        try:
+            Database._migrar_identidade_e1(cursor)
+            cursor.execute("COMMIT")
+        except Exception:
+            cursor.execute("ROLLBACK")
+            conn.close()
+            raise
 
         # Payments table
         cursor.execute("""
@@ -49,18 +37,6 @@ class Database:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (enrollment_id) REFERENCES enrollments(id)
-            )
-        """)
-
-        # Users table (contas de alunos e funcionários, login JWT via /api/token)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                email TEXT UNIQUE NOT NULL,
-                name TEXT NOT NULL,
-                password_hash TEXT,
-                role TEXT DEFAULT 'student',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
 
@@ -92,25 +68,131 @@ class Database:
         if column not in existing_columns:
             cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
-    @staticmethod
-    def add_student(email: str, name: str) -> Optional[int]:
-        """Add a new student"""
-        try:
-            conn = sqlite3.connect(Database.DB_PATH)
-            cursor = conn.cursor()
+    # Status de matrícula fechado (decisão do PM): pending, active, cancelled, refunded.
+    MATRICULA_STATUS = ("pending", "active", "cancelled", "refunded")
 
+    # Status de pagamento (vocabulário do Mercado Pago) -> status de matrícula.
+    # Status de pagamento fora deste mapa não altera a matrícula.
+    MATRICULA_POR_PAGAMENTO = {
+        "approved": "active",
+        "refunded": "refunded",
+        "rejected": "cancelled",
+        "cancelled": "cancelled",
+        "pending": "pending",
+        "in_process": "pending",
+    }
+
+    _DDL_ENROLLMENTS = """
+        CREATE TABLE {nome} (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            course_id TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending'
+                CHECK (status IN ('pending', 'active', 'cancelled', 'refunded')),
+            external_reference TEXT,
+            enrolled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """
+
+    @staticmethod
+    def _enrollments_ja_migrada(cursor: sqlite3.Cursor) -> bool:
+        colunas = {row[1] for row in cursor.execute("PRAGMA table_info(enrollments)")}
+        sql = cursor.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'enrollments'"
+        ).fetchone()[0] or ""
+        return "user_id" in colunas and "student_id" not in colunas and "CHECK" in sql.upper()
+
+    @staticmethod
+    def _migrar_identidade_e1(cursor: sqlite3.Cursor):
+        """Migração idempotente da E1. Roda dentro de uma transação (ver init_db).
+
+        - students -> users (role 'student', sem senha). E-mails já existentes em users
+          são preservados como estão (INSERT OR IGNORE: não rebaixa papel nem apaga senha).
+        - enrollments: ganha user_id (por e-mail) e status normalizado com CHECK.
+          SQLite não adiciona CHECK com ALTER, então a tabela é reconstruída.
+        - students é removida ao final, depois de copiada para users.
+        """
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT UNIQUE NOT NULL,
+                name TEXT NOT NULL,
+                password_hash TEXT,
+                role TEXT DEFAULT 'student',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        tabelas = {row[0] for row in cursor.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+        tem_students = "students" in tabelas
+
+        if tem_students:
+            cursor.execute("""
+                INSERT OR IGNORE INTO users (email, name, password_hash, role, created_at)
+                SELECT email, name, NULL, 'student', created_at FROM students
+            """)
+
+        if "enrollments" not in tabelas:
+            cursor.execute(Database._DDL_ENROLLMENTS.format(nome="enrollments"))
+        elif not Database._enrollments_ja_migrada(cursor):
+            Database._ensure_column(cursor, "enrollments", "external_reference", "TEXT")
+            total_antes = cursor.execute("SELECT COUNT(*) FROM enrollments").fetchone()[0]
+
+            cursor.execute(Database._DDL_ENROLLMENTS.format(nome="enrollments_novo"))
+            cursor.execute("""
+                INSERT INTO enrollments_novo (id, user_id, course_id, status, external_reference, enrolled_at)
+                SELECT
+                    e.id,
+                    (SELECT u.id FROM students s JOIN users u ON u.email = s.email WHERE s.id = e.student_id),
+                    e.course_id,
+                    CASE e.status
+                        WHEN 'approved' THEN 'active'
+                        WHEN 'completed' THEN 'active'
+                        WHEN 'active' THEN 'active'
+                        WHEN 'rejected' THEN 'cancelled'
+                        WHEN 'cancelled' THEN 'cancelled'
+                        WHEN 'refunded' THEN 'refunded'
+                        WHEN 'in_process' THEN 'pending'
+                        ELSE 'pending'
+                    END,
+                    e.external_reference,
+                    e.enrolled_at
+                FROM enrollments e
+            """)
+            total_depois = cursor.execute("SELECT COUNT(*) FROM enrollments_novo").fetchone()[0]
+            if total_depois != total_antes:
+                raise RuntimeError(
+                    f"Migração E1 abortada: {total_antes} matrículas antigas, {total_depois} copiadas."
+                )
+
+            cursor.execute("DROP TABLE enrollments")
+            cursor.execute("ALTER TABLE enrollments_novo RENAME TO enrollments")
+
+        if tem_students:
+            cursor.execute("DROP TABLE students")
+
+    @staticmethod
+    def get_or_create_user(email: str, name: str) -> int:
+        """Id da conta do aluno para este e-mail; cria como role 'student' sem senha se não existir.
+        Conta existente (inclusive de funcionário) não é alterada."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
+        row = cursor.fetchone()
+        if row:
+            user_id = row[0]
+        else:
             cursor.execute(
-                "INSERT INTO students (email, name) VALUES (?, ?)",
+                "INSERT INTO users (email, name, password_hash, role) VALUES (?, ?, NULL, 'student')",
                 (email, name)
             )
-
             conn.commit()
-            student_id = cursor.lastrowid
-            conn.close()
-            return student_id
-        except sqlite3.IntegrityError:
-            # Student already exists
-            return None
+            user_id = cursor.lastrowid
+
+        conn.close()
+        return user_id
 
     @staticmethod
     def add_user(email: str, name: str, password_hash: Optional[str] = None, role: str = "student") -> Optional[int]:
@@ -166,12 +248,18 @@ class Database:
     def get_student_metrics():
         conn = sqlite3.connect(Database.DB_PATH)
         cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM students")
+        cursor.execute("SELECT COUNT(*) FROM users WHERE role = 'student'")
         total_students = cursor.fetchone()[0]
         cursor.execute("SELECT COUNT(*) FROM enrollments WHERE status = 'active'")
         active_enrollments = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(DISTINCT user_id) FROM enrollments WHERE status = 'active'")
+        active_students = cursor.fetchone()[0]
         conn.close()
-        return {"total_students": total_students, "active_enrollments": active_enrollments}
+        return {
+            "total_students": total_students,
+            "active_students": active_students,
+            "active_enrollments": active_enrollments,
+        }
 
     @staticmethod
     def get_course_metrics():
@@ -195,35 +283,14 @@ class Database:
         return metrics
 
     @staticmethod
-    def get_or_create_student(email: str, name: str) -> int:
-        """Return the existing student id for this email, creating it if needed."""
-        conn = sqlite3.connect(Database.DB_PATH)
-        cursor = conn.cursor()
-
-        cursor.execute("SELECT id FROM students WHERE email = ?", (email,))
-        row = cursor.fetchone()
-        if row:
-            student_id = row[0]
-        else:
-            cursor.execute(
-                "INSERT INTO students (email, name) VALUES (?, ?)",
-                (email, name)
-            )
-            conn.commit()
-            student_id = cursor.lastrowid
-
-        conn.close()
-        return student_id
-
-    @staticmethod
-    def create_enrollment(student_id: int, course_id: str, external_reference: Optional[str] = None) -> int:
-        """Create an enrollment"""
+    def create_enrollment(user_id: int, course_id: str, external_reference: Optional[str] = None) -> int:
+        """Create an enrollment (status inicial 'pending')"""
         conn = sqlite3.connect(Database.DB_PATH)
         cursor = conn.cursor()
 
         cursor.execute(
-            "INSERT INTO enrollments (student_id, course_id, external_reference) VALUES (?, ?, ?)",
-            (student_id, course_id, external_reference)
+            "INSERT INTO enrollments (user_id, course_id, status, external_reference) VALUES (?, ?, 'pending', ?)",
+            (user_id, course_id, external_reference)
         )
 
         conn.commit()
@@ -286,12 +353,35 @@ class Database:
                WHERE id = ?""",
             (status, transaction_id, row[0])
         )
-        # Keep the enrollment status mirrored to the payment status for the dashboards.
-        cursor.execute(
-            "UPDATE enrollments SET status = ? WHERE external_reference = ?",
-            (status, external_reference)
-        )
+        # A matrícula segue o status do pagamento pelo mapa fechado; status desconhecido não a altera.
+        status_matricula = Database.MATRICULA_POR_PAGAMENTO.get(status)
+        if status_matricula:
+            cursor.execute(
+                "UPDATE enrollments SET status = ? WHERE external_reference = ?",
+                (status_matricula, external_reference)
+            )
 
+        conn.commit()
+        conn.close()
+        return True
+
+    @staticmethod
+    def mark_payment_refunded(payment_id: int) -> bool:
+        """Reembolso: marca o pagamento e a matrícula dele como refunded (mesma transação)."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE payments SET status = 'refunded', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (payment_id,)
+        )
+        if cursor.rowcount == 0:
+            conn.close()
+            return False
+        cursor.execute(
+            """UPDATE enrollments SET status = 'refunded'
+               WHERE id = (SELECT enrollment_id FROM payments WHERE id = ?)""",
+            (payment_id,)
+        )
         conn.commit()
         conn.close()
         return True
@@ -324,7 +414,7 @@ class Database:
                 s.email AS student_email
             FROM payments p
             JOIN enrollments e ON e.id = p.enrollment_id
-            JOIN students s ON s.id = e.student_id
+            JOIN users s ON s.id = e.user_id
             ORDER BY p.id DESC
             LIMIT ?
         """, (limit,))
@@ -376,10 +466,11 @@ class Database:
                 s.name,
                 s.created_at,
                 COUNT(e.id) AS total_enrollments,
-                SUM(CASE WHEN e.status IN ('approved', 'active') THEN 1 ELSE 0 END) AS active_enrollments,
+                SUM(CASE WHEN e.status = 'active' THEN 1 ELSE 0 END) AS active_enrollments,
                 MAX(e.enrolled_at) AS last_enrollment_at
-            FROM students s
-            LEFT JOIN enrollments e ON e.student_id = s.id
+            FROM users s
+            LEFT JOIN enrollments e ON e.user_id = s.id
+            WHERE s.role = 'student'
             GROUP BY s.id
             ORDER BY last_enrollment_at DESC
         """)
@@ -397,7 +488,7 @@ class Database:
             SELECT
                 e.course_id,
                 COUNT(e.id) AS total_enrollments,
-                SUM(CASE WHEN e.status = 'approved' THEN 1 ELSE 0 END) AS approved_enrollments,
+                SUM(CASE WHEN e.status = 'active' THEN 1 ELSE 0 END) AS approved_enrollments,
                 SUM(CASE WHEN e.status = 'pending' THEN 1 ELSE 0 END) AS pending_enrollments
             FROM enrollments e
             GROUP BY e.course_id

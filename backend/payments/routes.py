@@ -1,5 +1,6 @@
 from datetime import datetime
 import os
+import uuid
 from typing import Optional
 
 import requests
@@ -66,7 +67,9 @@ async def create_checkout(payload: CheckoutInput, request: Request):
 
     frontend_base_url = os.getenv("FRONTEND_BASE_URL", "http://localhost:8000").rstrip("/")
     api_base_url = os.getenv("API_BASE_URL", str(request.base_url).rstrip("/")).rstrip("/")
-    external_reference = f"{payload.course_id}:{int(datetime.utcnow().timestamp())}"
+    # Sufixo aleatório: duas compras do mesmo curso no mesmo segundo não podem compartilhar referência
+    # (o webhook localiza a matrícula pela referência).
+    external_reference = f"{payload.course_id}:{int(datetime.utcnow().timestamp())}:{uuid.uuid4().hex[:8]}"
 
     preference_data = {
         "items": [
@@ -123,8 +126,10 @@ async def create_checkout(payload: CheckoutInput, request: Request):
 
     # Persiste aluno/matrícula/pagamento para alimentar os dashboards
     # administrativos da Fase 2 (Dashboard de Alunos/Cursos/Financeiro).
-    student_id = Database.get_or_create_student(payload.payer.email, payload.payer.name)
-    enrollment_id = Database.create_enrollment(student_id, payload.course_id, external_reference)
+    # Conta do aluno (role 'student', sem senha) e matrícula 'pending'; a matrícula é
+    # ativada pelo webhook quando o pagamento for aprovado.
+    user_id = Database.get_or_create_user(payload.payer.email, payload.payer.name)
+    enrollment_id = Database.create_enrollment(user_id, payload.course_id, external_reference)
     Database.record_payment(enrollment_id, amount, "mercado_pago")
 
     return {
@@ -185,7 +190,8 @@ async def refund_payment(
     if not payment:
         raise HTTPException(status_code=404, detail="Pagamento não encontrado.")
 
-    Database.update_payment_status(payment_id, "refunded", payment.get("transaction_id"))
+    # Marca o pagamento e a matrícula como refunded.
+    Database.mark_payment_refunded(payment_id)
     Database.add_audit_log(
         "payment.refund",
         f"Pagamento #{payment_id} (R$ {float(payment.get('amount', 0)):.2f}) marcado como reembolsado",
