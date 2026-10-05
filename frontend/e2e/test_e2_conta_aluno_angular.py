@@ -3,16 +3,19 @@
 Cenários (cada um é um check numerado, C1-C8):
   C1 cadastro em /cadastro -> mensagem de sucesso -> login em / leva ao /student
   C2 cadastro com senha curta (<8) -> erro visível, sem recarregar e sem criar conta
-  C3 cadastro com e-mail existente (admin@gt.com) -> erro GENÉRICO; e-mail e "já cadastrado" ausentes
-     da tela; senha da conta existente continua a mesma
+  C3 cadastro com e-mail existente (admin@gt.com) -> MESMA mensagem de sucesso genérica do cadastro
+     de e-mail novo (.alert-success, D21); não aparece erro; e-mail e "já cadastrado" ausentes da
+     tela; a senha antiga da conta existente continua valendo
   C4 /definir-senha?token=<válido> -> sucesso; login por API com e-mail + nova senha funciona
   C5 mesmo token reaberto e enviado -> erro genérico (uso único)
   C6 /definir-senha?token=xyz -> erro genérico visível; sucesso nunca aparece
   C7 login existente em / : conta sem senha é recusada; conta com senha entra e chega a /student
   C8 nenhum erro de console (nem exceção de página) nas telas acima
 
-Filtro estreito do C8 (ignora SOMENTE os 400 esperados por rota de validação, D15/D16):
-  1) POST /api/auth/register com 400, na tela /cadastro (validação: senha curta, e-mail existente)
+Filtro estreito do C8 (ignora SOMENTE os 400 esperados por rota de validação, D15/D16/D21):
+  1) POST /api/auth/register com 400, na tela /cadastro. Mantido porque a validação de senha curta
+     (C2) continua devolvendo 400 no cadastro. Isso NÃO é enumeração: o tamanho da senha não depende
+     de existir conta. O e-mail existente não devolve 400 (D21); isso é verificado pelo C3.
   2) POST /api/auth/password-setup com 400, na tela /definir-senha (token inválido, usado ou
      expirado, e senha curta)
 A associação é feita pela resposta HTTP real (page.on("response")): cada erro de console
@@ -206,6 +209,7 @@ def test_e2_conta_aluno_angular_e2e(browser):
     erros_console = []
     contextos = []
     atual = {"rotulo": "", "page": None}
+    referencias = {}  # mensagem de sucesso do cadastro de e-mail novo (C1), usada no C3
 
     def nova_pagina(rotulo):
         atual["rotulo"] = rotulo
@@ -272,7 +276,7 @@ def test_e2_conta_aluno_angular_e2e(browser):
         preencher(page, "input[name=email]", email, "C1 cadastro")
         preencher(page, "input[name=password]", SENHA_NOVA, "C1 cadastro")
         enviar(page, "C1 cadastro")
-        esperar_alerta(page, "success", "C1 cadastro")
+        referencias["sucesso_novo"] = esperar_alerta(page, "success", "C1 cadastro")
         conta = conta_no_banco(email)
         if conta is None or conta.get("role") != "student":
             raise Falha("C1 cadastro: conta de aluno não foi criada no banco")
@@ -306,13 +310,22 @@ def test_e2_conta_aluno_angular_e2e(browser):
     def c3():
         if conta_no_banco(ADMIN_EMAIL) is None:
             raise Falha("C3 e-mail existente: pré-requisito ausente, conta admin@gt.com não existe no banco")
+        if "sucesso_novo" not in referencias:
+            raise Falha("C3 e-mail existente: sem referência do cadastro novo (C1 não obteve a mensagem de sucesso)")
         page = nova_pagina("C3")
         exigir_rota(page, "/cadastro", "C3 e-mail existente")
         preencher(page, "input[name=name]", "Outra Pessoa", "C3 e-mail existente")
         preencher(page, "input[name=email]", ADMIN_EMAIL, "C3 e-mail existente")
         preencher(page, "input[name=password]", SENHA_NOVA, "C3 e-mail existente")
         enviar(page, "C3 e-mail existente")
-        esperar_alerta(page, "danger", "C3 e-mail existente")
+        mensagem = esperar_alerta(page, "success", "C3 e-mail existente")
+        if alerta_visivel(page, "danger"):
+            raise Falha("C3 e-mail existente: a tela mostrou erro; o cadastro deve responder como o de e-mail novo")
+        if mensagem != referencias["sucesso_novo"]:
+            raise Falha(
+                f"C3 e-mail existente: mensagem diferente do cadastro novo "
+                f"(novo={referencias['sucesso_novo']!r}, existente={mensagem!r})"
+            )
         corpo = page.inner_text("body").lower()
         if ADMIN_EMAIL in corpo:
             raise Falha("C3 e-mail existente: o e-mail cadastrado aparece na tela (revela a conta)")
@@ -323,7 +336,7 @@ def test_e2_conta_aluno_angular_e2e(browser):
         if status_antiga != 200 or status_nova == 200:
             raise Falha("C3 e-mail existente: a senha da conta existente foi alterada pelo cadastro")
 
-    cenario("C3", "cadastro com e-mail existente mostra erro genérico, sem revelar a conta", c3)
+    cenario("C3", "cadastro com e-mail existente mostra a mesma mensagem de sucesso do e-mail novo", c3)
 
     # --- C4 -------------------------------------------------------------------------
     def c4():

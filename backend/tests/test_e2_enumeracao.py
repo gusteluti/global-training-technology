@@ -9,9 +9,13 @@ para quem está de fora:
 
 Três testes separados, para que a falha aponte a causa exata (status, corpo ou tempo).
 
-Sobre o teste de tempo:
-  - Ele é INDICATIVO, não é prova de canal lateral. Mede média de 5 chamadas, alternando
-    existente e inexistente, em máquina de desenvolvimento com carga variável.
+Igualdade de status e corpo (test_enum_1 e test_enum_2) é asserção de IGUALDADE EXATA (==).
+Contrato: decisão D21 (resposta uniforme 200 para e-mail novo e existente).
+
+Sobre o teste de tempo (paridade de tempo, D21):
+  - Ele é INDICATIVO, não é prova de canal lateral. Mede a média de 5 chamadas de cada caminho
+    (existente e inexistente, alternadas), em máquina de desenvolvimento com carga variável.
+  - Critério: as duas médias não podem diferir mais que 300 ms.
   - O limite de 300 ms é FOLGADO DE PROPÓSITO: um bcrypt (passlib, custo padrão) leva dezenas
     a centenas de ms. Se a implementação só faz hash no caminho de sucesso, a diferença
     tende a passar do limite e o teste revela o problema. Um limite apertado geraria falsos

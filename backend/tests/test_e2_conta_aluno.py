@@ -213,14 +213,19 @@ def test_2_cadastro_com_role_admin_cria_conta_student(client):
     assert usuario["role"] == "student", "o campo role enviado pelo cliente deve ser ignorado"
 
 
-# --- Requisito T3: e-mail já existente (D15) ----------------------------------------
+# --- Requisito T3: e-mail já existente tem a MESMA resposta que e-mail novo (D15, D21) -
 
-def test_3_cadastro_com_email_de_gestor_existente_falha_e_nao_troca_senha(client):
+def test_3_cadastro_com_email_de_gestor_existente_responde_igual_e_nao_troca_senha(client):
     senha_antiga = "senha-do-gestor-1"
     Database.add_user("gestor@teste.com", "Gestor", get_password_hash(senha_antiga), role="admin")
 
+    r_novo = _registrar(client, "novo.t3@teste.com", SENHA_NOVA, name="Novo")
+    assert r_novo.status_code == 200, r_novo.text
+
     r = _registrar(client, "gestor@teste.com", SENHA_NOVA, name="Invasor")
-    assert r.status_code == 400, r.text
+    assert r.status_code == r_novo.status_code, r.text
+    assert r.json() == r_novo.json(), "o corpo do e-mail existente deve ser igual ao do e-mail novo"
+    assert "gestor@teste.com" not in r.text, "a resposta não pode ecoar o e-mail existente"
 
     assert _login(client, "gestor@teste.com", senha_antiga).status_code == 200, (
         "a senha da conta existente não pode mudar com um cadastro de mesmo e-mail"
@@ -377,12 +382,16 @@ def test_12b_senha_definida_por_link_e_bcrypt(client):
 
 # --- Requisito T13: respostas genéricas (D15, D16) ----------------------------------
 
-def test_13a_cadastro_com_email_existente_nao_revela_conta_nem_ecoa_dados(client):
+def test_13a_cadastro_com_email_existente_responde_igual_e_nao_ecoa_dados(client):
+    """D21: e-mail existente e e-mail novo recebem a mesma resposta (status e corpo)."""
     Database.add_user("existe.13a@teste.com", "Existente", get_password_hash("senha-existente-1"))
 
+    r_novo = _registrar(client, "novo.13a@teste.com", SENHA_NOVA)
+    assert r_novo.status_code == 200, r_novo.text
+
     r = _registrar(client, "existe.13a@teste.com", SENHA_NOVA)
-    assert r.status_code == 400, r.text
-    assert set(r.json().keys()) == {"detail"}, "a resposta de erro deve ter só a mensagem genérica"
+    assert r.status_code == r_novo.status_code, r.text
+    assert r.json() == r_novo.json(), "o corpo do e-mail existente deve ser igual ao do e-mail novo"
     assert "existe.13a@teste.com" not in r.text
 
 
