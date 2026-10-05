@@ -1,14 +1,34 @@
 <div class="row">
   <div class="col-12">
-    <h3>Meus Cursos</h3>
-    <div *ngIf="courses.length === 0" class="alert alert-info">Nenhum curso encontrado.</div>
+    <h3>Meus cursos</h3>
+    <div *ngIf="erro" class="alert alert-danger">{{ erro }}</div>
+    <div *ngIf="!erro && enrollments.length === 0" class="alert alert-info">Você ainda não tem matrículas.</div>
     <div class="row">
-      <div class="col-md-6" *ngFor="let c of courses">
-        <div class="card">
+      <div class="col-md-6 mb-3" *ngFor="let m of enrollments">
+        <div class="card h-100">
           <div class="card-body">
-            <h5 class="card-title">{{ c.name }}</h5>
-            <p class="card-text">Preço: R$ {{ c.price }}</p>
-            <a class="btn btn-sm btn-primary" [href]="'/courses/' + c.id">Acessar</a>
+            <div class="d-flex justify-content-between align-items-start mb-3">
+              <h5 class="card-title mb-0">{{ m.course_name }}</h5>
+              <span class="badge ms-2" [ngClass]="classeStatus(m.status)">{{ rotuloStatus(m.status) }}</span>
+            </div>
+
+            <ng-container *ngIf="m.status === 'active'; else semAcesso">
+              <h6>Materiais</h6>
+              <div class="list-group" *ngIf="m.materials?.length; else semMateriais">
+                <a *ngFor="let mat of m.materials"
+                   class="list-group-item list-group-item-action"
+                   [href]="mat.url"
+                   target="_blank"
+                   rel="noopener noreferrer">{{ mat.title }}</a>
+              </div>
+              <ng-template #semMateriais>
+                <p class="text-muted small mb-0">Este curso ainda não tem materiais.</p>
+              </ng-template>
+            </ng-container>
+
+            <ng-template #semAcesso>
+              <p class="text-muted small mb-0">{{ mensagemSemAcesso(m.status) }}</p>
+            </ng-template>
           </div>
         </div>
       </div>
