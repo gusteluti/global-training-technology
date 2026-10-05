@@ -352,8 +352,8 @@ def test_4_webhook_mapeia_status_para_matricula(client, status_pagamento, status
     assert r_hook.status_code == 200, r_hook.text
 
     matricula = _matricula_por_ref(ref)
-    assert matricula["user_id"] is not None, "a matrícula precisa estar vinculada à conta do aluno"
     assert matricula["status"] == status_matricula
+    assert matricula["user_id"] is not None, "a matrícula precisa estar vinculada à conta do aluno"
 
 
 # --- Requisito 5: reembolso marca pagamento e matrícula ----------------------------

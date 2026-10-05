@@ -10,18 +10,21 @@ Pré-requisitos (ambos precisam estar de pé antes de rodar):
     (semeadas a partir do .env: ADMIN_EMAIL/FINANCIAL_EMAIL/SUPPORT_EMAIL e as senhas de perfil)
   - Chromium do Playwright instalado: py -3 -m playwright install chromium
 
+Porta diferente do 4200: defina E2E_BASE_URL (ex.: http://localhost:4300).
 Execução: py -3 -m pytest frontend/e2e -s
 Screenshots vão para a pasta temporária do sistema (ou para E2E_SCREENSHOTS, se definida).
 """
 
 import os
+import sys
 import tempfile
 import time
+import uuid
 from pathlib import Path
 
 import pytest
 
-BASE = "http://localhost:4200"
+BASE = os.environ.get("E2E_BASE_URL", "http://localhost:4200")
 
 EXPECTED = {
     "admin@gt.com": ("admin123", ["Financeiro", "Alunos", "Cursos", "Observabilidade de IA", "Auditoria"]),
@@ -45,7 +48,28 @@ def browser():
             navegador.close()
 
 
-def test_admin_angular_e2e(browser):
+@pytest.fixture(scope="module", autouse=True)
+def pagamentos_pendentes_para_reembolso():
+    """Semeia dois pagamentos pendentes (um para o reembolso de cada perfil que reembolsa).
+
+    A aba Financeiro so mostra o botao 'Reembolsar' para pagamentos nao reembolsados; com banco
+    vazio os dois checks de reembolso pela tela seriam pulados. O seed usa a camada Database do
+    backend (mesmo db.sqlite do servidor), sem tocar em codigo de producao.
+    """
+    backend = Path(__file__).resolve().parents[2] / "backend"
+    sys.path.insert(0, str(backend))
+    from db import Database
+
+    Database.init_db()
+    student_id = Database.get_or_create_student("e2e.reembolso@teste.com", "Aluno E2E Reembolso")
+    ids = []
+    for _ in range(2):
+        enrollment_id = Database.create_enrollment(student_id, "curso-e2e", f"e2e-{uuid.uuid4().hex[:12]}")
+        ids.append(Database.record_payment(enrollment_id, 99.90, "e2e-seed"))
+    yield ids
+
+
+def test_admin_angular_e2e(browser, pagamentos_pendentes_para_reembolso):
     OUT.mkdir(parents=True, exist_ok=True)
     results = []
 
@@ -93,12 +117,13 @@ def test_admin_angular_e2e(browser):
             refund_btns = page.locator("button", has_text="Reembolsar")
             n_before = refund_btns.count()
             if n_before:
+                refunded_antes = page.locator("span.badge", has_text="refunded").count()
                 refund_btns.first.click()
                 time.sleep(2.0)
                 refunded_badges = page.locator("span.badge", has_text="refunded").count()
                 check(f"{role}: reembolso pela tela muda status para refunded",
-                      refunded_badges >= 2 and dialogs,
-                      f"badges refunded={refunded_badges}, dialogs={dialogs}")
+                      refunded_badges > refunded_antes and dialogs,
+                      f"badges refunded antes={refunded_antes}, depois={refunded_badges}, dialogs={dialogs}")
                 page.screenshot(path=str(OUT / f"{role}_financeiro_apos_reembolso.png"), full_page=True)
 
         check(f"{role}: sem erros de console", not console_errors, "; ".join(console_errors[:3]))
