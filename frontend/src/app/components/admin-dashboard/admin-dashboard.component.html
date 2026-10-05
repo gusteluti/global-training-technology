@@ -1,28 +1,19 @@
-<div class="row">
-  <div class="col-md-6">
-    <div class="card">
-      <div class="card-body">
-        <h5>Financeiro</h5>
-        <pre *ngIf="financial">{{ financial | json }}</pre>
-      </div>
-    </div>
-  </div>
-  <div class="col-md-6">
-    <div class="card">
-      <div class="card-body">
-        <h5>Alunos</h5>
-        <pre *ngIf="students">{{ students | json }}</pre>
-      </div>
-    </div>
-  </div>
+<h3 class="mb-3">Painel administrativo</h3>
 
-  <div class="col-12 mt-3">
-    <h5>Cursos</h5>
-    <pre *ngIf="courses">{{ courses | json }}</pre>
-  </div>
+<ul class="nav nav-tabs mb-3">
+  <li class="nav-item" *ngFor="let tab of visibleTabs">
+    <button type="button" class="nav-link" [class.active]="activeTab === tab.key" (click)="select(tab.key)">
+      {{ tab.label }}
+    </button>
+  </li>
+</ul>
 
-  <div class="col-12 mt-3">
-    <h5>Audit Logs</h5>
-    <pre *ngIf="logs">{{ logs | json }}</pre>
-  </div>
+<app-financial-dashboard *ngIf="activeTab === 'financeiro'"></app-financial-dashboard>
+<app-students-dashboard *ngIf="activeTab === 'alunos'"></app-students-dashboard>
+<app-courses-dashboard *ngIf="activeTab === 'cursos'"></app-courses-dashboard>
+<app-ai-observability *ngIf="activeTab === 'ia'"></app-ai-observability>
+<app-audit-logs *ngIf="activeTab === 'auditoria'"></app-audit-logs>
+
+<div class="alert alert-warning" *ngIf="visibleTabs.length === 0">
+  Seu perfil não tem acesso a nenhum painel administrativo.
 </div>

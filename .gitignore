@@ -44,6 +44,7 @@ desktop.ini
 # Node/frontend dependencies and build output, if added later
 node_modules/
 dist/
+.angular/
 build/
 .parcel-cache/
 .vite/

@@ -1,0 +1,59 @@
+<div class="alert alert-danger" *ngIf="error">{{ error }}</div>
+
+<div class="row g-3 mb-3" *ngIf="metrics">
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="text-muted small">Alunos cadastrados</div>
+        <div class="fs-3">{{ metrics.total_students }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="text-muted small">Com matrícula ativa</div>
+        <div class="fs-3 text-success">{{ metrics.active_students }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="text-muted small">Sessões de chat com a IA</div>
+        <div class="fs-3">{{ metrics.total_chat_sessions }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <h5>Alunos matriculados</h5>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th>Aluno</th>
+            <th>E-mail</th>
+            <th>Matrículas</th>
+            <th>Ativas</th>
+            <th>Última matrícula</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let s of students">
+            <td>{{ s.name }}</td>
+            <td>{{ s.email }}</td>
+            <td>{{ s.total_enrollments || 0 }}</td>
+            <td>{{ s.active_enrollments || 0 }}</td>
+            <td>{{ s.last_enrollment_at || '—' }}</td>
+          </tr>
+          <tr *ngIf="students.length === 0">
+            <td colspan="5" class="text-center text-muted">Nenhum aluno matriculado ainda.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

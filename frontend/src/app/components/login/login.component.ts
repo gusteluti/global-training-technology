@@ -18,12 +18,10 @@ export class LoginComponent {
     this.auth.login(this.email, this.password).subscribe({
       next: ok => {
         if (ok) {
+          // Gestão, Financeiro e Suporte vão para a área administrativa; o restante, para a área do aluno.
           const role = this.auth.getRole();
-          if (role === 'admin') {
-            this.router.navigate(['/admin']);
-          } else {
-            this.router.navigate(['/student']);
-          }
+          const isStaff = ['admin', 'financial', 'support'].includes(role || '');
+          this.router.navigate([isStaff ? '/admin' : '/student']);
         } else {
           this.error = 'Credenciais inválidas';
         }

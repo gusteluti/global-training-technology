@@ -1,0 +1,92 @@
+<div class="alert alert-danger" *ngIf="error">{{ error }}</div>
+
+<div class="row g-3 mb-3" *ngIf="totals">
+  <div class="col-md-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="text-muted small">Receita aprovada</div>
+        <div class="fs-4 text-success">{{ totals.revenue_approved | currency:'BRL':'symbol':'1.2-2' }}</div>
+        <div class="small text-muted">{{ totals.approved_count }} transação(ões)</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="text-muted small">Pendente</div>
+        <div class="fs-4">{{ totals.revenue_pending | currency:'BRL':'symbol':'1.2-2' }}</div>
+        <div class="small text-muted">{{ totals.pending_count }} transação(ões)</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="text-muted small">Reembolsado</div>
+        <div class="fs-4 text-danger">{{ totals.revenue_refunded | currency:'BRL':'symbol':'1.2-2' }}</div>
+        <div class="small text-muted">{{ totals.refunded_count }} transação(ões)</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="text-muted small">Projeção próximo mês</div>
+        <div class="fs-4">{{ totals.projected_next_month | currency:'BRL':'symbol':'1.2-2' }}</div>
+        <div class="small text-muted">Média dos últimos meses</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <h5>Receita aprovada por mês</h5>
+    <div style="position: relative; height: 300px;">
+      <canvas #revenueChart></canvas>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <h5>Transações</h5>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th>Aluno</th>
+            <th>Curso</th>
+            <th>Valor</th>
+            <th>Status</th>
+            <th>Data</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let p of payments">
+            <td>
+              {{ p.student_name }}<br>
+              <small class="text-muted">{{ p.student_email }}</small>
+            </td>
+            <td>{{ p.course_id }}</td>
+            <td>{{ p.amount | currency:'BRL':'symbol':'1.2-2' }}</td>
+            <td><span class="badge" [ngClass]="p.status === 'approved' ? 'bg-success' : (p.status === 'refunded' ? 'bg-danger' : 'bg-warning text-dark')">{{ p.status }}</span></td>
+            <td>{{ p.created_at }}</td>
+            <td class="text-end">
+              <button class="btn btn-sm btn-outline-danger" type="button"
+                      *ngIf="p.status !== 'refunded'"
+                      [disabled]="refundingId === p.id"
+                      (click)="refund(p)">
+                {{ refundingId === p.id ? 'Processando...' : 'Reembolsar' }}
+              </button>
+            </td>
+          </tr>
+          <tr *ngIf="payments.length === 0">
+            <td colspan="6" class="text-center text-muted">Nenhuma transação registrada ainda.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

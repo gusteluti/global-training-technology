@@ -1,0 +1,43 @@
+<div class="alert alert-danger" *ngIf="error">{{ error }}</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <h5>Inscritos por curso</h5>
+    <div style="position: relative; height: 300px;">
+      <canvas #enrollmentChart></canvas>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <h5>Performance do catálogo</h5>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th>Curso</th>
+            <th>Preço</th>
+            <th>Matrículas</th>
+            <th>Aprovadas</th>
+            <th>Pendentes</th>
+            <th>Conversão</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let c of courses">
+            <td>{{ c.name || c.id }}</td>
+            <td>{{ c.price | currency:'BRL':'symbol':'1.2-2' }}</td>
+            <td>{{ c.total_enrollments }}</td>
+            <td>{{ c.approved_enrollments }}</td>
+            <td>{{ c.pending_enrollments }}</td>
+            <td>{{ c.conversion_rate }}%</td>
+          </tr>
+          <tr *ngIf="courses.length === 0">
+            <td colspan="6" class="text-center text-muted">Nenhum curso cadastrado.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

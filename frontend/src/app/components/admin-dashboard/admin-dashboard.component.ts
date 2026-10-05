@@ -1,22 +1,38 @@
 import { Component, OnInit } from '@angular/core';
-import { ApiService } from '../../services/api.service';
+import { AuthService } from '../../services/auth.service';
+
+interface DashboardTab {
+  key: string;
+  label: string;
+  roles: string[];
+}
 
 @Component({
   selector: 'app-admin-dashboard',
   templateUrl: './admin-dashboard.component.html'
 })
 export class AdminDashboardComponent implements OnInit {
-  financial: any = null;
-  students: any = null;
-  courses: any = null;
-  logs: any[] = [];
+  // Visibilidade por perfil (item 2 do escopo da Fase 2). A API aplica as mesmas regras.
+  readonly tabs: DashboardTab[] = [
+    { key: 'financeiro', label: 'Financeiro', roles: ['admin', 'financial'] },
+    { key: 'alunos', label: 'Alunos', roles: ['admin', 'financial', 'support'] },
+    { key: 'cursos', label: 'Cursos', roles: ['admin', 'financial', 'support'] },
+    { key: 'ia', label: 'Observabilidade de IA', roles: ['admin', 'financial', 'support'] },
+    { key: 'auditoria', label: 'Auditoria', roles: ['admin'] }
+  ];
 
-  constructor(private api: ApiService) { }
+  visibleTabs: DashboardTab[] = [];
+  activeTab = '';
+
+  constructor(private auth: AuthService) { }
 
   ngOnInit(): void {
-    this.api.getFinancial().subscribe((r: any) => this.financial = r.revenue_data, () => {});
-    this.api.getStudents().subscribe((r: any) => this.students = r.student_metrics, () => {});
-    this.api.getCoursesMetrics().subscribe((r: any) => this.courses = r.course_metrics, () => {});
-    this.api.getAuditLogs().subscribe((r: any) => this.logs = r.logs || [], () => {});
+    const role = this.auth.getRole() || '';
+    this.visibleTabs = this.tabs.filter(tab => tab.roles.includes(role));
+    this.activeTab = this.visibleTabs.length ? this.visibleTabs[0].key : '';
+  }
+
+  select(key: string): void {
+    this.activeTab = key;
   }
 }

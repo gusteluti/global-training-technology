@@ -79,10 +79,13 @@ a Área do Funcionário:
   `Depends(require_roles(...))` para restringir acesso (ex.: apenas
   Gestão/Financeiro veem o Dashboard Financeiro).
 - **Dashboards (`backend/dashboard/routes.py`)**: `/api/dashboard/alunos`,
-  `/cursos`, `/financeiro` e `/observabilidade-ia`, consumidos pelas novas
-  abas do `frontend/admin.html` (Dashboard de Alunos, Dashboard de Cursos,
-  Dashboard Financeiro e Observabilidade de IA), seguindo o mesmo design já
-  usado no cadastro de cursos.
+  `/cursos`, `/financeiro` e `/observabilidade-ia`. São consumidos pela
+  aplicação Angular (`frontend/`), que é a interface oficial: abas de
+  Financeiro, Alunos, Cursos, Observabilidade de IA e Auditoria, filtradas
+  pelo perfil do usuário logado.
+- **Legado**: `frontend/admin.html` continua funcionando, com o login por
+  senha de perfil (`/api/admin/login`), mas não é mais a tela de entrega.
+  Cadastro e edição de cursos ainda estão só nele.
 - **Trilhas de auditoria**: tabela `audit_logs` no SQLite; toda alteração
   de preço, criação/edição/remoção de curso e reembolso é registrada com
   perfil responsável e estampa de tempo, visível na aba "Auditoria"

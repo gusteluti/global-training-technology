@@ -4,6 +4,14 @@ import { Observable, map } from 'rxjs';
 
 const BASE = '';
 
+// Rótulos dos perfis, iguais aos do backend (models/user.py).
+const ROLE_LABELS: { [role: string]: string } = {
+  admin: 'Gestão',
+  financial: 'Financeiro',
+  support: 'Suporte',
+  student: 'Aluno'
+};
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   tokenKey = 'gtt_token';
@@ -61,5 +69,10 @@ export class AuthService {
     const data = this.decodeToken();
     if (!data) return null;
     return data.role || null;
+  }
+
+  getRoleLabel(): string {
+    const role = this.getRole();
+    return role ? (ROLE_LABELS[role] || role) : '';
   }
 }
