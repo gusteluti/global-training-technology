@@ -22,8 +22,9 @@ Filtro estreito do C8 (ignora SOMENTE os três 400 esperados, um par rota + tela
      Tolerância por PAR rota + tela, um item por vez: cada novo 400 legítimo entra na lista
      explicitamente, e nunca por rota solta nem por status solto.
 A associação é feita pela resposta HTTP real (page.on("response")): cada erro de console
-"status of 400" consome uma resposta 400 pendente, e só é ignorado se método, caminho da API e
-tela atual baterem exatamente com a lista acima. Qualquer outro 400 (ex.: POST /api/token na
+"status of 400" é associado, no fim do cenário (antes do C8), à resposta 400 do mesmo caminho da
+API (URL do próprio erro de console), uma única vez por resposta. Só é ignorado se método, caminho
+da API e tela (a raiz é "/") baterem exatamente com a lista acima. Qualquer outro 400 (ex.: POST /api/token na
 tela /cadastro), qualquer 500 ou 4xx/5xx de outra origem, e qualquer exceção de página reprovam o C8.
 
 Pré-requisitos (ambos de pé antes de rodar):
@@ -145,6 +146,11 @@ def caminho_da_url(url):
     return urllib.parse.urlparse(url).path.rstrip("/")
 
 
+def caminho_da_tela(url):
+    """Tela atual como na lista ROTAS_400_ESPERADO: a raiz vira "/" (rstrip deixa "")."""
+    return caminho_da_url(url) or "/"
+
+
 def exigir_rota(page, caminho_com_query, rotulo):
     """Abre a rota e exige que a URL final continue nela (o curinga '**' redireciona para '/')."""
     page.goto(BASE + caminho_com_query, wait_until="networkidle")
@@ -180,16 +186,20 @@ def alerta_visivel(page, classe):
     return loc.count() > 0 and any(loc.nth(i).is_visible() for i in range(loc.count()))
 
 
-def erro_400_esperado(respostas_pendentes, codigo):
-    """Consome a primeira resposta HTTP pendente com o código do erro de console.
+def associar_erro_400(respostas, caminho_do_erro):
+    """Acha a resposta HTTP 400 que originou um erro de console "status of 400".
 
-    Devolve True só se essa resposta for um 400 da lista ROTAS_400_ESPERADO na tela certa.
+    Associa pelo caminho da API (URL do recurso que falhou, dada pelo próprio console) e consome
+    cada resposta uma única vez. Devolve a resposta, ou None se nenhuma bater.
     """
-    for i, (status, metodo, caminho, tela) in enumerate(respostas_pendentes):
-        if status == codigo:
-            del respostas_pendentes[i]
-            return (metodo, caminho, tela) in ROTAS_400_ESPERADO
-    return False
+    for resposta in respostas:
+        if resposta["usada"] or resposta["status"] != 400:
+            continue
+        if caminho_do_erro and resposta["caminho"] != caminho_do_erro:
+            continue
+        resposta["usada"] = True
+        return resposta
+    return None
 
 
 def login_na_tela(page, email, senha, rotulo):
@@ -213,6 +223,7 @@ def test_e2_conta_aluno_angular_e2e(browser):
     OUT.mkdir(parents=True, exist_ok=True)
     resultados = []
     erros_console = []
+    erros_400_console = []  # (respostas da página, caminho do erro, texto, rótulo); associados no C8
     contextos = []
     atual = {"rotulo": "", "page": None}
     referencias = {}  # mensagem de sucesso do cadastro de e-mail novo (C1), usada no C3
@@ -223,21 +234,25 @@ def test_e2_conta_aluno_angular_e2e(browser):
         contextos.append(ctx)
         page = ctx.new_page()
         atual["page"] = page
-        # respostas HTTP >= 400 ainda não associadas a um erro de console: (status, método, caminho, tela)
+        # todas as respostas HTTP >= 400 desta página, na ordem em que chegaram
         respostas_erro = []
 
         def ao_resposta(resposta):
             if resposta.status >= 400:
-                respostas_erro.append((
-                    resposta.status, resposta.request.method,
-                    caminho_da_url(resposta.url), caminho_da_url(page.url),
-                ))
+                respostas_erro.append({
+                    "status": resposta.status, "metodo": resposta.request.method,
+                    "caminho": caminho_da_url(resposta.url), "tela": caminho_da_tela(page.url),
+                    "usada": False,
+                })
 
         def ao_console(msg):
             if msg.type != "error":
                 return
             m = ERRO_HTTP.search(msg.text)
-            if m is not None and m.group(1) == "400" and erro_400_esperado(respostas_erro, 400):
+            if m is not None and m.group(1) == "400":
+                # associação adiada para o C8: a resposta já terá chegado a este ponto
+                caminho_do_erro = caminho_da_url(msg.location.get("url") or "")
+                erros_400_console.append((respostas_erro, caminho_do_erro, msg.text, rotulo))
                 return
             erros_console.append(f"{rotulo}: {msg.text}")
 
@@ -412,6 +427,17 @@ def test_e2_conta_aluno_angular_e2e(browser):
     cenario("C7", "login existente: conta sem senha é recusada; conta com senha chega a /student", c7)
 
     # --- C8 -------------------------------------------------------------------------
+    for respostas, caminho_do_erro, texto, rotulo in erros_400_console:
+        resposta = associar_erro_400(respostas, caminho_do_erro)
+        if resposta is not None and (resposta["metodo"], resposta["caminho"], resposta["tela"]) in ROTAS_400_ESPERADO:
+            continue
+        if resposta is None:
+            erros_console.append(f"{rotulo}: {texto} [sem resposta 400 associada]")
+        else:
+            erros_console.append(
+                f"{rotulo}: {texto} [{resposta['metodo']} {resposta['caminho']} na tela {resposta['tela']}]"
+            )
+
     try:
         if erros_console:
             resultados.append(("C8", "sem erros de console nas telas acima", False,
