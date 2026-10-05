@@ -61,10 +61,10 @@ def pagamentos_pendentes_para_reembolso():
     from db import Database
 
     Database.init_db()
-    student_id = Database.get_or_create_student("e2e.reembolso@teste.com", "Aluno E2E Reembolso")
+    user_id = Database.get_or_create_user("e2e.reembolso@teste.com", "Aluno E2E Reembolso")
     ids = []
     for _ in range(2):
-        enrollment_id = Database.create_enrollment(student_id, "curso-e2e", f"e2e-{uuid.uuid4().hex[:12]}")
+        enrollment_id = Database.create_enrollment(user_id, "curso-e2e", f"e2e-{uuid.uuid4().hex[:12]}")
         ids.append(Database.record_payment(enrollment_id, 99.90, "e2e-seed"))
     yield ids
 
