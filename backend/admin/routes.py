@@ -20,6 +20,12 @@ load_dotenv()
 router = APIRouter()
 COURSES_DIR = Path(__file__).parent.parent / "courses"
 
+class MaterialInput(BaseModel):
+    """Material didático. Só aparece para o aluno com matrícula ativa (E3, D28)."""
+    title: str
+    url: str
+    type: str
+
 class CourseInput(BaseModel):
     """Schema for creating/updating a course"""
     id: str
@@ -34,6 +40,8 @@ class CourseInput(BaseModel):
     benefits: List[str]
     faq: List[Dict[str, str]]
     system_prompt: str
+    # Opcional: cursos antigos continuam aceitos sem o campo (E3, D28).
+    materials: List[MaterialInput] = []
 
 class AdminLoginInput(BaseModel):
     password: str

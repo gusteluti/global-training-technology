@@ -21,6 +21,11 @@ export class ApiService {
     return this.http.get(`${BASE}/api/courses`);
   }
 
+  // Área do aluno (E3, D28): só as matrículas do próprio usuário do token.
+  public getMyEnrollments() {
+    return this.http.get(`${BASE}/api/student/enrollments`, this.authHeaders());
+  }
+
   // Dashboards de funcionário (Fase 2): mesmos endpoints usados pelo admin.html.
   public getFinancial() {
     return this.http.get(`${BASE}/api/dashboard/financeiro`, this.authHeaders());

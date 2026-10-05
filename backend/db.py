@@ -485,6 +485,34 @@ class Database:
         return True
 
     @staticmethod
+    def list_enrollments_for_user(user_id: int) -> List[Dict]:
+        """Matrículas de UMA conta (painel do aluno). O filtro por user_id fica no SQL."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            rows = conn.execute(
+                "SELECT id, course_id, status, enrolled_at FROM enrollments WHERE user_id = ? ORDER BY id DESC",
+                (user_id,),
+            ).fetchall()
+            return [dict(row) for row in rows]
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_enrollment_for_user(enrollment_id: int, user_id: int) -> Optional[Dict]:
+        """Uma matrícula, só se pertencer a user_id. Matrícula alheia e inexistente devolvem None (E3, IDOR)."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            row = conn.execute(
+                "SELECT id, course_id, status, enrolled_at FROM enrollments WHERE id = ? AND user_id = ?",
+                (enrollment_id, user_id),
+            ).fetchone()
+            return dict(row) if row else None
+        finally:
+            conn.close()
+
+    @staticmethod
     def get_payment_by_id(payment_id: int) -> Optional[Dict]:
         conn = sqlite3.connect(Database.DB_PATH)
         conn.row_factory = sqlite3.Row
