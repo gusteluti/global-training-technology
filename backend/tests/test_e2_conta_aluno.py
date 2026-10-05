@@ -396,8 +396,16 @@ def test_13a_cadastro_com_email_existente_responde_igual_e_nao_ecoa_dados(client
 
 
 def test_13b_cadastro_com_senha_fraca_tem_mesma_forma_de_erro(client):
+    """D25: senha fraca (menos de 8 caracteres) nos DOIS casos, e-mail existente e e-mail novo.
+
+    Intenção original (e-mail existente é recusado) deliberadamente revogada pela D21; coberta por
+    test_enum_1/2. Não é cobertura abandonada.
+
+    A validação de tamanho roda antes da consulta à conta, então o 400 aparece igual nos dois casos
+    e não vaza existência.
+    """
     Database.add_user("forma.existente@teste.com", "Existente", get_password_hash("senha-existente-2"))
-    r_existente = _registrar(client, "forma.existente@teste.com", SENHA_NOVA)
+    r_existente = _registrar(client, "forma.existente@teste.com", "123")
     r_fraca = _registrar(client, "forma.fraca@teste.com", "123")
 
     assert r_existente.status_code == r_fraca.status_code == 400

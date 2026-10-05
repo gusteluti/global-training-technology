@@ -10,7 +10,8 @@ por mensagem (ver core/notifications.py). Nenhum teste toca backend/db.sqlite.
      A diferença de conteúdo entre os e-mails é permitida; a resposta HTTP não pode diferir
      entre e-mail novo e existente (coberta por test_enum_1/2 e test_3/13a).
   B2 cadastro de e-mail EXISTENTE: mensagem avisando que houve tentativa de cadastro e que a
-     conta já existe, com caminho para entrar e para recuperar a senha. A mensagem NÃO contém
+     conta já existe, com caminho para ENTRAR (link para a tela de login). D26: o aviso aponta só
+     para o login; recuperação de senha é item de backlog. A mensagem NÃO contém
      link de definição de senha, NÃO contém senha, e NÃO altera a conta.
   B3 as duas mensagens são distintas entre si. Cada teste lê a mensagem do próprio e-mail.
   B4 resposta HTTP idêntica nos dois casos: já coberta por D21 em test_e2_conta_aluno.py
@@ -130,6 +131,10 @@ def test_b1_cadastro_de_email_novo_gera_confirmacao_sem_link_de_definicao_nem_to
 # --- B2: e-mail existente recebe aviso, sem link, sem senha, sem alterar a conta (D22) --
 
 def test_b2_cadastro_de_email_existente_gera_aviso_sem_link_nem_senha_e_sem_alterar_conta(client, outbox):
+    """D26: aviso aponta só para o login; recuperação de senha é item de backlog.
+
+    Sem token, sem link de definição de senha, sem senha, conta inalterada.
+    """
     email = "b2.existente@teste.com"
     Database.add_user(email, "Existente B2", get_password_hash(SENHA_ANTIGA), role="student")
     antes = _usuario(email)
@@ -149,9 +154,11 @@ def test_b2_cadastro_de_email_existente_gera_aviso_sem_link_nem_senha_e_sem_alte
     assert re.search(r"j[aá]\s+(existe|est[aá]\s+cadastrad|possui)|existe\s+(uma\s+)?conta", texto, re.IGNORECASE), (
         "a mensagem deve avisar que a conta já existe"
     )
-    assert _links(texto), "a mensagem deve trazer caminhos (links) para entrar e para recuperar a senha"
+    assert any("login" in link.lower() for link in _links(texto)), "a mensagem deve trazer link para a tela de login"
     assert re.search(r"entrar|login", texto, re.IGNORECASE), "a mensagem deve indicar o caminho para entrar"
-    assert re.search(r"recuper|esqueci", texto, re.IGNORECASE), "a mensagem deve indicar o caminho para recuperar a senha"
+    assert not re.search(r"recuper|esqueci", texto, re.IGNORECASE), (
+        "a mensagem não pode prometer recuperação de senha (D26: recuperação é backlog)"
+    )
 
     depois = _usuario(email)
     assert depois["password_hash"] == antes["password_hash"], "o cadastro não pode alterar a senha da conta existente"
