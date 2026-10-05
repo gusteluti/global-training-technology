@@ -11,7 +11,7 @@ Log completo de decisões: `docs/tdd/decisoes_tdd.md`. Charter dos papéis: `doc
 > - **Objetivo é fechar as nove entregas (D31).** A ordem de "parar depois da E3" está revogada. O plano está na **seção 10**, que deve ser atualizada ao fim de cada entrega, com commit e push.
 > - **Autovigilância obrigatória (D32).** Gatilhos de parada na seção 10.
 >
-> **PUSH BLOQUEADO NO MOMENTO.** Ver seção 11: há um perfil de navegador no histórico das branches, já exposto no repositório público. Aguardando decisão do PM.
+> - **Push executado em 05/10/2026 (D33).** `feature/fase2-tdd` e `feature/fase2-tdd-e3-painel-materiais` estão publicadas. `main` intocada. Ver seção 11 para o achado do perfil de navegador, que virou item de backlog e **não deve ser executado** por este time.
 
 **Documento de escopo: LOCALIZADO.** `Escopo_Fase2_Global_Training_Technology.pdf`, na raiz do repo, versionado desde `75a30e6`. A versão anterior deste handoff (seção 2) dizia que não tinha sido encontrado; **estava errado**. O escopo das entregas 4 a 9 sai dele e está destrinchado na seção 10.
 
@@ -201,19 +201,24 @@ Fonte do escopo: `Escopo_Fase2_Global_Training_Technology.pdf` (raiz do repo). A
 | **E1** | Identidade unificada | — | **Fechada e mergeada** (`9578a8f`) |
 | **E2** | Conta e login do aluno | item 1.1, RF21 | **Fechada e mergeada** (`351a130`) |
 | **E3** | Painel de inscrições + materiais | item 1.1, RF22 | **Fechada e mergeada** (`da55d8f`), validada 05/10/2026 |
-| **E4** | Histórico financeiro + recibos | item 1.1, RF22 | A fazer |
+| **E4** | Histórico financeiro + recibos | item 1.1, RF22 | **EM ANDAMENTO** (liberada pelo PM em 05/10/2026, D33.7) |
 | **E5** | Chatbot autenticado: contexto de cursos ativos e histórico persistido | seção 4 | A fazer |
 | **E6** | Segurança de LLM: isolamento de sessão por usuário + filtros OWASP | seção 4 | A fazer |
 | **E7** | Observabilidade de IA completa: `usage` do Groq, custo, persistência | seção 4, RF24 | A fazer |
 | **E8** | Auditoria com identificação do usuário responsável | seção 2 | A fazer |
-| **E9** | Hardening de pagamento: assinatura do webhook, conferência de valor, idempotência, CORS | acréscimo do PM (não consta do PDF) | A fazer |
+| **E9** | Hardening de pagamento: assinatura do webhook, conferência de valor, idempotência, CORS | **ACRÉSCIMO DO PM — não consta do documento de escopo** (D33.6) | A fazer |
 
 Notas de escopo lidas no PDF, para quem for pegar as próximas:
 - **E4:** o PDF pede "recibos, status de pagamentos concluídos ou pendentes referentes às inscrições realizadas na landing page". A D-anterior do PM já definiu: recibo em JSON primeiro, PDF só se sobrar tempo (`papeis_tdd.md`).
-- **E5/E6:** o PDF é explícito sobre dois riscos — agente manipulado para "conceder descontos indevidos" e "vazar informações entre sessões de diferentes usuários". Os dois viram teste obrigatório.
-- **E7:** o PDF pede "custos de inferência", então o `usage` do Groq tem de ser persistido, não só contado em memória.
+- **E6 (refinamento ADOTADO pelo PM, D33.4):** os dois riscos nomeados no PDF viram **teste obrigatório** da entrega, não cobertura genérica — (a) agente manipulado para **conceder desconto indevido**; (b) **vazamento de informação entre sessões de usuários diferentes**. Entram no checklist como os obrigatórios da E6, no mesmo peso que o IDOR teve na E3.
+- **E7 (refinamento ADOTADO pelo PM, D33.5):** o `usage` do Groq tem de ser **persistido em banco**. O PDF pede custo de inferência, e métrica que zera no restart não atende. Contador em memória reprova a entrega.
 - **E8:** o PDF exige "estampa de tempo, identificação do usuário responsável e a alteração efetuada" nos eventos críticos (dados cadastrais, preço de curso, reembolso).
-- **E9:** não está no PDF. É acréscimo do PM. Se houver conflito com o escopo, é decisão nova e vai ao PM.
+- **E9:** **não está no PDF — é acréscimo do PM** (D33.6). O PM mantém a entrega por serem defeitos de segurança reais ("entregar sem eles é pior que entregar fora do escopo literal"), e registra a classificação para que o grupo possa cortar a entrega se quiser. Quem for apresentar o trabalho precisa saber que esta é a única das nove que não sai do documento.
+
+### Backlog (fora das nove entregas)
+- Recuperação de senha do aluno. Fora do escopo, mas login em produção vai precisar.
+- Limpeza do `.chrome-pdf-profile/` do histórico (seção 11). **Decisão do grupo, não deste time. Não executar.**
+- D4, D6, D7 — dívidas do harness de e2e (seção 6).
 
 ### Processo por entrega (padrão fixo)
 1. Sub-branch própria a partir de `feature/fase2-tdd`.
@@ -230,11 +235,11 @@ Qualquer um destes sinais interrompe o ciclo: agente retornando incompleto duas 
 
 ---
 
-## 11. PUSH — liberado por regra (D30), BLOQUEADO na prática por um achado
+## 11. PUSH — executado; e o achado do perfil de navegador (backlog)
 
-**Estado: nenhum push foi feito. Aguardando decisão do PM.**
+**Estado: push FEITO em 05/10/2026.** `feature/fase2-tdd` e `feature/fase2-tdd-e3-painel-materiais` publicadas em `origin`. `main` intocada (`4b75c30`). Sem force-push. O PM escolheu a opção 1 abaixo (D33.2), com o fundamento de que a exposição já existia e o push não acrescenta nenhum blob do perfil.
 
-A auditoria pré-push de 05/10/2026 encontrou o seguinte.
+A auditoria pré-push encontrou o seguinte.
 
 ### O achado
 O commit **`92b959a`** ("Presentation changes", Gustavo Santos Steluti, 25/05/2026) versionou um **perfil completo do Chrome** em `.chrome-pdf-profile/` — 162 arquivos, 9,8 MB, incluindo `Login Data`, `Network/Cookies`, `History`, `Web Data` e `Account Web Data`.
@@ -261,3 +266,13 @@ Ainda assim o push foi **suspenso**, porque o perfil está no *histórico* da br
 3. **Push só da sub-branch da E3 e da `feature/fase2-tdd` como estão, e tratar a limpeza como item próprio de backlog.**
 
 Recomendação do orquestrador: **opção 1 para destravar a entrega, com a opção 2 agendada como tarefa própria** — e, de qualquer forma, avisar o Gustavo de que um perfil de navegador dele está público, mesmo sem credencial dentro.
+
+### Veredito do PM (D33) — item de BACKLOG, NÃO EXECUTAR
+O PM escolheu a **opção 1** e o push foi feito. A limpeza do histórico fica como **item de backlog e não deve ser executada por este time**: reescrever histórico com `filter-repo` e dar force-push numa branch do Gustavo, em repositório dele, é decisão do grupo, com o Gustavo participando — não nossa. **Não executar nem se parecer seguro.**
+
+Resumo para quem for levar o assunto ao grupo:
+- O que é: perfil descartável de Chrome headless usado para gerar o PDF da apresentação, versionado por engano em `92b959a`.
+- Gravidade: **baixa**. Os cofres estão vazios (0 logins, 0 cookies, 0 autofill, 0 cartões) e não há nenhum padrão de chave nos 162 arquivos. Isso **baixa a urgência, mas não anula o problema**.
+- O que vaza: nome de usuário do Windows do Gustavo num caminho de arquivo, um token de device do media router e um hash de cookie do Google.
+- Onde está: `origin/payment-system` (na árvore do tip) e, desde 05/10/2026, também no histórico de `feature/fase2-tdd` e da sub-branch da E3.
+- Custo de limpar: reescrita de histórico nas branches afetadas + force-push + coordenação com todo mundo que tenha clone.

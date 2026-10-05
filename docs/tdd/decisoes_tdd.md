@@ -211,3 +211,27 @@ parada obrigatória, qualquer um deles: agente retornando incompleto duas vezes 
 orquestrador repetindo a mesma análise em rodadas consecutivas; perda de rastro do que já foi feito.
 Ao detectar: parar o ciclo, deixar a árvore limpa e commitada, atualizar o HANDOFF_TDD.md, avisar o
 PM que precisa de sessão nova. Parar a tempo é resultado bom; forçar e corromper entrega não é.
+
+## D33 — vereditos e refinamentos do PM (05/10/2026)
+1. **E3 APROVADA.** Checklist de 9 itens aceito. Red provado em worktree isolado (25 falham, 1 passa),
+   backend 81 verdes, e2e 7/7, sonda independente de segurança 38/38, suíte verde depois do merge.
+   Os dois obrigatórios (IDOR e material só com matrícula ativa) cobertos. Entrega fechada.
+2. **Push: opção 1, executado.** feature/fase2-tdd e feature/fase2-tdd-e3-painel-materiais publicadas
+   em 05/10/2026. main intocada (segue em 4b75c30), sem force-push. Fundamento aceito pelo PM: a
+   exposição do perfil já existe via origin/payment-system e o push não acrescentou nenhum blob do
+   perfil (verificado objeto a objeto, não por suposição).
+3. **Limpeza de histórico do .chrome-pdf-profile: BACKLOG, NÃO EXECUTAR.** Reescrever histórico com
+   filter-repo e force-push numa branch do Gustavo, em repositório dele, não é decisão deste time —
+   é do grupo, e o Gustavo precisa participar. Não executar nem se parecer seguro. Diagnóstico
+   completo na seção 11 do HANDOFF_TDD.md; os cofres vazios baixam a urgência, não anulam o problema.
+4. **E6 — refinamento adotado.** Os dois riscos nomeados no PDF viram TESTE OBRIGATÓRIO da entrega,
+   não cobertura genérica: (a) agente manipulado para conceder desconto indevido; (b) vazamento de
+   informação entre sessões de usuários diferentes.
+5. **E7 — refinamento adotado.** O `usage` do Groq tem de ser PERSISTIDO em banco. O PDF pede custo de
+   inferência, e métrica que zera no restart não atende o requisito.
+6. **E9 — mantida, classificada como acréscimo do PM.** Assinatura de webhook, conferência de valor,
+   idempotência e CORS não constam do documento de escopo. O PM mantém a entrega por serem defeitos
+   de segurança reais, e deixa registrado que é acréscimo dele, não exigência do documento, para o
+   grupo poder cortar se quiser.
+7. **E4 liberada.** Histórico financeiro + recibos (item 1.1, RF22). Recibo: endpoint JSON primeiro,
+   PDF só se sobrar tempo (decisão anterior do PM, registrada em papeis_tdd.md).
