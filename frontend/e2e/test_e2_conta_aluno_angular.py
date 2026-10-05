@@ -12,16 +12,19 @@ Cenários (cada um é um check numerado, C1-C8):
   C7 login existente em / : conta sem senha é recusada; conta com senha entra e chega a /student
   C8 nenhum erro de console (nem exceção de página) nas telas acima
 
-Filtro estreito do C8 (ignora SOMENTE os 400 esperados por rota de validação, D15/D16/D21):
+Filtro estreito do C8 (ignora SOMENTE os três 400 esperados, um par rota + tela por vez, D15/D16/D21/D24):
   1) POST /api/auth/register com 400, na tela /cadastro. Mantido porque a validação de senha curta
      (C2) continua devolvendo 400 no cadastro. Isso NÃO é enumeração: o tamanho da senha não depende
      de existir conta. O e-mail existente não devolve 400 (D21); isso é verificado pelo C3.
   2) POST /api/auth/password-setup com 400, na tela /definir-senha (token inválido, usado ou
-     expirado, e senha curta)
+     expirado, e senha curta).
+  3) POST /api/token com 400, na tela / (login sem senha, conta sem senha recusada no C7, D24).
+     Tolerância por PAR rota + tela, um item por vez: cada novo 400 legítimo entra na lista
+     explicitamente, e nunca por rota solta nem por status solto.
 A associação é feita pela resposta HTTP real (page.on("response")): cada erro de console
 "status of 400" consome uma resposta 400 pendente, e só é ignorado se método, caminho da API e
-tela atual baterem exatamente com a lista acima. Qualquer outro 400 (ex.: POST /api/token),
-qualquer 500 ou 4xx/5xx de outra origem, e qualquer exceção de página reprovam o C8.
+tela atual baterem exatamente com a lista acima. Qualquer outro 400 (ex.: POST /api/token na
+tela /cadastro), qualquer 500 ou 4xx/5xx de outra origem, e qualquer exceção de página reprovam o C8.
 
 Pré-requisitos (ambos de pé antes de rodar):
   - backend FastAPI em http://127.0.0.1:8000  (cd backend && uvicorn app:app --port 8000)
@@ -67,9 +70,12 @@ SENHA_CURTA = "curta1"  # 6 caracteres (mínimo é 8, D14)
 TIMEOUT = 5000
 ERRO_HTTP = re.compile(r"status of (\d{3})")
 # Únicos 400 de console tolerados: (método, caminho da API, tela onde ocorre). Lista exata.
+# ("POST", "/api/token", "/") entrou por D24: login sem senha é recusada com 400 na tela de login.
+# Tolerância por PAR rota + tela, um item por vez; cada novo 400 legítimo entra aqui explicitamente.
 ROTAS_400_ESPERADO = {
     ("POST", "/api/auth/register", "/cadastro"),
     ("POST", "/api/auth/password-setup", "/definir-senha"),
+    ("POST", "/api/token", "/"),
 }
 
 

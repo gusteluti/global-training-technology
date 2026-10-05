@@ -5,7 +5,10 @@ informação ao usuário legítimo vai por e-mail. Aqui o e-mail é simulado pel
 desenvolvimento: PASSWORD_LINK_OUTBOX aponta para um arquivo em tmp_path, com uma linha JSON
 por mensagem (ver core/notifications.py). Nenhum teste toca backend/db.sqlite.
 
-  B1 cadastro de e-mail NOVO: mensagem com o link de definição de senha (token em query string).
+  B1 cadastro de e-mail NOVO: mensagem de CONFIRMAÇÃO DE CONTA CRIADA, sem link de definição de
+     senha e sem token (D23). O link de definição fica exclusivo do fluxo de compra.
+     A diferença de conteúdo entre os e-mails é permitida; a resposta HTTP não pode diferir
+     entre e-mail novo e existente (coberta por test_enum_1/2 e test_3/13a).
   B2 cadastro de e-mail EXISTENTE: mensagem avisando que houve tentativa de cadastro e que a
      conta já existe, com caminho para entrar e para recuperar a senha. A mensagem NÃO contém
      link de definição de senha, NÃO contém senha, e NÃO altera a conta.
@@ -101,20 +104,26 @@ def _token_em_query(texto):
     return None
 
 
-# --- B1: e-mail novo recebe o link de definição de senha (D22) ------------------------
+# --- B1: e-mail novo recebe confirmação de conta criada, sem link de definição (D22/D23) --
 
-def test_b1_cadastro_de_email_novo_gera_mensagem_com_link_de_definicao(client, outbox):
+def test_b1_cadastro_de_email_novo_gera_confirmacao_sem_link_de_definicao_nem_token(client, outbox):
     email = "b1.novo@teste.com"
 
     r = _registrar(client, email)
     assert r.status_code == 200, r.text
 
     texto = _texto(_mensagem_unica(outbox, email))
-    token = _token_em_query(texto)
-    assert token, "a mensagem de e-mail novo deve trazer o link de definição de senha com token na query string"
-    assert any("/definir-senha" in link for link in _links(texto)), (
-        "o link de definição de senha deve apontar para a tela /definir-senha"
+    assert email in texto, "a mensagem deve identificar o destinatário (campo email do registro)"
+    assert re.search(r"criad[ao]|confirma", texto, re.IGNORECASE), (
+        "a mensagem deve confirmar que a conta foi criada"
     )
+    assert _links(texto) and re.search(r"entrar|login", texto, re.IGNORECASE), (
+        "a mensagem deve indicar o caminho para entrar (link para a tela de login)"
+    )
+    assert _token_em_query(texto) is None and "token=" not in texto, (
+        "a confirmação de conta criada não pode conter token nem link de definição de senha (D23)"
+    )
+    assert "definir-senha" not in texto, "a confirmação não pode apontar para a tela de definição de senha (D23)"
     assert SENHA_NOVA not in texto, "a mensagem não pode conter a senha"
 
 
@@ -165,7 +174,7 @@ def test_b3_mensagens_dos_dois_caminhos_sao_distintas(client, outbox):
 
     assert texto_novo != texto_existente, "as mensagens dos dois caminhos devem ser distintas"
 
-    token_novo = _token_em_query(texto_novo)
-    assert token_novo, "a mensagem de e-mail novo precisa do link de definição"
-    assert _token_em_query(texto_existente) is None, "a mensagem de e-mail existente não pode trazer link de definição"
-    assert token_novo not in texto_existente, "a mensagem do e-mail existente não pode conter o link do e-mail novo"
+    for texto, rotulo in ((texto_novo, "novo"), (texto_existente, "existente")):
+        assert _token_em_query(texto) is None and "token=" not in texto, (
+            f"a mensagem de e-mail {rotulo} não pode conter token (D23)"
+        )
