@@ -11,8 +11,14 @@ Cenários (cada um é um check numerado, C1-C8):
   C7 login existente em / : conta sem senha é recusada; conta com senha entra e chega a /student
   C8 nenhum erro de console (nem exceção de página) nas telas acima
 
-Erros de console com status 400 são ignorados: são respostas de validação esperadas pelo
-desenho (erros genéricos D15/D16). Exceções de página e demais erros de console contam.
+Filtro estreito do C8 (ignora SOMENTE os 400 esperados por rota de validação, D15/D16):
+  1) POST /api/auth/register com 400, na tela /cadastro (validação: senha curta, e-mail existente)
+  2) POST /api/auth/password-setup com 400, na tela /definir-senha (token inválido, usado ou
+     expirado, e senha curta)
+A associação é feita pela resposta HTTP real (page.on("response")): cada erro de console
+"status of 400" consome uma resposta 400 pendente, e só é ignorado se método, caminho da API e
+tela atual baterem exatamente com a lista acima. Qualquer outro 400 (ex.: POST /api/token),
+qualquer 500 ou 4xx/5xx de outra origem, e qualquer exceção de página reprovam o C8.
 
 Pré-requisitos (ambos de pé antes de rodar):
   - backend FastAPI em http://127.0.0.1:8000  (cd backend && uvicorn app:app --port 8000)
@@ -56,7 +62,12 @@ ADMIN_PASSWORD = "admin123"
 SENHA_NOVA = "senha-forte-2026"
 SENHA_CURTA = "curta1"  # 6 caracteres (mínimo é 8, D14)
 TIMEOUT = 5000
-ERRO_400_ESPERADO = re.compile(r"status of 400")
+ERRO_HTTP = re.compile(r"status of (\d{3})")
+# Únicos 400 de console tolerados: (método, caminho da API, tela onde ocorre). Lista exata.
+ROTAS_400_ESPERADO = {
+    ("POST", "/api/auth/register", "/cadastro"),
+    ("POST", "/api/auth/password-setup", "/definir-senha"),
+}
 
 
 class Falha(Exception):
@@ -160,6 +171,18 @@ def alerta_visivel(page, classe):
     return loc.count() > 0 and any(loc.nth(i).is_visible() for i in range(loc.count()))
 
 
+def erro_400_esperado(respostas_pendentes, codigo):
+    """Consome a primeira resposta HTTP pendente com o código do erro de console.
+
+    Devolve True só se essa resposta for um 400 da lista ROTAS_400_ESPERADO na tela certa.
+    """
+    for i, (status, metodo, caminho, tela) in enumerate(respostas_pendentes):
+        if status == codigo:
+            del respostas_pendentes[i]
+            return (metodo, caminho, tela) in ROTAS_400_ESPERADO
+    return False
+
+
 def login_na_tela(page, email, senha, rotulo):
     exigir_rota(page, "/", rotulo)
     preencher(page, "input[name=email]", email, rotulo)
@@ -190,11 +213,25 @@ def test_e2_conta_aluno_angular_e2e(browser):
         contextos.append(ctx)
         page = ctx.new_page()
         atual["page"] = page
+        # respostas HTTP >= 400 ainda não associadas a um erro de console: (status, método, caminho, tela)
+        respostas_erro = []
+
+        def ao_resposta(resposta):
+            if resposta.status >= 400:
+                respostas_erro.append((
+                    resposta.status, resposta.request.method,
+                    caminho_da_url(resposta.url), caminho_da_url(page.url),
+                ))
 
         def ao_console(msg):
-            if msg.type == "error" and not ERRO_400_ESPERADO.search(msg.text):
-                erros_console.append(f"{rotulo}: {msg.text}")
+            if msg.type != "error":
+                return
+            m = ERRO_HTTP.search(msg.text)
+            if m is not None and m.group(1) == "400" and erro_400_esperado(respostas_erro, 400):
+                return
+            erros_console.append(f"{rotulo}: {msg.text}")
 
+        page.on("response", ao_resposta)
         page.on("console", ao_console)
         page.on("pageerror", lambda e: erros_console.append(f"{rotulo}: {e}"))
         return page

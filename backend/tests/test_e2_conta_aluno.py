@@ -298,15 +298,18 @@ def test_8a_token_expirado_e_recusado(client):
 
 
 def test_8b_token_recem_criado_expira_em_cerca_de_48_horas(client):
+    """A validade é verificada SOMENTE contra UTC (tolerância de 5 min).
+
+    Não há alternativa em horário local: um erro de fuso de 3 h deve reprovar o teste.
+    """
     _, user_id = _token_de_definicao_para(client, "validade.48h@teste.com")
     expira = _expira_em_datetime(_tokens_do_usuario(user_id)[0]["expires_at"])
 
     alvo = timedelta(hours=48)
     tolerancia = timedelta(minutes=5)
     diferenca_utc = abs((expira - datetime.utcnow()) - alvo)
-    diferenca_local = abs((expira - datetime.now()) - alvo)
-    assert min(diferenca_utc, diferenca_local) <= tolerancia, (
-        f"expira_em={expira}, esperado ~48 h a partir de agora"
+    assert diferenca_utc <= tolerancia, (
+        f"expira_em={expira} (UTC), esperado ~48 h a partir de agora em UTC"
     )
 
 
