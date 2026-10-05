@@ -45,4 +45,17 @@ export class ApiService {
   public refundPayment(paymentId: number) {
     return this.http.post(`${BASE}/api/payments/refund/${paymentId}`, {}, this.authHeaders());
   }
+
+  // Endpoints públicos da conta do aluno: sem cabeçalho de autenticação.
+  public registerStudent(dados: { name: string; email: string; password: string }) {
+    return this.http.post(`${BASE}/api/auth/register`, dados, this.publicHeaders());
+  }
+
+  public setPassword(dados: { token: string; password: string }) {
+    return this.http.post(`${BASE}/api/auth/password-setup`, dados, this.publicHeaders());
+  }
+
+  private publicHeaders() {
+    return { headers: new HttpHeaders({'Content-Type': 'application/json'}) };
+  }
 }

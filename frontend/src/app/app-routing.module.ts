@@ -3,6 +3,8 @@ import { RouterModule, Routes } from '@angular/router';
 import { LoginComponent } from './components/login/login.component';
 import { StudentDashboardComponent } from './components/student-dashboard/student-dashboard.component';
 import { AdminDashboardComponent } from './components/admin-dashboard/admin-dashboard.component';
+import { CadastroComponent } from './components/cadastro/cadastro.component';
+import { DefinirSenhaComponent } from './components/definir-senha/definir-senha.component';
 
 import { AuthGuard } from './guards/auth.guard';
 import { RoleGuard } from './guards/role.guard';
@@ -15,6 +17,9 @@ const routes: Routes = [
   { path: '', component: LoginComponent },
   { path: 'student', component: StudentDashboardComponent, canActivate: [AuthGuard, RoleGuard], data: { roles: ['student'] } },
   { path: 'admin', component: AdminDashboardComponent, canActivate: [AuthGuard, RoleGuard], data: { roles: STAFF_ROLES } },
+  // Rotas públicas da conta do aluno (sem AuthGuard). Devem vir antes do curinga.
+  { path: 'cadastro', component: CadastroComponent },
+  { path: 'definir-senha', component: DefinirSenhaComponent },
   { path: '**', redirectTo: '' }
 ];
 
