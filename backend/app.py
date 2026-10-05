@@ -11,6 +11,7 @@ from payments.routes import router as payments_router
 from dashboard.routes import router as dashboard_router
 from agents.manager_agent import ManagerAgent
 from auth import router as auth_router
+from student.routes import router as student_router
 from core.security import get_password_hash
 from db import Database
 
@@ -164,6 +165,8 @@ app.include_router(payments_router, prefix="/api/payments", tags=["payments"])
 app.include_router(dashboard_router, prefix="/api/dashboard", tags=["dashboard"])
 # Login por conta (JWT): POST /api/token
 app.include_router(auth_router)
+# Área do aluno (E3, D28): /api/student/enrollments (só perfil student; IDOR bloqueado no SQL).
+app.include_router(student_router, prefix="/api/student", tags=["student"])
 
 @app.get("/")
 async def root():
