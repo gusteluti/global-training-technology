@@ -1,6 +1,8 @@
 # HANDOFF — TDD Fase 2 (global-training-technology)
 
-Documento escrito para quem nunca viu a sessão original. Estado verificado por leitura do git e dos arquivos em 05/10/2026, depois do resgate do log de decisões. Nada aqui foi validado por suíte nova.
+Documento escrito para quem nunca viu a sessão original. Estado verificado por leitura do git e dos arquivos em 05/10/2026, depois do resgate do log de decisões.
+
+**Atualização de 05/10/2026 (sessão de validação da E3):** a E3 foi validada por suíte e mergeada. As seções abaixo trazem o resultado. O que vale para a E1 e a E2 continua como estava: não foi revalidado nesta sessão, mas a regressão delas passou junto com a E3 (81 testes de backend verdes).
 
 Log completo de decisões: `docs/tdd/decisoes_tdd.md`. Charter dos papéis: `docs/tdd/papeis_tdd.md`.
 
@@ -10,17 +12,17 @@ Log completo de decisões: `docs/tdd/decisoes_tdd.md`. Charter dos papéis: `doc
 
 | Branch | HEAD | Situação |
 |---|---|---|
-| `feature/fase2-tdd` | `5991c93` (docs do resgate) sobre `351a130` | **Branch de projeto.** Contém E1 e E2 mergeadas. |
+| `feature/fase2-tdd` | `da55d8f` (merge da E3) | **Branch de projeto.** Contém E1, E2 e E3 mergeadas. |
 | `feature/fase2-tdd-e1-identidade` | `dfe307c` | E1. Totalmente mergeada em `feature/fase2-tdd` (merge `9578a8f`). |
 | `feature/fase2-tdd-e2-conta-aluno` | `b988b92` | E2. Totalmente mergeada em `feature/fase2-tdd` (merge `351a130`). |
-| `feature/fase2-tdd-e3-painel-materiais` | `2e76cfe` | **E3. NÃO mergeada e NÃO validada.** Ver seção 2. |
+| `feature/fase2-tdd-e3-painel-materiais` | `1eaa7a7` | E3. Validada e totalmente mergeada em `feature/fase2-tdd` (merge `da55d8f`). |
 | `feature/fase2-painel-administrativo` | `aa619ac` (09/09) | Anterior. Não tocar. |
 | `feature/fase2-merge-gustavo` | `9be15e2` | Anterior. Não tocar. |
 | `feature/fase2-angular-integrado` | `d34d89b` | Anterior. Não tocar. |
 | `main` | `4b75c30` | Não tocar. |
 | `origin/payment-system` | `75a30e6` | Não tocar. |
 
-Sub-branches da E3: não existem. A E3 é uma branch só.
+Sub-branches da E3: não existem. A E3 é uma branch só. A E3 também carrega um commit duplicado do próprio `HANDOFF_TDD.md` (`f4580f2`), com blob idêntico ao `eed037a` da branch de projeto; o merge resolveu sozinho, sem conflito.
 
 ## 2. Entregas
 
@@ -35,14 +37,35 @@ Sub-branches da E3: não existem. A E3 é uma branch só.
 - Merge: `351a130` em `feature/fase2-tdd`. Branch: `b988b92`.
 - Cobre itens 1.1 e RF21.
 
-### E3 — Painel de inscrições e materiais (RF22, item 1.1) — **PENDENTE**
-- Commits **ainda não mergeados** em `feature/fase2-tdd`:
-  - `734469d` — testes vermelhos do painel, dos materiais e do IDOR.
-  - `2e76cfe` — implementação (`feat(e3)`, D28).
-- **Não validada.** Não há registro de suíte rodada sobre `2e76cfe`. Não confiar no relatório da sessão travada sobre a E3.
+### E3 — Painel de inscrições e materiais (RF22, item 1.1) — **VALIDADA E MERGEADA (05/10/2026)**
+- Commits:
+  - `734469d` — testes vermelhos do painel, dos materiais e do IDOR (backend + e2e).
+  - `2e76cfe` — implementação de backend (`feat(e3)`, D28).
+  - `1eaa7a7` — implementação de frontend (Angular). **Era a árvore suja descrita na seção 6 da versão anterior deste documento:** os cinco arquivos conferem um a um com a lista registrada lá, a autoria e o `Co-Authored-By` são os mesmos dos outros commits da entrega, e o conteúdo atende exatamente o e2e escrito antes, em `734469d`. Trabalho legítimo da sessão travada, commitado às 14:44, um minuto depois do commit de documentação.
+- Merge: `da55d8f` em `feature/fase2-tdd`, `--no-ff`. Sem push.
 - Escopo (D28): `GET /api/student/enrollments` e `GET /api/student/enrollments/{id}`. Materiais aparecem só com matrícula `active`. Outro aluno → 404. Perfil de funcionário → 403. Sem token → 401.
-- Obrigatório (PM): **IDOR** nos endpoints de aluno.
-- Ver seção 6, item E3 (árvore suja).
+
+**Checklist de 9 itens — fechado.** Os itens são os do contrato da D28 mais o ciclo TDD; os dois obrigatórios do PM são o 3 e o 4.
+
+| # | Item | Veredito | Prova |
+|---|---|---|---|
+| 1 | Lista só as matrículas do dono do token, com `id`, `course_id`, `course_name`, `status`, `enrolled_at` | OK | `test_t1`, `test_t6`; sonda A1/A2 |
+| 2 | Detalhe abre só a matrícula do dono | OK | `test_t5` (a própria abre com 200) |
+| 3 | **IDOR (obrigatório):** matrícula alheia → 404 idêntico a inexistente; nenhum endpoint aceita identificador de usuário do cliente | OK | `test_t5`, `test_t6`, `test_t7`; sonda A3–A8 |
+| 4 | **`pending`, `cancelled` e `refunded` não liberam material (obrigatório)** | OK | `test_t3` (3 casos), `test_t12` (4 status); sonda B2–B5 |
+| 5 | Curso sem o campo `materials` continua aceito e devolve lista vazia | OK | `test_t4`, `test_t11b` |
+| 6 | `materials` aceito no `CourseInput` do admin | OK | `test_t11a`; `create-course` e `update-course` usam o mesmo schema |
+| 7 | Funcionário → 403; sem token ou token forjado → 401 | OK | `test_t8` (6 casos), `test_t8b` (3), `test_t9`, `test_t10`; sonda C1–C4 |
+| 8 | Tela `/student` com "Meus cursos", badge de status, materiais só quando `active` | OK | e2e P1–P7, 7/7 em Chromium; build Angular limpo |
+| 9 | Ciclo TDD: red antes do código | OK | ver abaixo |
+
+**Red reproduzido nesta sessão** (worktree isolado em `734469d`, só os testes, sem a implementação): **25 falham, 1 passa**. A que passa é a `test_t11b`, guarda de compatibilidade (curso sem `materials` já era aceito antes da E3) — mesmo padrão do teste 7b da E1 registrado na D2, não é red de implementação.
+
+**Green registrado nesta sessão:**
+- Backend em `1eaa7a7`: **81 passed, 0 failed** (26 da E3 + regressão E1/E2/fase2). Repetido depois do merge, em `da55d8f`: **81 passed**.
+- E2E Chromium (`frontend/e2e/test_e3_painel_angular.py`): **7/7 checks** (P1 a P7), com backend em `127.0.0.1:8000` e `ng serve` em `localhost:4200`.
+- Sondagem independente de IDOR e de vazamento de material, por HTTP contra o servidor no ar, fora da suíte: **38/38**. Cobriu variantes que a suíte não cobre: `userId`, `student_id`, `id` e `email` na query; cabeçalhos `X-User-Id`, `X-User-Email` e `X-Student-Id` forjados; detalhe de matrícula alheia nos quatro status; e vazamento por outras rotas (`/api/courses` público e `/api/admin/course/{id}` com token de aluno).
+- Build Angular de desenvolvimento: limpo.
 
 ### Entregas 4 a 9
 Não há detalhe nos arquivos resgatados. O documento de escopo não foi localizado (busquei em `%APPDATA%\Claude` e em `C:\Users\vihug`, até 6 níveis). **Escopo das entregas 3 a 9 incompleto neste documento**: é preciso o documento de escopo para descrevê-las.
@@ -95,19 +118,9 @@ Não há detalhe nos arquivos resgatados. O documento de escopo não foi localiz
 
 ## 6. Pendências e pontos de atenção
 
-**E3 — não validada e mergeada:**
-- `734469d` e `2e76cfe` estão só na branch da E3.
-- Antes de mergear: rodar a suíte da E3 e a regressão. Não existe registro dessas execuções.
-- Confirmar o IDOR (obrigatório, PM).
+**E3 — RESOLVIDA.** Validada e mergeada (`da55d8f`). Ver seção 2.
 
-**Árvore de trabalho suja (não é nossa; não commitar sem entender):** no momento do resgate havia alterações **não commitadas** em `feature/fase2-tdd` herdadas do checkout da E3:
-- `frontend/src/app/app-routing.module.ts` (modificado)
-- `frontend/src/app/components/student-dashboard/student-dashboard.component.html` (modificado)
-- `frontend/src/app/components/student-dashboard/student-dashboard.component.ts` (modificado)
-- `frontend/src/app/services/api.service.ts` (modificado)
-- `frontend/src/app/resolvers/` (não rastreado)
-
-Autoria provável: a sessão travada, que ainda estava escrevendo. Confirmar antes de qualquer commit.
+**Árvore de trabalho suja — RESOLVIDA.** As alterações não commitadas em `frontend/` eram do commit `1eaa7a7`, feito pela sessão travada depois do commit de documentação. A árvore está limpa desde então; nada foi commitado em cima de trabalho de terceiros.
 
 **Dívidas abertas:**
 - D4 — e2e: 27 vs 29 checks; seed de pagamento pendente no harness.
@@ -116,8 +129,12 @@ Autoria provável: a sessão travada, que ainda estava escrevendo. Confirmar ant
 - D10 — confirmar que o teste de duas compras no mesmo segundo está commitado e verde.
 - D13 — envio de link só em arquivo de dev; SMTP é trabalho futuro.
 - Recuperação de senha: fora do escopo, mas login de aluno em produção vai precisar. Item próprio no backlog.
-- E3 — validação, merge e IDOR (acima).
 - Entregas 4 a 9 — escopo não localizado.
+
+**Achados da validação da E3 que NÃO bloqueiam o merge (decisão do PM pendente):**
+- `PUT /api/admin/update-course` usa o mesmo `CourseInput`, onde `materials` tem default `[]`. Quem editar um curso sem reenviar `materials` **apaga os materiais em silêncio**. Hoje é só risco latente: nesta branch nenhuma tela chama `update-course`. Vira defeito real no dia em que a área administrativa ganhar edição de curso. Fora do escopo da D28.
+- Não existe `backend/.env` nesta máquina (é gitignored e não foi encontrado). Para a validação desta sessão as variáveis foram passadas na linha de comando do `uvicorn`, sem criar arquivo no repo. Quem for rodar o e2e precisa fazer o mesmo ou criar o `.env` a partir do `.env.example`.
+- A seção 9 dizia que a execução do e2e era "não confirmada". Confirmada agora, para a E3: `py -3 -m pytest frontend/e2e/test_e3_painel_angular.py -s`, com `ADMIN_PASSWORD`, `E2E_BASE_URL` e `E2E_API_URL` no ambiente.
 
 ## 7. Autoridade permanente concedida pelo PM
 
