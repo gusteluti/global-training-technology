@@ -15,6 +15,8 @@ export const STAFF_ROLES = ['admin', 'financial', 'support'];
 
 const routes: Routes = [
   { path: '', component: LoginComponent },
+  // Link do e-mail de conta existente (D26). Rota explícita: sem ela cai no curinga.
+  { path: 'login', component: LoginComponent },
   { path: 'student', component: StudentDashboardComponent, canActivate: [AuthGuard, RoleGuard], data: { roles: ['student'] } },
   { path: 'admin', component: AdminDashboardComponent, canActivate: [AuthGuard, RoleGuard], data: { roles: STAFF_ROLES } },
   // Rotas públicas da conta do aluno (sem AuthGuard). Devem vir antes do curinga.
