@@ -1,55 +1,67 @@
 """
-Governança de acesso (Fase 2 - RBAC) para a área do funcionário.
+Autenticação e governança de acesso (RBAC) da plataforma.
 
-Mantém o mesmo esquema de token assinado com HMAC já usado na Fase 1
-(base64 de "role:expires_at:nonce:signature"), apenas acrescentando o
-conceito de perfis (Role) para diferenciar Gestão/Financeiro de Suporte,
-conforme o item "2. Gestão de Acessos e Governança" do escopo da Fase 2.
+Dois mecanismos convivem, cada um atendendo a um cliente:
+
+1. Contas de usuário (alunos e funcionários) na tabela `users`, com senha em
+   bcrypt e JWT emitido por `POST /api/token` (fluxo OAuth2 password). Usado
+   pela aplicação Angular (contribuição do Gustavo).
+
+2. Login administrativo por senha de perfil (ADMIN/FINANCIAL/SUPPORT_PASSWORD),
+   que emite um token HMAC com o perfil embutido. Usado pelo `admin.html`
+   (contribuição da Fase 2 - Gestão de Acessos e Governança).
+
+`get_current_user` aceita os dois formatos e devolve sempre um `User` com o
+`role`, então as rotas e as dependências `require_roles` / `require_role`
+funcionam para qualquer um dos dois tipos de token.
 """
 
-from enum import Enum
-from dataclasses import dataclass
-from fastapi import Header, HTTPException
-from dotenv import load_dotenv
 import base64
 import hashlib
 import hmac
 import os
 import secrets
 import time
+from datetime import datetime, timedelta
+from typing import Optional
+
+from dotenv import load_dotenv
+from fastapi import Header, HTTPException
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+
+from db import Database
+from models.user import Role, User
 
 load_dotenv()
 
+# --- Token de funcionário (login por senha de perfil) -----------------------
 TOKEN_TTL_SECONDS = 60 * 60 * 8
 
+# --- Token JWT de conta (fluxo /api/token) ----------------------------------
+JWT_ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", str(60 * 8)))
 
-class Role(str, Enum):
-    """Perfis de acesso da área do funcionário (RF21)."""
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-    ADMIN = "admin"
-    FINANCIAL = "financial"
-    SUPPORT = "support"
-
-    @property
-    def label(self) -> str:
-        return {
-            Role.ADMIN: "Gestão",
-            Role.FINANCIAL: "Financeiro",
-            Role.SUPPORT: "Suporte",
-        }[self]
+# Compatibilidade: o nome antigo do perfil de conta continua disponível.
+AuthContext = User
 
 
-@dataclass
-class AuthContext:
-    """Identidade resolvida a partir de um token de funcionário válido."""
-
-    role: Role
-
+# --- Segredos ---------------------------------------------------------------
 
 def get_admin_secret() -> str:
     secret = os.getenv("ADMIN_TOKEN_SECRET") or os.getenv("ADMIN_PASSWORD")
     if not secret:
         raise HTTPException(status_code=500, detail="ADMIN_TOKEN_SECRET não configurado no backend.")
+    return secret
+
+
+def _jwt_secret() -> str:
+    """A chave do JWT é obrigatória: não há fallback fixo, para não aceitar tokens forjados com um segredo público."""
+    secret = os.getenv("JWT_SECRET_KEY")
+    if not secret:
+        raise HTTPException(status_code=500, detail="JWT_SECRET_KEY não configurado no backend.")
     return secret
 
 
@@ -61,14 +73,59 @@ def sign_payload(payload: str) -> str:
     ).hexdigest()
 
 
+# --- Senhas de conta (bcrypt) -----------------------------------------------
+
+def verify_password(plain_password: str, hashed_password: Optional[str]) -> bool:
+    if not hashed_password:
+        return False
+    return pwd_context.verify(plain_password, hashed_password)
+
+
+def get_password_hash(password: str) -> str:
+    return pwd_context.hash(password)
+
+
+# --- JWT de conta -----------------------------------------------------------
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    to_encode = data.copy()
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, _jwt_secret(), algorithm=JWT_ALGORITHM)
+
+
+def _user_from_jwt(token: str) -> User:
+    try:
+        payload = jwt.decode(token, _jwt_secret(), algorithms=[JWT_ALGORITHM])
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Credenciais inválidas")
+
+    user_id = payload.get("user_id")
+    email = payload.get("email")
+    if user_id is None or email is None:
+        raise HTTPException(status_code=401, detail="Credenciais inválidas")
+
+    user_data = Database.get_user_by_email(email)
+    if not user_data:
+        raise HTTPException(status_code=401, detail="Credenciais inválidas")
+
+    return User(
+        id=user_data["id"],
+        email=user_data["email"],
+        name=user_data["name"],
+        role=Role(user_data.get("role") or "student"),
+        created_at=user_data.get("created_at"),
+    )
+
+
+# --- Token de funcionário (HMAC com perfil embutido) ------------------------
+
 def get_role_passwords() -> "dict[Role, str]":
     """
-    Mapeia cada perfil para sua senha de acesso.
+    Mapeia cada perfil de funcionário para sua senha.
 
-    Compatível com a Fase 1: se apenas ADMIN_PASSWORD estiver configurado,
-    ele continua funcionando como antes (perfil Gestão). FINANCIAL_PASSWORD
-    e SUPPORT_PASSWORD são opcionais e permitem separar níveis hierárquicos
-    sem quebrar instalações existentes.
+    Se apenas ADMIN_PASSWORD estiver configurado, o comportamento da Fase 1 é
+    mantido (perfil Gestão). FINANCIAL_PASSWORD e SUPPORT_PASSWORD são opcionais.
     """
     admin_password = os.getenv("ADMIN_PASSWORD")
     if not admin_password:
@@ -104,12 +161,7 @@ def create_admin_token(role: Role) -> str:
     return base64.urlsafe_b64encode(token.encode("utf-8")).decode("utf-8")
 
 
-def get_current_user(authorization: str = Header(default="")) -> AuthContext:
-    """Decodifica e valida o token de sessão do funcionário, retornando seu perfil."""
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Token de admin ausente.")
-
-    token = authorization.replace("Bearer ", "", 1).strip()
+def _user_from_staff_token(token: str) -> User:
     try:
         decoded = base64.urlsafe_b64decode(token.encode("utf-8")).decode("utf-8")
         role_value, expires_at, nonce, signature = decoded.split(":", 3)
@@ -117,34 +169,63 @@ def get_current_user(authorization: str = Header(default="")) -> AuthContext:
         raise HTTPException(status_code=401, detail="Token de admin inválido.")
 
     payload = f"{role_value}:{expires_at}:{nonce}"
-    expected_signature = sign_payload(payload)
-    if not hmac.compare_digest(signature, expected_signature):
+    if not hmac.compare_digest(signature, sign_payload(payload)):
         raise HTTPException(status_code=401, detail="Token de admin inválido.")
 
     try:
         role = Role(role_value)
     except ValueError:
         raise HTTPException(status_code=401, detail="Token de admin inválido.")
+    if role == Role.STUDENT:
+        # Aluno não tem token de funcionário; só entra pelo JWT de conta.
+        raise HTTPException(status_code=401, detail="Token de admin inválido.")
 
     if int(expires_at) < int(time.time()):
         raise HTTPException(status_code=401, detail="Sessão de admin expirada.")
 
-    return AuthContext(role=role)
+    return User(id=0, email="", name=role.label, role=role, created_at=None)
+
+
+# --- Dependências -----------------------------------------------------------
+
+def get_current_user(authorization: str = Header(default="")) -> User:
+    """
+    Valida o token do cabeçalho `Authorization: Bearer ...` e devolve o usuário.
+
+    JWT tem dois pontos (header.payload.signature); o token de funcionário é
+    base64 sem pontos. Cada um segue seu próprio caminho de validação.
+    """
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Token ausente.")
+
+    token = authorization[len("Bearer "):].strip()
+    if "." in token:
+        return _user_from_jwt(token)
+    return _user_from_staff_token(token)
+
+
+def require_role(user: User, allowed: list) -> None:
+    """Checagem por nome de perfil (ex.: ["admin", "financial"]). Lança 403 se o perfil não for permitido."""
+    if user.role.value not in allowed:
+        raise HTTPException(status_code=403, detail="Acesso não autorizado")
 
 
 def require_roles(*allowed_roles: Role):
     """
-    Dependency factory para proteger rotas por perfil.
+    Dependency factory para rotas protegidas por perfil.
 
-    Ex.: Depends(require_roles(Role.ADMIN, Role.FINANCIAL)) garante que
-    métricas financeiras fiquem restritas a Gestão/Financeiro, enquanto o
-    perfil de Suporte recebe 403 (item 2 do escopo da Fase 2).
+    Ex.: Depends(require_roles(Role.ADMIN, Role.FINANCIAL)) restringe métricas
+    financeiras a Gestão/Financeiro; o Suporte recebe 403.
     """
 
-    def dependency(authorization: str = Header(default="")) -> AuthContext:
+    def dependency(authorization: str = Header(default="")) -> User:
         current_user = get_current_user(authorization)
         if current_user.role not in allowed_roles:
             raise HTTPException(status_code=403, detail="Acesso não autorizado para este perfil.")
         return current_user
 
     return dependency
+
+
+# Qualquer perfil de funcionário (Gestão, Financeiro ou Suporte). Alunos ficam de fora.
+require_staff = require_roles(Role.ADMIN, Role.FINANCIAL, Role.SUPPORT)

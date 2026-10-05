@@ -1,0 +1,26 @@
+{
+  "id": "lua",
+  "name": "LUA",
+  "description": "asdasdasdasdasd",
+  "price": 232.0,
+  "duration_hours": 4,
+  "level": "Intermediario · Presencial · Online · EAD",
+  "target_audience": "asdasdasd",
+  "objectives": [
+    "asasdd"
+  ],
+  "topics": [
+    "asdasdasd"
+  ],
+  "benefits": [
+    "asdasdasd"
+  ],
+  "faq": [
+    {
+      "question": "asasdsda",
+      "answer": "Entre em contato com a Global Training para mais detalhes."
+    }
+  ],
+  "system_prompt": "asdasddas",
+  "created_at": "2026-05-25T15:58:52.219502"
+}

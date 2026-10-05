@@ -6,7 +6,7 @@ Observabilidade do Chatbot (RF23/RF24), todos protegidos por RBAC (RF21).
 
 from fastapi import APIRouter, Depends, Request
 
-from core.security import AuthContext, Role, get_current_user, require_roles
+from core.security import AuthContext, Role, require_roles, require_staff
 from db import Database
 from admin.routes import list_course_summaries
 
@@ -14,7 +14,7 @@ router = APIRouter()
 
 
 @router.get("/alunos")
-async def dashboard_alunos(request: Request, current_user: AuthContext = Depends(get_current_user)):
+async def dashboard_alunos(request: Request, current_user: AuthContext = Depends(require_staff)):
     """
     Métricas quantitativas de matriculados, listagem de alunos ativos e
     histórico de interações (RF23). Disponível para todos os perfis internos,
@@ -38,7 +38,7 @@ async def dashboard_alunos(request: Request, current_user: AuthContext = Depends
 
 
 @router.get("/cursos")
-async def dashboard_cursos(current_user: AuthContext = Depends(get_current_user)):
+async def dashboard_cursos(current_user: AuthContext = Depends(require_staff)):
     """
     Performance do catálogo: inscritos por turma e taxa de conversão (RF23).
     """
@@ -109,7 +109,7 @@ async def dashboard_financeiro(current_user: AuthContext = Depends(require_roles
 
 
 @router.get("/observabilidade-ia")
-async def dashboard_observabilidade_ia(request: Request, current_user: AuthContext = Depends(get_current_user)):
+async def dashboard_observabilidade_ia(request: Request, current_user: AuthContext = Depends(require_staff)):
     """
     Painel de observabilidade do chatbot: volume de uso, conversão de
     atendimento e tópicos não compreendidos pelo modelo (RF24).

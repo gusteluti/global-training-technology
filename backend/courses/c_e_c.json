@@ -1,26 +1,29 @@
 {
   "id": "c_e_c",
   "name": "C e C#",
-  "description": "Curso de C",
+  "description": "Curso de C e C#",
   "price": 234.0,
   "duration_hours": 12,
   "level": "Avancado · Presencial · Online · EAD",
-  "target_audience": "Estudantes de TI",
+  "target_audience": "Apenas pessoas que querem trabalhar com tecnologia embarcada",
   "objectives": [
-    "Estudar C"
+    "C",
+    "C#"
   ],
   "topics": [
-    "Estudar C"
+    "C",
+    "C#"
   ],
   "benefits": [
-    "Estudar C"
+    "Aprender C",
+    "Aprender C#"
   ],
   "faq": [
     {
-      "question": "Estudar C",
-      "answer": "Entre em contato com a Global Training para mais detalhes."
+      "question": "Vou receber certificado?",
+      "answer": "Sim, ao concluir o curso voce recebe certificado da Global Training Technology."
     }
   ],
-  "system_prompt": "VOcê é especializado em vender o curso de C e C#",
+  "system_prompt": "Fale bastante como é bom ter C e C#",
   "created_at": "2026-05-25T19:24:29.741028"
 }

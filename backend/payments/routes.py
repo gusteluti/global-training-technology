@@ -187,9 +187,9 @@ async def refund_payment(
 
     Database.update_payment_status(payment_id, "refunded", payment.get("transaction_id"))
     Database.add_audit_log(
-        current_user.role.value,
         "payment.refund",
-        f"Pagamento #{payment_id} (R$ {float(payment.get('amount', 0)):.2f}) marcado como reembolsado"
+        f"Pagamento #{payment_id} (R$ {float(payment.get('amount', 0)):.2f}) marcado como reembolsado",
+        role=current_user.role.value,
     )
 
     return {

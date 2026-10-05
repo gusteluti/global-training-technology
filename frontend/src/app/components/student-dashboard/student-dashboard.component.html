@@ -1,0 +1,17 @@
+<div class="row">
+  <div class="col-12">
+    <h3>Meus Cursos</h3>
+    <div *ngIf="courses.length === 0" class="alert alert-info">Nenhum curso encontrado.</div>
+    <div class="row">
+      <div class="col-md-6" *ngFor="let c of courses">
+        <div class="card">
+          <div class="card-body">
+            <h5 class="card-title">{{ c.name }}</h5>
+            <p class="card-text">Preço: R$ {{ c.price }}</p>
+            <a class="btn btn-sm btn-primary" [href]="'/courses/' + c.id">Acessar</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

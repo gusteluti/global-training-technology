@@ -10,6 +10,10 @@ from admin.routes import list_course_summaries, router as admin_router
 from payments.routes import router as payments_router
 from dashboard.routes import router as dashboard_router
 from agents.manager_agent import ManagerAgent
+from admin.dashboard import router as angular_dashboard_router
+from auth import router as auth_router
+from core.security import get_password_hash
+from db import Database
 
 # Initialize FastAPI
 app = FastAPI(title="TCC School Chatbot API", version="1.0.0")
@@ -40,6 +44,17 @@ async def startup_event():
     except Exception as e:
         print(f"❌ Error initializing manager agent: {str(e)}")
         raise
+
+    # Ensure admin user exists if env vars are provided
+    admin_email = os.getenv("ADMIN_EMAIL")
+    admin_password = os.getenv("ADMIN_PASSWORD")
+    if admin_email and admin_password:
+        existing = Database.get_user_by_email(admin_email)
+        if not existing:
+            pwd_hash = get_password_hash(admin_password)
+            created = Database.add_user(admin_email, os.getenv("ADMIN_NAME", "Administrator"), pwd_hash, role="admin")
+            if created:
+                print(f"✅ Admin user created: {admin_email}")
 
 @app.get("/health")
 async def health_check():
@@ -139,7 +154,12 @@ async def public_courses():
 # Include admin routes
 app.include_router(admin_router, prefix="/api/admin", tags=["admin"])
 app.include_router(payments_router, prefix="/api/payments", tags=["payments"])
+# Dashboard do admin.html (Fase 2): /api/dashboard/{alunos,cursos,financeiro,observabilidade-ia}
 app.include_router(dashboard_router, prefix="/api/dashboard", tags=["dashboard"])
+# Dashboard da aplicação Angular (contribuição do Gustavo): /api/v1/dashboard/{financeiro,alunos,cursos,audit}
+app.include_router(angular_dashboard_router, prefix="/api/v1/dashboard", tags=["dashboard-angular"])
+# Login por conta (JWT): POST /api/token
+app.include_router(auth_router)
 
 @app.get("/")
 async def root():

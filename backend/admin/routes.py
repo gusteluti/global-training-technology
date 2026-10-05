@@ -9,8 +9,8 @@ from core.security import (
     AuthContext,
     Role,
     create_admin_token,
-    get_current_user,
     require_roles,
+    require_staff,
     resolve_role_from_password,
     TOKEN_TTL_SECONDS,
 )
@@ -87,9 +87,9 @@ async def create_course(course: CourseInput, request: Request, current_user: Aut
 
         loaded_courses = reload_manager_agent_courses(request, f"course creation: {course.id}")
         Database.add_audit_log(
-            current_user.role.value,
             "course.create",
-            f"Curso '{course.name}' ({course.id}) criado com preço R$ {course.price:.2f}"
+            f"Curso '{course.name}' ({course.id}) criado com preço R$ {course.price:.2f}",
+            role=current_user.role.value,
         )
 
         return {
@@ -106,7 +106,7 @@ async def create_course(course: CourseInput, request: Request, current_user: Aut
         raise HTTPException(status_code=500, detail=f"Error creating course: {str(e)}")
 
 @router.get("/courses")
-async def list_courses(current_user: AuthContext = Depends(get_current_user)):
+async def list_courses(current_user: AuthContext = Depends(require_staff)):
     """List all available courses"""
     try:
         courses = list_course_summaries()
@@ -120,7 +120,7 @@ async def list_courses(current_user: AuthContext = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=f"Error listing courses: {str(e)}")
 
 @router.get("/course/{course_id}")
-async def get_course(course_id: str, current_user: AuthContext = Depends(get_current_user)):
+async def get_course(course_id: str, current_user: AuthContext = Depends(require_staff)):
     """Get full details of a specific course"""
     try:
         courses_dir = Path(__file__).parent.parent / "courses"
@@ -177,15 +177,15 @@ async def update_course(course_id: str, course: CourseInput, request: Request, c
         # Audit trail: alteração de preço de curso é um evento crítico (Fase 2 - Governança)
         if previous_price is not None and float(previous_price) != float(course.price):
             Database.add_audit_log(
-                current_user.role.value,
                 "course.price_change",
-                f"Curso '{course.name}' ({course_id}): preço alterado de R$ {float(previous_price):.2f} para R$ {course.price:.2f}"
+                f"Curso '{course.name}' ({course_id}): preço alterado de R$ {float(previous_price):.2f} para R$ {course.price:.2f}",
+                role=current_user.role.value,
             )
         else:
             Database.add_audit_log(
-                current_user.role.value,
                 "course.update",
-                f"Curso '{course.name}' ({course_id}) atualizado"
+                f"Curso '{course.name}' ({course_id}) atualizado",
+                role=current_user.role.value,
             )
 
         return {
@@ -222,9 +222,9 @@ async def delete_course(course_id: str, request: Request, current_user: AuthCont
 
         loaded_courses = reload_manager_agent_courses(request, f"course deletion: {course_id}")
         Database.add_audit_log(
-            current_user.role.value,
             "course.delete",
-            f"Curso '{course_name}' ({course_id}) removido"
+            f"Curso '{course_name}' ({course_id}) removido",
+            role=current_user.role.value,
         )
 
         return {
@@ -248,6 +248,11 @@ def reload_manager_agent_courses(request: Request, reason: str):
 
     loaded_courses = manager_agent.load_courses(reload=True)
     print(f"🔄 Manager agent reloaded after {reason}. Courses loaded: {loaded_courses}")
+    try:
+        # Registro do recarregamento (contribuição do Gustavo). Não pode derrubar a operação de cadastro.
+        Database.add_audit_log("manager_reload", reason, role="system")
+    except Exception:
+        pass
     return loaded_courses
 
 def load_course_data(course_id: str) -> Dict:

@@ -1,0 +1,79 @@
+Seja bem-vindo à versão narrada da Documentação Técnica do projeto Global Training Technology.
+
+Seção 1 — Visão Geral do Projeto.
+Este projeto é uma plataforma web desenvolvida para uma escola de cursos profissionalizantes. A solução integra uma landing page pública para divulgação, um chatbot com inteligência artificial para atendimento ao aluno, um painel administrativo protegido por senha, cadastro dinâmico de cursos, backend construído com FastAPI, agentes de IA usando o serviço Groq, e uma estrutura SQLite para matrículas e pagamentos. Também há integração com o Mercado Pago para checkout.
+
+O objetivo técnico principal é centralizar a jornada do aluno, desde a descoberta do curso, passando pelo atendimento automatizado, até a matrícula e o pagamento online.
+
+Seção 2 — Arquitetura Geral.
+A arquitetura é formada por quatro camadas principais. Primeiro, o frontend, composto por arquivos HTML, CSS e JavaScript puro. O frontend carrega os cursos por meio de chamadas HTTP para o backend e também inicia conversas com o chatbot.
+
+Segundo, o backend, construído com FastAPI. O backend expõe rotas públicas para a landing e rotas administrativas protegidas. Ele também inicializa e mantém os agentes de IA carregados em memória.
+
+Terceiro, a camada de IA. Implementamos um ManagerAgent, responsável por carregar os cursos e criar um CourseAgent para cada curso. Cada CourseAgent monta um contexto com descrição, preço, duração, objetivos, tópicos, benefícios e FAQ do curso. As chamadas ao LLM são feitas por um cliente Groq dedicado.
+
+Quarto, a camada de dados. Os cursos são armazenados como arquivos JSON na pasta backend cursos. Informações transacionais — alunos, matrículas e pagamentos — são persistidas no SQLite configurado no arquivo backend/db.py.
+
+Seção 3 — Fluxo Principal do Aluno.
+O fluxo começa quando o aluno abre a landing page. Em seguida, o frontend requisita a lista de cursos com um GET para a rota /api/courses. O backend responde com uma lista resumida de cursos. O aluno pode então visualizar detalhes, tirar dúvidas com a IA, abrir o modal de matrícula e iniciar o checkout.
+
+Quando o aluno decide pagar, o frontend chama POST para /api/payments/create-checkout enviando os dados do comprador. O backend valida os dados, gera a preferência no Mercado Pago e retorna a URL de checkout. O checkout abre em uma nova aba e o cartão e dados sensíveis são processados pelo Mercado Pago. O backend só cria a preferência.
+
+Seção 4 — Fluxo Administrativo.
+O administrador acessa o frontend de administração. A tela exige uma senha administrativa. O frontend envia essas credenciais para POST /api/admin/login. O backend valida a senha com a variável ADMIN_PASSWORD e, se correta, gera um token assinado com HMAC. Esse token é retornado ao frontend, que salva o token em localStorage e o inclui nas chamadas administrativas na forma Authorization Bearer.
+
+O administrador pode cadastrar um novo curso no painel. O backend salva o curso como um arquivo JSON dentro da pasta backend cursos. Em seguida, o ManagerAgent é recarregado em memória para que o chatbot reconheça o novo curso sem que o servidor precise reiniciar.
+
+Seção 5 — Backend FastAPI — Visão Geral das Responsabilidades.
+O arquivo principal é backend/app.py. Ele inicializa a aplicação, configura CORS, cria instâncias dos agentes, carrega cursos na inicialização e expõe rotas de chat, cursos públicos e inclui routers administrativos e de pagamentos.
+
+Endpoints públicos importantes incluem: GET raiz, GET /health para checar status, GET /api/courses para listar cursos, e POST /api/chat para enviar mensagens ao chatbot.
+
+Um exemplo de payload para a rota de chat é um objeto JSON contendo uma propriedade message com a pergunta do usuário e uma session_id para agrupar histórico.
+
+Seção 6 — Rotas Administrativas.
+O router administrativo live em backend/admin/routes.py fornece endpoints para login administrativo, listagem de cursos, criação, atualização, recuperação e remoção de cursos. As rotas protegidas exigem o token HMAC no header Authorization.
+
+O modelo de curso utilizado pelo backend inclui os campos: id, name, description, price, duration_hours, level, target_audience, objectives, topics, benefits, faq e system_prompt. Um arquivo JSON de exemplo descreve cada um desses campos e inclui arrays para objetivos, tópicos, benefícios e a FAQ, que é uma lista de objetos pergunta e resposta.
+
+Seção 7 — Autenticação do Admin.
+A autenticação administrativa é baseada em uma senha única em variáveis de ambiente. A variável ADMIN_PASSWORD contém a senha, e ADMIN_TOKEN_SECRET é a chave usada para assinar o token. A geração de token envolve criar um payload contendo o identificador do admin, uma data de expiração e um nonce. Esse payload é assinado com HMAC SHA-256 e codificado em Base64 URL-safe. O tempo de validade atual é definido para oito horas.
+
+Seção 8 — IA e Agentes — Arquitetura e Fluxo.
+A arquitetura de agentes envolve três componentes principais: ManagerAgent, CourseAgent e GroqChatClient. O ManagerAgent carrega os cursos e mantém um CourseAgent por curso. Quando o backend recebe uma pergunta pelo endpoint de chat, o ManagerAgent tenta identificar a intenção e se a pergunta é sobre um curso específico. A identificação é feita por correspondência de palavras-chave contra nome e id do curso, ou, se inconclusiva, o ManagerAgent delega ao LLM para decidir entre indicar um curso ou retornar a tag GENERAL.
+
+Se for detectado um curso, o ManagerAgent roteia a pergunta para o CourseAgent correspondente. O CourseAgent constrói o contexto do sistema misturando a descrição do curso, os objetivos, os tópicos, benefícios e a FAQ. Em seguida, ele chama o GroqChatClient para gerar a resposta.
+
+O GroqChatClient abre a comunicação com a API da Groq usando a chave GROQ_API_KEY e o modelo configurado em GROQ_MODEL. Ele faz a requisição de completude de chat e extrai o texto final para enviar de volta ao frontend.
+
+Seção 9 — Pagamento com Mercado Pago.
+As rotas de pagamento estão localizadas em backend/payments/routes.py. O fluxo consiste em receber um POST com course_id e dados do comprador, validar o email e nome, buscar o curso pelo id e montar os campos da preferência. O backend então chama a API em https://api.mercadopago.com/checkout/preferences e retorna o checkout_url para o frontend abrir.
+
+O webhook de pagamentos recebe notificações do Mercado Pago e consulta a API de pagamentos para checar o status do pagamento. Atualmente, o webhook está preparado para validar e ler o status, mas a integração final para atualizar matrícula no banco e liberar acesso ainda é uma tarefa pendente.
+
+Seção 10 — Banco de Dados.
+O banco usado é SQLite, com o arquivo backend/db.sqlite. As tabelas principais projetadas incluem students, enrollments e payments. A tabela students contém um id, email único e nome. A tabela enrollments referencia student_id e armazena course_id e status. A tabela payments referencia enrollment_id, armazena valor, status, método e transaction_id. Esses relacionamentos permitem rastrear alunos, matrículas e pagamentos.
+
+Atualmente os cursos estão em JSON para facilitar cadastro dinâmico e leitura pelos agentes, enquanto a parte transacional foi projetada para o SQLite. Em versões futuras, os cursos também poderão migrar para tabelas relacionais.
+
+Seção 11 — Frontend — Landing e Admin.
+O frontend principal é a landing page em frontend/landing_global_training.html e o painel administrativo em frontend/admin.html. Ambos são implementados com HTML, CSS e JavaScript sem frameworks. O frontend da landing carrega os cursos via fetch para /api/courses, renderiza cards, abre modal de matrícula, chama o chat via /api/chat e inicia o checkout de pagamento.
+
+O admin permite login, listagem de cursos e criação de novos cursos. Após criar um curso, o backend salva o JSON e o ManagerAgent recarrega os agentes em memória.
+
+Seção 12 — Variáveis de Ambiente e Segurança.
+As variáveis importantes incluem GROQ_API_KEY, GROQ_MODEL, ADMIN_PASSWORD, ADMIN_TOKEN_SECRET, MERCADO_PAGO_ACCESS_TOKEN, FRONTEND_BASE_URL e API_BASE_URL. O uso de .env evita vazar chaves para o repositório. Em produção, recomenda-se configurar HTTPS, restringir CORS, trocar localStorage por cookie HttpOnly e proteger as chaves e tokens de forma apropriada.
+
+Seção 13 — Testes Manuais e Verificações Relevantes.
+No ambiente de desenvolvimento, verifique se a landing abre, se os cursos carregam, se o botão tirar dúvidas abre o chat e se o botão matricular abre o modal. No chat, confirme que perguntas gerais retornam respostas e que perguntas sobre um curso específico retornam conteúdo do curso. No admin, teste login com senha inválida e válida, e a criação de cursos. No pagamento, verifique que o checkout abre e que o webhook recebe notificações.
+
+Seção 14 — Limitações Conhecidas e Próximos Passos.
+Limitações atuais incluem: as matriculas e pagamentos ainda não são gravados automaticamente quando o checkout é completado, o webhook não atualiza matrícula, não existe area do aluno, e o admin usa uma senha única. Plano de evolução: persistir a matrícula e o pagamento, atualizar matrícula apos pagamento aprovado, criar area do aluno, dashboard administrativo, e realizar deploy com HTTPS e configurações de produção mais rígidas.
+
+Seção 15 — Perguntas prováveis e respostas curtas para a banca.
+Por que FastAPI? Porque é performático, integra com Pydantic para validação e fornece documentação automática para testes. Por que cursos em JSON? Facilita cadastro dinâmico e leitura pelos agentes. Como a IA reconhece novos cursos? O admin salva JSON e o ManagerAgent recarrega em memória. Qual a segurança do admin? A senha não fica no frontend e o token é assinado com HMAC. O pagamento é seguro pois os dados de cartão são processados pelo Mercado Pago.
+
+Conclusão — Resumo final falado.
+O projeto Global Training Technology é uma plataforma web com frontend em HTML, CSS e JavaScript, backend em FastAPI, agentes de IA integrados via Groq, cursos dinâmicos em arquivos JSON, persistência transacional com SQLite e checkout via Mercado Pago. A arquitetura demonstra como integrar componentes web, IA e pagamento em um fluxo coeso, pronto para evoluir para produção com melhorias na persistência e segurança.
+
+Fim da narração. Para gerar o áudio, use o arquivo de texto salvo neste projeto e um gerador de Text-to-Speech — por exemplo, o script Python fornecido ao lado, que usa gTTS para criar um arquivo MP3.

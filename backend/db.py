@@ -3,16 +3,16 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 class Database:
-    """SQLite database for storing enrollments and payments"""
-    
+    """SQLite database: contas de usuário, alunos, matrículas, pagamentos e trilha de auditoria."""
+
     DB_PATH = Path(__file__).parent / "db.sqlite"
-    
+
     @staticmethod
     def init_db():
         """Initialize database tables"""
         conn = sqlite3.connect(Database.DB_PATH)
         cursor = conn.cursor()
-        
+
         # Students table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS students (
@@ -22,7 +22,7 @@ class Database:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        
+
         # Enrollments table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS enrollments (
@@ -52,16 +52,34 @@ class Database:
             )
         """)
 
-        # Audit logs table (Fase 2 - Trilhas de Auditoria / Governança)
+        # Users table (contas de alunos e funcionários, login JWT via /api/token)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT UNIQUE NOT NULL,
+                name TEXT NOT NULL,
+                password_hash TEXT,
+                role TEXT DEFAULT 'student',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Audit logs table (Trilhas de auditoria). Schema único: aceita eventos de
+        # conta (user_id) e de perfil de funcionário (role). Bases criadas pelas
+        # versões anteriores recebem as colunas que faltam.
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS audit_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                role TEXT NOT NULL,
+                user_id INTEGER,
+                role TEXT,
                 action TEXT NOT NULL,
                 detail TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        Database._ensure_column(cursor, "audit_logs", "user_id", "INTEGER")
+        Database._ensure_column(cursor, "audit_logs", "role", "TEXT")
+        Database._ensure_column(cursor, "audit_logs", "detail", "TEXT")
 
         conn.commit()
         conn.close()
@@ -73,19 +91,19 @@ class Database:
         existing_columns = {row[1] for row in cursor.execute(f"PRAGMA table_info({table})")}
         if column not in existing_columns:
             cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
-    
+
     @staticmethod
     def add_student(email: str, name: str) -> Optional[int]:
         """Add a new student"""
         try:
             conn = sqlite3.connect(Database.DB_PATH)
             cursor = conn.cursor()
-            
+
             cursor.execute(
                 "INSERT INTO students (email, name) VALUES (?, ?)",
                 (email, name)
             )
-            
+
             conn.commit()
             student_id = cursor.lastrowid
             conn.close()
@@ -93,7 +111,89 @@ class Database:
         except sqlite3.IntegrityError:
             # Student already exists
             return None
-    
+
+    @staticmethod
+    def add_user(email: str, name: str, password_hash: Optional[str] = None, role: str = "student") -> Optional[int]:
+        """Add a new user (student or staff)"""
+        try:
+            conn = sqlite3.connect(Database.DB_PATH)
+            cursor = conn.cursor()
+
+            cursor.execute(
+                "INSERT INTO users (email, name, password_hash, role) VALUES (?, ?, ?, ?)",
+                (email, name, password_hash, role)
+            )
+
+            conn.commit()
+            user_id = cursor.lastrowid
+            conn.close()
+            return user_id
+        except sqlite3.IntegrityError:
+            return None
+
+    @staticmethod
+    def get_user_by_email(email: str) -> Optional[dict]:
+        conn = sqlite3.connect(Database.DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, email, name, password_hash, role, created_at FROM users WHERE email = ?", (email,))
+        row = cursor.fetchone()
+        conn.close()
+        if not row:
+            return None
+        return {
+            "id": row[0],
+            "email": row[1],
+            "name": row[2],
+            "password_hash": row[3],
+            "role": row[4],
+            "created_at": row[5]
+        }
+
+    @staticmethod
+    def get_revenue_totals() -> Dict:
+        """Totais de receita para o dashboard da aplicação Angular.
+        Conta 'approved' (vocabulário do Mercado Pago) e 'completed' (vocabulário da versão anterior)."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status IN ('approved', 'completed')")
+        total = cursor.fetchone()[0] or 0.0
+        cursor.execute("SELECT COUNT(*) FROM payments WHERE status = 'pending'")
+        pending = cursor.fetchone()[0]
+        conn.close()
+        return {"total_revenue": total, "pending_payments": pending}
+
+    @staticmethod
+    def get_student_metrics():
+        conn = sqlite3.connect(Database.DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM students")
+        total_students = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM enrollments WHERE status = 'active'")
+        active_enrollments = cursor.fetchone()[0]
+        conn.close()
+        return {"total_students": total_students, "active_enrollments": active_enrollments}
+
+    @staticmethod
+    def get_course_metrics():
+        # Basic metrics by reading course files
+        courses_dir = Path(__file__).parent / "courses"
+        metrics = []
+        if courses_dir.exists():
+            for cf in courses_dir.glob("*.json"):
+                try:
+                    import json as _json
+                    with open(cf, 'r', encoding='utf-8') as f:
+                        data = _json.load(f)
+                    metrics.append({
+                        "id": data.get('id'),
+                        "name": data.get('name'),
+                        "price": data.get('price'),
+                        "enrolled_count": 0
+                    })
+                except Exception:
+                    continue
+        return metrics
+
     @staticmethod
     def get_or_create_student(email: str, name: str) -> int:
         """Return the existing student id for this email, creating it if needed."""
@@ -136,18 +236,18 @@ class Database:
         """Record a payment"""
         conn = sqlite3.connect(Database.DB_PATH)
         cursor = conn.cursor()
-        
+
         cursor.execute(
             """INSERT INTO payments (enrollment_id, amount, payment_method, status)
                VALUES (?, ?, ?, ?)""",
             (enrollment_id, amount, payment_method, "pending")
         )
-        
+
         conn.commit()
         payment_id = cursor.lastrowid
         conn.close()
         return payment_id
-    
+
     @staticmethod
     def update_payment_status(payment_id: int, status: str, transaction_id: Optional[str] = None):
         """Update payment status"""
@@ -233,16 +333,22 @@ class Database:
         return [dict(row) for row in rows]
 
     @staticmethod
-    def add_audit_log(role: str, action: str, detail: str = ""):
-        """Record a critical event performed in the employee area (Fase 2 - Audit Logs)."""
+    def add_audit_log(action: str, detail: str = "", *, role: Optional[str] = None, user_id: Optional[int] = None) -> int:
+        """Registra um evento crítico (Trilhas de auditoria).
+
+        `role` identifica o perfil de funcionário que agiu (ex.: 'admin'); `user_id`,
+        a conta de usuário. Sem nenhum dos dois, o evento é marcado como 'system'.
+        """
         conn = sqlite3.connect(Database.DB_PATH)
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO audit_logs (role, action, detail) VALUES (?, ?, ?)",
-            (role, action, detail)
+            "INSERT INTO audit_logs (user_id, role, action, detail) VALUES (?, ?, ?, ?)",
+            (user_id, role or "system", action, detail)
         )
         conn.commit()
+        log_id = cursor.lastrowid
         conn.close()
+        return log_id
 
     @staticmethod
     def list_audit_logs(limit: int = 100) -> List[Dict]:
@@ -250,7 +356,7 @@ class Database:
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT * FROM audit_logs ORDER BY id DESC LIMIT ?",
+            "SELECT id, user_id, role, action, detail, created_at FROM audit_logs ORDER BY id DESC LIMIT ?",
             (limit,)
         )
         rows = cursor.fetchall()
@@ -302,7 +408,7 @@ class Database:
 
     @staticmethod
     def get_financial_summary() -> Dict:
-        """Revenue totals by payment status (Dashboard Financeiro)."""
+        """Revenue totals by payment status (Dashboard Financeiro do admin.html)."""
         conn = sqlite3.connect(Database.DB_PATH)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
