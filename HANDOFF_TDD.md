@@ -6,6 +6,15 @@ Documento escrito para quem nunca viu a sessão original. Estado verificado por 
 
 Log completo de decisões: `docs/tdd/decisoes_tdd.md`. Charter dos papéis: `docs/tdd/papeis_tdd.md`.
 
+> **LEIA PRIMEIRO — duas mudanças de regra de 05/10/2026 que contradizem o texto antigo deste documento:**
+> - **Push liberado (D30).** A frase "nunca fazer push", ainda presente na seção 5 e no `papeis_tdd.md`, está **revogada**. Valem os limites da D30: nunca tocar na `main`, nunca force-push, parar e avisar o PM se um push for rejeitado, e auditar segredo antes de cada push.
+> - **Objetivo é fechar as nove entregas (D31).** A ordem de "parar depois da E3" está revogada. O plano está na **seção 10**, que deve ser atualizada ao fim de cada entrega, com commit e push.
+> - **Autovigilância obrigatória (D32).** Gatilhos de parada na seção 10.
+>
+> **PUSH BLOQUEADO NO MOMENTO.** Ver seção 11: há um perfil de navegador no histórico das branches, já exposto no repositório público. Aguardando decisão do PM.
+
+**Documento de escopo: LOCALIZADO.** `Escopo_Fase2_Global_Training_Technology.pdf`, na raiz do repo, versionado desde `75a30e6`. A versão anterior deste handoff (seção 2) dizia que não tinha sido encontrado; **estava errado**. O escopo das entregas 4 a 9 sai dele e está destrinchado na seção 10.
+
 ---
 
 ## 1. Estado das branches (HEAD verificado)
@@ -68,7 +77,7 @@ Sub-branches da E3: não existem. A E3 é uma branch só. A E3 também carrega u
 - Build Angular de desenvolvimento: limpo.
 
 ### Entregas 4 a 9
-Não há detalhe nos arquivos resgatados. O documento de escopo não foi localizado (busquei em `%APPDATA%\Claude` e em `C:\Users\vihug`, até 6 níveis). **Escopo das entregas 3 a 9 incompleto neste documento**: é preciso o documento de escopo para descrevê-las.
+**Corrigido em 05/10/2026.** O documento de escopo estava na raiz do repo o tempo todo (`Escopo_Fase2_Global_Training_Technology.pdf`). O plano das sete entregas restantes está na **seção 10**.
 
 ## 3. Decisões resgatadas (resumo; texto integral em `docs/tdd/decisoes_tdd.md`)
 
@@ -109,6 +118,8 @@ Não há detalhe nos arquivos resgatados. O documento de escopo não foi localiz
 - **Regras comuns:** nunca push; não trocar de branch sem ordem do orquestrador; não tocar nas branches anteriores; commits com `Co-Authored-By`.
 
 ## 5. Regras de processo (obrigatórias)
+
+> Atenção: a regra "nunca fazer push" que estava nesta seção e no `papeis_tdd.md` foi **revogada pela D30** em 05/10/2026. Push liberado, com os limites da D30 e a ressalva da seção 11.
 
 1. **Um agente por vez** no repo. Confirmar que o anterior **retornou** antes de chamar o próximo.
 2. **Árvore limpa antes de chamar agente:** commit ou stash do que estiver na árvore.
@@ -178,3 +189,75 @@ Contas necessárias no backend: `admin@gt.com`, `financeiro@gt.com`, `suporte@gt
 Execução do e2e (ex.: `py -3 frontend/e2e/test_admin_angular.py`): **não confirmada**.
 
 Atenção: o e2e grava pagamentos de teste em `backend/db.sqlite` (D7). Antes de rodar de novo, considerar o acúmulo.
+
+---
+
+## 10. Plano das nove entregas (D31) — manter atualizado ao fim de CADA entrega
+
+Fonte do escopo: `Escopo_Fase2_Global_Training_Technology.pdf` (raiz do repo). As seções e RFs citados abaixo são os dele.
+
+| Entrega | Escopo | Rastreabilidade | Estado |
+|---|---|---|---|
+| **E1** | Identidade unificada | — | **Fechada e mergeada** (`9578a8f`) |
+| **E2** | Conta e login do aluno | item 1.1, RF21 | **Fechada e mergeada** (`351a130`) |
+| **E3** | Painel de inscrições + materiais | item 1.1, RF22 | **Fechada e mergeada** (`da55d8f`), validada 05/10/2026 |
+| **E4** | Histórico financeiro + recibos | item 1.1, RF22 | A fazer |
+| **E5** | Chatbot autenticado: contexto de cursos ativos e histórico persistido | seção 4 | A fazer |
+| **E6** | Segurança de LLM: isolamento de sessão por usuário + filtros OWASP | seção 4 | A fazer |
+| **E7** | Observabilidade de IA completa: `usage` do Groq, custo, persistência | seção 4, RF24 | A fazer |
+| **E8** | Auditoria com identificação do usuário responsável | seção 2 | A fazer |
+| **E9** | Hardening de pagamento: assinatura do webhook, conferência de valor, idempotência, CORS | acréscimo do PM (não consta do PDF) | A fazer |
+
+Notas de escopo lidas no PDF, para quem for pegar as próximas:
+- **E4:** o PDF pede "recibos, status de pagamentos concluídos ou pendentes referentes às inscrições realizadas na landing page". A D-anterior do PM já definiu: recibo em JSON primeiro, PDF só se sobrar tempo (`papeis_tdd.md`).
+- **E5/E6:** o PDF é explícito sobre dois riscos — agente manipulado para "conceder descontos indevidos" e "vazar informações entre sessões de diferentes usuários". Os dois viram teste obrigatório.
+- **E7:** o PDF pede "custos de inferência", então o `usage` do Groq tem de ser persistido, não só contado em memória.
+- **E8:** o PDF exige "estampa de tempo, identificação do usuário responsável e a alteração efetuada" nos eventos críticos (dados cadastrais, preço de curso, reembolso).
+- **E9:** não está no PDF. É acréscimo do PM. Se houver conflito com o escopo, é decisão nova e vai ao PM.
+
+### Processo por entrega (padrão fixo)
+1. Sub-branch própria a partir de `feature/fase2-tdd`.
+2. **Commit de teste vermelho** (agente-testes), com o red observado e registrado.
+3. **Commit de implementação** (dev-backend ou dev-frontend), só até o verde.
+4. Verificação: suíte da entrega + regressão + e2e no navegador, quando houver tela.
+5. Checklist de 9 itens preenchido. Os dois obrigatórios da E3 — **IDOR** e **recurso pago liberado só com matrícula ativa** — continuam valendo em toda entrega onde fizerem sentido.
+6. Merge `--no-ff` em `feature/fase2-tdd`.
+7. **Atualizar esta seção e a seção 1**, commitar, e dar push das duas branches (ver D30 e seção 11).
+8. **Reportar ao PM e parar.** O PM valida uma entrega por vez; não encadear a seguinte sem resposta dele.
+
+### Autovigilância (D32) — parada obrigatória
+Qualquer um destes sinais interrompe o ciclo: agente retornando incompleto duas vezes seguidas; o orquestrador repetindo a mesma análise em rodadas consecutivas; perda de rastro do que já foi feito. Ao detectar: parar, deixar a árvore limpa e commitada, atualizar este documento, avisar o PM que precisa de sessão nova. Parar a tempo é resultado bom.
+
+---
+
+## 11. PUSH — liberado por regra (D30), BLOQUEADO na prática por um achado
+
+**Estado: nenhum push foi feito. Aguardando decisão do PM.**
+
+A auditoria pré-push de 05/10/2026 encontrou o seguinte.
+
+### O achado
+O commit **`92b959a`** ("Presentation changes", Gustavo Santos Steluti, 25/05/2026) versionou um **perfil completo do Chrome** em `.chrome-pdf-profile/` — 162 arquivos, 9,8 MB, incluindo `Login Data`, `Network/Cookies`, `History`, `Web Data` e `Account Web Data`.
+
+### O que ele realmente contém (medido, não presumido)
+Os cofres estão **vazios**: 0 logins, 0 logins com senha, 0 cookies, 0 registros de autofill, 0 cartões de crédito. Era um perfil descartável de Chrome headless, usado para gerar o PDF da apresentação. Varredura por padrões de chave (`gsk_`, `APP_USR-`, `sk-`, `ghp_`, `AIza`, JWT) em todos os 162 arquivos: **nenhuma ocorrência**.
+
+O que vaza de fato é pequeno, mas não é nada: o caminho `C:/Users/Gustavo Steluti/Desktop/Projeto Aplicado TCC/` (nome de usuário do Windows, no único registro de histórico), um `media_router.receiver_id_hash_token` e um hash de `gaia_cookie` nas `Preferences`.
+
+### O agravante
+Esse commit **já está no repositório público**: é ancestral de `origin/payment-system`, e os 162 arquivos estão na árvore do tip dessa branch. **A exposição já existe hoje**, independente de qualquer push nosso.
+
+### O que o push de `feature/fase2-tdd` enviaria de novo
+Só código-fonte, testes e documentação: **265 objetos, nenhum deles** do perfil, `.env`, `db.sqlite`, mídia ou PDF (o remoto já tem esses blobs). Verificado com `git rev-list --objects origin/main..feature/fase2-tdd --not --remotes=origin`.
+
+Ainda assim o push foi **suspenso**, porque o perfil está no *histórico* da branch: publicá-la torna esses blobs alcançáveis também por `feature/fase2-tdd`. Importa se o PM um dia apagar `payment-system` para limpar a exposição — a cópia sobreviveria pela nossa branch.
+
+### Higiene já existente
+`.gitignore` já cobre `.chrome-pdf-profile/`, `.env`, `.env.*` e `*.sqlite`. A árvore de trabalho e o tip de `feature/fase2-tdd` estão limpos. O problema é exclusivamente histórico.
+
+### Opções para o PM
+1. **Push assim mesmo.** A exposição já existe via `payment-system` e nada de novo sobe. Mais rápido; mantém o histórico sujo.
+2. **Limpar primeiro, depois push.** Expurgar `.chrome-pdf-profile/` do histórico (`git filter-repo`) nas branches de trabalho e apagar/limpar `payment-system` no remoto. Reescreve histórico e exige force-push — **que a D30 proíbe**, então é decisão explícita do PM, com o Gustavo avisado, já que a branch é dele.
+3. **Push só da sub-branch da E3 e da `feature/fase2-tdd` como estão, e tratar a limpeza como item próprio de backlog.**
+
+Recomendação do orquestrador: **opção 1 para destravar a entrega, com a opção 2 agendada como tarefa própria** — e, de qualquer forma, avisar o Gustavo de que um perfil de navegador dele está público, mesmo sem credencial dentro.

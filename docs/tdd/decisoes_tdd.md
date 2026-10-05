@@ -174,3 +174,40 @@ Regra: nunca rodar a suíte em paralelo com outra execução do repo.
 ## D29 — CORRIGIDA (nota fiel)
 A limpeza do fixture já existia no HEAD 734469d: T11a e T11b removem o curso gravado em backend/courses no
 finally. A nota original dizia que não removia; estava desatualizada. Nenhuma alteração de teste foi feita.
+
+## D30 — push LIBERADO (decisão nova do PM, 05/10/2026)
+REVOGA a regra "nunca fazer push" que está escrita neste documento (seção de regras comuns) e no
+papeis_tdd.md. A partir de 05/10/2026 o push para o origin está autorizado pelo usuário.
+
+Limites que continuam valendo, parte da mesma decisão:
+- origin = https://github.com/gusteluti/global-training-technology.git e é um repositório PÚBLICO.
+- NÃO tocar na main: sem push para main, sem merge em main.
+- NUNCA force-push, em branch nenhuma.
+- Push rejeitado por divergência: PARAR e avisar o PM. Não forçar, não resolver por conta própria.
+- Antes de cada push, auditar o que será publicado: nenhum .env, db.sqlite, token de teste,
+  credencial ou .chrome-pdf-profile pode subir. Achando qualquer um, PARAR antes do push e reportar.
+- A partir desta decisão, cada entrega fecha com commit na sua sub-branch, validação, merge em
+  feature/fase2-tdd e push das duas. Mantido o padrão de um commit de teste vermelho e um de
+  implementação.
+
+Observação para a próxima sessão: o papeis_tdd.md e a seção 5 do HANDOFF_TDD.md ainda têm a frase
+"NUNCA fazer push" no texto original. Ela está revogada por esta decisão; o HANDOFF_TDD.md foi
+atualizado para apontar para cá.
+
+## D31 — escopo: as nove entregas (decisão do PM, 05/10/2026)
+REVOGA a ordem de parar depois da E3. O objetivo é fechar as nove entregas. O plano completo, com a
+rastreabilidade de cada uma, está na seção 10 do HANDOFF_TDD.md, que passa a ser mantida ao fim de
+cada entrega, com commit e push.
+
+Ritmo: o PM valida UMA entrega por vez. O orquestrador reporta ao fim de cada entrega, com o
+checklist de 9 itens preenchido, e NÃO encadeia as seguintes sem resposta do PM. Decisão nova
+(contrato, comportamento visível, conflito de requisitos, corte de escopo) continua vindo ao PM.
+Os dois obrigatórios da E3 (IDOR e recurso pago liberado só com matrícula ativa) continuam valendo
+nas demais entregas onde fizerem sentido.
+
+## D32 — autovigilância de esgotamento (decisão do PM, 05/10/2026)
+A sessão anterior morreu de esgotamento e seguiu mexendo no repo enquanto degradava. Gatilhos de
+parada obrigatória, qualquer um deles: agente retornando incompleto duas vezes seguidas; o
+orquestrador repetindo a mesma análise em rodadas consecutivas; perda de rastro do que já foi feito.
+Ao detectar: parar o ciclo, deixar a árvore limpa e commitada, atualizar o HANDOFF_TDD.md, avisar o
+PM que precisa de sessão nova. Parar a tempo é resultado bom; forçar e corromper entrega não é.
