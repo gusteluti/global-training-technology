@@ -15,6 +15,8 @@ import { StudentsDashboardComponent } from './components/students-dashboard/stud
 import { CoursesDashboardComponent } from './components/courses-dashboard/courses-dashboard.component';
 import { AiObservabilityComponent } from './components/ai-observability/ai-observability.component';
 import { AuditLogsComponent } from './components/audit-logs/audit-logs.component';
+import { CadastroComponent } from './components/cadastro/cadastro.component';
+import { DefinirSenhaComponent } from './components/definir-senha/definir-senha.component';
 import { AuthInterceptor } from './interceptors/auth.interceptor';
 
 // Valores em reais e datas no formato brasileiro (R$ 1.234,56).
@@ -30,7 +32,9 @@ registerLocaleData(localePt);
     StudentsDashboardComponent,
     CoursesDashboardComponent,
     AiObservabilityComponent,
-    AuditLogsComponent
+    AuditLogsComponent,
+    CadastroComponent,
+    DefinirSenhaComponent
   ],
   imports: [
     BrowserModule,

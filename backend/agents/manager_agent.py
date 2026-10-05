@@ -38,7 +38,7 @@ class ManagerAgent:
         # Initialize Groq chat client
         self.llm = GroqChatClient()
         self.courses_dir = Path(__file__).parent.parent / "courses"
-        print(f"✅ ManagerAgent using Groq model: {self.llm.model}")
+        print(f"[OK] ManagerAgent using Groq model: {self.llm.model}")
 
     def get_observability_snapshot(self) -> Dict:
         """Métricas de uso do chatbot para o painel administrativo (RF24)."""
@@ -54,7 +54,7 @@ class ManagerAgent:
     def load_courses(self, reload: bool = False):
         """Load all courses from JSON files in courses directory"""
         if not self.courses_dir.exists():
-            print(f"⚠️  Courses directory not found: {self.courses_dir}")
+            print(f"[AVISO]  Courses directory not found: {self.courses_dir}")
             self.courses = {}
             self.course_agents = {}
             self.courses_fingerprint = {}
@@ -73,9 +73,9 @@ class ManagerAgent:
                     
                     # Create course agent for this course
                     course_agents[course_id] = CourseAgent(course_data)
-                    print(f"✓ Loaded course: {course_data.get('name')}")
+                    print(f"[OK] Loaded course: {course_data.get('name')}")
             except Exception as e:
-                print(f"✗ Error loading {course_file}: {str(e)}")
+                print(f"[FALHA] Error loading {course_file}: {str(e)}")
 
         self.courses = courses
         self.course_agents = course_agents
@@ -89,7 +89,7 @@ class ManagerAgent:
             previous_count = len(self.courses)
             loaded_count = self.load_courses(reload=True)
             print(
-                "🔄 Course files changed. "
+                "[RECARREGA] Course files changed. "
                 f"ManagerAgent refreshed from {previous_count} to {loaded_count} course(s)."
             )
             return True
