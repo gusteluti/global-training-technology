@@ -163,7 +163,9 @@ Decisão **nova** (contrato, comportamento visível, conflito de requisitos, cor
 
 ## 9. Comandos para rodar as suítes
 
-Os comandos abaixo foram extraídos das docstrings do projeto. **Não confirmei** cada invocação exata contra o histórico de execução; antes de usar, confirmar.
+Comandos atualizados em 05/10/2026. O backend e o e2e da E3 foram **executados e confirmados**. Variáveis de ambiente, a lista completa e o passo a passo estão no `AGENTS.md`, seção 6.
+
+Variáveis: sem `backend/.env` no repo, passar `JWT_SECRET_KEY`, `ADMIN_PASSWORD`, `FINANCIAL_PASSWORD`, `SUPPORT_PASSWORD` e as demais no ambiente da sessão. Para o e2e: `ADMIN_PASSWORD`, `E2E_BASE_URL` (`http://localhost:4200`) e `E2E_API_URL` (`http://127.0.0.1:8000`).
 
 **Backend (pytest):**
 ```
@@ -186,7 +188,11 @@ py -3 -m playwright install chromium
 ```
 Contas necessárias no backend: `admin@gt.com`, `financeiro@gt.com`, `suporte@gt.com`, semeadas a partir do `.env` (`ADMIN_EMAIL`, `FINANCIAL_EMAIL`, `SUPPORT_EMAIL` e as senhas de perfil). O `frontend/proxy.conf.json` manda `/api` para `localhost:8000`.
 
-Execução do e2e (ex.: `py -3 frontend/e2e/test_admin_angular.py`): **não confirmada**.
+**E2E da E3 (confirmado):** `py -3 -m pytest frontend/e2e/test_e3_painel_angular.py -s`, com as variáveis acima no ambiente.
+
+**E2E dos outros dois arquivos (`test_admin_angular.py`, `test_e2_conta_aluno_angular.py`):** seguem o mesmo padrão, mas a execução **não foi confirmada**. Confirmar antes de usar.
+
+**Build Angular:** `cd frontend` e `npx ng build`. Validado limpo na E3.
 
 Atenção: o e2e grava pagamentos de teste em `backend/db.sqlite` (D7). Antes de rodar de novo, considerar o acúmulo.
 

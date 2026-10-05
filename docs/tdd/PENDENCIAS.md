@@ -60,13 +60,26 @@ Push de `feature/fase2-tdd` e `feature/fase2-tdd-e3-painel-materiais` feito em 0
 
 ---
 
-## 4. Lacunas do escopo que nenhuma entrega cobre explicitamente
+## 4. Já implementado antes do projeto TDD (RF23, RBAC, SPA do funcionário)
 
-Estes itens estão no PDF e **não aparecem** nas entregas 1 a 9 como estão. Precisam de decisão do PM antes de virar entrega ou de serem declarados fora do escopo:
+**Não é lacuna de produto.** A área do funcionário já está implementada e mergeada, fora da numeração das entregas. Foi construída antes do projeto TDD, no trabalho que originou a `feature/fase2-angular-integrado` (`d34d89b`, "Angular como interface oficial da área administrativa"). Essa branch é a base da `feature/fase2-tdd`, e `d34d89b` é ancestral dela. Está, portanto, dentro da branch de projeto. Validada na época com **44 checks de backend** e **29 de navegador**.
 
-- **RBAC (seção 2 do escopo):** métricas financeiras restritas a Gestão/Financeiro, e o perfil de Suporte vê só dados acadêmicos. A E3 provou o 403 para funcionário nas rotas de aluno, mas o RBAC geral da área do funcionário não tem entrega própria.
-- **Dashboards da área do funcionário (seção 1.2 e RF23):** dashboard de alunos, de cursos (inscritos por turma e taxa de conversão) e financeiro (valores arrecadados, projeção de receita). Existe uma branch anterior, `feature/fase2-painel-administrativo` (`aa619ac`, 09/09), com RBAC e dashboards, que **não foi revisada** neste projeto TDD.
-- **Migração para Angular como SPA (seção 3):** a área do aluno já tem tela Angular na E3; a área do funcionário e a estrutura geral da SPA não têm entrega própria.
+O que está pronto:
+- **RBAC de três perfis:** Gestão, Financeiro e Suporte.
+- **Quatro dashboards** (RF23 e RF24): alunos, cursos, financeiro e observabilidade de IA.
+- **Trilha de auditoria** (componente `audit-logs`).
+- **SPA do funcionário em Angular** (seção 3 do escopo).
+
+Componentes em `frontend/src/app/components/`: `admin-dashboard`, `students-dashboard`, `courses-dashboard`, `financial-dashboard`, `ai-observability`, `audit-logs`, além de `student-dashboard` (área do aluno, E3).
+
+**Por que não tem entrega numerada:** as nove entregas foram planejadas depois, para cobrir o que **faltava**. A área do funcionário ficou de fora do plano por não ser faltante. Isso é lacuna de **rastreabilidade do plano**, não de produto. Quem for ler o plano precisa saber que esta parte existe.
+
+**Ressalvas que ficaram em aberto nessa parte:**
+- **Dashboard de cursos sem o conceito de turma.** O escopo pede "número de inscritos por turma". Hoje o dashboard não tem o conceito de turma. É lacuna real frente ao escopo.
+- **"Histórico de interações" no dashboard de alunos** só mostra o total de sessões, porque o chat ainda é **anônimo**. Resolve na **E5**, quando o chat for autenticado.
+- **Observabilidade de IA vive em memória.** Zera no restart. Resolve na **E7**, com persistência em banco.
+
+**Versão antiga, superada:** `feature/fase2-painel-administrativo` (`aa619ac`, 09/09) é a **versão antiga** dessa mesma área, em `admin.html` com HTML e JavaScript puros. Foi superada pela versão Angular. **Não é trabalho a aproveitar**; serve só de histórico. O `frontend/admin.html` segue versionado como **legado**. O cadastro de cursos ainda existe **só** nele. Isso precisa ser portado para o Angular antes de o legado sair do repo.
 
 ---
 
@@ -89,7 +102,7 @@ Tomadas pelo PM. Anteriores às D21 a D26 do log. Cobrem o que o documento de es
 - **D10 — a confirmar:** confirmar que o teste de duas compras do mesmo curso no mesmo segundo está commitado e verde.
 - **D13 — envio de link:** não há servidor de e-mail. A função `send_password_setup_link` grava o link em arquivo de saída de **desenvolvimento, fora do repo**. Troca por SMTP real é trabalho futuro.
 - **Defeito latente em `PUT /api/admin/update-course`:** usa o mesmo `CourseInput` em que `materials` tem default `[]`. Quem editar um curso sem reenviar `materials` **apaga os materiais em silêncio**. Hoje nenhuma tela chama esse endpoint, então é risco latente. Vira defeito real quando a área administrativa ganhar edição de curso. Fora do escopo da D28; precisa de decisão do PM.
-- **Interceptor** — item citado pelo PM sem detalhe no repo. Confirmar com o PM o que é o problema (provavelmente o interceptor HTTP do Angular que anexa o token) antes de mexer.
+- **Interceptor HTTP do Angular — higiene.** O interceptor envia o header `Authorization` também em chamadas **públicas**, quando há token no navegador. Não quebra nada hoje; é higiene. Corrigir para anexar o token só a rotas que exigem autenticação.
 - **bcrypt e o limite de 72 bytes** — o item foi citado pelo PM. Contexto: o bcrypt ignora tudo depois de 72 bytes da senha. Senhas longas com o mesmo prefixo de 72 bytes ficam equivalentes. A política de senha (D14, mínimo de 8) não limita o máximo. Decidir se a política ganha limite superior ou um pré-hash.
 - **Corrida no token de definição de senha** — item citado pelo PM. Risco: o token é de uso único, mas dois pedidos concorrentes podem passar pela checagem antes de qualquer um marcar o token como usado. A marcação de uso precisa ser atômica no banco. Confirmar a implementação atual antes de dar o item como fechado.
 
@@ -106,5 +119,5 @@ Tomadas pelo PM. Anteriores às D21 a D26 do log. Cobrem o que o documento de es
 ## 8. Notas de consistência
 
 - O `papeis_tdd.md` e a seção 5 do `HANDOFF_TDD.md` ainda carregam a frase "nunca fazer push" no texto original. Ela está **revogada pela D30**. O `HANDOFF_TDD.md` já aponta para o log.
-- A seção 9 do `HANDOFF_TDD.md` ainda diz que o comando de backend "não foi confirmado" e que o e2e de admin não foi confirmado. A versão correta, com as variáveis de ambiente, está no `AGENTS.md`, seção 6. Atualizar a seção 9 do handoff fica para a próxima entrega.
+- A seção 9 do `HANDOFF_TDD.md` foi corrigida nesta versão. Os comandos completos, com variáveis de ambiente, estão no `AGENTS.md`, seção 6.
 - A árvore de trabalho de `feature/fase2-tdd` deve estar limpa no fim de cada entrega. Qualquer alteração de outra autoria encontrada na árvore precisa ser identificada antes de qualquer commit.
