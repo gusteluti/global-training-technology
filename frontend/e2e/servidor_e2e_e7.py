@@ -12,8 +12,10 @@ Diferença para o servidor_e2e_e5_dashboard.py: aqui o dublê fica UM NÍVEL ABA
 
 Também substitui, SÓ neste processo de teste, o `requests` do módulo de pagamentos por um Mercado Pago falso
 (POST de preferência e GET de pagamento), para que a matrícula do aluno possa ser criada e aprovada pela API
-pública (create-checkout + webhook) sem rede. No GET falso, o id do pagamento é a própria referência externa
-e o pagamento volta "approved". Nenhuma chamada ao Groq nem ao Mercado Pago reais; o backend/db.sqlite de
+pública (create-checkout + webhook) sem rede. E9 (D48): o POST falso registra, por id numérico de pagamento
+(`apoio_webhook_mp.id_de_pagamento(external_reference)`), a referência e o valor da preferência; o GET falso
+devolve esse pagamento "approved", com `transaction_amount` e `currency_id` BRL, para o id pedido (o webhook
+assinado do teste usa o mesmo id). Nenhuma chamada ao Groq nem ao Mercado Pago reais; o backend/db.sqlite de
 desenvolvimento não é aberto (banco isolado do servidor_e2e_e5.py).
 
 Uso (feito pelo teste, não à mão):
@@ -31,6 +33,7 @@ if str(E2E_DIR) not in sys.path:
     sys.path.insert(0, str(E2E_DIR))
 
 import servidor_e2e_e5 as base  # noqa: E402
+from apoio_webhook_mp import id_de_pagamento  # noqa: E402
 
 SUPPORT_EMAIL = "suporte.e5@teste.com"
 SUPPORT_PASSWORD = "senha-sup-e5-teste"
@@ -77,12 +80,24 @@ def _instalar_groq_falso() -> None:
 def _instalar_mercado_pago_falso() -> None:
     from payments import routes as rotas_pagamento  # noqa: PLC0415
 
+    preferencias = {}  # id numérico do pagamento -> (referência externa, valor da preferência)
+
     def post(url, headers=None, json=None, timeout=None):
+        referencia = (json or {}).get("external_reference")
+        itens = (json or {}).get("items") or [{}]
+        if referencia:
+            preferencias[id_de_pagamento(referencia)] = (referencia, itens[0].get("unit_price"))
         return _RespostaFalsa(200, {"id": "pref-e2e", "init_point": "https://mp.invalid/checkout"})
 
     def get(url, headers=None, timeout=None):
-        referencia = url.rsplit("/", 1)[-1]
-        return _RespostaFalsa(200, {"status": "approved", "external_reference": referencia})
+        mp_id = url.rsplit("/", 1)[-1]
+        if mp_id not in preferencias:
+            return _RespostaFalsa(404, {"message": "payment not found"})
+        referencia, valor = preferencias[mp_id]
+        return _RespostaFalsa(200, {
+            "id": mp_id, "status": "approved", "external_reference": referencia,
+            "transaction_amount": valor, "currency_id": "BRL",
+        })
 
     rotas_pagamento.requests = SimpleNamespace(post=post, get=get)
 

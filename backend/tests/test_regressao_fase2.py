@@ -19,6 +19,7 @@ import pytest
 from fastapi.testclient import TestClient
 from jose import jwt as jose_jwt
 
+from apoio_mercado_pago import SEGREDO_WEBHOOK, corpo_pagamento_mp, post_webhook
 from core.security import get_password_hash
 from db import Database
 
@@ -36,6 +37,7 @@ AMBIENTE = {
     "FINANCIAL_EMAIL": "fin@teste.com",
     "SUPPORT_EMAIL": "sup@teste.com",
     "MERCADO_PAGO_ACCESS_TOKEN": "TEST-fake",
+    "MERCADO_PAGO_WEBHOOK_SECRET": SEGREDO_WEBHOOK,
     "FRONTEND_BASE_URL": "http://localhost:8000",
     "API_BASE_URL": "http://localhost:8000",
 }
@@ -232,11 +234,12 @@ def test_bloco4_pagamentos(sistema, checks):
     checks("checkout cria preferência e retorna URL", r.status_code == 200 and r.json().get("checkout_url"), r.text)
     ref = r.json().get("external_reference")
 
+    # E9 (D48): webhook assinado, com valor e moeda do curso (preço 150.0 BRL, alterado pelo PUT do bloco 3).
     fake_pay = MagicMock(status_code=200)
-    fake_pay.json.return_value = {"status": "approved", "external_reference": ref}
+    fake_pay.json.return_value = corpo_pagamento_mp("approved", ref, 150.0, "999")
     with patch("payments.routes.requests.get", return_value=fake_pay):
-        r1 = c.post("/api/payments/webhook", json={"data": {"id": "999"}})
-        r2 = c.post("/api/payments/webhook", json={"data": {"id": "999"}})  # duplicado
+        r1 = post_webhook(c, "999")
+        r2 = post_webhook(c, "999")  # duplicado
     checks("webhook aprovado atualiza pagamento", r1.json().get("payment_status") == "approved")
     checks("webhook duplicado não quebra", r2.status_code == 200)
 

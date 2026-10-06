@@ -18,8 +18,15 @@ import pytest
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
+TESTS_DIR = Path(__file__).resolve().parent
+if str(TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(TESTS_DIR))
+
+# E9 (D48): segredo de teste do webhook do Mercado Pago; os testes assinam com apoio_mercado_pago.assinar().
+from apoio_mercado_pago import SEGREDO_WEBHOOK  # noqa: E402
 
 os.environ.update({
+    "MERCADO_PAGO_WEBHOOK_SECRET": SEGREDO_WEBHOOK,
     "GROQ_API_KEY": "dummy",
     "ADMIN_PASSWORD": "admin123",
     "ADMIN_TOKEN_SECRET": "staff-secret-123",

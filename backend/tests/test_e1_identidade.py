@@ -20,6 +20,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from apoio_mercado_pago import corpo_pagamento_mp, id_de_pagamento, post_webhook
 from core.security import get_password_hash
 from db import Database
 
@@ -157,11 +158,13 @@ def _checkout(client, email, name="Aluno Teste"):
         })
 
 
-def _webhook(client, status, ref, pagamento_id="555"):
+def _webhook(client, status, ref, pagamento_id=None):
+    # E9 (D48): webhook assinado, id numérico por referência e valor/moeda do curso (100.0 BRL).
+    pagamento_id = pagamento_id or id_de_pagamento(ref)
     resposta = MagicMock(status_code=200)
-    resposta.json.return_value = {"id": pagamento_id, "status": status, "external_reference": ref}
+    resposta.json.return_value = corpo_pagamento_mp(status, ref, 100.0, pagamento_id)
     with patch("payments.routes.requests.get", return_value=resposta):
-        return client.post("/api/payments/webhook", json={"data": {"id": pagamento_id}})
+        return post_webhook(client, pagamento_id)
 
 
 def _snapshot_migrado():
@@ -347,6 +350,11 @@ def test_4_webhook_mapeia_status_para_matricula(client, status_pagamento, status
     r = _checkout(client, "aluno.webhook@teste.com")
     assert r.status_code == 200, r.text
     ref = r.json()["external_reference"]
+
+    if status_pagamento == "refunded":
+        # E9 (D48): só um pagamento aprovado pode ir a refunded; aprova antes (mesma intenção: refunded -> refunded).
+        r_aprovado = _webhook(client, "approved", ref)
+        assert r_aprovado.status_code == 200, r_aprovado.text
 
     r_hook = _webhook(client, status_pagamento, ref)
     assert r_hook.status_code == 200, r_hook.text

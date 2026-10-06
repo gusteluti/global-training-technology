@@ -28,6 +28,7 @@ import pytest
 from fastapi.testclient import TestClient
 from passlib.context import CryptContext
 
+from apoio_mercado_pago import corpo_pagamento_mp, id_de_pagamento, post_webhook
 from core.security import get_password_hash
 from db import Database
 
@@ -115,11 +116,13 @@ def _checkout(client, email, name="Aluno Teste"):
         })
 
 
-def _webhook_aprovado(client, ref, pagamento_id="555"):
+def _webhook_aprovado(client, ref, pagamento_id=None):
+    # E9 (D48): webhook assinado, id numérico por referência (transaction_id único) e valor/moeda do curso (100.0 BRL).
+    pagamento_id = pagamento_id or id_de_pagamento(ref)
     resposta = MagicMock(status_code=200)
-    resposta.json.return_value = {"id": pagamento_id, "status": "approved", "external_reference": ref}
+    resposta.json.return_value = corpo_pagamento_mp("approved", ref, 100.0, pagamento_id)
     with patch("payments.routes.requests.get", return_value=resposta):
-        return client.post("/api/payments/webhook", json={"data": {"id": pagamento_id}})
+        return post_webhook(client, pagamento_id)
 
 
 def _compra_aprovada(client, email, name="Aluno Compra"):

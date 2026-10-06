@@ -114,7 +114,9 @@ def test_admin_angular_e2e(browser, pagamentos_pendentes_para_reembolso):
         if role == "financeiro" or role == "admin":
             page.locator("ul.nav-tabs button.nav-link", has_text="Financeiro").click()
             time.sleep(1.5)
-            refund_btns = page.locator("button", has_text="Reembolsar")
+            # E9 (D48): só pagamento aprovado pode ser reembolsado (os demais respondem 409); clica numa linha 'approved'.
+            refund_btns = page.locator("tr", has=page.locator("span.badge", has_text="approved")) \
+                              .locator("button", has_text="Reembolsar")
             n_before = refund_btns.count()
             if n_before:
                 refunded_antes = page.locator("span.badge", has_text="refunded").count()

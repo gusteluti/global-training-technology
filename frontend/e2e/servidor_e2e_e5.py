@@ -29,6 +29,12 @@ from pathlib import Path
 
 BACKEND = Path(__file__).resolve().parents[2] / "backend"
 
+E2E_DIR = Path(__file__).resolve().parent
+if str(E2E_DIR) not in sys.path:
+    sys.path.insert(0, str(E2E_DIR))
+
+from apoio_webhook_mp import SEGREDO_WEBHOOK  # noqa: E402  (E9, D48: segredo de teste do webhook)
+
 # Credenciais fabricadas para o e2e (as mesmas que o teste importa).
 ADMIN_EMAIL = "admin.e5@teste.com"
 ADMIN_PASSWORD = "senha-admin-e5-teste"
@@ -51,6 +57,7 @@ def _ambiente(outbox: str) -> None:
         "FINANCIAL_EMAIL": "",
         "SUPPORT_EMAIL": "",
         "MERCADO_PAGO_ACCESS_TOKEN": "TEST-fake-e5",
+        "MERCADO_PAGO_WEBHOOK_SECRET": SEGREDO_WEBHOOK,
         "FRONTEND_BASE_URL": "http://localhost:4200",
         "API_BASE_URL": "http://localhost:8000",
         "PASSWORD_LINK_OUTBOX": outbox,
