@@ -3,12 +3,21 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 import json
 from pathlib import Path
+from typing import Optional
 from pydantic import BaseModel
 
 # Import routers
 from admin.routes import list_course_summaries, router as admin_router
 from payments.routes import router as payments_router
 from dashboard.routes import router as dashboard_router
+from agents.llm_guard import (
+    INPUT_BLOCKED,
+    LLM_UNAVAILABLE,
+    MAX_MESSAGE_CHARS,
+    TOO_LONG,
+    InputBlockedError,
+    LLMUnavailableError,
+)
 from agents.manager_agent import ManagerAgent
 from auth import router as auth_router
 from student.routes import router as student_router
@@ -30,7 +39,7 @@ app.add_middleware(
 # Pydantic models
 class ChatMessage(BaseModel):
     message: str
-    session_id: str = "default"
+    session_id: Optional[str] = None  # só vale se foi emitido pelo servidor (E6, D38.1)
 
 @app.on_event("startup")
 async def startup_event():
@@ -111,8 +120,9 @@ async def chat_courses_debug(request: Request):
 @app.post("/api/chat")
 async def chat(chat_msg: ChatMessage, request: Request):
     """
-    Main chat endpoint
-    Expected input: {"message": "user message", "session_id": "optional"}
+    Main chat endpoint (visitante anônimo)
+    Expected input: {"message": "user message", "session_id": "optional, emitido pelo servidor"}
+    A resposta traz sempre o session_id efetivo; um id desconhecido abre uma sessão nova (E6, D38.1).
     """
     try:
         manager_agent = getattr(request.app.state, "manager_agent", None)
@@ -123,16 +133,25 @@ async def chat(chat_msg: ChatMessage, request: Request):
             }
         
         user_message = chat_msg.message.strip()
-        session_id = chat_msg.session_id
         
         if not user_message:
             return {
                 "status": "error",
                 "message": "Mensagem vazia. Por favor, digite algo."
             }
-        
+
+        if len(user_message) > MAX_MESSAGE_CHARS:
+            return {"status": "error", "message": TOO_LONG}
+
+        session_id = manager_agent.resolve_session(chat_msg.session_id)
+
         # Route message through manager agent
-        response = manager_agent.process_message(user_message, session_id)
+        try:
+            response = manager_agent.process_message(user_message, session_id)
+        except InputBlockedError:
+            response = INPUT_BLOCKED
+        except LLMUnavailableError:
+            return {"status": "error", "message": LLM_UNAVAILABLE, "session_id": session_id}
         
         return {
             "status": "success",
@@ -140,11 +159,11 @@ async def chat(chat_msg: ChatMessage, request: Request):
             "session_id": session_id
         }
     except Exception as e:
-        error_msg = f"Erro ao processar mensagem: {str(e)}"
-        print(f"Error in chat endpoint: {error_msg}")
+        # Nada do texto da exceção vai ao cliente (E6, D38.6); o log leva só o tipo.
+        print(f"Error in chat endpoint: {type(e).__name__}")
         return {
             "status": "error",
-            "message": error_msg
+            "message": "Erro ao processar mensagem."
         }
 
 @app.get("/api/courses")

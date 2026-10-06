@@ -2,10 +2,19 @@ import json
 import os
 import re
 import unicodedata
+import uuid
 from pathlib import Path
 from typing import Dict, List, Tuple
 from agents.course_agent import CourseAgent
 from agents.groq_client import GroqChatClient
+from agents.llm_guard import (
+    POLICY_BLOCK,
+    InputBlockedError,
+    LLMUnavailableError,
+    entrada_bloqueada,
+    filtrar_saida,
+    precos_do_catalogo,
+)
 
 # Load environment variables if not already loaded
 try:
@@ -13,6 +22,9 @@ try:
     load_dotenv()
 except ImportError:
     pass
+
+_SESSION_ID = re.compile(r"[0-9a-f]{32}")
+
 
 class ManagerAgent:
     """
@@ -126,7 +138,8 @@ class ManagerAgent:
         """Create the system prompt for the manager agent"""
         courses_info = self.get_course_names_list()
         
-        return f"""Você é um assistente gerenciador de cursos de uma escola de tecnologia.
+        return f"""{POLICY_BLOCK}
+Você é um assistente gerenciador de cursos de uma escola de tecnologia.
 
 CURSOS DISPONÍVEIS:
 {courses_info}
@@ -186,7 +199,7 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
                 return course_lookup[result.lower()], True
                 
         except Exception as e:
-            print(f"Error in course identification: {str(e)}")
+            print(f"Error in course identification: {type(e).__name__}")
         
         return "GENERAL", False
 
@@ -229,10 +242,35 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
             courses_list.append(f"{course_id}: {name}")
         return "\n".join(courses_list)
     
-    def process_message(self, user_message: str, session_id: str = "default") -> str:
+    def resolve_session(self, session_id: str = None) -> str:
+        """Id de sessão anônima efetivo (E6, D38.1).
+
+        Só continua a sessão se o id foi emitido por este servidor (uuid4 em hex) e ela ainda existe
+        em `self.sessions`. Qualquer outro valor (ausente, 'default', 'web-chat-session', inventado,
+        truncado, sessão extinta) abre uma sessão nova com id novo; o valor do cliente nunca é ecoado.
         """
-        Process user message and route to appropriate agent or respond directly
+        if isinstance(session_id, str) and _SESSION_ID.fullmatch(session_id) and session_id in self.sessions:
+            return session_id
+        novo = uuid.uuid4().hex
+        while novo in self.sessions:
+            novo = uuid.uuid4().hex
+        self.sessions[novo] = []
+        return novo
+
+    def _filtrar_saida(self, resposta: str) -> str:
+        """Filtro de saída (D38.5): descarta desconto, valor fora do catálogo e vazamento de prompt."""
+        return filtrar_saida(resposta, precos_do_catalogo(self.courses.values()))
+
+    def process_message(self, user_message: str, session_id: str) -> str:
         """
+        Process user message and route to appropriate agent or respond directly.
+
+        `session_id` deve vir de `resolve_session`. Levanta InputBlockedError (injeção direta; nada é
+        gravado e o LLM não é chamado) ou LLMUnavailableError (falha do provedor; nada é gravado).
+        """
+        if entrada_bloqueada(user_message):
+            raise InputBlockedError()
+
         self.refresh_courses_if_changed()
 
         # Initialize session if not exists
@@ -257,6 +295,8 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
         else:
             # Use manager agent for general questions
             response = self._answer_general_question(user_message, conversation_history)
+
+        response = self._filtrar_saida(response)
         
         # Store in history
         self.sessions[session_id].append({"role": "user", "content": user_message})
@@ -286,7 +326,13 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
         `history` são as mensagens persistidas do próprio aluno (anteriores à atual, já limitadas pelo
         chamador) e `student_context` é o texto com nome e cursos ativos. Os dois chegam ao LLM tanto
         na resposta geral quanto no Course Agent. A persistência fica com o chamador.
+
+        Levanta InputBlockedError (nada deve ser gravado) ou LLMUnavailableError (nada deve ser gravado).
+        Saída barrada pelo filtro volta como texto fixo, que o chamador grava no lugar do texto cru.
         """
+        if entrada_bloqueada(user_message):
+            raise InputBlockedError()
+
         self.refresh_courses_if_changed()
 
         course_id, is_specific = self.identify_course_intent(user_message)
@@ -297,12 +343,14 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
         limit = len(conversation_history)
 
         if is_specific and course_id in self.course_agents:
-            return self.course_agents[course_id].answer_question(
+            resposta = self.course_agents[course_id].answer_question(
                 user_message, conversation_history, student_context=student_context, history_limit=limit
             )
-        return self._answer_general_question(
-            user_message, conversation_history, student_context=student_context, history_limit=limit
-        )
+        else:
+            resposta = self._answer_general_question(
+                user_message, conversation_history, student_context=student_context, history_limit=limit
+            )
+        return self._filtrar_saida(resposta)
 
     def _answer_general_question(
         self, user_message: str, history: List, student_context: str = None, history_limit: int = 10
@@ -323,6 +371,6 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
             return response_text
             
         except Exception as e:
-            error_response = f"Desculpe, ocorreu um erro ao processar sua mensagem: {str(e)}"
-            print(f"Error in general question: {error_response}")
-            return error_response
+            # Só o tipo da exceção vai ao log; o texto pode conter detalhes do provedor (E6, D38.6).
+            print(f"Error in general question: {type(e).__name__}")
+            raise LLMUnavailableError() from None
