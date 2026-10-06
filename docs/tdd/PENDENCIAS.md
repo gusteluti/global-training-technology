@@ -17,6 +17,7 @@ Fonte do escopo: `Escopo_Fase2_Global_Training_Technology.pdf`, na raiz do repo.
 | **E5 — Chatbot autenticado** | `POST /api/student/chat` e `GET /api/student/chat/history`: o chatbot recebe nome do aluno e cursos `active`, o histórico fica persistido em `chat_messages` e as 10 últimas mensagens vão ao LLM. Chat "Assistente virtual" em `/student`; dashboard de alunos com "Mensagens no chat" e "Última conversa". Entregue 06/10/2026; **aguardando validação do PM** (D37). | testes `7e030c7`, `eeaed3b`, e2e `cf37572`, `970d2c1`; backend `ed5fa3b`; frontend `2421a9c`, `b83e378` |
 | **E6 — Segurança de LLM** | Sessão anônima emitida pelo servidor (landing guarda o id); filtro de entrada (injeção direta, PT e EN); política e dados não confiáveis delimitados no prompt (injeção indireta: nome do aluno, base do curso); filtro de saída (desconto, valor fora do catálogo, vazamento de prompt); falha do LLM sem texto de exceção e sem persistir; limite de 2000 caracteres. Obrigatórios (a) desconto indevido e (b) vazamento entre sessões provados. Entregue 06/10/2026; **aguardando validação do PM** (D41). | testes `481b742`, `fb3744d`, `7208da8`, e2e `a00eaff`; backend `8bbd34a`; landing `7e2f9bd` |
 | **E7 — Observabilidade de IA** | `usage` do Groq persistido (`ai_usage`), interações e desfechos (`ai_interactions`), custo em USD, latência, resolução, conversão de atendimento, tópicos não compreendidos (só chat anônimo, mascarados), série por dia. Suporte não vê custo. Tela `ai-observability` atualizada. Sobrevive a restart. Entregue 06/10/2026; **aguardando validação do PM** (D44). | testes `6b27fc4`, e2e `9a61216`; backend `b36c188`; frontend `530ea3a` |
+| **E8 — Auditoria com usuário responsável** | Trilha com a pessoa responsável (id, e-mail, nome, perfil, vindos do token), alteração estruturada antes/depois, entidade, estampa de tempo, login de funcionário (sucesso e falha), append-only por trigger, filtros e limite no endpoint, sem rotas de escrita. Tela `audit-logs` atualizada. Entregue 06/10/2026; **aguardando validação do PM** (D47). | testes `8ebb6dd`, e2e `162b8fd`; backend `56f91be`; frontend `8131b2e` |
 
 Os dois obrigatórios da E3 (**IDOR** e **material só com matrícula ativa**) foram provados por suíte e por sondagem independente de HTTP (38/38). Detalhes no `HANDOFF_TDD.md`, seção 2.
 
@@ -28,18 +29,14 @@ E4: regressão integral de backend registrada depois do fechamento — **88 pass
 
 ## 2. Em andamento
 
-Modo autônomo (D40): ver `docs/tdd/RELATORIO_NOITE.md`. E5 (D37), E6 (D41) e E7 (D44) entregues, aguardando validação do PM. Próxima: E8.
+Modo autônomo (D40): ver `docs/tdd/RELATORIO_NOITE.md`. E5 (D37), E6 (D41), E7 (D44) e E8 (D47) entregues, aguardando validação do PM. Próxima: E9.
 
 ---
 
 ## 3. A fazer — escopo de cada entrega
 
-### E8 — Auditoria com identificação do usuário (seção 2 do escopo)
-- Trilha de auditoria para os eventos críticos da área do funcionário: alterações de dados cadastrais, modificação de preço de curso, reembolsos.
-- Cada evento registra estampa de tempo, identificação do usuário responsável e a alteração efetuada.
-
 ### E9 — Hardening de pagamento (**acréscimo do PM — não consta do escopo**)
-- Assinatura do webhook, conferência de valor, idempotência e CORS.
+- Assinatura do webhook, conferência de valor, idempotência e CORS. Acrescentados na D45: reembolso só de pagamento `approved` e reembolso atômico (sem corrida).
 - O PM mantém a entrega por serem defeitos de segurança reais ("entregar sem eles é pior que entregar fora do escopo literal").
 - **É a única das nove que não sai do documento de escopo.** O grupo pode cortá-la; quem for apresentar o trabalho precisa saber disso.
 
@@ -91,6 +88,7 @@ Tomadas pelo PM. Anteriores às D21 a D26 do log. Cobrem o que o documento de es
 - **(Resolvido na E6, D38) E5 — sem limite de tamanho da mensagem** no `POST /api/student/chat` (nem `maxlength` no campo). Avaliar na E6 (custo e abuso).
 - **E6 — dívidas:** sessões anônimas em memória sem teto (cresce sem limite) e sem limitação de taxa; filtro de saída bloqueia parcelamento legítimo ("12x de R$ 19,33"); filtro de entrada é heurístico (paráfrase e outros idiomas podem passar; a contenção real é o filtro de saída); `backend/test_api.py` e `DOCUMENTACAO_TECNICA_TCC.html` ainda mostram o `session_id` fixo. Textos fixos escolhidos pelo orquestrador (D38): `INPUT_BLOCKED`, `OFFER_BLOCKED`, `LLM_UNAVAILABLE`, `TOO_LONG`.
 - **E7 — dívidas:** preços padrão do Groq a conferir; custo só em USD; `per_day` em UTC; `total_sessions` inclui sessões só com mensagem bloqueada; rótulos de tela escolhidos pelo orquestrador (D44).
+- **E8 — dívidas:** alteração fica sem trilha se a gravação do evento falhar (500 genérico); reembolsos simultâneos podem duplicar evento; falha de login legado vira `role='system'` sem pessoa; sem limitação de taxa em eventos de falha de login; eventos anteriores à E8 sem ator.
 - **E5 — textos da tela escolhidos pelo orquestrador**, sem revisão do PM: "Assistente virtual", "Digite sua mensagem", "Enviar", "Nenhuma mensagem ainda. Pergunte algo ao assistente.", "Não foi possível carregar o histórico do chat.", "Não foi possível enviar a mensagem. Tente novamente.", e as colunas "Mensagens no chat" e "Última conversa".
 - **E5 — e2e de E2 e E3 não reexecutados** depois de a E5 alterar `student-dashboard` (mesmo componente do "Meus cursos"). Backend: regressão 131 passed. O e2e antigo grava no `db.sqlite` de desenvolvimento (D7), por isso não foi rodado.
 - **Interceptor HTTP do Angular — higiene.** O interceptor envia o header `Authorization` também em chamadas **públicas**, quando há token no navegador. Não quebra nada hoje; é higiene. Corrigir para anexar o token só a rotas que exigem autenticação.

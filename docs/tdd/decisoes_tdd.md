@@ -580,3 +580,28 @@ Red: `backend/tests/test_e8_auditoria.py`, commit `8ebb6dd`. Verificado pelo orq
 (coluna, evento, trigger, filtro ou limite ausentes) e 21 passam (guardas de regressão). Regressão do
 agente-testes: os 369 testes anteriores verdes. Escolhas conservadoras do agente-testes (itens 1 a 9 do
 relatório dele) aceitas; `staff.login_failed` de conta existente pode ter responsável nulo ou o da conta alvo.
+
+## D47 — E8 entregue (06/10/2026), aguardando validação do PM
+Ciclo: testes vermelhos de backend `8ebb6dd` (42 falham, 21 passam); backend `56f91be` (63/63); e2e vermelho
+da tela `162b8fd` (7/17); frontend `8131b2e` (17/17). Reexecutado pelo orquestrador: backend **411 passed**
+numa execução só; e2e da E8 17/17 e da E7 11/11; build Angular limpo.
+Checklist de 9 itens:
+1. Escopo: trilha com estampa de tempo, usuário responsável (pessoa) e alteração efetuada (antes/depois), para
+   cadastro de cursos, preço e reembolso; mais login de funcionário. Sem IP, exportação nem retenção.
+2. Red observado, pelo motivo certo, em backend e tela.
+3. IDOR: não se aplica (sem recurso de aluno). O ator vem só do token: campos forjados no corpo ou na query
+   são ignorados (A2), e o filtro `user_id` do endpoint é exclusivo da Gestão.
+4. Recurso pago só com matrícula ativa: não se aplica.
+5. Compatibilidade: eventos e bancos antigos listados com campos novos nulos (G2, G3); assinatura antiga de
+   `add_audit_log` válida (G4); `init_db` idempotente (G5).
+6. Schema de escrita do admin: não se aplica (a trilha não tem escrita).
+7. 401 sem token ou forjado; 403 para Financeiro, Suporte e aluno (E5a, E5b); 405 para qualquer escrita (E6a, E6b).
+8. Tela: e2e 17/17, build limpo.
+9. Ciclo completo, documentação atualizada.
+**Decisões do dev (revisar):** o evento é gravado depois da alteração (para não registrar operação que falhou);
+se a gravação falhar, a resposta é 500 genérico e a alteração fica sem trilha; falha de gravação em login também
+vira 500 (a trilha tem prioridade sobre a disponibilidade); `staff.login_failed` de conta existente grava a
+conta visada; `limit` inválido devolve 422; perfil exibido com o valor cru da API (`admin`, `financial`).
+**Riscos abertos:** dois reembolsos simultâneos podem gravar dois eventos (corrida de leitura e UPDATE, tratar
+na E9); `mark_payment_refunded` aceita qualquer status (E9); eventos anteriores à E8 ficam com ator nulo; login
+administrativo legado não identifica pessoa; sem limitação de taxa nos eventos de falha de login.
