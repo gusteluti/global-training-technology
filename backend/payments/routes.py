@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 
 from admin.routes import load_course_data
+from core.audit import change, record_audit
 from core.notifications import send_password_setup_link
 from core.password_setup import emitir_token_definicao
 from core.security import AuthContext, Role, require_roles
@@ -204,13 +205,28 @@ async def refund_payment(
     if not payment:
         raise HTTPException(status_code=404, detail="Pagamento não encontrado.")
 
+    # Estado ANTES do reembolso, para a trilha (E8, D45).
+    payment_status_before = payment.get("status")
+    enrollment = Database.get_enrollment_by_id(payment.get("enrollment_id"))
+    enrollment_status_before = enrollment.get("status") if enrollment else None
+
     # Marca o pagamento e a matrícula como refunded.
     Database.mark_payment_refunded(payment_id)
-    Database.add_audit_log(
-        "payment.refund",
-        f"Pagamento #{payment_id} (R$ {float(payment.get('amount', 0)):.2f}) marcado como reembolsado",
-        role=current_user.role.value,
-    )
+
+    # Reembolsar de novo um pagamento já refunded não muda nada: sem evento novo.
+    # A trilha é gravada depois da alteração; se falhar, a rota termina em 500 genérico.
+    if payment_status_before != "refunded":
+        record_audit(
+            "payment.refund",
+            f"Pagamento #{payment_id} (R$ {float(payment.get('amount', 0)):.2f}) marcado como reembolsado",
+            user=current_user,
+            entity_type="payment",
+            entity_id=payment_id,
+            changes=[
+                change("payment.status", payment_status_before, "refunded"),
+                change("enrollment.status", enrollment_status_before, "refunded"),
+            ],
+        )
 
     return {
         "status": "success",

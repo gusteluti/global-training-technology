@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -71,6 +72,27 @@ class Database:
         Database._ensure_column(cursor, "audit_logs", "user_id", "INTEGER")
         Database._ensure_column(cursor, "audit_logs", "role", "TEXT")
         Database._ensure_column(cursor, "audit_logs", "detail", "TEXT")
+        # E8 (D45): responsável pela pessoa, entidade afetada e alteração estruturada.
+        Database._ensure_column(cursor, "audit_logs", "actor_email", "TEXT")
+        Database._ensure_column(cursor, "audit_logs", "actor_name", "TEXT")
+        Database._ensure_column(cursor, "audit_logs", "entity_type", "TEXT")
+        Database._ensure_column(cursor, "audit_logs", "entity_id", "TEXT")
+        Database._ensure_column(cursor, "audit_logs", "changes", "TEXT")
+        # Trilha append-only: o próprio banco recusa UPDATE e DELETE (também em bases antigas).
+        cursor.execute("""
+            CREATE TRIGGER IF NOT EXISTS audit_logs_no_update
+            BEFORE UPDATE ON audit_logs
+            BEGIN
+                SELECT RAISE(ABORT, 'audit_logs e append-only: UPDATE nao permitido');
+            END
+        """)
+        cursor.execute("""
+            CREATE TRIGGER IF NOT EXISTS audit_logs_no_delete
+            BEFORE DELETE ON audit_logs
+            BEGIN
+                SELECT RAISE(ABORT, 'audit_logs e append-only: DELETE nao permitido');
+            END
+        """)
 
         # Histórico do chatbot autenticado (E5, D35): uma conversa contínua por aluno.
         # role é 'user' (mensagem do aluno) ou 'assistant' (resposta do bot).
@@ -648,35 +670,105 @@ class Database:
         return [dict(row) for row in rows]
 
     @staticmethod
-    def add_audit_log(action: str, detail: str = "", *, role: Optional[str] = None, user_id: Optional[int] = None) -> int:
+    def add_audit_log(
+        action: str,
+        detail: str = "",
+        *,
+        role: Optional[str] = None,
+        user_id: Optional[int] = None,
+        actor_email: Optional[str] = None,
+        actor_name: Optional[str] = None,
+        entity_type: Optional[str] = None,
+        entity_id=None,
+        changes: Optional[list] = None,
+    ) -> int:
         """Registra um evento crítico (Trilhas de auditoria).
 
         `role` identifica o perfil de funcionário que agiu (ex.: 'admin'); `user_id`,
         a conta de usuário. Sem nenhum dos dois, o evento é marcado como 'system'.
+        E8 (D45): `actor_email`/`actor_name` identificam a pessoa, `entity_type`/`entity_id` o
+        recurso afetado e `changes` a lista de {"field","before","after"} (gravada como JSON em texto).
         """
+        changes_json = None
+        if changes is not None:
+            changes_json = changes if isinstance(changes, str) else json.dumps(changes, ensure_ascii=False)
         conn = sqlite3.connect(Database.DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO audit_logs (user_id, role, action, detail) VALUES (?, ?, ?, ?)",
-            (user_id, role or "system", action, detail)
-        )
-        conn.commit()
-        log_id = cursor.lastrowid
-        conn.close()
-        return log_id
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                """INSERT INTO audit_logs
+                   (user_id, role, action, detail, actor_email, actor_name, entity_type, entity_id, changes)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    user_id, role or "system", action, detail, actor_email, actor_name,
+                    entity_type, None if entity_id is None else str(entity_id), changes_json,
+                )
+            )
+            conn.commit()
+            return cursor.lastrowid
+        finally:
+            conn.close()
+
+    AUDIT_LIST_DEFAULT_LIMIT = 100
+    AUDIT_LIST_MAX_LIMIT = 500
 
     @staticmethod
-    def list_audit_logs(limit: int = 100) -> List[Dict]:
+    def list_audit_logs(limit: int = 100, action: Optional[str] = None, user_id: Optional[int] = None) -> List[Dict]:
+        """Eventos do mais novo para o mais antigo. `limit` fica entre 1 e 500; `changes` volta como lista."""
+        try:
+            limit = int(limit)
+        except (TypeError, ValueError):
+            limit = Database.AUDIT_LIST_DEFAULT_LIMIT
+        limit = max(1, min(limit, Database.AUDIT_LIST_MAX_LIMIT))
+
+        where, params = [], []
+        if action is not None:
+            where.append("action = ?")
+            params.append(action)
+        if user_id is not None:
+            where.append("user_id = ?")
+            params.append(user_id)
+        clause = f"WHERE {' AND '.join(where)}" if where else ""
+
         conn = sqlite3.connect(Database.DB_PATH)
         conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id, user_id, role, action, detail, created_at FROM audit_logs ORDER BY id DESC LIMIT ?",
-            (limit,)
-        )
-        rows = cursor.fetchall()
-        conn.close()
-        return [dict(row) for row in rows]
+        try:
+            rows = conn.execute(
+                f"""SELECT id, user_id, role, actor_email, actor_name, entity_type, entity_id,
+                           action, detail, changes, created_at
+                    FROM audit_logs {clause} ORDER BY id DESC LIMIT ?""",
+                (*params, limit),
+            ).fetchall()
+        finally:
+            conn.close()
+
+        logs = []
+        for row in rows:
+            item = dict(row)
+            item["changes"] = Database._parse_changes(item["changes"])
+            logs.append(item)
+        return logs
+
+    @staticmethod
+    def _parse_changes(raw) -> list:
+        if not raw:
+            return []
+        try:
+            parsed = json.loads(raw)
+        except (TypeError, ValueError):
+            return []
+        return parsed if isinstance(parsed, list) else []
+
+    @staticmethod
+    def get_enrollment_by_id(enrollment_id: int) -> Optional[Dict]:
+        """Matrícula por id (uso interno de funcionário, ex.: estado antes do reembolso)."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            row = conn.execute("SELECT * FROM enrollments WHERE id = ?", (enrollment_id,)).fetchone()
+            return dict(row) if row else None
+        finally:
+            conn.close()
 
     @staticmethod
     def add_chat_exchange(user_id: int, user_content: str, assistant_content: str) -> None:
