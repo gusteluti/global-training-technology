@@ -676,3 +676,29 @@ loop durante a consulta ao gateway (até 15 s); base antiga com `transaction_id`
 (só aviso no log); botão "Reembolsar" aparece para pagamento não aprovado e recebe 409 (UX); arquivos estáticos
 abertos por `file://` têm origem `null` e ficam sem CORS; sem limitação de taxa no checkout; sem estorno real no
 gateway; o segredo do webhook precisa ser configurado no ambiente, senão o webhook responde 503.
+
+## D51 — dívidas de segurança: análise e contrato (06/10/2026, modo autônomo D40, fila item 5)
+**Verificação do código (não presumida):**
+1. **Corrida no token de definição de senha:** `Database.definir_senha_com_token` já é atômica (`BEGIN IMMEDIATE`,
+   `UPDATE ... WHERE used_at IS NULL`, `UPDATE users ... WHERE password_hash IS NULL`, `ROLLBACK` se falhar). Não há
+   teste de concorrência que a proteja. **Ação:** teste de regressão com threads (guarda verde); sem mudança de produção.
+2. **Limite de 72 bytes do bcrypt:** cadastro e definição de senha já recusam senha acima de 72 bytes
+   (`senha_aceitavel`). O **login não**: com bcrypt 4.0.1 a senha é truncada em silêncio, então
+   `"A"*72 + "x"` autentica a conta cuja senha é `"A"*72`; com bcrypt 5 viraria erro 500. As contas de
+   funcionário semeadas do `.env` também não passam pela checagem.
+3. **`PUT /api/admin/course/{id}`:** `CourseInput.materials` tem padrão `[]`; omitir o campo apaga os materiais
+   em silêncio.
+
+**Contrato:**
+- `verify_password` devolve `False` (nunca erro) quando a senha informada tem mais de 72 bytes em UTF-8.
+  `get_password_hash` levanta `ValueError` para mais de 72 bytes (os chamadores de cadastro e definição já
+  filtram antes). No startup, conta de funcionário do `.env` com senha acima de 72 bytes **não é criada** e
+  grava-se um `[AVISO]` no log (sem a senha). Login `/api/token` com senha longa: 400 "Usuário ou senha inválidos",
+  sem erro 500, e para funcionário existente grava `staff.login_failed` como já faz. Senha de exatamente 72 bytes
+  (inclusive com acentos que somem 72 bytes) continua válida; 73 não.
+- `PUT /api/admin/course/{id}`: se `materials` **não** foi enviado, os materiais existentes são **preservados**
+  (e `changes` da auditoria não lista `materials`); se foi enviado, inclusive `[]`, substitui (`[]` limpa de
+  propósito). `POST /api/admin/create-course` sem `materials` continua gravando `[]`.
+- Corrida do token: dois pedidos simultâneos de definição de senha com o mesmo token: exatamente um recebe 200,
+  os demais 400, a conta termina com a senha do vencedor e `used_at` preenchido uma vez.
+Sub-branch: `feature/fase2-tdd-ds-dividas-seguranca`.
