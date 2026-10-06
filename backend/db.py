@@ -513,6 +513,53 @@ class Database:
             conn.close()
 
     @staticmethod
+    def list_payments_for_user(user_id: int) -> List[Dict]:
+        """Histórico financeiro de UMA conta de aluno.
+
+        O vínculo com ``enrollments.user_id`` fica no SQL, para que a camada
+        HTTP nunca receba pagamentos de outra conta para filtrar em memória.
+        """
+        conn = sqlite3.connect(Database.DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            rows = conn.execute(
+                """SELECT p.id, p.enrollment_id, p.amount, p.status,
+                          p.payment_method, p.transaction_id, p.created_at, p.updated_at,
+                          e.course_id
+                   FROM payments p
+                   JOIN enrollments e ON e.id = p.enrollment_id
+                   WHERE e.user_id = ?
+                   ORDER BY p.id DESC""",
+                (user_id,),
+            ).fetchall()
+            return [dict(row) for row in rows]
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_payment_for_user(payment_id: int, user_id: int) -> Optional[Dict]:
+        """Pagamento somente quando pertence ao aluno indicado.
+
+        A ausência no resultado representa tanto id inexistente quanto recurso
+        de terceiro, permitindo à rota usar a mesma resposta 404 (IDOR).
+        """
+        conn = sqlite3.connect(Database.DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            row = conn.execute(
+                """SELECT p.id, p.enrollment_id, p.amount, p.status,
+                          p.payment_method, p.transaction_id, p.created_at, p.updated_at,
+                          e.course_id
+                   FROM payments p
+                   JOIN enrollments e ON e.id = p.enrollment_id
+                   WHERE p.id = ? AND e.user_id = ?""",
+                (payment_id, user_id),
+            ).fetchone()
+            return dict(row) if row else None
+        finally:
+            conn.close()
+
+    @staticmethod
     def get_payment_by_id(payment_id: int) -> Optional[Dict]:
         conn = sqlite3.connect(Database.DB_PATH)
         conn.row_factory = sqlite3.Row
