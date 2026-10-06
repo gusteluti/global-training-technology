@@ -915,3 +915,27 @@ aviso de senha alterada; JWT já emitido não é revogado, vale até 8 h); falha
 texto "Não foi possível redefinir a senha. Tente novamente." (sem `detail`) e "Não foi possível enviar o pedido. Tente
 novamente." escolhidos pelo orquestrador; o link "Ir para o login" do `definir-senha` existente gera `href` absoluto (não
 corrigido, sem teste); o envio de e-mail continua só em arquivo de desenvolvimento (SMTP real é trabalho futuro, D13).
+
+## D63 — recibo em PDF: análise e contrato (06/10/2026, modo autônomo D40, fila item 8b)
+Opcional e não bloqueante por decisão anterior do PM (PENDENCIAS, decisão 4 do PM; o JSON saiu na E4). Sem dependência
+nova (nenhuma biblioteca de PDF instalada nem em `requirements.txt`): o PDF é gerado em Python puro, texto em Helvetica
+(`WinAnsiEncoding`, caracteres fora de cp1252 viram `?`), **sem compressão** (o texto fica legível para teste e auditoria),
+com `(`, `)` e `\` escapados e tabela `xref` válida.
+- **Rota:** `GET /api/student/payments/{id}/receipt.pdf`, só aluno (`require_roles(STUDENT)`); o `user_id` vem do JWT. Pagamento
+  alheio ou inexistente: o MESMO 404 e o mesmo corpo do recibo JSON (`ERRO_PAGAMENTO_NAO_ENCONTRADO`), verificado antes do status.
+  Sem token ou token forjado 401; funcionário 403.
+- **Status:** só pagamento `approved` ou `refunded` gera PDF; qualquer outro status: 409
+  `{"detail":"Recibo em PDF disponível apenas para pagamentos aprovados ou reembolsados."}`.
+- **Resposta:** 200, `Content-Type: application/pdf`, `Content-Disposition: attachment; filename="recibo-<id>.pdf"`,
+  `Cache-Control: no-store`, corpo que começa com `%PDF-1.` e termina com `%%EOF`, até 20 KB.
+- **Conteúdo (texto):** título "RECIBO DE PAGAMENTO", "Global Training Technology", número do recibo (`payment_id`), nome do aluno
+  (nunca o e-mail), curso (nome), valor no formato `R$ 250,00`, status, forma de pagamento, id da transação quando houver, data de emissão
+  (`issued_at` do recibo JSON), e para `refunded` a linha "Pagamento reembolsado.". Nenhum dado de outro aluno, nenhum token, nenhuma
+  URL de material.
+- **Lista de pagamentos (`GET /api/student/payments`):** cada item ganha `receipt_pdf_url`
+  (`/api/student/payments/{id}/receipt.pdf`); os campos atuais não mudam.
+- **Tela (Angular, `student-dashboard`):** botão `recibo-pdf` ("Baixar PDF") por pagamento, **só** em `approved` e `refunded`; ao
+  clicar baixa o arquivo `recibo-<id>.pdf` (requisição autenticada que devolve o arquivo; sem expor o token na URL); falha mostra
+  "Não foi possível baixar o recibo." em `erroFinanceiro` (o elemento que já mostra erros do histórico).
+- **Fora do escopo:** logotipo, assinatura digital, envio por e-mail, recibo em PDF para funcionário, numeração fiscal.
+Sub-branch: `feature/fase2-tdd-b2-recibo-pdf`.

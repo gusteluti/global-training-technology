@@ -12,7 +12,7 @@ Atualizado a cada entrega. Quem acordou: leia primeiro a seção "Decisões de p
 | 5 | Dívidas de segurança (token, bcrypt, update-course) | **entregue** (D52): backend 669 passed; mergeada e publicada |
 | 6 | Lacunas de produto: (a) turmas, (b) cadastro de cursos no Angular + interceptor — **concluído** | (a) **entregue** (D55): backend 828 passed, e2e 16/16; (b) **entregue** (D57): e2e 24/24, regressões de e2e verdes |
 | 7 | Dívidas de harness (D4, D6, D7, D10) | **entregue** (D59): os 3 e2e antigos isolados; 33/8/7 checks; db.sqlite intacto |
-| 8 | Backlog opcional: (a) recuperação de senha, (b) recibo PDF | (a) **entregue** (D62): backend 921 passed, e2e 10/10; (b) pendente |
+| 8 | Backlog opcional: (a) recuperação de senha, (b) recibo PDF | (a) **entregue** (D62): backend 921 passed, e2e 10/10; (b) em andamento (contrato D63) |
 
 ## Decisões de política tomadas sem o PM (revisar na volta)
 - **E6:** textos fixos que o usuário final vê (`INPUT_BLOCKED`, `OFFER_BLOCKED`, `LLM_UNAVAILABLE`, `TOO_LONG`), em D38.
@@ -25,6 +25,7 @@ Atualizado a cada entrega. Quem acordou: leia primeiro a seção "Decisões de p
 - **Dívidas de segurança (D51):** `PUT` do curso sem `materials` passa a preservar os materiais (antes apagava); senha acima de 72 bytes passa a ser recusada no login; conta de funcionário do `.env` com senha acima de 72 bytes deixa de ser criada (aviso no log).
 - **Turmas (D53):** modelo mínimo inventado por mim, pois o PDF só diz "inscritos por turma": turma pertence a um curso, a matrícula é atribuída manualmente por um gestor, capacidade opcional; o comprador não escolhe turma no checkout; o aluno não vê a própria turma.
 - **Recuperação de senha (D60):** só aluno recebe link; resposta sempre idêntica; no máximo 3 tokens por hora por conta; validade de 1 h; aviso de "senha alterada"; o JWT não é revogado.
+- **Recibo em PDF (D63):** só para pagamento aprovado ou reembolsado; PDF gerado em Python puro (sem dependência nova), sem compressão; mostra o nome do aluno, nunca o e-mail.
 
 ## Não feito por limite técnico ou regra
 - SMTP real para o link de senha: sem servidor e sem credenciais.
