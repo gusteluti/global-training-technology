@@ -188,14 +188,14 @@ def _executar(sql, params=()):
         conn.close()
 
 
-def _pagamento(valor=PRECO, email=None, com_pagamento=True, com_senha=False):
+def _pagamento(valor=PRECO, email=None, com_pagamento=True, com_senha=False, curso=CURSO):
     """Aluno + matricula pending + pagamento pending (estado em que o checkout deixa)."""
     email = email or f"aluno.{uuid.uuid4().hex[:8]}@e9.test"
     user_id = Database.get_or_create_user(email, "Aluno E9")
     if com_senha:
         _executar("UPDATE users SET password_hash = ? WHERE id = ?", (get_password_hash("senha-e9-correta"), user_id))
-    ref = f"{CURSO}:e9:{uuid.uuid4().hex}"
-    enrollment_id = Database.create_enrollment(user_id, CURSO, ref)
+    ref = f"{curso}:e9:{uuid.uuid4().hex}"
+    enrollment_id = Database.create_enrollment(user_id, curso, ref)
     payment_id = Database.record_payment(enrollment_id, valor, "mercado_pago") if com_pagamento else None
     return SimpleNamespace(
         email=email, user_id=user_id, ref=ref, enrollment_id=enrollment_id, payment_id=payment_id,
@@ -1282,3 +1282,113 @@ def test_i1_webhook_de_uma_referencia_nao_altera_pagamento_nem_token_de_outro_al
     _processado(_hook(client, gw, b, "refunded", request_id="req-b2"))
     assert (_pag(a), _mat(a)) == a_antes
     assert _pag(a)["status"] == "approved" and _mat(a) == "active"
+
+
+# =========================================================================================
+# Grupo G - charged_back revoga o acesso (D49.1) e refunded/charged_back so a partir de approved (D49.2)
+# =========================================================================================
+
+CURSO_MAT = "curso_e9_materiais"
+SENHA_ALUNO = "senha-e9-correta"
+MATERIAIS = [
+    {"title": "Apostila E9", "url": "https://materiais.test/e9/apostila.pdf", "type": "pdf"},
+    {"title": "Video E9", "url": "https://materiais.test/e9/video.mp4", "type": "video"},
+]
+
+
+@pytest.fixture
+def curso_materiais(cursos):
+    (cursos / f"{CURSO_MAT}.json").write_text(json.dumps({
+        "id": CURSO_MAT, "name": "Curso E9 com Materiais", "description": "Curso com materiais pagos",
+        "price": PRECO, "materials": MATERIAIS,
+    }), encoding="utf-8")
+    return CURSO_MAT
+
+
+def _painel(client, p):
+    """Painel do aluno: devolve (texto_da_lista, item_da_lista, texto_do_detalhe) da matricula `p`."""
+    login = client.post("/api/token", data={"username": p.email, "password": SENHA_ALUNO})
+    assert login.status_code == 200, login.text
+    cab = _auth(login.json()["access_token"])
+    lista = client.get("/api/student/enrollments", headers=cab)
+    assert lista.status_code == 200, lista.text
+    corpo = lista.json()
+    itens = corpo["enrollments"] if isinstance(corpo, dict) and "enrollments" in corpo else corpo
+    item = next(i for i in itens if i["id"] == p.enrollment_id)
+    detalhe = client.get(f"/api/student/enrollments/{p.enrollment_id}", headers=cab)
+    assert detalhe.status_code == 200, detalhe.text
+    return lista.text, item, detalhe.text
+
+
+def test_g1_charged_back_revoga_o_acesso_e_nenhuma_url_de_material_aparece(client, gw, curso_materiais, ambiente_e9):
+    p = _pagamento(com_senha=True, curso=curso_materiais)
+    _levar_a(client, gw, p, "approved")
+    texto_lista, item, texto_detalhe = _painel(client, p)
+    assert item["status"] == "active" and MATERIAIS[0]["url"] in texto_lista, "pre-condicao: matricula ativa ve o material"
+
+    _processado(_hook(client, gw, p, "charged_back", request_id="req-e9-cb"))
+
+    assert _pag(p)["status"] == "charged_back"
+    assert _mat(p) == "refunded", "charged_back devolve o dinheiro ao comprador: a matricula vai para refunded"
+    texto_lista, item, texto_detalhe = _painel(client, p)
+    assert item["status"] == "refunded"
+    assert not item.get("materials")
+    for texto in (texto_lista, texto_detalhe):
+        for material in MATERIAIS:
+            assert material["url"] not in texto, f"URL de material vazou depois do chargeback: {material['url']}"
+
+    eventos = [e for e in _eventos("payment.status_change") if str(e["entity_id"]) == str(p.payment_id)]
+    assert len(eventos) == 2, eventos
+    _checar_status_change(eventos[-1], p, "approved", "charged_back")
+
+    # approved repetido depois do chargeback e ignorado (terminal) e nao reativa nada
+    antes = _foto(ambiente_e9)
+    _ignorado(_hook(client, gw, p, "approved", request_id="req-e9-cb2"), "terminal")
+    assert _foto(ambiente_e9) == antes
+    assert _pag(p)["status"] == "charged_back" and _mat(p) == "refunded"
+    texto_lista, item, texto_detalhe = _painel(client, p)
+    assert item["status"] == "refunded"
+    assert all(m["url"] not in texto_lista + texto_detalhe for m in MATERIAIS)
+
+
+@pytest.mark.parametrize("chega", ["refunded", "charged_back"])
+@pytest.mark.parametrize("origem", ["pending", "in_process", "rejected", "cancelled"])
+def test_g2_refunded_e_charged_back_so_a_partir_de_approved(client, gw, ambiente_e9, origem, chega):
+    p = _pagamento()
+    if origem != "pending":
+        _levar_a(client, gw, p, origem)
+    antes = _foto(ambiente_e9)
+    pagamento_antes, matricula_antes = _pag(p), _mat(p)
+    r = _hook(client, gw, p, chega, request_id="req-e9-stale")
+    _ignorado(r, "stale")
+    assert _pag(p) == pagamento_antes and _mat(p) == matricula_antes
+    assert _foto(ambiente_e9) == antes, "nem token, nem e-mail, nem evento"
+
+
+# =========================================================================================
+# Grupo H - data.id so aceita digitos ASCII (D49.3) e corpo de sucesso do webhook (D49.4)
+# =========================================================================================
+
+IDS_NAO_ASCII = ["١٢٣", "１２３", "12٣", "१२३"]
+
+
+@pytest.mark.parametrize("data_id", IDS_NAO_ASCII, ids=["arabe_indico", "fullwidth", "misto", "devanagari"])
+def test_h1_data_id_com_digitos_de_outros_alfabetos_e_400_sem_gateway(client, gw, ambiente_e9, data_id):
+    antes = _foto(ambiente_e9)
+    r = post_webhook(client, data_id)  # assinatura valida para o id exato enviado
+    assert r.status_code == 400, f"id {data_id!r}: esperado 400, veio {r.status_code} {r.text}"
+    assert r.json() == {"detail": DETAIL_ID}, r.text
+    assert gw.get_chamadas == [], f"id {data_id!r} chegou ao gateway: {gw.get_chamadas}"
+    assert _foto(ambiente_e9) == antes
+
+
+@pytest.mark.parametrize("status", ["approved", "in_process", "rejected"])
+def test_h2_corpo_de_sucesso_do_webhook_processado(client, gw, status):
+    p = _pagamento()
+    r = _hook(client, gw, p, status)
+    assert r.status_code == 200, r.text
+    corpo = r.json()
+    assert corpo.get("status") == "received", corpo
+    assert str(corpo.get("payment_id")) == p.mp_id, corpo
+    assert corpo.get("payment_status") == status, corpo
+    assert corpo.get("external_reference") == p.ref, corpo
