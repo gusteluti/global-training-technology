@@ -648,3 +648,31 @@ nenhum vermelho fora da E9. Decisões de forma e política (modo autônomo, revi
 6. O botão "Reembolsar" da tela continua aparecendo para qualquer status diferente de `refunded`; em
    pagamento não aprovado a API devolve 409 e a tela mostra o erro. Ajuste de UX fica como dívida.
 O agente-testes acrescenta testes para os itens 1 (matrícula `refunded`, nenhum material liberado) e 3.
+
+## D50 — E9 entregue (06/10/2026), aguardando validação do PM
+Ciclo: testes vermelhos `a9e9042` (135 falham, 34 passam), atualização dos testes antigos `578f6ea`
+(webhook assinado, aprovação antes do reembolso, CORS no harness), acréscimo D49 `99ca939` (148 falham, 37
+passam); backend `feaa9db` (185/185). Reexecutado pelo orquestrador: backend **596 passed** numa execução só;
+e2e contra o código novo: landing 8/8, observabilidade 11/11, auditoria 17/17, chat do aluno 11/11, dashboard
+de alunos 9/9. Sem alteração de frontend (nada a buildar).
+Checklist de 9 itens: (1) escopo do acréscimo D33.6: assinatura, conferência de valor, idempotência e CORS, mais
+reembolso e erro de checkout; (2) red observado, pelo motivo certo; (3) IDOR: I1 (webhook de uma referência não
+afeta o aluno de outra) e R6 (aluno dono do pagamento recebe 403 no reembolso); (4) recurso pago só com
+matrícula ativa: G1 (chargeback revoga a matrícula e nenhum material aparece), M1b/R9 (`approved` repetido
+não reativa matrícula reembolsada); (5) compatibilidade: bancos antigos ganham o índice único sem derrubar a
+inicialização; (6) não se aplica; (7) 401 sem token, 403 Suporte/aluno no reembolso, 401 assinatura inválida no
+webhook; (8) sem tela nova; e2e anteriores verdes; (9) ciclo completo e documentação.
+**Atrito registrado (D49.5):** os testes de E5 e E7 semeiam o mesmo `transaction_id` em vários pagamentos por
+`update_payment_status_by_reference`; com o índice único, o dev manteve o comportamento antigo dessas duas
+funções exceto que, se outro pagamento já tem aquele `transaction_id`, o status e a matrícula são atualizados e o
+`transaction_id` não é gravado. O webhook usa a função nova e atômica.
+**Escolhas do dev (revisar):** só os 7 status do mapa são aceitos (`authorized`, `in_mediation` etc. =
+`ignored`/`unsupported status`); valor com mais de 2 casas é divergência; tópico ausente é ignorado; sem
+`data.id` = 401; conferência de valor só em `approved`; `payment.status_change` é gravado antes da entrega do
+link de senha.
+**Riscos abertos:** se a entrega do link falhar depois de `approved` gravado, o reenvio do gateway cai em
+`duplicate` e o link não é reemitido (sem rota de reenvio); webhook `async def` com chamadas síncronas bloqueia o
+loop durante a consulta ao gateway (até 15 s); base antiga com `transaction_id` duplicado fica sem índice único
+(só aviso no log); botão "Reembolsar" aparece para pagamento não aprovado e recebe 409 (UX); arquivos estáticos
+abertos por `file://` têm origem `null` e ficam sem CORS; sem limitação de taxa no checkout; sem estorno real no
+gateway; o segredo do webhook precisa ser configurado no ambiente, senão o webhook responde 503.

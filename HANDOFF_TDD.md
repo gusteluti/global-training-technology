@@ -219,7 +219,7 @@ Fonte do escopo: `Escopo_Fase2_Global_Training_Technology.pdf` (raiz do repo). A
 | **E6** | Segurança de LLM: isolamento de sessão por usuário + filtros OWASP | seção 4 | **Entregue em 06/10/2026, aguardando validação do PM (D41).** Testes `481b742`, `fb3744d`, `7208da8`; e2e `a00eaff`; backend `8bbd34a`; landing `7e2f9bd`. Backend 271 passed; landing 8/8. |
 | **E7** | Observabilidade de IA completa: `usage` do Groq, custo, persistência | seção 4, RF24 | **Entregue em 06/10/2026, aguardando validação do PM (D44).** Testes `6b27fc4`; e2e `9a61216`; backend `b36c188`; frontend `530ea3a`. Backend 348 passed; e2e 11/11. |
 | **E8** | Auditoria com identificação do usuário responsável | seção 2 | **Entregue em 06/10/2026, aguardando validação do PM (D47).** Testes `8ebb6dd`; e2e `162b8fd`; backend `56f91be`; frontend `8131b2e`. Backend 411 passed; e2e 17/17. |
-| **E9** | Hardening de pagamento: assinatura do webhook, conferência de valor, idempotência, CORS | **ACRÉSCIMO DO PM — não consta do documento de escopo** (D33.6) | A fazer |
+| **E9** | Hardening de pagamento: assinatura do webhook, conferência de valor, idempotência, CORS | **ACRÉSCIMO DO PM — não consta do documento de escopo** (D33.6) | **Entregue em 06/10/2026, aguardando validação do PM (D50).** Testes `a9e9042`, `578f6ea`, `99ca939`; backend `feaa9db`. Backend 596 passed; e2e anteriores verdes. |
 
 Notas de escopo lidas no PDF, para quem for pegar as próximas:
 - **E4:** o PDF pede "recibos, status de pagamentos concluídos ou pendentes referentes às inscrições realizadas na landing page". A D-anterior do PM já definiu: recibo em JSON primeiro, PDF só se sobrar tempo (`papeis_tdd.md`).
