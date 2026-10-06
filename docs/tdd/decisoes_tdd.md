@@ -574,3 +574,9 @@ quando for o caso), Ação, Alteração, Detalhe; `data-testid`: `audit-row` (um
 **Fora do escopo:** rota de edição de aluno (não existe), IP de origem, exportação, retenção. **Acrescento
 ao E9 (D40):** reembolso só de pagamento `approved` (hoje `mark_payment_refunded` aceita qualquer status).
 Sub-branch: `feature/fase2-tdd-e8-auditoria`.
+
+## D46 — E8: red observado (06/10/2026)
+Red: `backend/tests/test_e8_auditoria.py`, commit `8ebb6dd`. Verificado pelo orquestrador: 42 falham
+(coluna, evento, trigger, filtro ou limite ausentes) e 21 passam (guardas de regressão). Regressão do
+agente-testes: os 369 testes anteriores verdes. Escolhas conservadoras do agente-testes (itens 1 a 9 do
+relatório dele) aceitas; `staff.login_failed` de conta existente pode ter responsável nulo ou o da conta alvo.
