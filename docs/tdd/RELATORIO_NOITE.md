@@ -6,7 +6,7 @@ Atualizado a cada entrega. Quem acordou: leia primeiro a seção "Decisões de p
 | # | Item | Estado |
 |---|---|---|
 | 1 | E6 — segurança de LLM | **entregue** (D41): backend 271 passed, landing 8/8; mergeada e publicada |
-| 2 | E7 — observabilidade de IA | pendente |
+| 2 | E7 — observabilidade de IA | em andamento (contrato D42) |
 | 3 | E8 — auditoria | pendente |
 | 4 | E9 — hardening de pagamento | pendente |
 | 5 | Dívidas de segurança (token, bcrypt, update-course) | pendente |
@@ -18,6 +18,7 @@ Atualizado a cada entrega. Quem acordou: leia primeiro a seção "Decisões de p
 - **E6:** textos fixos que o usuário final vê (`INPUT_BLOCKED`, `OFFER_BLOCKED`, `LLM_UNAVAILABLE`, `TOO_LONG`), em D38.
 - **E6:** conteúdo do filtro: bloqueia parcelamento legítimo ("12x de R$ ...") por ser valor fora do catálogo; limite de 2000 caracteres por mensagem.
 - **E6:** falha do Groq no chat do aluno agora responde 502 e nada é gravado (antes virava mensagem do bot).
+- **E7 (D42):** definição de `resolution_rate` e de `conversion` (conversão de atendimento: aluno que conversou e depois teve matrícula ativa); preços padrão do Groq são referência, conferir; Suporte não vê custo; tópicos não compreendidos só do chat anônimo (privacidade do aluno).
 
 ## Não feito por limite técnico ou regra
 - SMTP real para o link de senha: sem servidor e sem credenciais.
