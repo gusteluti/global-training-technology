@@ -287,3 +287,17 @@ registrada no repo. Recibo em PDF continua opcional e não bloqueante.
      por onde passam o Manager Agent e os Course Agents. O dublê captura as mensagens enviadas ao
      modelo, para os testes verificarem o que entrou no contexto.
    - Sub-branch: `feature/fase2-tdd-e5-chatbot-autenticado`, a partir de `feature/fase2-tdd`.
+
+## D36 — E5: red observado e ambiguidades de forma resolvidas (05/10/2026)
+Red: `backend/tests/test_e5_chatbot_autenticado.py`, commit `7e030c7`. Verificado pelo orquestrador:
+41 falham (rota `/api/student/chat*` inexistente = 404, campos `chat_messages`/`last_chat_at` ausentes no
+dashboard), 2 passam (guardas de regressão: dashboard sem token = 401; `/api/chat` anônimo sem gravar).
+Regressão: os 88 testes anteriores seguem verdes. Ambiguidades levantadas pelo agente-testes, todas de
+forma (AGENTS.md 4.1), decididas pelo orquestrador:
+1. `chat_messages` no dashboard conta **só as mensagens do aluno** (`role = 'user'`), isto é, uma por
+   troca. `last_chat_at` é o `created_at` da última mensagem do aluno.
+2. Os **nomes dos cursos** do contexto vêm da mesma fonte da E3 e da E4 (`_carregar_curso`, em
+   `student/routes.py`, via `COURSES_DIR`), e não de `manager_agent.courses`.
+3. **Janela de contexto:** as 10 mensagens persistidas mais recentes do aluno, anteriores à atual,
+   mais a mensagem atual. Mensagens mais antigas ficam fora.
+O agente-testes aperta T8 e T19 conforme os itens 3 e 1, antes de o dev começar (intenção preservada).
