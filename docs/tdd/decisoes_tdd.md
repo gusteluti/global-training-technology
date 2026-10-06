@@ -442,3 +442,85 @@ sempre bloqueia; "sem restrições" só bloqueia com verbo de persona); filtro d
 ("12x de R$ 19,33") por ser valor fora do catálogo; "Não se preocupe, é grátis" passa por conter negação.
 **Dívidas:** teto de sessões anônimas em memória, limitação de taxa, `backend/test_api.py` e
 `DOCUMENTACAO_TECNICA_TCC.html` ainda mostram o `session_id` fixo.
+
+## D42 — E7 (observabilidade de IA): análise e contrato (06/10/2026, modo autônomo D40)
+**Estado atual:** `ManagerAgent.metrics` são contadores em memória (zeram no restart); o `usage` do Groq
+é descartado em `GroqChatClient`; não há custo, latência nem série temporal. Reprova D33.5.
+
+**Persistência (obrigatório D33.5).** Duas tabelas novas, criadas em `init_db` com `IF NOT EXISTS`:
+- `ai_usage` (uma linha por chamada ao Groq): `id`, `created_at`, `channel` (`anonymous`|`student`),
+  `user_id` (nulo no anônimo), `session_hash` (sha256 hex curto do id da sessão anônima; nulo no aluno),
+  `call_type` (`route`|`answer`), `model`, `prompt_tokens`, `completion_tokens`, `total_tokens`,
+  `cost_usd`, `latency_ms`, `status` (`ok`|`error`).
+- `ai_interactions` (uma linha por mensagem do usuário que chegou ao pipeline): `id`, `created_at`,
+  `channel`, `user_id`, `session_hash`, `course_id` (nulo), `outcome` (`answered`|`unresolved`|
+  `input_blocked`|`output_blocked`|`llm_error`), `topic` (texto mascarado, **só** no canal anônimo e só
+  quando `unresolved`; senão nulo).
+- O `usage` vem de `response.usage` do SDK (`prompt_tokens`, `completion_tokens`, `total_tokens`); se
+  faltar, grava 0 e `status` continua `ok`. Chamada que levanta exceção: linha com `status='error'` e tokens 0.
+- A gravação fica **dentro** de `GroqChatClient.create_chat_completion`, de modo que o seam dos testes de
+  E5/E6 (substituir esse método) continua intacto; o contexto (canal, usuário, sessão, tipo de chamada)
+  chega por `contextvars`, sem mudar a assinatura do método. Os testes da E7 substituem a classe `Groq` do
+  SDK (`agents.groq_client.Groq`) por um falso que devolve `usage` fixo.
+
+**Custo.** `cost_usd = prompt_tokens * P_in / 1e6 + completion_tokens * P_out / 1e6`, gravado na linha no
+momento da chamada. Preços em USD por 1 milhão de tokens, lidos das variáveis `GROQ_PRICE_INPUT_PER_1M_USD`
+e `GROQ_PRICE_OUTPUT_PER_1M_USD` (padrões de referência 0.15 e 0.75, **conferir na tabela de preços da
+Groq**; nomes entram em `.env.example` e na lista do `AGENTS.md`). Exibido em dólar.
+
+**Definições (decisão de política, marcada para revisão do PM):**
+- `resolution_rate` = (`answered`) ÷ (`answered` + `unresolved` + `output_blocked` + `llm_error`), 0 se não houver mensagens.
+  `unresolved` mantém a definição atual (pergunta geral sem curso identificado).
+- `conversion` (conversão de atendimento) = alunos que mandaram ≥ 1 mensagem no chat autenticado e
+  tiveram uma matrícula `active` com `enrolled_at` posterior à primeira mensagem ÷ alunos que mandaram ≥ 1 mensagem.
+- Tópicos: só do canal anônimo (conteúdo de conversa de aluno não é exposto à equipe, D35 P5). Texto
+  mascarado: e-mails viram `[email]`, sequências de 5 ou mais dígitos viram `[num]`, minúsculas, até 120 caracteres. Agrupados por texto, em ordem decrescente de contagem.
+- Os 3 perfis de funcionário continuam acessando; **o Suporte não recebe nenhum campo de custo**
+  (`cost_usd` é dado financeiro, escopo seção 2): Gestão e Financeiro recebem.
+
+**`GET /api/dashboard/observabilidade-ia`:** `{"status":"success","metrics":{...}}` mantém as chaves
+atuais, agora lidas do banco (sobrevivem ao restart): `total_sessions` (sessões anônimas distintas +
+alunos distintos que conversaram), `total_messages` (interações exceto `input_blocked`),
+`course_specific_messages`, `unresolved_messages`, `messages_per_course`, `model`. Novas:
+`usage` = `{requests, errors, prompt_tokens, completion_tokens, total_tokens, avg_latency_ms, cost_usd}`
+(sem `cost_usd` para o Suporte), `outcomes` = contagem por `outcome`, `resolution_rate`,
+`conversion` = `{students_with_chat, converted, rate}`, `unresolved_topics` = `[{topic, count}]` (até 10),
+`per_day` = últimos 14 dias `[{date, requests, cost_usd}]` (sem `cost_usd` para o Suporte).
+
+**Tela (Angular, `ai-observability`)** com `data-testid`: `obs-requests`, `obs-tokens`, `obs-cost`
+("US$ " + `cost_usd` com 4 casas; ausente para o Suporte), `obs-resolution-rate` (percentual com 1 casa),
+`obs-conversion` (percentual com 1 casa), `obs-topic` (uma linha por tópico, com a contagem). A nota
+"zeram a cada reinício" é removida.
+
+**Fora do escopo:** alertas, exportação, custo em reais.
+Sub-branch: `feature/fase2-tdd-e7-observabilidade-ia`.
+
+## D43 — E7: red observado e ambiguidade de forma (06/10/2026)
+Red: `backend/tests/test_e7_observabilidade_ia.py`, commit `6b27fc4`. Verificado pelo orquestrador: 73
+falham (tabelas `ai_usage`/`ai_interactions` e chaves do dashboard ausentes) e 4 passam (guardas de
+401 e 403). Regressão: os 271 anteriores verdes. Decisão de forma: `resolution_rate` e `conversion.rate`
+na API são **fração de 0 a 1**; a tela mostra percentual com 1 casa (multiplica por 100). `usage.requests`
+conta todas as chamadas, inclusive as de erro; `errors` é o subconjunto. Demais escolhas conservadoras do
+agente-testes (itens 2 a 13 do relatório dele) aceitas.
+
+## D44 — E7 entregue (06/10/2026), aguardando validação do PM
+Ciclo: testes vermelhos de backend `6b27fc4` (73 falham, 4 passam); backend `b36c188` (77/77); e2e vermelho
+da tela `9a61216` (4/11); frontend `530ea3a` (11/11). Reexecutado pelo orquestrador: backend **348 passed**
+numa execução só; e2e da E7 11/11, do dashboard de alunos 9/9, do chat do aluno 11/11; build Angular limpo.
+Checklist de 9 itens:
+1. Escopo: métricas de uso, custo, conversão, resolução e tópicos; sem alertas nem exportação.
+2. Red observado, pelo motivo certo, em backend e tela.
+3. IDOR: identidade só pelo JWT no chat do aluno (A14); `session_hash` nunca expõe o id cru (A12, A13).
+4. Recurso pago só com matrícula ativa: não se aplica (sem material); B5 prova que o dashboard não vaza conversa.
+5. Compatibilidade: banco vazio e banco antigo (F1, F2); chaves antigas do dashboard mantidas.
+6. Schema de escrita do admin: não se aplica.
+7. 401 sem token ou forjado, 403 para aluno (E3, E4); Suporte sem nenhum campo de custo (E2, U2).
+8. Tela: e2e 11/11, build limpo.
+9. Ciclo completo, documentação atualizada.
+**D33.5 (obrigatório):** o `usage` do Groq é persistido em `ai_usage`; D1 e D2 provam que o restart do
+backend preserva totais; R1 prova o mesmo na tela. Contadores em memória removidos do `ManagerAgent`.
+**Para revisão do PM:** definições de `resolution_rate` e `conversion` (D42); preços padrão do Groq
+(0.15 e 0.75 USD por 1M de tokens) são de referência e devem ser conferidos; Suporte não vê custo; tópicos só
+do chat anônimo; rótulos da tela escolhidos pelo orquestrador ("Requisições à IA", "Tokens", "Custo",
+"Taxa de resolução", "Conversão", "Requisições por dia", "Tópico", "Ocorrências"); o título "Tópicos não
+compreendidos" aparece no cartão e na seção de tópicos.

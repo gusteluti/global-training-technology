@@ -111,14 +111,45 @@ async def dashboard_financeiro(current_user: AuthContext = Depends(require_roles
 @router.get("/observabilidade-ia")
 async def dashboard_observabilidade_ia(request: Request, current_user: AuthContext = Depends(require_staff)):
     """
-    Painel de observabilidade do chatbot: volume de uso, conversão de
-    atendimento e tópicos não compreendidos pelo modelo (RF24).
+    Painel de observabilidade do chatbot (RF24, E7/D42): uso do LLM (tokens, latência, custo), desfecho das
+    mensagens, taxa de resolução, conversão de atendimento e tópicos não compreendidos. Tudo lido do banco
+    (sobrevive ao restart). Taxas são fração de 0 a 1. O Suporte não recebe nenhum campo de custo
+    (dado financeiro, item 2 do escopo): Gestão e Financeiro recebem.
     """
     manager_agent = getattr(request.app.state, "manager_agent", None)
     if not manager_agent:
         return {"status": "error", "message": "Manager agent não inicializado"}
 
+    pode_ver_custo = current_user.role in (Role.ADMIN, Role.FINANCIAL)
+
+    interacoes = Database.get_ai_interaction_stats()
+    outcomes = interacoes.pop("outcomes")
+    atendidas = sum(outcomes[o] for o in ("answered", "unresolved", "output_blocked", "llm_error"))
+    resolution_rate = round(outcomes["answered"] / atendidas, 4) if atendidas else 0
+
+    conversao = Database.get_ai_conversion()
+    conversion = {
+        **conversao,
+        "rate": round(conversao["converted"] / conversao["students_with_chat"], 4)
+        if conversao["students_with_chat"] else 0,
+    }
+
+    usage = Database.get_ai_usage_totals()
+    per_day = Database.get_ai_usage_per_day(14)
+    if not pode_ver_custo:
+        usage.pop("cost_usd", None)
+        per_day = [{chave: valor for chave, valor in dia.items() if chave != "cost_usd"} for dia in per_day]
+
     return {
         "status": "success",
-        "metrics": manager_agent.get_observability_snapshot(),
+        "metrics": {
+            **interacoes,
+            "model": manager_agent.llm.model,
+            "usage": usage,
+            "outcomes": outcomes,
+            "resolution_rate": resolution_rate,
+            "conversion": conversion,
+            "unresolved_topics": Database.get_ai_unresolved_topics(10),
+            "per_day": per_day,
+        },
     }

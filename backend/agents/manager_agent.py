@@ -5,6 +5,7 @@ import unicodedata
 import uuid
 from pathlib import Path
 from typing import Dict, List, Tuple
+from agents import ai_observability
 from agents.course_agent import CourseAgent
 from agents.groq_client import GroqChatClient
 from agents.llm_guard import (
@@ -38,31 +39,11 @@ class ManagerAgent:
         self.sessions: Dict = {}  # Store conversation history per session
         self.courses_fingerprint: Dict[str, Tuple[int, int]] = {}
 
-        # Fase 2 - Observabilidade do Chatbot (RF24): contadores simples em
-        # memória usados pelo Dashboard de Observabilidade de IA.
-        self.metrics = {
-            "total_messages": 0,
-            "course_specific_messages": 0,
-            "unresolved_messages": 0,  # perguntas gerais que não bateram com nenhum curso
-            "messages_per_course": {},
-        }
-
         # Initialize Groq chat client
         self.llm = GroqChatClient()
         self.courses_dir = Path(__file__).parent.parent / "courses"
         print(f"[OK] ManagerAgent using Groq model: {self.llm.model}")
 
-    def get_observability_snapshot(self) -> Dict:
-        """Métricas de uso do chatbot para o painel administrativo (RF24)."""
-        return {
-            "total_sessions": len(self.sessions),
-            "total_messages": self.metrics["total_messages"],
-            "course_specific_messages": self.metrics["course_specific_messages"],
-            "unresolved_messages": self.metrics["unresolved_messages"],
-            "messages_per_course": dict(self.metrics["messages_per_course"]),
-            "model": self.llm.model,
-        }
-        
     def load_courses(self, reload: bool = False):
         """Load all courses from JSON files in courses directory"""
         if not self.courses_dir.exists():
@@ -188,10 +169,11 @@ MENSAGEM DO USUÁRIO: {user_message}
 
 Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
 """
-            response_text = self.llm.create_chat_completion([
-                {"role": "system", "content": "Você é um assistente que identifica intenções. Responda com apenas uma palavra."},
-                {"role": "user", "content": identify_prompt}
-            ], max_tokens=200, temperature=0.3)
+            with ai_observability.tipo_de_chamada("route"):
+                response_text = self.llm.create_chat_completion([
+                    {"role": "system", "content": "Você é um assistente que identifica intenções. Responda com apenas uma palavra."},
+                    {"role": "user", "content": identify_prompt}
+                ], max_tokens=200, temperature=0.3)
             result = response_text.strip().strip('`"\'').split()[0]
             course_lookup = {course_id.lower(): course_id for course_id in self.courses}
             
@@ -266,59 +248,65 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
         Process user message and route to appropriate agent or respond directly.
 
         `session_id` deve vir de `resolve_session`. Levanta InputBlockedError (injeção direta; nada é
-        gravado e o LLM não é chamado) ou LLMUnavailableError (falha do provedor; nada é gravado).
+        gravado no histórico e o LLM não é chamado) ou LLMUnavailableError (falha do provedor; nada é
+        gravado no histórico). A interação e o usage do LLM vão para o banco (E7), só com o hash da sessão.
         """
-        if entrada_bloqueada(user_message):
-            raise InputBlockedError()
+        with ai_observability.identidade_anonima(session_id):
+            if entrada_bloqueada(user_message):
+                ai_observability.registrar_interacao("input_blocked")
+                raise InputBlockedError()
 
-        self.refresh_courses_if_changed()
+            self.refresh_courses_if_changed()
 
-        # Initialize session if not exists
-        if session_id not in self.sessions:
-            self.sessions[session_id] = []
-        
-        # Identify course intent
-        course_id, is_specific = self.identify_course_intent(user_message)
+            # Initialize session if not exists
+            if session_id not in self.sessions:
+                self.sessions[session_id] = []
 
-        self._register_metrics(course_id, is_specific)
+            # Get conversation history for context
+            conversation_history = self.sessions[session_id].copy()
+            conversation_history.append({"role": "user", "content": user_message})
 
-        # Get conversation history for context
-        conversation_history = self.sessions[session_id].copy()
-        conversation_history.append({"role": "user", "content": user_message})
-        
-        # If course-specific, use course agent
-        if is_specific and course_id in self.course_agents:
-            response = self.course_agents[course_id].answer_question(
-                user_message, 
-                conversation_history
-            )
-        else:
-            # Use manager agent for general questions
-            response = self._answer_general_question(user_message, conversation_history)
+            response = self._responder(user_message, conversation_history)
 
-        response = self._filtrar_saida(response)
-        
         # Store in history
         self.sessions[session_id].append({"role": "user", "content": user_message})
         self.sessions[session_id].append({"role": "assistant", "content": response})
-        
+
         # Keep only last 20 messages in history to avoid context overflow
         if len(self.sessions[session_id]) > 40:
             self.sessions[session_id] = self.sessions[session_id][-40:]
-        
+
         return response
-    
-    def _register_metrics(self, course_id: str, is_specific: bool):
-        """Fase 2 - Observabilidade: contabiliza volume de requisições e
-        tópicos não compreendidos pelo modelo (RF24)."""
-        self.metrics["total_messages"] += 1
-        if is_specific:
-            self.metrics["course_specific_messages"] += 1
-            self.metrics["messages_per_course"][course_id] = (
-                self.metrics["messages_per_course"].get(course_id, 0) + 1
-            )
+
+    def _responder(self, user_message: str, conversation_history: List, student_context: str = None,
+                   history_limit: int = 10) -> str:
+        """Identifica o curso, responde (Course Agent ou resposta geral), aplica o filtro de saída e grava
+        a interação (E7). Levanta LLMUnavailableError, depois de gravar a interação como 'llm_error'."""
+        course_id, is_specific = self.identify_course_intent(user_message)
+        curso = course_id if is_specific and course_id in self.course_agents else None
+
+        try:
+            if curso:
+                resposta = self.course_agents[curso].answer_question(
+                    user_message, conversation_history, student_context=student_context, history_limit=history_limit
+                )
+            else:
+                resposta = self._answer_general_question(
+                    user_message, conversation_history, student_context=student_context, history_limit=history_limit
+                )
+        except LLMUnavailableError:
+            ai_observability.registrar_interacao("llm_error", curso)
+            raise
+
+        filtrada = self._filtrar_saida(resposta)
+        if filtrada != resposta:
+            outcome = "output_blocked"
+        elif curso:
+            outcome = "answered"
         else:
-            self.metrics["unresolved_messages"] += 1
+            outcome = "unresolved"
+        ai_observability.registrar_interacao(outcome, curso, user_message)
+        return filtrada
 
     def process_authenticated_message(self, user_message: str, student_context: str, history: List) -> str:
         """Chat do aluno logado (E5). Não lê nem grava em self.sessions.
@@ -329,28 +317,21 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
 
         Levanta InputBlockedError (nada deve ser gravado) ou LLMUnavailableError (nada deve ser gravado).
         Saída barrada pelo filtro volta como texto fixo, que o chamador grava no lugar do texto cru.
+        A identidade do aluno para a observabilidade (E7) vem do contexto definido pelo chamador
+        (`ai_observability.identidade_aluno`), nunca de parâmetro do cliente.
         """
         if entrada_bloqueada(user_message):
+            ai_observability.registrar_interacao("input_blocked")
             raise InputBlockedError()
 
         self.refresh_courses_if_changed()
 
-        course_id, is_specific = self.identify_course_intent(user_message)
-        self._register_metrics(course_id, is_specific)
-
         conversation_history = [{"role": m["role"], "content": m["content"]} for m in history]
         conversation_history.append({"role": "user", "content": user_message})
-        limit = len(conversation_history)
-
-        if is_specific and course_id in self.course_agents:
-            resposta = self.course_agents[course_id].answer_question(
-                user_message, conversation_history, student_context=student_context, history_limit=limit
-            )
-        else:
-            resposta = self._answer_general_question(
-                user_message, conversation_history, student_context=student_context, history_limit=limit
-            )
-        return self._filtrar_saida(resposta)
+        return self._responder(
+            user_message, conversation_history, student_context=student_context,
+            history_limit=len(conversation_history),
+        )
 
     def _answer_general_question(
         self, user_message: str, history: List, student_context: str = None, history_limit: int = 10

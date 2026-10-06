@@ -16,6 +16,7 @@ Fonte do escopo: `Escopo_Fase2_Global_Training_Technology.pdf`, na raiz do repo.
 | **E4 — Histórico financeiro + recibos** | `GET /api/student/payments` e `GET /api/student/payments/{id}/receipt` (recibo JSON). Recibo alheio e inexistente devolvem o mesmo 404; consultas filtradas pelo dono do JWT. Histórico e recibo na tela `/student`. Feita direto em `feature/fase2-tdd`, sem sub-branch, por orientação do PM. Fechada pelo PM em 05/10/2026 (D34). | testes `b27bd6d`; backend `f9f20cc`; frontend `da6de8e` |
 | **E5 — Chatbot autenticado** | `POST /api/student/chat` e `GET /api/student/chat/history`: o chatbot recebe nome do aluno e cursos `active`, o histórico fica persistido em `chat_messages` e as 10 últimas mensagens vão ao LLM. Chat "Assistente virtual" em `/student`; dashboard de alunos com "Mensagens no chat" e "Última conversa". Entregue 06/10/2026; **aguardando validação do PM** (D37). | testes `7e030c7`, `eeaed3b`, e2e `cf37572`, `970d2c1`; backend `ed5fa3b`; frontend `2421a9c`, `b83e378` |
 | **E6 — Segurança de LLM** | Sessão anônima emitida pelo servidor (landing guarda o id); filtro de entrada (injeção direta, PT e EN); política e dados não confiáveis delimitados no prompt (injeção indireta: nome do aluno, base do curso); filtro de saída (desconto, valor fora do catálogo, vazamento de prompt); falha do LLM sem texto de exceção e sem persistir; limite de 2000 caracteres. Obrigatórios (a) desconto indevido e (b) vazamento entre sessões provados. Entregue 06/10/2026; **aguardando validação do PM** (D41). | testes `481b742`, `fb3744d`, `7208da8`, e2e `a00eaff`; backend `8bbd34a`; landing `7e2f9bd` |
+| **E7 — Observabilidade de IA** | `usage` do Groq persistido (`ai_usage`), interações e desfechos (`ai_interactions`), custo em USD, latência, resolução, conversão de atendimento, tópicos não compreendidos (só chat anônimo, mascarados), série por dia. Suporte não vê custo. Tela `ai-observability` atualizada. Sobrevive a restart. Entregue 06/10/2026; **aguardando validação do PM** (D44). | testes `6b27fc4`, e2e `9a61216`; backend `b36c188`; frontend `530ea3a` |
 
 Os dois obrigatórios da E3 (**IDOR** e **material só com matrícula ativa**) foram provados por suíte e por sondagem independente de HTTP (38/38). Detalhes no `HANDOFF_TDD.md`, seção 2.
 
@@ -27,15 +28,11 @@ E4: regressão integral de backend registrada depois do fechamento — **88 pass
 
 ## 2. Em andamento
 
-Modo autônomo (D40): ver `docs/tdd/RELATORIO_NOITE.md`. E5 (D37) e E6 (D41) entregues, aguardando validação do PM. Próxima: E7.
+Modo autônomo (D40): ver `docs/tdd/RELATORIO_NOITE.md`. E5 (D37), E6 (D41) e E7 (D44) entregues, aguardando validação do PM. Próxima: E8.
 
 ---
 
 ## 3. A fazer — escopo de cada entrega
-
-### E7 — Observabilidade de IA (seção 4 e RF24)
-- Painel na área do funcionário com métricas de uso do LangChain e da API do Groq: conversão de atendimento, volume de requisições, tópicos que o modelo não compreendeu, **custo de inferência**.
-- **Obrigatório** (D33.5): o `usage` do Groq é **persistido em banco**. Contador em memória reprova a entrega, porque zera no restart e o PDF pede custo.
 
 ### E8 — Auditoria com identificação do usuário (seção 2 do escopo)
 - Trilha de auditoria para os eventos críticos da área do funcionário: alterações de dados cadastrais, modificação de preço de curso, reembolsos.
@@ -65,7 +62,7 @@ Componentes em `frontend/src/app/components/`: `admin-dashboard`, `students-dash
 **Ressalvas que ficaram em aberto nessa parte:**
 - **Dashboard de cursos sem o conceito de turma.** O escopo pede "número de inscritos por turma". Hoje o dashboard não tem o conceito de turma. É lacuna real frente ao escopo.
 - **"Histórico de interações" no dashboard de alunos** só mostra o total de sessões, porque o chat ainda é **anônimo**. Resolvido na **E5** para o chat autenticado (contagem e data da última conversa por aluno); o chat anônimo da landing page segue fora desse histórico.
-- **Observabilidade de IA vive em memória.** Zera no restart. Resolve na **E7**, com persistência em banco.
+- **Observabilidade de IA vivia em memória.** Resolvido na **E7** (persistida em banco, D44).
 
 **Versão antiga, superada:** `feature/fase2-painel-administrativo` (`aa619ac`, 09/09) é a **versão antiga** dessa mesma área, em `admin.html` com HTML e JavaScript puros. Foi superada pela versão Angular. **Não é trabalho a aproveitar**; serve só de histórico. O `frontend/admin.html` segue versionado como **legado**. O cadastro de cursos ainda existe **só** nele. Isso precisa ser portado para o Angular antes de o legado sair do repo.
 
@@ -93,6 +90,7 @@ Tomadas pelo PM. Anteriores às D21 a D26 do log. Cobrem o que o documento de es
 - **(Resolvido na E6, D38) E5 — erro do LLM vira mensagem do bot.** Se o Groq falhar, `CourseAgent` e `_answer_general_question` devolvem o texto "Desculpe, ocorreu um erro... {exceção}" (comportamento herdado do `/api/chat`). No chat autenticado esse texto é **persistido** como mensagem do assistente, entra no contexto das próximas perguntas e pode expor detalhe da exceção ao aluno. Tratar na E6 (política: o que o aluno vê e se erro é gravado).
 - **(Resolvido na E6, D38) E5 — sem limite de tamanho da mensagem** no `POST /api/student/chat` (nem `maxlength` no campo). Avaliar na E6 (custo e abuso).
 - **E6 — dívidas:** sessões anônimas em memória sem teto (cresce sem limite) e sem limitação de taxa; filtro de saída bloqueia parcelamento legítimo ("12x de R$ 19,33"); filtro de entrada é heurístico (paráfrase e outros idiomas podem passar; a contenção real é o filtro de saída); `backend/test_api.py` e `DOCUMENTACAO_TECNICA_TCC.html` ainda mostram o `session_id` fixo. Textos fixos escolhidos pelo orquestrador (D38): `INPUT_BLOCKED`, `OFFER_BLOCKED`, `LLM_UNAVAILABLE`, `TOO_LONG`.
+- **E7 — dívidas:** preços padrão do Groq a conferir; custo só em USD; `per_day` em UTC; `total_sessions` inclui sessões só com mensagem bloqueada; rótulos de tela escolhidos pelo orquestrador (D44).
 - **E5 — textos da tela escolhidos pelo orquestrador**, sem revisão do PM: "Assistente virtual", "Digite sua mensagem", "Enviar", "Nenhuma mensagem ainda. Pergunte algo ao assistente.", "Não foi possível carregar o histórico do chat.", "Não foi possível enviar a mensagem. Tente novamente.", e as colunas "Mensagens no chat" e "Última conversa".
 - **E5 — e2e de E2 e E3 não reexecutados** depois de a E5 alterar `student-dashboard` (mesmo componente do "Meus cursos"). Backend: regressão 131 passed. O e2e antigo grava no `db.sqlite` de desenvolvimento (D7), por isso não foi rodado.
 - **Interceptor HTTP do Angular — higiene.** O interceptor envia o header `Authorization` também em chamadas **públicas**, quando há token no navegador. Não quebra nada hoje; é higiene. Corrigir para anexar o token só a rotas que exigem autenticação.

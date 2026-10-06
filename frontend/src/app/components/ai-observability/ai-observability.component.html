@@ -4,6 +4,49 @@
   <div class="col-md-3">
     <div class="card h-100">
       <div class="card-body">
+        <div class="text-muted small">Requisições à IA</div>
+        <div class="fs-3" data-testid="obs-requests">{{ usage.requests }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="text-muted small">Tokens</div>
+        <div class="fs-3" data-testid="obs-tokens">{{ usage.total_tokens }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-2" *ngIf="hasCost">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="text-muted small">Custo</div>
+        <div class="fs-3" data-testid="obs-cost">{{ costText }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-2">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="text-muted small">Taxa de resolução</div>
+        <div class="fs-3" data-testid="obs-resolution-rate">{{ resolutionRateText }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-2">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="text-muted small">Conversão</div>
+        <div class="fs-3" data-testid="obs-conversion">{{ conversionRateText }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3" *ngIf="metrics">
+  <div class="col-md-3">
+    <div class="card h-100">
+      <div class="card-body">
         <div class="text-muted small">Sessões de chat</div>
         <div class="fs-3">{{ metrics.total_sessions }}</div>
       </div>
@@ -36,14 +79,38 @@
   </div>
 </div>
 
-<div class="card">
+<div class="card mb-3">
   <div class="card-body">
     <h5>Mensagens por curso</h5>
     <div style="position: relative; height: 300px;">
       <canvas #messagesChart></canvas>
     </div>
-    <p class="text-muted small mt-3 mb-0">
-      Métricas contabilizadas em memória pelo Manager Agent (RF24). Volumes e sessões zeram a cada reinício do backend.
-    </p>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <h5>Requisições por dia</h5>
+    <div style="position: relative; height: 300px;">
+      <canvas #perDayChart></canvas>
+    </div>
+  </div>
+</div>
+
+<div class="card" *ngIf="metrics">
+  <div class="card-body">
+    <h5>Tópicos não compreendidos</h5>
+    <p class="text-muted small" *ngIf="!topics.length">Nenhum tópico registrado.</p>
+    <table class="table table-sm mb-0" *ngIf="topics.length">
+      <thead>
+        <tr><th>Tópico</th><th class="text-end">Ocorrências</th></tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let t of topics" data-testid="obs-topic">
+          <td>{{ t.topic }}</td>
+          <td class="text-end">{{ t.count }}</td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 </div>

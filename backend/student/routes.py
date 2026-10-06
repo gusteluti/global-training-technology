@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, field_validator
 
 import admin.routes as admin_routes
+from agents.ai_observability import identidade_aluno
 from agents.llm_guard import (
     INPUT_BLOCKED,
     LLM_UNAVAILABLE,
@@ -192,9 +193,12 @@ def conversar_com_o_chatbot(
 
     historico = Database.list_chat_messages(current_user.id, limit=JANELA_CONTEXTO_CHAT)
     try:
-        resposta = manager_agent.process_authenticated_message(
-            corpo.message, _contexto_do_aluno(current_user.id), historico
-        )
+        # E7: o contexto de observabilidade (canal e aluno) vem só do JWT e é definido nesta thread,
+        # a mesma que chama o LLM (o endpoint é síncrono e roda em threadpool).
+        with identidade_aluno(current_user.id):
+            resposta = manager_agent.process_authenticated_message(
+                corpo.message, _contexto_do_aluno(current_user.id), historico
+            )
     except InputBlockedError:
         return {"status": "success", "message": INPUT_BLOCKED}
     except LLMUnavailableError:
