@@ -939,3 +939,12 @@ com `(`, `)` e `\` escapados e tabela `xref` válida.
   "Não foi possível baixar o recibo." em `erroFinanceiro` (o elemento que já mostra erros do histórico).
 - **Fora do escopo:** logotipo, assinatura digital, envio por e-mail, recibo em PDF para funcionário, numeração fiscal.
 Sub-branch: `feature/fase2-tdd-b2-recibo-pdf`.
+
+## D64 — recibo em PDF: red observado (06/10/2026)
+Red: `backend/tests/test_b2_recibo_pdf.py`, commit `3687b02`. Verificado pelo orquestrador: 42 falham (rota e campo
+`receipt_pdf_url` ausentes) e 2 passam (apoio e guarda do recibo JSON). Regressão do agente-testes: 923 verdes, 0
+vermelhos fora do arquivo novo. Exigências de forma que o dev deve seguir (vêm dos testes, aceitas): data de emissão como o
+`issued_at` literal do recibo JSON; nome do aluno e do curso cada um numa única string literal entre parênteses (um `Tj`);
+`/Length` direto; sem `/Filter`; entradas do `xref` de exatamente 20 bytes; `/Helvetica` e `/WinAnsiEncoding`; valor `R$ 1234,50`
+(sem milhar); status e forma de pagamento podem ser o valor bruto ou o rótulo em português; sem a palavra "transa" quando
+não houver transação.
