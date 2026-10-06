@@ -1,11 +1,23 @@
-# Relatório da noite (D40) — início em 06/10/2026
+# Relatório da noite (D40) — 06/10/2026 — **fila concluída**
 
 Atualizado a cada entrega. Quem acordou: leia primeiro a seção "Decisões de política tomadas sem o PM".
+
+## Verificação final do estado integrado (branch `feature/fase2-tdd`)
+Rodada pelo orquestrador depois do último merge, uma execução por vez:
+- Backend: **965 passed** (`cd backend && python -m pytest tests`, 26 min).
+- Build Angular: limpo (`cd frontend && npx ng build`).
+- E2E de navegador, todos verdes: admin 33/33, conta do aluno 8/8, painel do aluno 7/7, chat do aluno 11/11, dashboard de alunos 9/9,
+  observabilidade 11/11, auditoria 17/17, turmas 16/16, cadastro de cursos 24/24, recuperação de senha 10/10, recibo em PDF 8/8, landing 8/8.
+- Publicação: `feature/fase2-tdd` e uma branch por entrega estão no GitHub; a `main` nunca foi tocada; nenhum force-push; antes de
+  cada push foi auditado que não subia `.env`, banco, perfil de navegador, `backend/courses` nem chave. Para o grupo: clone o
+  repositório, entre em `feature/fase2-tdd` e siga o `AGENTS.md` (seção 6) para rodar.
+- Observação: o `backend/db.sqlite` de desenvolvimento (ignorado pelo git) foi alterado pela suíte de backend, que abre esse arquivo no
+  `init_db` do import (adiciona tabelas e colunas novas, sem apagar dados). Os e2e novos nunca o abrem.
 
 ## Fila e estado
 | # | Item | Estado |
 |---|---|---|
-| 1 | E6 — segurança de LLM | **entregue** (D41): backend 271 passed, landing 8/8; mergeada e publicada |
+| 1 | E5 e E6 — chatbot autenticado e segurança de LLM | **entregues** (D37, D41): backend 271 passed, landing 8/8; mergeada e publicada |
 | 2 | E7 — observabilidade de IA | **entregue** (D44): backend 348 passed, e2e 11/11; mergeada e publicada |
 | 3 | E8 — auditoria | **entregue** (D47): backend 411 passed, e2e 17/17; mergeada e publicada |
 | 4 | E9 — hardening de pagamento | **entregue** (D50): backend 596 passed, e2e anteriores verdes; mergeada e publicada |
