@@ -260,5 +260,30 @@ registrada no repo. Recibo em PDF continua opcional e não bloqueante.
    `chat_messages` (`id`, `user_id`, `role`, `content`, `created_at`); histórico em ordem
    cronológica crescente; as últimas 10 mensagens persistidas entram no contexto do LLM, como hoje;
    nos testes, o cliente Groq é substituído por dublê (nenhum teste chama a API real).
-4. **Pendente do PM antes do red da E5:** as perguntas P1 a P6 do relatório do orquestrador de
-   05/10/2026, transcritas abaixo quando respondidas.
+4. **Respostas do PM (P1 a P6), 05/10/2026: todas as recomendações do orquestrador aprovadas.**
+   - **P1.** Chat do aluno logado dentro da área do aluno em Angular (`/student`). A landing page
+     mantém o chat anônimo.
+   - **P2.** `POST /api/student/chat` e `GET /api/student/chat/history`, exigem login de aluno; a
+     identidade vem só do JWT e qualquer `user_id` ou `session_id` enviado pelo cliente é ignorado.
+     Funcionário recebe 403; sem token ou token forjado, 401. `/api/chat` segue anônimo.
+   - **P3.** O chatbot recebe nome do aluno e cursos com matrícula `active`. Não recebe: dados de
+     pagamento, matrícula `pending`/`cancelled`/`refunded`, links de material.
+   - **P4.** Uma conversa contínua por aluno, mostrada ao abrir o chat. Guardada sem prazo e sem
+     botão de apagar nesta entrega.
+   - **P5.** Dashboard de alunos mostra por aluno só a contagem de mensagens e a data da última
+     conversa. O conteúdo das conversas não é exposto à equipe.
+   - **P6.** Correção do `session_id` compartilhado da landing page fica na E6 (teste obrigatório b).
+5. **Contrato da E5 (forma, decidido pelo orquestrador):**
+   - `POST /api/student/chat`, corpo `{"message": str}`. Resposta
+     `{"status": "success", "message": <resposta do bot>}`. Mensagem vazia ou só espaços: 422, e
+     nada é gravado.
+   - `GET /api/student/chat/history` devolve
+     `{"status": "success", "messages": [{"role", "content", "created_at"}]}`, ordem cronológica
+     crescente, só do dono do token. Aluno sem conversa: lista vazia.
+   - Cada troca grava duas linhas em `chat_messages`: a do aluno (`user`) e a do bot (`assistant`).
+   - `GET /api/dashboard/alunos`: cada item de `students` ganha `chat_messages` (int, 0 se nunca
+     conversou) e `last_chat_at` (string ou `null`). `metrics.total_chat_sessions` não muda.
+   - Seam dos testes: substituir `agents.groq_client.GroqChatClient.create_chat_completion`, que é
+     por onde passam o Manager Agent e os Course Agents. O dublê captura as mensagens enviadas ao
+     modelo, para os testes verificarem o que entrou no contexto.
+   - Sub-branch: `feature/fase2-tdd-e5-chatbot-autenticado`, a partir de `feature/fase2-tdd`.
