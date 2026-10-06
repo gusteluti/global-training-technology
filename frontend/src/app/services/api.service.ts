@@ -35,6 +35,15 @@ export class ApiService {
     return this.http.get(`${BASE}/api/student/payments/${paymentId}/receipt`, this.authHeaders());
   }
 
+  // Chat do aluno logado (E5). O corpo leva só a mensagem: a identidade vem do JWT.
+  public sendChatMessage(message: string) {
+    return this.http.post(`${BASE}/api/student/chat`, { message }, this.authHeaders());
+  }
+
+  public getChatHistory() {
+    return this.http.get(`${BASE}/api/student/chat/history`, this.authHeaders());
+  }
+
   // Dashboards de funcionário (Fase 2): mesmos endpoints usados pelo admin.html.
   public getFinancial() {
     return this.http.get(`${BASE}/api/dashboard/financeiro`, this.authHeaders());
