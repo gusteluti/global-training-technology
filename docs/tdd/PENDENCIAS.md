@@ -13,35 +13,29 @@ Fonte do escopo: `Escopo_Fase2_Global_Training_Technology.pdf`, na raiz do repo.
 | **E1 — Identidade unificada** | Uma identidade para o usuário, com referência externa única por compra (o pagamento não colide mesmo com duas compras do mesmo curso no mesmo segundo). Aprovada pelo PM com condição, cumprida por prova de mutação. | testes `dfe307c`, `114d44e`; produção `50a1164`; merge `9578a8f` |
 | **E2 — Conta e login do aluno** | Conta criada após a compra por link de definição de senha (token com hash, expiração de 48 h e uso único), cadastro direto com resposta uniforme, rota de login e política de senha mínima de 8 caracteres. | testes `47d9b69`; implementação `5b9816a`, `8e43bdc`, `bffe69c`, `38a7a36`; merge `351a130` |
 | **E3 — Painel de inscrições e materiais** | Aluno vê só as próprias matrículas (com status e `enrolled_at`), detalhe de matrícula alheia devolve 404, materiais aparecem só com matrícula `active`, funcionário recebe 403 e sem token recebe 401. Tela `/student` com "Meus cursos". Validada por suíte e merge em 05/10/2026. | testes `734469d`; backend `2e76cfe`; frontend `1eaa7a7`; validação `ad291d0`; merge `da55d8f` |
+| **E4 — Histórico financeiro + recibos** | `GET /api/student/payments` e `GET /api/student/payments/{id}/receipt` (recibo JSON). Recibo alheio e inexistente devolvem o mesmo 404; consultas filtradas pelo dono do JWT. Histórico e recibo na tela `/student`. Feita direto em `feature/fase2-tdd`, sem sub-branch, por orientação do PM. Fechada pelo PM em 05/10/2026 (D34). | testes `b27bd6d`; backend `f9f20cc`; frontend `da6de8e` |
 
 Os dois obrigatórios da E3 (**IDOR** e **material só com matrícula ativa**) foram provados por suíte e por sondagem independente de HTTP (38/38). Detalhes no `HANDOFF_TDD.md`, seção 2.
 
 Push de `feature/fase2-tdd` e `feature/fase2-tdd-e3-painel-materiais` feito em 05/10/2026 (D33). `main` intocada.
 
+E4: regressão integral de backend registrada depois do fechamento — **88 passed** (81 anteriores + 7 da E4). O e2e de navegador da E4 não tem saída registrada no repo; o fechamento é do PM (D34). Recibo em PDF segue opcional e não bloqueante.
+
 ---
 
 ## 2. Em andamento
 
-**E4 — Histórico financeiro + recibos (RF22, item 1.1).** Implementação local iniciada diretamente em `feature/fase2-tdd`, por orientação do PM (sem sub-branch):
-- `b27bd6d` — testes vermelhos do contrato;
-- `f9f20cc` — API e consultas seguras por dono do JWT;
-- `da6de8e` — histórico e recibo na tela Angular do aluno.
-
-Contrato implementado: `GET /api/student/payments` e `GET /api/student/payments/{id}/receipt`; recibo alheio e inexistente devolvem o mesmo 404. Teste específico: **7 passed**. Build Angular: verde. Ainda falta executar e registrar a regressão integral e o e2e de navegador antes de marcar a E4 como fechada.
+Nenhuma entrega em andamento. **Próxima: E5** — aguardando as decisões do PM listadas na D35 (`decisoes_tdd.md`) antes do primeiro teste vermelho.
 
 ---
 
 ## 3. A fazer — escopo de cada entrega
 
-### E4 — Histórico financeiro + recibos (RF22, item 1.1)
-- Aluno acessa recibos e o status de pagamentos concluídos ou pendentes, ligados às inscrições feitas pela landing page.
-- Recibo: **endpoint JSON primeiro**. PDF só se sobrar tempo, e não é bloqueante (decisão do PM).
-- Vocabulário de status **de pagamento** é o do Mercado Pago (`approved`, `pending`, `refunded`, `rejected`...). Status **de matrícula** é o conjunto fechado `pending`, `active`, `cancelled`, `refunded`, derivado do pagamento.
-
 ### E5 — Chatbot autenticado (seção 4 do escopo)
 - Para o aluno logado, o chatbot reconhece automaticamente os dados do aluno, os cursos ativos e o histórico de diálogos anteriores.
 - O histórico de diálogos precisa ser **persistido**.
 - Sem teste obrigatório nomeado pelo PM; o padrão de checklist vale.
+- **Achado na análise (D35):** hoje o histórico vive em memória e o `session_id` vem do cliente. A landing page envia o mesmo `session_id` fixo (`'web-chat-session'`) para todo visitante, então todos os anônimos dividem uma conversa. Isso já é o vazamento entre sessões que a E6 proíbe. Decisões pendentes do PM na D35.
 
 ### E6 — Segurança de LLM (seção 4 do escopo)
 - Filtros e controles contra vulnerabilidades da OWASP para LLMs (cita explicitamente *indirect prompt injection*).

@@ -30,6 +30,8 @@ O projeto é a Fase 2 da plataforma Global Training Technology: área do aluno, 
 
 ## 2. Os agentes e seus charters
 
+No Claude Code, os três agentes estão definidos em `.claude/agents/` (`agente-testes`, `dev-backend`, `dev-frontend`) e são chamados pelo nome (D35). O charter abaixo é a fonte; os arquivos o reproduzem.
+
 ### Agente-testes
 - Escreve os testes **antes** do código, a partir do documento de escopo e das decisões do PM.
 - **Observa o red** (teste falhando pelo motivo certo) e registra a saída antes de liberar a implementação.

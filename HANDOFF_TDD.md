@@ -2,6 +2,8 @@
 
 Documento escrito para quem nunca viu a sessão original. Estado verificado por leitura do git e dos arquivos em 05/10/2026, depois do resgate do log de decisões.
 
+**Atualização de 05/10/2026 (E4 fechada, D34; agentes formalizados em `.claude/agents/`, D35):** ver seção 10 e `docs/tdd/decisoes_tdd.md`.
+
 **Atualização de 05/10/2026 (sessão de validação da E3):** a E3 foi validada por suíte e mergeada. As seções abaixo trazem o resultado. O que vale para a E1 e a E2 continua como estava: não foi revalidado nesta sessão, mas a regressão delas passou junto com a E3 (81 testes de backend verdes).
 
 Log completo de decisões: `docs/tdd/decisoes_tdd.md`. Charter dos papéis: `docs/tdd/papeis_tdd.md`.
@@ -21,7 +23,7 @@ Log completo de decisões: `docs/tdd/decisoes_tdd.md`. Charter dos papéis: `doc
 
 | Branch | HEAD | Situação |
 |---|---|---|
-| `feature/fase2-tdd` | `da55d8f` (merge da E3) | **Branch de projeto.** Contém E1, E2 e E3 mergeadas. |
+| `feature/fase2-tdd` | ver `git log` | **Branch de projeto.** Contém E1, E2 e E3 mergeadas e a E4 (commits diretos, D34). |
 | `feature/fase2-tdd-e1-identidade` | `dfe307c` | E1. Totalmente mergeada em `feature/fase2-tdd` (merge `9578a8f`). |
 | `feature/fase2-tdd-e2-conta-aluno` | `b988b92` | E2. Totalmente mergeada em `feature/fase2-tdd` (merge `351a130`). |
 | `feature/fase2-tdd-e3-painel-materiais` | `1eaa7a7` | E3. Validada e totalmente mergeada em `feature/fase2-tdd` (merge `da55d8f`). |
@@ -207,8 +209,8 @@ Fonte do escopo: `Escopo_Fase2_Global_Training_Technology.pdf` (raiz do repo). A
 | **E1** | Identidade unificada | — | **Fechada e mergeada** (`9578a8f`) |
 | **E2** | Conta e login do aluno | item 1.1, RF21 | **Fechada e mergeada** (`351a130`) |
 | **E3** | Painel de inscrições + materiais | item 1.1, RF22 | **Fechada e mergeada** (`da55d8f`), validada 05/10/2026 |
-| **E4** | Histórico financeiro + recibos | item 1.1, RF22 | **EM VALIDAÇÃO** — testes E4 7/7 e build Angular verdes; falta regressão integral e e2e antes do fechamento. Implementada diretamente na branch de projeto por orientação do PM: `b27bd6d`, `f9f20cc`, `da6de8e`. |
-| **E5** | Chatbot autenticado: contexto de cursos ativos e histórico persistido | seção 4 | A fazer |
+| **E4** | Histórico financeiro + recibos | item 1.1, RF22 | **Fechada pelo PM (D34), 05/10/2026.** Testes E4 7/7, build Angular verde, regressão de backend 88 passed. Implementada diretamente na branch de projeto por orientação do PM: `b27bd6d`, `f9f20cc`, `da6de8e`. e2e de navegador sem saída registrada. |
+| **E5** | Chatbot autenticado: contexto de cursos ativos e histórico persistido | seção 4 | **Próxima.** Aguardando decisões do PM (D35) antes do red. |
 | **E6** | Segurança de LLM: isolamento de sessão por usuário + filtros OWASP | seção 4 | A fazer |
 | **E7** | Observabilidade de IA completa: `usage` do Groq, custo, persistência | seção 4, RF24 | A fazer |
 | **E8** | Auditoria com identificação do usuário responsável | seção 2 | A fazer |

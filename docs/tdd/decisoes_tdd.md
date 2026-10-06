@@ -235,3 +235,30 @@ PM que precisa de sessão nova. Parar a tempo é resultado bom; forçar e corrom
    grupo poder cortar se quiser.
 7. **E4 liberada.** Histórico financeiro + recibos (item 1.1, RF22). Recibo: endpoint JSON primeiro,
    PDF só se sobrar tempo (decisão anterior do PM, registrada em papeis_tdd.md).
+
+## D34 — E4 fechada pelo PM (05/10/2026)
+O PM declarou a E4 (histórico financeiro + recibos, item 1.1, RF22) fechada. Commits na própria
+branch de projeto, sem sub-branch, por orientação do PM: testes `b27bd6d`, backend `f9f20cc`,
+frontend `da6de8e`, registro `168e0c0`. Evidência registrada pelo orquestrador depois do fechamento:
+regressão de backend **88 passed** (81 anteriores + 7 da E4). O e2e de navegador da E4 não tem saída
+registrada no repo. Recibo em PDF continua opcional e não bloqueante.
+
+## D35 — agentes formalizados e preparação da E5 (05/10/2026)
+1. **Agentes formalizados (decisão do PM).** Os três papéis do charter viraram definições de
+   subagente do Claude Code em `.claude/agents/` (`agente-testes.md`, `dev-backend.md`,
+   `dev-frontend.md`), com o charter do `AGENTS.md`, seção 2. Muda só a forma de chamar; o charter
+   não mudou. Em conflito, valem `AGENTS.md` e este log.
+2. **Achado da análise da E5 (estado atual do chatbot).**
+   - `POST /api/chat` é público. O `session_id` vem do cliente, e o histórico vive em memória no
+     `ManagerAgent.sessions` (zera no restart, até 40 mensagens por sessão).
+   - A landing page envia o mesmo `session_id` fixo, `'web-chat-session'`, para todo visitante
+     (`frontend/landing_global_training.html`, linha 670). Todos os anônimos dividem uma conversa:
+     o que um visitante escreve entra no contexto da resposta de outro. É o vazamento entre sessões
+     que a E6 proíbe (D33.4 b), e já existe hoje.
+   - O chat só existe na landing page estática. Não há componente de chat no Angular.
+3. **Decisões de forma do orquestrador para a E5 (seção 4.1 do AGENTS.md):** tabela
+   `chat_messages` (`id`, `user_id`, `role`, `content`, `created_at`); histórico em ordem
+   cronológica crescente; as últimas 10 mensagens persistidas entram no contexto do LLM, como hoje;
+   nos testes, o cliente Groq é substituído por dublê (nenhum teste chama a API real).
+4. **Pendente do PM antes do red da E5:** as perguntas P1 a P6 do relatório do orquestrador de
+   05/10/2026, transcritas abaixo quando respondidas.
