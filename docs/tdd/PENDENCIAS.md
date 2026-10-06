@@ -19,6 +19,7 @@ Fonte do escopo: `Escopo_Fase2_Global_Training_Technology.pdf`, na raiz do repo.
 | **E7 — Observabilidade de IA** | `usage` do Groq persistido (`ai_usage`), interações e desfechos (`ai_interactions`), custo em USD, latência, resolução, conversão de atendimento, tópicos não compreendidos (só chat anônimo, mascarados), série por dia. Suporte não vê custo. Tela `ai-observability` atualizada. Sobrevive a restart. Entregue 06/10/2026; **aguardando validação do PM** (D44). | testes `6b27fc4`, e2e `9a61216`; backend `b36c188`; frontend `530ea3a` |
 | **E8 — Auditoria com usuário responsável** | Trilha com a pessoa responsável (id, e-mail, nome, perfil, vindos do token), alteração estruturada antes/depois, entidade, estampa de tempo, login de funcionário (sucesso e falha), append-only por trigger, filtros e limite no endpoint, sem rotas de escrita. Tela `audit-logs` atualizada. Entregue 06/10/2026; **aguardando validação do PM** (D47). | testes `8ebb6dd`, e2e `162b8fd`; backend `56f91be`; frontend `8131b2e` |
 | **E9 — Hardening de pagamento** (acréscimo do PM, fora do PDF) | Assinatura do webhook (fail closed), validação de tópico e id, conferência de valor e moeda, máquina de estados e transição atômica, efeitos colaterais uma vez só, índice único de `transaction_id`, `charged_back` revoga acesso, reembolso só de pagamento aprovado e idempotente, CORS por lista, erro do gateway sem vazar corpo. Entregue 06/10/2026; **aguardando validação do PM** (D50). | testes `a9e9042`, `578f6ea`, `99ca939`; backend `feaa9db` |
+| **Turmas (lacuna do dashboard de cursos)** | Tabela `classes`, matrícula atribuível a uma turma por Gestão, capacidade, contagens por turma e "sem turma" no dashboard, auditoria da E8, tela de gestão (Gestão) e números (todos os perfis). Entregue 06/10/2026; **aguardando validação do PM** (D55). | testes `eb6acf7`, e2e `1a42c8b`; backend `21218b8`; frontend `71a7c63` |
 
 Os dois obrigatórios da E3 (**IDOR** e **material só com matrícula ativa**) foram provados por suíte e por sondagem independente de HTTP (38/38). Detalhes no `HANDOFF_TDD.md`, seção 2.
 
@@ -30,7 +31,7 @@ E4: regressão integral de backend registrada depois do fechamento — **88 pass
 
 ## 2. Em andamento
 
-Modo autônomo (D40): ver `docs/tdd/RELATORIO_NOITE.md`. E5 (D37), E6 (D41), E7 (D44), E8 (D47) e E9 (D50) entregues, aguardando validação do PM. Dívidas de segurança resolvidas (D52). Próximo: lacunas de produto (fila D40).
+Modo autônomo (D40): ver `docs/tdd/RELATORIO_NOITE.md`. E5 (D37), E6 (D41), E7 (D44), E8 (D47) e E9 (D50) entregues, aguardando validação do PM. Dívidas de segurança resolvidas (D52); turmas entregues (D55). Próximo: cadastro de cursos no Angular e interceptor (fila D40).
 
 ---
 
@@ -53,7 +54,7 @@ Componentes em `frontend/src/app/components/`: `admin-dashboard`, `students-dash
 **Por que não tem entrega numerada:** as nove entregas foram planejadas depois, para cobrir o que **faltava**. A área do funcionário ficou de fora do plano por não ser faltante. Isso é lacuna de **rastreabilidade do plano**, não de produto. Quem for ler o plano precisa saber que esta parte existe.
 
 **Ressalvas que ficaram em aberto nessa parte:**
-- **Dashboard de cursos sem o conceito de turma.** O escopo pede "número de inscritos por turma". Hoje o dashboard não tem o conceito de turma. É lacuna real frente ao escopo.
+- ~~Dashboard de cursos sem o conceito de turma.~~ **Resolvido (D55).**
 - **"Histórico de interações" no dashboard de alunos** só mostra o total de sessões, porque o chat ainda é **anônimo**. Resolvido na **E5** para o chat autenticado (contagem e data da última conversa por aluno); o chat anônimo da landing page segue fora desse histórico.
 - **Observabilidade de IA vivia em memória.** Resolvido na **E7** (persistida em banco, D44).
 
@@ -86,6 +87,7 @@ Tomadas pelo PM. Anteriores às D21 a D26 do log. Cobrem o que o documento de es
 - **E7 — dívidas:** preços padrão do Groq a conferir; custo só em USD; `per_day` em UTC; `total_sessions` inclui sessões só com mensagem bloqueada; rótulos de tela escolhidos pelo orquestrador (D44).
 - **E8 — dívidas:** alteração fica sem trilha se a gravação do evento falhar (500 genérico); reembolsos simultâneos podem duplicar evento; falha de login legado vira `role='system'` sem pessoa; sem limitação de taxa em eventos de falha de login; eventos anteriores à E8 sem ator.
 - **E9 — dívidas:** reenvio do link de senha se a entrega falhar; webhook bloqueia o loop; base antiga com `transaction_id` duplicado sem índice; botão Reembolsar visível para não aprovado (409); origem `null` (`file://`); sem limitação de taxa no checkout nem estorno real; `MERCADO_PAGO_WEBHOOK_SECRET` obrigatório no ambiente.
+- **Turmas — dívidas:** edição e exclusão de turma sem tela; o aluno não vê a própria turma; sem atribuição automática nem escolha no checkout; matrícula reativada por webhook pode ultrapassar a capacidade.
 - **E5 — textos da tela escolhidos pelo orquestrador**, sem revisão do PM: "Assistente virtual", "Digite sua mensagem", "Enviar", "Nenhuma mensagem ainda. Pergunte algo ao assistente.", "Não foi possível carregar o histórico do chat.", "Não foi possível enviar a mensagem. Tente novamente.", e as colunas "Mensagens no chat" e "Última conversa".
 - **E5 — e2e de E2 e E3 não reexecutados** depois de a E5 alterar `student-dashboard` (mesmo componente do "Meus cursos"). Backend: regressão 131 passed. O e2e antigo grava no `db.sqlite` de desenvolvimento (D7), por isso não foi rodado.
 - **Interceptor HTTP do Angular — higiene.** O interceptor envia o header `Authorization` também em chamadas **públicas**, quando há token no navegador. Não quebra nada hoje; é higiene. Corrigir para anexar o token só a rotas que exigem autenticação.

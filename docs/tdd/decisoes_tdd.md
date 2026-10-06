@@ -769,3 +769,18 @@ fora do arquivo novo. Escolhas aceitas: nome inválido aceita 400 ou 422; `PUT` 
 com o mesmo texto do `POST`; `DELETE` de turma com matrícula `cancelled`/`refunded` ainda atribuída devolve 409
 (integridade do histórico). Exigência extra ao dev: a verificação de capacidade e a atribuição devem ser atômicas
 (`BEGIN IMMEDIATE`), mesmo sem teste de concorrência, para duas atribuições simultâneas não estourarem a última vaga.
+
+## D55 — turmas entregues (06/10/2026), aguardando validação do PM
+Ciclo: testes vermelhos de backend `eb6acf7` (158 falham, 1 passa); backend `21218b8` (159/159); e2e vermelho da
+tela `1a42c8b` (3/16); frontend `71a7c63` (16/16). Reexecutado pelo orquestrador: backend **828 passed** numa
+execução só; e2e de turmas 16/16 e de auditoria 17/17; build limpo.
+Checklist: (1) fecha a lacuna "inscritos por turma" do PDF 1.2 com modelo mínimo (D53); (2) red observado, pelo
+motivo certo; (3) IDOR: o responsável vem só do token, atribuição não toca matrícula de outro curso ou aluno;
+(4) recurso pago só com matrícula ativa: K1 a K4, atribuir turma não libera material de `pending`; (5) matrículas e
+bancos antigos migram e aparecem "sem turma"; (6) não se aplica; (7) 401/403 por matriz de 9 identidades; (8) e2e
+16/16, build limpo; (9) ciclo completo e documentação.
+**Para revisão do PM:** o modelo de turma (D53) é decisão de política do orquestrador; `GET /enrollments` exige
+`course_id`; `class_id: null` é aceito em qualquer status (única forma de liberar a turma para exclusão); capacidade
+máxima 2147483647; matrícula que volta de `cancelled` para `pending` por webhook pode ultrapassar a capacidade;
+tela sem edição nem exclusão de turma (a API tem); o aluno não vê a própria turma; fallback de erro "Não foi
+possível concluir a operação." escolhido pelo orquestrador.
