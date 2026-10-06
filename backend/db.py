@@ -80,9 +80,13 @@ class Database:
                 expires_at TIMESTAMP NOT NULL,
                 used_at TIMESTAMP,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                purpose TEXT NOT NULL DEFAULT 'setup',
                 FOREIGN KEY (user_id) REFERENCES users(id)
             )
         """)
+        # B1 (D60): finalidade do token ('setup' definição de senha, 'reset' redefinição). Bancos antigos
+        # ganham a coluna; os tokens que já existiam viram 'setup'. Idempotente.
+        Database._ensure_column(cursor, "password_setup_tokens", "purpose", "TEXT NOT NULL DEFAULT 'setup'")
 
         # Audit logs table (Trilhas de auditoria). Schema único: aceita eventos de
         # conta (user_id) e de perfil de funcionário (role). Bases criadas pelas
@@ -378,15 +382,65 @@ class Database:
             conn.close()
 
     @staticmethod
-    def insert_password_setup_token(user_id: int, token_hash: str, expires_at: str) -> int:
+    def insert_password_setup_token(user_id: int, token_hash: str, expires_at: str, purpose: str = "setup") -> int:
         conn = sqlite3.connect(Database.DB_PATH)
         try:
             cursor = conn.execute(
-                "INSERT INTO password_setup_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?)",
-                (user_id, token_hash, expires_at),
+                "INSERT INTO password_setup_tokens (user_id, token_hash, expires_at, purpose) VALUES (?, ?, ?, ?)",
+                (user_id, token_hash, expires_at, purpose),
             )
             conn.commit()
             return cursor.lastrowid
+        finally:
+            conn.close()
+
+    # B1 (D60): no máximo 3 tokens emitidos por conta numa janela móvel de 1 hora (qualquer finalidade).
+    LIMITE_TOKENS_POR_HORA = 3
+
+    @staticmethod
+    def count_recent_password_tokens(user_id: int, janela_minutos: int = 60) -> int:
+        """Tokens (de qualquer finalidade, usados ou não) emitidos para a conta na janela móvel, por created_at."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        try:
+            return conn.execute(
+                "SELECT COUNT(*) FROM password_setup_tokens WHERE user_id = ? "
+                "AND created_at > datetime('now', ?)",
+                (user_id, f"-{int(janela_minutos)} minutes"),
+            ).fetchone()[0]
+        finally:
+            conn.close()
+
+    @staticmethod
+    def emitir_token_com_limite(user_id: int, token_hash: str, expires_at: str, purpose: str,
+                                limite: int = LIMITE_TOKENS_POR_HORA, janela_minutos: int = 60) -> bool:
+        """Emissão atômica (BEGIN IMMEDIATE): conta os tokens da janela, invalida os abertos anteriores da mesma
+        conta e finalidade e insere o novo, tudo na mesma transação. False (nada gravado) se o limite foi atingido."""
+        conn = sqlite3.connect(Database.DB_PATH, isolation_level=None, timeout=30)
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            try:
+                recentes = conn.execute(
+                    "SELECT COUNT(*) FROM password_setup_tokens WHERE user_id = ? "
+                    "AND created_at > datetime('now', ?)",
+                    (user_id, f"-{int(janela_minutos)} minutes"),
+                ).fetchone()[0]
+                if recentes >= limite:
+                    conn.execute("ROLLBACK")
+                    return False
+                conn.execute(
+                    "UPDATE password_setup_tokens SET used_at = CURRENT_TIMESTAMP "
+                    "WHERE user_id = ? AND purpose = ? AND used_at IS NULL",
+                    (user_id, purpose),
+                )
+                conn.execute(
+                    "INSERT INTO password_setup_tokens (user_id, token_hash, expires_at, purpose) VALUES (?, ?, ?, ?)",
+                    (user_id, token_hash, expires_at, purpose),
+                )
+                conn.execute("COMMIT")
+                return True
+            except Exception:
+                conn.execute("ROLLBACK")
+                raise
         finally:
             conn.close()
 
@@ -396,7 +450,7 @@ class Database:
         conn.row_factory = sqlite3.Row
         try:
             row = conn.execute(
-                "SELECT id, user_id, expires_at, used_at FROM password_setup_tokens WHERE token_hash = ?",
+                "SELECT id, user_id, expires_at, used_at, purpose FROM password_setup_tokens WHERE token_hash = ?",
                 (token_hash,),
             ).fetchone()
             return dict(row) if row else None
@@ -407,7 +461,8 @@ class Database:
     def definir_senha_com_token(token_id: int, user_id: int, password_hash: str) -> bool:
         """Marca o token como usado e grava a senha da conta dona dele, numa só transação.
 
-        Recusa (False, sem alterar nada) se o token já foi usado ou se a conta já tem senha.
+        Só vale para token de definição ('setup'). Recusa (False, sem alterar nada) se o token já foi usado,
+        se não é 'setup' ou se a conta já tem senha.
         """
         conn = sqlite3.connect(Database.DB_PATH, isolation_level=None)
         try:
@@ -415,7 +470,7 @@ class Database:
             try:
                 marcou = conn.execute(
                     "UPDATE password_setup_tokens SET used_at = CURRENT_TIMESTAMP "
-                    "WHERE id = ? AND used_at IS NULL",
+                    "WHERE id = ? AND used_at IS NULL AND purpose = 'setup'",
                     (token_id,),
                 ).rowcount == 1
                 definiu = marcou and conn.execute(
@@ -427,6 +482,41 @@ class Database:
                     return False
                 conn.execute("COMMIT")
                 return True
+            except Exception:
+                conn.execute("ROLLBACK")
+                raise
+        finally:
+            conn.close()
+
+    @staticmethod
+    def redefinir_senha_com_token(token_hash: str, password_hash: str, agora: str) -> Optional[str]:
+        """Consumo atômico do token de redefinição (BEGIN IMMEDIATE, B1/D60). Só vale token 'reset', não usado,
+        não expirado (`agora` em UTC, 'YYYY-MM-DD HH:MM:SS') e de conta de aluno. Marca o token como usado, troca a
+        senha da conta DONA do token e invalida os demais tokens abertos dela. Devolve o e-mail da conta, ou None
+        (sem alterar nada) se a redefinição não valeu."""
+        conn = sqlite3.connect(Database.DB_PATH, isolation_level=None, timeout=30)
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            try:
+                row = conn.execute(
+                    "SELECT t.id, t.user_id, u.email FROM password_setup_tokens t "
+                    "JOIN users u ON u.id = t.user_id "
+                    "WHERE t.token_hash = ? AND t.purpose = 'reset' AND t.used_at IS NULL "
+                    "AND t.expires_at > ? AND u.role = 'student'",
+                    (token_hash, agora),
+                ).fetchone()
+                if row is None:
+                    conn.execute("ROLLBACK")
+                    return None
+                _token_id, user_id, email = row
+                conn.execute(
+                    "UPDATE password_setup_tokens SET used_at = CURRENT_TIMESTAMP "
+                    "WHERE user_id = ? AND used_at IS NULL",
+                    (user_id,),
+                )
+                conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (password_hash, user_id))
+                conn.execute("COMMIT")
+                return email
             except Exception:
                 conn.execute("ROLLBACK")
                 raise
