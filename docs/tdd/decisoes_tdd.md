@@ -859,3 +859,36 @@ test_d10_duas_compras_mesmo_curso_mesmo_email_mesmo_instante_geram_referencias_d
 **Riscos:** `abrir_banco` só redireciona o import de `db` se ele ainda não estiver em `sys.modules`; a suíte de backend
 (`conftest`) abre o `backend/db.sqlite` de desenvolvimento no `init_db` do import, sem alterá-lo; não há guarda automática
 de integridade do `db.sqlite` (a prova foi pelos hashes).
+
+## D60 — recuperação de senha do aluno: análise e contrato (06/10/2026, modo autônomo D40, fila item 8)
+Backlog fora do PDF (PENDENCIAS, seção 7); o login de aluno em produção precisa dela e o link de compra expira em 48 h
+sem alternativa. Reaproveita a tabela `password_setup_tokens` (só hash, uso único). **Decisões de política do
+orquestrador (revisar):**
+- **Anti-enumeração (D15/D21):** `POST /api/auth/password-reset/request` com `{"email": str}` devolve SEMPRE 200 com o corpo
+  exato `{"status":"success","message":"Se o e-mail estiver cadastrado, enviaremos um link para redefinir a senha."}`, existindo
+  a conta ou não, e para qualquer texto de e-mail (422 só se o campo faltar). Campos extras são ignorados.
+- **Quem recebe link:** só conta de aluno (`role='student'`). Conta de funcionário e e-mail inexistente: nada acontece (sem
+  token, sem e-mail, sem evento). Aluno **com** senha: token de redefinição (`purpose='reset'`, validade **1 hora**) e
+  `send_password_reset_link` (registro no outbox com `email`, `assunto` "Redefinição de senha", `mensagem` e `link`
+  `{FRONTEND_BASE_URL}/redefinir-senha?token=<token>`). Aluno **sem** senha (link de compra expirado): novo token de definição
+  (`purpose='setup'`, 48 h) enviado por `send_password_setup_link`, como na compra.
+- **Limite:** no máximo **3 tokens emitidos por conta em 1 hora** (qualquer finalidade); acima disso nada é emitido ou
+  enviado e a resposta continua idêntica. Emitir um token novo invalida (marca como usado) os anteriores ainda abertos da
+  mesma conta e finalidade.
+- `password_setup_tokens` ganha `purpose TEXT NOT NULL DEFAULT 'setup'` (`'setup'`|`'reset'`) por `_ensure_column`; tokens
+  antigos viram `'setup'`.
+- **Redefinir:** `POST /api/auth/password-reset` com `{"token": str, "password": str}`; sucesso 200
+  `{"status":"success","message":"Senha redefinida. Faça login para entrar."}`; qualquer falha (token inexistente, usado,
+  expirado, de outra finalidade, senha fora da política de 8 a 72 bytes, campo extra com `user_id`) 400 com o texto de
+  `ERRO_DEFINICAO_SENHA`. O alvo é sempre o dono do token. Uso único e atômico (8 requisições simultâneas: um 200). A senha
+  nova substitui a antiga (a antiga deixa de logar), todos os outros tokens abertos da conta são invalidados e o dono recebe
+  `send_password_changed_notice` (outbox: `assunto` "Sua senha foi alterada", `mensagem` com a URL de login, sem senha, sem token).
+  Token `'setup'` não vale em `/password-reset` e token `'reset'` não vale em `/password-setup`.
+- **Limitação registrada:** o JWT já emitido não é revogado pela redefinição (autenticação sem estado); expira em até 8 h.
+- **Telas (Angular, públicas, sem guard):** `/esqueci-senha` e `/redefinir-senha?token=`; link "Esqueci minha senha" na tela de login.
+  `data-testid`: `esqueci-link` (login), `esqueci-email`, `esqueci-enviar`, `esqueci-mensagem` (mostra o texto uniforme exato),
+  `redefinir-senha`, `redefinir-confirmar` (devem coincidir; senão "As senhas não coincidem." e nada é enviado), `redefinir-enviar`,
+  `redefinir-mensagem` (sucesso "Senha redefinida. Faça login para entrar." com link para o login), `redefinir-erro` (texto do
+  `detail`). Sem token na URL: "Link inválido ou incompleto. Use o link enviado para você." e o envio fica bloqueado.
+**Fora do escopo:** revogar JWT, SMTP real, redefinição de senha de funcionário (é pelo `.env`/Gestão), pergunta secreta.
+Sub-branch: `feature/fase2-tdd-b1-recuperacao-senha`.
