@@ -39,6 +39,8 @@
             <th>Matrículas</th>
             <th>Ativas</th>
             <th>Última matrícula</th>
+            <th>Mensagens no chat</th>
+            <th>Última conversa</th>
           </tr>
         </thead>
         <tbody>
@@ -48,9 +50,11 @@
             <td>{{ s.total_enrollments || 0 }}</td>
             <td>{{ s.active_enrollments || 0 }}</td>
             <td>{{ s.last_enrollment_at || '—' }}</td>
+            <td data-testid="aluno-chat-count">{{ s.chat_messages || 0 }}</td>
+            <td data-testid="aluno-last-chat">{{ s.last_chat_at || '—' }}</td>
           </tr>
           <tr *ngIf="students.length === 0">
-            <td colspan="5" class="text-center text-muted">Nenhum aluno matriculado ainda.</td>
+            <td colspan="7" class="text-center text-muted">Nenhum aluno matriculado ainda.</td>
           </tr>
         </tbody>
       </table>

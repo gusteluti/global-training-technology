@@ -2,6 +2,8 @@
 
 Documento escrito para quem nunca viu a sessão original. Estado verificado por leitura do git e dos arquivos em 05/10/2026, depois do resgate do log de decisões.
 
+**Atualização de 06/10/2026 (E5 entregue, D36 e D37):** ver seção 10 e `docs/tdd/decisoes_tdd.md`.
+
 **Atualização de 05/10/2026 (E4 fechada, D34; agentes formalizados em `.claude/agents/`, D35):** ver seção 10 e `docs/tdd/decisoes_tdd.md`.
 
 **Atualização de 05/10/2026 (sessão de validação da E3):** a E3 foi validada por suíte e mergeada. As seções abaixo trazem o resultado. O que vale para a E1 e a E2 continua como estava: não foi revalidado nesta sessão, mas a regressão delas passou junto com a E3 (81 testes de backend verdes).
@@ -27,6 +29,7 @@ Log completo de decisões: `docs/tdd/decisoes_tdd.md`. Charter dos papéis: `doc
 | `feature/fase2-tdd-e1-identidade` | `dfe307c` | E1. Totalmente mergeada em `feature/fase2-tdd` (merge `9578a8f`). |
 | `feature/fase2-tdd-e2-conta-aluno` | `b988b92` | E2. Totalmente mergeada em `feature/fase2-tdd` (merge `351a130`). |
 | `feature/fase2-tdd-e3-painel-materiais` | `1eaa7a7` | E3. Validada e totalmente mergeada em `feature/fase2-tdd` (merge `da55d8f`). |
+| `feature/fase2-tdd-e5-chatbot-autenticado` | `b83e378` (+ commit de docs) | E5. Mergeada em `feature/fase2-tdd` (ver `git log`). Aguardando validação do PM. |
 | `feature/fase2-painel-administrativo` | `aa619ac` (09/09) | Anterior. Não tocar. |
 | `feature/fase2-merge-gustavo` | `9be15e2` | Anterior. Não tocar. |
 | `feature/fase2-angular-integrado` | `d34d89b` | Anterior. Não tocar. |
@@ -210,7 +213,7 @@ Fonte do escopo: `Escopo_Fase2_Global_Training_Technology.pdf` (raiz do repo). A
 | **E2** | Conta e login do aluno | item 1.1, RF21 | **Fechada e mergeada** (`351a130`) |
 | **E3** | Painel de inscrições + materiais | item 1.1, RF22 | **Fechada e mergeada** (`da55d8f`), validada 05/10/2026 |
 | **E4** | Histórico financeiro + recibos | item 1.1, RF22 | **Fechada pelo PM (D34), 05/10/2026.** Testes E4 7/7, build Angular verde, regressão de backend 88 passed. Implementada diretamente na branch de projeto por orientação do PM: `b27bd6d`, `f9f20cc`, `da6de8e`. e2e de navegador sem saída registrada. |
-| **E5** | Chatbot autenticado: contexto de cursos ativos e histórico persistido | seção 4 | **Próxima.** Aguardando decisões do PM (D35) antes do red. |
+| **E5** | Chatbot autenticado: contexto de cursos ativos e histórico persistido | seção 4 | **Entregue e mergeada em 06/10/2026, aguardando validação do PM (D37).** Sub-branch `feature/fase2-tdd-e5-chatbot-autenticado`. Testes `7e030c7`, `eeaed3b`; e2e `cf37572`, `970d2c1`; backend `ed5fa3b`; frontend `2421a9c`, `b83e378`. Backend 131 passed; e2e 11/11 (chat) e 9/9 (dashboard); build limpo. |
 | **E6** | Segurança de LLM: isolamento de sessão por usuário + filtros OWASP | seção 4 | A fazer |
 | **E7** | Observabilidade de IA completa: `usage` do Groq, custo, persistência | seção 4, RF24 | A fazer |
 | **E8** | Auditoria com identificação do usuário responsável | seção 2 | A fazer |

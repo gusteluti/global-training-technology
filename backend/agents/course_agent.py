@@ -105,14 +105,22 @@ Ajude o usuário a entender o valor do curso e incentive a inscrição!
 
 Responda em português (pt-BR)."""
     
-    def answer_question(self, question: str, conversation_history: List = None) -> str:
+    def answer_question(
+        self,
+        question: str,
+        conversation_history: List = None,
+        student_context: str = None,
+        history_limit: int = 10,
+    ) -> str:
         """
         Answer a question about the course
         
         Args:
             question: User's question
             conversation_history: Previous messages for context
-        
+            student_context: Optional text about the logged-in student (E5), sent as an extra system message
+            history_limit: How many entries of the history are sent to the model
+
         Returns:
             Course agent's response
         """
@@ -122,9 +130,11 @@ Responda em português (pt-BR)."""
             
             # Build messages for Groq chat
             messages = [{"role": "system", "content": self.get_system_prompt()}]
-            
-            # Add conversation history (last 10 entries to avoid overflow)
-            for msg in conversation_history[-10:]:
+            if student_context:
+                messages.append({"role": "system", "content": student_context})
+
+            # Add conversation history (last entries only, to avoid overflow)
+            for msg in conversation_history[-history_limit:]:
                 messages.append({"role": msg["role"], "content": msg["content"]})
             
             # Get response from Groq

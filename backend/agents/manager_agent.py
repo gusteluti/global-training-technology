@@ -242,16 +242,7 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
         # Identify course intent
         course_id, is_specific = self.identify_course_intent(user_message)
 
-        # Fase 2 - Observabilidade: contabiliza volume de requisições e
-        # tópicos não compreendidos pelo modelo (RF24).
-        self.metrics["total_messages"] += 1
-        if is_specific:
-            self.metrics["course_specific_messages"] += 1
-            self.metrics["messages_per_course"][course_id] = (
-                self.metrics["messages_per_course"].get(course_id, 0) + 1
-            )
-        else:
-            self.metrics["unresolved_messages"] += 1
+        self._register_metrics(course_id, is_specific)
 
         # Get conversation history for context
         conversation_history = self.sessions[session_id].copy()
@@ -277,14 +268,54 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
         
         return response
     
-    def _answer_general_question(self, user_message: str, history: List) -> str:
+    def _register_metrics(self, course_id: str, is_specific: bool):
+        """Fase 2 - Observabilidade: contabiliza volume de requisições e
+        tópicos não compreendidos pelo modelo (RF24)."""
+        self.metrics["total_messages"] += 1
+        if is_specific:
+            self.metrics["course_specific_messages"] += 1
+            self.metrics["messages_per_course"][course_id] = (
+                self.metrics["messages_per_course"].get(course_id, 0) + 1
+            )
+        else:
+            self.metrics["unresolved_messages"] += 1
+
+    def process_authenticated_message(self, user_message: str, student_context: str, history: List) -> str:
+        """Chat do aluno logado (E5). Não lê nem grava em self.sessions.
+
+        `history` são as mensagens persistidas do próprio aluno (anteriores à atual, já limitadas pelo
+        chamador) e `student_context` é o texto com nome e cursos ativos. Os dois chegam ao LLM tanto
+        na resposta geral quanto no Course Agent. A persistência fica com o chamador.
+        """
+        self.refresh_courses_if_changed()
+
+        course_id, is_specific = self.identify_course_intent(user_message)
+        self._register_metrics(course_id, is_specific)
+
+        conversation_history = [{"role": m["role"], "content": m["content"]} for m in history]
+        conversation_history.append({"role": "user", "content": user_message})
+        limit = len(conversation_history)
+
+        if is_specific and course_id in self.course_agents:
+            return self.course_agents[course_id].answer_question(
+                user_message, conversation_history, student_context=student_context, history_limit=limit
+            )
+        return self._answer_general_question(
+            user_message, conversation_history, student_context=student_context, history_limit=limit
+        )
+
+    def _answer_general_question(
+        self, user_message: str, history: List, student_context: str = None, history_limit: int = 10
+    ) -> str:
         """Answer a general question using the LLM"""
         try:
             # Build messages for LLM
             messages = [{"role": "system", "content": self.create_system_prompt()}]
-            
-            # Add conversation history (last 10 entries to avoid overflow)
-            for msg in history[-10:]:
+            if student_context:
+                messages.append({"role": "system", "content": student_context})
+
+            # Add conversation history (last entries only, to avoid overflow)
+            for msg in history[-history_limit:]:
                 messages.append({"role": msg["role"], "content": msg["content"]})
             
             # Get response from Groq

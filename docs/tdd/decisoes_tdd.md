@@ -260,5 +260,63 @@ registrada no repo. Recibo em PDF continua opcional e não bloqueante.
    `chat_messages` (`id`, `user_id`, `role`, `content`, `created_at`); histórico em ordem
    cronológica crescente; as últimas 10 mensagens persistidas entram no contexto do LLM, como hoje;
    nos testes, o cliente Groq é substituído por dublê (nenhum teste chama a API real).
-4. **Pendente do PM antes do red da E5:** as perguntas P1 a P6 do relatório do orquestrador de
-   05/10/2026, transcritas abaixo quando respondidas.
+4. **Respostas do PM (P1 a P6), 05/10/2026: todas as recomendações do orquestrador aprovadas.**
+   - **P1.** Chat do aluno logado dentro da área do aluno em Angular (`/student`). A landing page
+     mantém o chat anônimo.
+   - **P2.** `POST /api/student/chat` e `GET /api/student/chat/history`, exigem login de aluno; a
+     identidade vem só do JWT e qualquer `user_id` ou `session_id` enviado pelo cliente é ignorado.
+     Funcionário recebe 403; sem token ou token forjado, 401. `/api/chat` segue anônimo.
+   - **P3.** O chatbot recebe nome do aluno e cursos com matrícula `active`. Não recebe: dados de
+     pagamento, matrícula `pending`/`cancelled`/`refunded`, links de material.
+   - **P4.** Uma conversa contínua por aluno, mostrada ao abrir o chat. Guardada sem prazo e sem
+     botão de apagar nesta entrega.
+   - **P5.** Dashboard de alunos mostra por aluno só a contagem de mensagens e a data da última
+     conversa. O conteúdo das conversas não é exposto à equipe.
+   - **P6.** Correção do `session_id` compartilhado da landing page fica na E6 (teste obrigatório b).
+5. **Contrato da E5 (forma, decidido pelo orquestrador):**
+   - `POST /api/student/chat`, corpo `{"message": str}`. Resposta
+     `{"status": "success", "message": <resposta do bot>}`. Mensagem vazia ou só espaços: 422, e
+     nada é gravado.
+   - `GET /api/student/chat/history` devolve
+     `{"status": "success", "messages": [{"role", "content", "created_at"}]}`, ordem cronológica
+     crescente, só do dono do token. Aluno sem conversa: lista vazia.
+   - Cada troca grava duas linhas em `chat_messages`: a do aluno (`user`) e a do bot (`assistant`).
+   - `GET /api/dashboard/alunos`: cada item de `students` ganha `chat_messages` (int, 0 se nunca
+     conversou) e `last_chat_at` (string ou `null`). `metrics.total_chat_sessions` não muda.
+   - Seam dos testes: substituir `agents.groq_client.GroqChatClient.create_chat_completion`, que é
+     por onde passam o Manager Agent e os Course Agents. O dublê captura as mensagens enviadas ao
+     modelo, para os testes verificarem o que entrou no contexto.
+   - Sub-branch: `feature/fase2-tdd-e5-chatbot-autenticado`, a partir de `feature/fase2-tdd`.
+
+## D36 — E5: red observado e ambiguidades de forma resolvidas (05/10/2026)
+Red: `backend/tests/test_e5_chatbot_autenticado.py`, commit `7e030c7`. Verificado pelo orquestrador:
+41 falham (rota `/api/student/chat*` inexistente = 404, campos `chat_messages`/`last_chat_at` ausentes no
+dashboard), 2 passam (guardas de regressão: dashboard sem token = 401; `/api/chat` anônimo sem gravar).
+Regressão: os 88 testes anteriores seguem verdes. Ambiguidades levantadas pelo agente-testes, todas de
+forma (AGENTS.md 4.1), decididas pelo orquestrador:
+1. `chat_messages` no dashboard conta **só as mensagens do aluno** (`role = 'user'`), isto é, uma por
+   troca. `last_chat_at` é o `created_at` da última mensagem do aluno.
+2. Os **nomes dos cursos** do contexto vêm da mesma fonte da E3 e da E4 (`_carregar_curso`, em
+   `student/routes.py`, via `COURSES_DIR`), e não de `manager_agent.courses`.
+3. **Janela de contexto:** as 10 mensagens persistidas mais recentes do aluno, anteriores à atual,
+   mais a mensagem atual. Mensagens mais antigas ficam fora.
+O agente-testes aperta T8 e T19 conforme os itens 3 e 1, antes de o dev começar (intenção preservada).
+
+## D37 — E5 entregue (06/10/2026), aguardando validação do PM
+Ciclo: testes vermelhos de backend `7e030c7` (41 falham, 2 passam; ajuste D36 em `eeaed3b`); backend
+`ed5fa3b` (43/43, regressão 131 passed); e2e vermelho do chat `cf37572` (3/11) e frontend `2421a9c`
+(11/11); e2e vermelho do dashboard `970d2c1` (5/9) e frontend `b83e378` (9/9). Build Angular limpo.
+Resultados reexecutados pelo orquestrador, não só reportados pelos agentes. O complemento do dashboard
+de alunos entrou porque a P5 do PM (D35.4) o pedia e nenhuma tarefa o cobria na primeira rodada.
+Checklist de 9 itens:
+1. Escopo: chat autenticado com contexto e histórico persistido, sem extrapolar (nada de E6/E7).
+2. Red observado pelo motivo certo, três vezes (backend, e2e do chat, e2e do dashboard).
+3. IDOR: T13 a T15 (id do cliente ignorado, A e B isolados, mesmo `session_id` sem mistura); C8 no navegador.
+4. Pago só com matrícula ativa: T10 e T11 (pending, cancelled, refunded fora; nenhuma URL de material
+   nem dado de pagamento no que vai ao LLM nem na resposta).
+5. Compatibilidade: aluno sem matrícula conversa (T12); aluno sem conversa tem lista vazia (T5) e 0/null (T19b).
+6. Schema de escrita do admin: não se aplica.
+7. 401 sem token ou forjado (T17); 403 para admin, financeiro e suporte, com os dois tipos de token (T18, T18b).
+8. Frontend: e2e 11/11 e 9/9, build limpo.
+9. Ciclo completo e documentação atualizada. Ressalvas abertas em `PENDENCIAS.md`, seção 6 (erro do LLM
+   persistido, sem limite de tamanho, textos de tela sem revisão do PM, e2e antigos não reexecutados).

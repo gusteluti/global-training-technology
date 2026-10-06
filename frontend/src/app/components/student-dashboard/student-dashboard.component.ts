@@ -34,6 +34,10 @@ export class StudentDashboardComponent implements OnInit {
   erro = '';
   erroFinanceiro = '';
   receipt: any = null;
+  chatMessages: { role: string; content: string }[] = [];
+  chatInput = '';
+  chatEnviando = false;
+  erroChat = '';
 
   constructor(private route: ActivatedRoute, private api: ApiService) {
     // Dados vindos do EnrollmentsResolver (rota /student).
@@ -48,6 +52,10 @@ export class StudentDashboardComponent implements OnInit {
     this.api.getMyPayments().subscribe({
       next: (res: any) => this.payments = res.payments || [],
       error: () => this.erroFinanceiro = 'Não foi possível carregar seu histórico financeiro.'
+    });
+    this.api.getChatHistory().subscribe({
+      next: (res: any) => this.chatMessages = res.messages || [],
+      error: () => this.erroChat = 'Não foi possível carregar o histórico do chat.'
     });
   }
 
@@ -68,6 +76,34 @@ export class StudentDashboardComponent implements OnInit {
     this.api.getMyPaymentReceipt(paymentId).subscribe({
       next: (res: any) => this.receipt = res.receipt || null,
       error: () => this.erroFinanceiro = 'Não foi possível carregar o recibo.'
+    });
+  }
+
+  podeEnviarChat(): boolean {
+    return !this.chatEnviando && this.chatInput.trim().length > 0;
+  }
+
+  enviarChat(): void {
+    if (!this.podeEnviarChat()) {
+      return;
+    }
+    const texto = this.chatInput;
+    this.chatEnviando = true;
+    this.erroChat = '';
+    this.api.sendChatMessage(texto).subscribe({
+      next: (res: any) => {
+        this.chatMessages = [
+          ...this.chatMessages,
+          { role: 'user', content: texto },
+          { role: 'assistant', content: res.message }
+        ];
+        this.chatInput = '';
+        this.chatEnviando = false;
+      },
+      error: () => {
+        this.erroChat = 'Não foi possível enviar a mensagem. Tente novamente.';
+        this.chatEnviando = false;
+      }
     });
   }
 }

@@ -65,4 +65,24 @@
       </div>
     </div>
   </div>
+  <div class="col-12 mt-4" data-testid="chat-panel">
+    <h3>Assistente virtual</h3>
+    <div *ngIf="erroChat" class="alert alert-danger">{{ erroChat }}</div>
+    <div class="border rounded p-3 mb-3" style="max-height: 360px; overflow-y: auto;">
+      <p *ngIf="chatMessages.length === 0" class="text-muted small mb-0">Nenhuma mensagem ainda. Pergunte algo ao assistente.</p>
+      <div *ngFor="let msg of chatMessages"
+           data-testid="chat-message"
+           [attr.data-role]="msg.role"
+           class="mb-2 p-2 rounded text-break"
+           [ngClass]="msg.role === 'user' ? 'bg-primary text-white ms-auto' : 'bg-light'"
+           style="max-width: 80%; white-space: pre-wrap;">{{ msg.content }}</div>
+    </div>
+    <form class="input-group" (ngSubmit)="enviarChat()">
+      <input type="text" class="form-control" name="chatInput" data-testid="chat-input"
+             placeholder="Digite sua mensagem" autocomplete="off"
+             [(ngModel)]="chatInput">
+      <button type="submit" class="btn btn-primary" data-testid="chat-send"
+              [disabled]="!podeEnviarChat()">Enviar</button>
+    </form>
+  </div>
 </div>

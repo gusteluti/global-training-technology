@@ -10,7 +10,8 @@ Regras:
 import json
 from typing import Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, field_validator
 
 import admin.routes as admin_routes
 from core.security import AuthContext, Role, require_roles
@@ -21,6 +22,7 @@ router = APIRouter()
 STATUS_COM_MATERIAIS = "active"
 ERRO_MATRICULA_NAO_ENCONTRADA = "Matrícula não encontrada."
 ERRO_PAGAMENTO_NAO_ENCONTRADO = "Pagamento não encontrado."
+JANELA_CONTEXTO_CHAT = 10  # mensagens persistidas anteriores à atual que entram no contexto do LLM (E5)
 
 
 def _carregar_curso(course_id: str) -> Optional[Dict]:
@@ -130,3 +132,61 @@ async def obter_meu_recibo(payment_id: int, current_user: AuthContext = Depends(
         "issued_at": item["updated_at"] or item["created_at"],
     }
     return {"status": "success", "receipt": recibo}
+
+
+class ChatRequest(BaseModel):
+    """Corpo do chat autenticado. Campos extras (user_id, session_id...) são ignorados de propósito."""
+
+    message: str
+
+    @field_validator("message")
+    @classmethod
+    def _mensagem_nao_vazia(cls, valor: str) -> str:
+        valor = valor.strip()
+        if not valor:
+            raise ValueError("A mensagem não pode ser vazia.")
+        return valor
+
+
+def _contexto_do_aluno(user_id: int) -> str:
+    """Nome do aluno e nomes dos cursos com matrícula 'active'. Nada de pagamento, outros status ou URLs."""
+    usuario = Database.get_user_by_id(user_id) or {}
+    nomes = []
+    for course_id in Database.list_active_course_ids_for_user(user_id):
+        curso = _carregar_curso(course_id)
+        nomes.append((curso or {}).get("name") or course_id)
+
+    linhas = [
+        "CONTEXTO DO ALUNO LOGADO (use para personalizar o atendimento):",
+        f"- Nome do aluno: {usuario.get('name') or 'aluno'}",
+    ]
+    if nomes:
+        linhas.append("- Cursos em que o aluno está matriculado: " + "; ".join(nomes))
+    else:
+        linhas.append("- O aluno ainda não tem cursos ativos.")
+    return "\n".join(linhas)
+
+
+@router.post("/chat")
+def conversar_com_o_chatbot(
+    corpo: ChatRequest,
+    request: Request,
+    current_user: AuthContext = Depends(require_roles(Role.STUDENT)),
+):
+    """Chat do aluno logado (E5). Identidade só pelo JWT; o histórico vem do banco, não da memória do agente."""
+    manager_agent = getattr(request.app.state, "manager_agent", None)
+    if manager_agent is None:
+        raise HTTPException(status_code=503, detail="Chatbot indisponível.")
+
+    historico = Database.list_chat_messages(current_user.id, limit=JANELA_CONTEXTO_CHAT)
+    resposta = manager_agent.process_authenticated_message(
+        corpo.message, _contexto_do_aluno(current_user.id), historico
+    )
+    Database.add_chat_exchange(current_user.id, corpo.message, resposta)
+    return {"status": "success", "message": resposta}
+
+
+@router.get("/chat/history")
+async def historico_do_chat(current_user: AuthContext = Depends(require_roles(Role.STUDENT))):
+    """Conversa contínua do próprio aluno, em ordem cronológica crescente."""
+    return {"status": "success", "messages": Database.list_chat_messages(current_user.id)}
