@@ -389,10 +389,10 @@ def test_t8_contexto_leva_so_as_ultimas_10_mensagens_persistidas(client, llm):
 
     contexto = llm.contexto_final()
     assert texto_novo in contexto
-    # Fora da janela: as duas mais antigas. Dentro: as nove mais recentes (a 10a vaga e da mensagem atual).
+    # D36.3: janela = as 10 persistidas mais recentes (anteriores a atual) + a mensagem atual.
     for antiga in conteudos[:2]:
         assert antiga not in contexto, f"mensagem fora das ultimas 10 vazou para o contexto: {antiga}"
-    for recente in conteudos[3:]:
+    for recente in conteudos[2:]:
         assert recente in contexto, f"mensagem recente ausente do contexto: {recente}"
     assert len(_linhas_chat()) == 14, "o historico em banco nao e truncado: so a janela do contexto e"
 
@@ -637,15 +637,16 @@ def test_t19_dashboard_traz_contagem_e_data_da_ultima_conversa_por_aluno(client)
         assert "chat_messages" in item, f"campo chat_messages ausente no item {item}"
         assert "last_chat_at" in item, f"campo last_chat_at ausente no item {item}"
         assert isinstance(item["chat_messages"], int) and not isinstance(item["chat_messages"], bool)
-    # "Contagem de mensagens": 1 por mensagem do aluno ou 1 por linha gravada (2 por troca).
-    # O contrato (D35.5) nao fixa qual; o teste aceita as duas e exige consistencia entre os alunos.
-    assert item_a["chat_messages"] in (2, 4)
-    assert item_b["chat_messages"] in (1, 2)
-    assert item_a["chat_messages"] == 2 * item_b["chat_messages"]
+    # D36.1: chat_messages conta so as mensagens do aluno (role='user'), uma por troca.
+    assert item_a["chat_messages"] == 2
+    assert item_b["chat_messages"] == 1
     for item in (item_a, item_b):
         assert isinstance(item["last_chat_at"], str) and item["last_chat_at"]
-    ultima = _consultar("SELECT MAX(created_at) AS ultima FROM chat_messages WHERE user_id = ?", (a,))[0]["ultima"]
-    assert item_a["last_chat_at"][:10] == str(ultima)[:10]
+    # last_chat_at = created_at da ultima mensagem do aluno.
+    ultima = _consultar(
+        "SELECT created_at FROM chat_messages WHERE user_id = ? AND role = 'user' ORDER BY id DESC LIMIT 1", (a,)
+    )[0]["created_at"]
+    assert item_a["last_chat_at"] == str(ultima)
     # Compatibilidade: quem nunca conversou.
     assert item_c["chat_messages"] == 0
     assert item_c["last_chat_at"] is None
