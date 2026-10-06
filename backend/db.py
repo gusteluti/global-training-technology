@@ -71,6 +71,20 @@ class Database:
         Database._ensure_column(cursor, "audit_logs", "role", "TEXT")
         Database._ensure_column(cursor, "audit_logs", "detail", "TEXT")
 
+        # Histórico do chatbot autenticado (E5, D35): uma conversa contínua por aluno.
+        # role é 'user' (mensagem do aluno) ou 'assistant' (resposta do bot).
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+                content TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_chat_messages_user ON chat_messages (user_id, id)")
+
         conn.commit()
         conn.close()
         print("[OK] Database initialized")
@@ -627,6 +641,60 @@ class Database:
         return [dict(row) for row in rows]
 
     @staticmethod
+    def add_chat_exchange(user_id: int, user_content: str, assistant_content: str) -> None:
+        """Grava as duas linhas de uma troca (aluno e bot) na mesma transação (E5)."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        try:
+            conn.execute(
+                "INSERT INTO chat_messages (user_id, role, content) VALUES (?, 'user', ?)",
+                (user_id, user_content),
+            )
+            conn.execute(
+                "INSERT INTO chat_messages (user_id, role, content) VALUES (?, 'assistant', ?)",
+                (user_id, assistant_content),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    @staticmethod
+    def list_chat_messages(user_id: int, limit: Optional[int] = None) -> List[Dict]:
+        """Mensagens de UMA conta em ordem cronológica crescente. Com limit, as mais recentes.
+        O filtro por user_id fica no SQL (E5, IDOR)."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            if limit is None:
+                rows = conn.execute(
+                    "SELECT role, content, created_at FROM chat_messages WHERE user_id = ? ORDER BY id ASC",
+                    (user_id,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT role, content, created_at FROM ("
+                    "SELECT id, role, content, created_at FROM chat_messages "
+                    "WHERE user_id = ? ORDER BY id DESC LIMIT ?) ORDER BY id ASC",
+                    (user_id, limit),
+                ).fetchall()
+            return [dict(row) for row in rows]
+        finally:
+            conn.close()
+
+    @staticmethod
+    def list_active_course_ids_for_user(user_id: int) -> List[str]:
+        """Ids dos cursos com matrícula 'active' de UMA conta, sem repetição (E5)."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        try:
+            rows = conn.execute(
+                "SELECT DISTINCT course_id FROM enrollments WHERE user_id = ? AND status = 'active' "
+                "ORDER BY course_id",
+                (user_id,),
+            ).fetchall()
+            return [row[0] for row in rows]
+        finally:
+            conn.close()
+
+    @staticmethod
     def get_students_overview() -> List[Dict]:
         """Students with their enrollment counts and latest status (Dashboard de Alunos)."""
         conn = sqlite3.connect(Database.DB_PATH)
@@ -640,7 +708,12 @@ class Database:
                 s.created_at,
                 COUNT(e.id) AS total_enrollments,
                 SUM(CASE WHEN e.status = 'active' THEN 1 ELSE 0 END) AS active_enrollments,
-                MAX(e.enrolled_at) AS last_enrollment_at
+                MAX(e.enrolled_at) AS last_enrollment_at,
+                (SELECT COUNT(*) FROM chat_messages c
+                  WHERE c.user_id = s.id AND c.role = 'user') AS chat_messages,
+                (SELECT c.created_at FROM chat_messages c
+                  WHERE c.user_id = s.id AND c.role = 'user'
+                  ORDER BY c.id DESC LIMIT 1) AS last_chat_at
             FROM users s
             LEFT JOIN enrollments e ON e.user_id = s.id
             WHERE s.role = 'student'
