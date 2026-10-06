@@ -628,3 +628,23 @@ Acréscimo do PM, não consta do PDF (D33.6); mantida. **Defeitos encontrados em
 - **Testes antigos que mudam (autoridade permanente 4.3, encadeamento D33.6 → D48):** os que enviam webhook sem assinatura passam a assinar (o segredo vem de variável de ambiente de teste); os que reembolsam pagamento `pending` passam a aprová-lo antes; o harness de e2e do landing (E6) e os de e2e que chamam o webhook (E7, E8) recebem o segredo e a origem permitida. Intenção preservada. Quem altera: agente-testes.
 - **Fora do escopo:** limitação de taxa no checkout, estorno real no gateway, cabeçalhos de segurança HTTP, conciliação periódica com o gateway.
 Sub-branch: `feature/fase2-tdd-e9-hardening-pagamento`.
+
+## D49 — E9: red observado e ambiguidades resolvidas (06/10/2026)
+Red: `backend/tests/test_e9_hardening_pagamento.py`, commits `a9e9042` (novos) e `578f6ea` (antigos assinam o
+webhook, aprovam antes de reembolsar e configuram CORS; autoridade 4.3, D33.6 → D48). Verificado pelo
+orquestrador: 135 falham e 34 passam no arquivo novo; regressão do agente-testes: 445 verdes + 135 vermelhos,
+nenhum vermelho fora da E9. Decisões de forma e política (modo autônomo, revisar):
+1. **`charged_back` revoga o acesso:** a matrícula vai para `refunded` (dinheiro devolvido ao comprador),
+   dentro do vocabulário fechado de matrícula; sem isso, o recurso pago continuaria liberado depois do estorno
+   (item 4 do checklist). Mapa atualizado só para esse caso.
+2. `refunded` e `charged_back` por webhook só são aceitos a partir de `approved`; vindo de outro estado, o
+   webhook é ignorado (`stale`).
+3. O `data.id` só aceita dígitos ASCII `[0-9]` (`\d` aceitaria dígitos de outros alfabetos).
+4. O corpo de sucesso do webhook processado mantém os campos atuais (`status: "received"`, `payment_id`,
+   `payment_status`, `external_reference`).
+5. `update_payment_status_by_reference` e `update_payment_status` do `Database` mantêm o comportamento atual
+   (os testes de E4, E5, E7 e E8 semeiam por eles); a máquina de estados e a atomicidade ficam em função
+   nova usada só pelo webhook e pelo reembolso.
+6. O botão "Reembolsar" da tela continua aparecendo para qualquer status diferente de `refunded`; em
+   pagamento não aprovado a API devolve 409 e a tela mostra o erro. Ajuste de UX fica como dívida.
+O agente-testes acrescenta testes para os itens 1 (matrícula `refunded`, nenhum material liberado) e 3.
