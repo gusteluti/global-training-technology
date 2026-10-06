@@ -383,3 +383,15 @@ esperar o id emitido pelo servidor. A intenção (chat anônimo funciona sem tok
 
 **Fora desta entrega (dívida registrada):** teto de sessões anônimas em memória (cresce sem limite) e
 limitação de taxa de requisições. Sub-branch: `feature/fase2-tdd-e6-seguranca-llm`.
+
+## D39 — E6: red observado e duas ambiguidades resolvidas (06/10/2026)
+Red: `backend/tests/test_e6_seguranca_llm.py`, commit `481b742`. Verificado pelo orquestrador: 89 falham
+(comportamento ausente, sem erro de import ou fixture) e 41 passam (guardas de regressão). Único teste
+antigo alterado: T22 da E5, por D35.4 P6 → D38 (autoridade 4.3). Ambiguidades, todas de forma:
+1. **Vazamento de prompt (D38.5c)** responde com `INPUT_BLOCKED`, não com `OFFER_BLOCKED`: o texto de
+   desconto não faz sentido para esse caso. O que é gravado no lugar da resposta crua é `INPUT_BLOCKED`.
+2. **Injeção direta em inglês** entra no filtro de entrada (controle 2): "ignore/disregard/forget"
+   + "previous/prior/above/all" + "instructions/rules/prompt", e "reveal/show/repeat" + "system prompt".
+3. Falha do LLM no chat anônimo: `{"status":"error","message":LLM_UNAVAILABLE}` com HTTP 200 (padrão atual
+   do endpoint), sem `session_id` obrigatório.
+O agente-testes ajusta T7 e acrescenta os casos em inglês antes de o dev começar (D38 → D39).
