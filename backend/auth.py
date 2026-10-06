@@ -4,12 +4,16 @@ from fastapi.security import OAuth2PasswordRequestForm
 from datetime import timedelta
 from pydantic import BaseModel, ConfigDict
 
+from core.audit import record_audit
 from core.security import create_access_token, verify_password, get_password_hash
 from core.password_setup import definir_senha_pelo_token, senha_aceitavel
 from core.notifications import send_account_created_notice, send_account_exists_notice
 from db import Database
+from models.user import Role
 
 router = APIRouter()
+
+STAFF_ROLES = (Role.ADMIN.value, Role.FINANCIAL.value, Role.SUPPORT.value)
 
 # Mensagens genéricas (D15, D16): não revelam se a conta existe, não ecoam e-mail nem token.
 ERRO_CADASTRO = "Não foi possível concluir o cadastro. Verifique os dados informados."
@@ -80,10 +84,26 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     """Standard OAuth2 password flow: returns JWT access token."""
     user = Database.get_user_by_email(form_data.username)
     if not user:
+        # E-mail inexistente nunca vai para a trilha (E8, D45).
         raise HTTPException(status_code=400, detail="Usuário ou senha inválidos")
 
+    # Só contas de funcionário são auditadas; login de aluno (certo ou errado) não gera evento.
+    is_staff = (user.get("role") or "student") in STAFF_ROLES
+    actor = {
+        "user_id": user["id"],
+        "actor_email": user["email"],
+        "actor_name": user["name"],
+        "role": user.get("role"),
+    }
+
     if not verify_password(form_data.password, user.get("password_hash")):
+        if is_staff:
+            # Conta existente: grava a conta alvo, nunca a senha digitada.
+            record_audit("staff.login_failed", "Login recusado (senha inválida) em conta de funcionário", actor=actor)
         raise HTTPException(status_code=400, detail="Usuário ou senha inválidos")
+
+    if is_staff:
+        record_audit("staff.login", "Login de funcionário", actor=actor)
 
     access_token_expires = timedelta(minutes=60*8)
     token = create_access_token({"user_id": user["id"], "email": user["email"], "role": user.get("role", "student")}, expires_delta=access_token_expires)

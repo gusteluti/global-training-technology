@@ -5,7 +5,7 @@
     <h5>Trilha de auditoria</h5>
     <p class="text-muted small">
       Eventos críticos da área do funcionário: alterações cadastrais, mudança de preço de cursos e reembolsos,
-      com o responsável e a data/hora de cada ação.
+      com o responsável (pessoa e perfil), o que mudou (antes e depois) e a data/hora de cada ação.
     </p>
     <div class="table-responsive">
       <table class="table table-hover align-middle">
@@ -14,18 +14,22 @@
             <th>Data</th>
             <th>Responsável</th>
             <th>Ação</th>
+            <th>Alteração</th>
             <th>Detalhe</th>
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let log of logs">
+          <tr *ngFor="let log of logs" data-testid="audit-row">
             <td class="text-nowrap">{{ log.created_at }}</td>
-            <td>{{ actor(log) }}</td>
+            <td data-testid="audit-actor">{{ actor(log) }}</td>
             <td><code>{{ log.action }}</code></td>
+            <td>
+              <div *ngFor="let c of log.changes || []" data-testid="audit-change" class="small"><code>{{ c.field }}</code>: {{ value(c.before) }} → {{ value(c.after) }}</div>
+            </td>
             <td>{{ log.detail }}</td>
           </tr>
           <tr *ngIf="logs.length === 0">
-            <td colspan="4" class="text-center text-muted">Nenhum evento registrado ainda.</td>
+            <td colspan="5" class="text-center text-muted">Nenhum evento registrado ainda.</td>
           </tr>
         </tbody>
       </table>
