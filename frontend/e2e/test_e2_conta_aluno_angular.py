@@ -27,20 +27,24 @@ API (URL do próprio erro de console), uma única vez por resposta. Só é ignor
 da API e tela (a raiz é "/") baterem exatamente com a lista acima. Qualquer outro 400 (ex.: POST /api/token na
 tela /cadastro), qualquer 500 ou 4xx/5xx de outra origem, e qualquer exceção de página reprovam o C8.
 
-Pré-requisitos (ambos de pé antes de rodar):
-  - backend FastAPI em http://127.0.0.1:8000  (cd backend && uvicorn app:app --port 8000)
-  - Angular em http://localhost:4200 com proxy /api -> 8000 (cd frontend && npx ng serve)
-  - conta admin@gt.com / admin123 cadastrada (gestor de teste, usada no C3)
-  - Chromium do Playwright instalado: py -3 -m playwright install chromium
+Harness isolado (D58, H1): o teste sobe e derruba os próprios servidores; nada precisa estar de pé antes.
+  - Backend: frontend/e2e/servidor_e2e_h1.py em processo próprio, porta livre, SQLite temporário (DB_PATH
+    isolado), diretório de cursos temporário, segredo de webhook e CORS de teste, Groq e Mercado Pago falsos.
+    A conta admin@gt.com / admin123 (gestor de teste, usada no C3) é semeada pelo helper a partir de variáveis
+    de ambiente fabricadas lá, nunca de um .env real.
+  - Frontend: `npx ng serve` em porta livre, com proxy temporário /api -> backend de teste.
+  - backend/db.sqlite e backend/courses de desenvolvimento não são abertos nem alterados.
+  - E2E_BASE_URL / E2E_API_URL não são mais usados (apontar para servidores de fora quebraria o isolamento).
 
-Seed: as contas de teste (e-mails com uuid) e os tokens de definição são criados no banco que o
-backend usa (backend/db.sqlite, via Database e core.password_setup.emitir_token_definicao).
-Limitação D7: o harness usa o banco de dev e o acúmulo de contas de teste se repete a cada execução.
-Correção futura: subir o backend com DB_PATH isolado.
+Seed: as contas de teste (e-mails com uuid) e os tokens de definição são criados pela camada Database do
+backend e por core.password_setup.emitir_token_definicao DENTRO do processo do teste, mas apontando para o MESMO
+arquivo SQLite temporário do backend de teste (apoio_harness_h1.abrir_banco redireciona o import de `db`).
+Isso resolve a limitação D7: nada acumula no banco de desenvolvimento.
 
-Porta diferente do 4200: defina E2E_BASE_URL (ex.: http://localhost:4300).
-API direta (login por API no C4/C7/C3): E2E_API_URL, padrão http://127.0.0.1:8000.
-Execução: py -3 -m pytest frontend/e2e/test_e2_conta_aluno_angular.py -s
+Pré-requisitos: dependências do backend, node_modules do frontend e o Chromium do Playwright
+(py -3 -m playwright install chromium). Portas fixas opcionais: E2E_BACKEND_PORT / E2E_FRONT_PORT;
+E2E_NG_TIMEOUT (s, padrão 300). Execução (da raiz do repo):
+  py -3 -m pytest frontend/e2e/test_e2_conta_aluno_angular.py -s
 Screenshots vão para E2E_SCREENSHOTS, ou para a pasta temporária do sistema.
 """
 
@@ -59,13 +63,19 @@ import pytest
 
 sync_api = pytest.importorskip("playwright.sync_api")
 
-BASE = os.environ.get("E2E_BASE_URL", "http://localhost:4200").rstrip("/")
-API = os.environ.get("E2E_API_URL", "http://127.0.0.1:8000").rstrip("/")
-BACKEND = Path(__file__).resolve().parents[2] / "backend"
+E2E_DIR = Path(__file__).resolve().parent
+if str(E2E_DIR) not in sys.path:
+    sys.path.insert(0, str(E2E_DIR))
+
+from apoio_harness_h1 import abrir_banco, ambiente_isolado  # noqa: E402
+from servidor_e2e_h1 import GESTAO_EMAIL, GESTAO_SENHA  # noqa: E402
+
+# Preenchido pela fixture `servidores` (URLs e banco do ambiente isolado deste módulo).
+ALVO = {"base": "", "api": "", "db_path": None}
 OUT = Path(os.environ.get("E2E_SCREENSHOTS", Path(tempfile.gettempdir()) / "gt_e2e_conta_aluno"))
 
-ADMIN_EMAIL = "admin@gt.com"
-ADMIN_PASSWORD = "admin123"
+ADMIN_EMAIL = GESTAO_EMAIL
+ADMIN_PASSWORD = GESTAO_SENHA
 SENHA_NOVA = "senha-forte-2026"
 SENHA_CURTA = "curta1"  # 6 caracteres (mínimo é 8, D14)
 TIMEOUT = 5000
@@ -85,13 +95,11 @@ class Falha(Exception):
 
 
 def _seed_backend():
-    """Importa a camada de banco e o módulo de produção de token. Só leitura de código de produção."""
-    if str(BACKEND) not in sys.path:
-        sys.path.insert(0, str(BACKEND))
-    from db import Database
+    """Camada de banco apontada para o arquivo temporário do backend de teste e o módulo de produção de token.
+    Só leitura de código de produção; o backend/db.sqlite de desenvolvimento nunca é aberto."""
+    Database = abrir_banco(ALVO["db_path"])
     from core.password_setup import emitir_token_definicao
 
-    Database.init_db()
     return Database, emitir_token_definicao
 
 
@@ -132,7 +140,7 @@ def login_api(email, senha):
     """POST /api/token direto. Devolve (status_http, corpo_json_ou_None)."""
     dados = urllib.parse.urlencode({"username": email, "password": senha}).encode()
     req = urllib.request.Request(
-        API + "/api/token", data=dados,
+        ALVO["api"] + "/api/token", data=dados,
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
     try:
@@ -153,7 +161,7 @@ def caminho_da_tela(url):
 
 def exigir_rota(page, caminho_com_query, rotulo):
     """Abre a rota e exige que a URL final continue nela (o curinga '**' redireciona para '/')."""
-    page.goto(BASE + caminho_com_query, wait_until="networkidle")
+    page.goto(ALVO["base"] + caminho_com_query, wait_until="networkidle")
     esperado = urllib.parse.urlparse(caminho_com_query).path.rstrip("/")
     if caminho_da_url(page.url) != esperado:
         raise Falha(f"{rotulo}: rota {esperado} não existe (URL final {page.url}; o curinga redirecionou)")
@@ -210,6 +218,14 @@ def login_na_tela(page, email, senha, rotulo):
 
 
 @pytest.fixture(scope="module")
+def servidores():
+    """Backend de teste (banco e cursos temporários) e Angular; derruba tudo ao final."""
+    with ambiente_isolado("e2") as ambiente:
+        ALVO.update(base=ambiente["base"], api=ambiente["api"], db_path=ambiente["db_path"])
+        yield ambiente
+
+
+@pytest.fixture(scope="module")
 def browser():
     with sync_api.sync_playwright() as p:
         navegador = p.chromium.launch()
@@ -219,7 +235,7 @@ def browser():
             navegador.close()
 
 
-def test_e2_conta_aluno_angular_e2e(browser):
+def test_e2_conta_aluno_angular_e2e(servidores, browser):
     OUT.mkdir(parents=True, exist_ok=True)
     resultados = []
     erros_console = []
