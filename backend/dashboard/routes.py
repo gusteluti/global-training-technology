@@ -44,6 +44,10 @@ async def dashboard_cursos(current_user: AuthContext = Depends(require_staff)):
     """
     catalog = {course["id"]: course for course in list_course_summaries()}
     overview_by_course = {row["course_id"]: row for row in Database.get_courses_overview()}
+    classes_by_course = {}
+    for turma in Database.list_classes():
+        classes_by_course.setdefault(turma["course_id"], []).append(turma)
+    unassigned_by_course = Database.get_unassigned_counts()
 
     courses = []
     for course_id, course in catalog.items():
@@ -61,6 +65,9 @@ async def dashboard_cursos(current_user: AuthContext = Depends(require_staff)):
             "approved_enrollments": approved_enrollments,
             "pending_enrollments": overview.get("pending_enrollments", 0) or 0,
             "conversion_rate": round(conversion_rate, 1),
+            # L1 (D53): inscritos por turma e matrículas ativas/pendentes ainda sem turma.
+            "classes": classes_by_course.get(course_id, []),
+            "unassigned": unassigned_by_course.get(course_id, {"total": 0, "active": 0, "pending": 0}),
         })
 
     courses.sort(key=lambda course: course["total_enrollments"], reverse=True)
