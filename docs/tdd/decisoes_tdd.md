@@ -901,3 +901,17 @@ agente-testes: tolerância de validade de 5 min; o limite de 3 tokens por hora c
 invalida um `setup` aberto (mesma conta **e** finalidade); o aviso de senha alterada não contém `redefinir-senha`. O D7
 (8 pedidos simultâneos geram no máximo 3 tokens) exige que a contagem e a emissão do limite sejam atômicas
 (`BEGIN IMMEDIATE`), exigência mantida.
+
+## D62 — recuperação de senha do aluno entregue (06/10/2026), aguardando validação do PM
+Ciclo: testes vermelhos de backend `0e9a040` (93 falham); backend `b7b1390` (93/93); e2e vermelho `77acad7` (2/10);
+frontend `dfbd6c2` (10/10). Reexecutado pelo orquestrador: backend **921 passed** numa execução só; e2e de recuperação
+10/10, conta do aluno 8/8, cadastro de cursos 24/24, painel 7/7; build limpo.
+Checklist: (1) fecha o item de backlog "recuperação de senha"; (2) red observado, pelo motivo certo; (3) IDOR: o alvo é
+sempre o dono do token (A3, F9); (4) não se aplica (sem material); (5) bancos antigos migram (G1 a G4), fluxo de compra
+intacto (G5); (6) não se aplica; (7) rotas públicas, funcionário nunca afetado (B1, F14); (8) e2e e build; (9) ciclo e
+documentação.
+**Para revisão do PM:** política do D60 (só aluno; resposta uniforme; 3 tokens/hora por conta; validade de 1 h;
+aviso de senha alterada; JWT já emitido não é revogado, vale até 8 h); falha de entrega do link/aviso é só logada;
+texto "Não foi possível redefinir a senha. Tente novamente." (sem `detail`) e "Não foi possível enviar o pedido. Tente
+novamente." escolhidos pelo orquestrador; o link "Ir para o login" do `definir-senha` existente gera `href` absoluto (não
+corrigido, sem teste); o envio de e-mail continua só em arquivo de desenvolvimento (SMTP real é trabalho futuro, D13).
