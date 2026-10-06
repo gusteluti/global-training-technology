@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel
-from typing import Any, List, Dict, Optional
+from pydantic import BaseModel, Field, field_validator
+from typing import Annotated, Any, List, Dict, Optional
 from dotenv import load_dotenv
+from datetime import date
 import json
+import re
 from pathlib import Path
 
 from core.security import (
@@ -46,6 +48,68 @@ class CourseInput(BaseModel):
 
 class AdminLoginInput(BaseModel):
     password: str
+
+
+# --- Turmas (L1, D53) ---------------------------------------------------------------------
+# Modelos sem extra=forbid: campos desconhecidos (user_id, course_id no PUT etc.) são ignorados;
+# o responsável vem só do token.
+
+CLASS_NAME_MAX = 80
+CLASS_CAPACITY_MAX = 2_147_483_647
+_DATA_ISO = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
+ERR_TURMA_DUPLICADA = "Já existe uma turma com esse nome neste curso."
+ERR_CAPACIDADE = "A capacidade não pode ser menor que o número de matrículas da turma."
+ERR_TURMA_COM_MATRICULAS = "A turma tem matrículas e não pode ser removida."
+ERR_TURMA_OUTRO_CURSO = "A turma pertence a outro curso."
+ERR_MATRICULA_STATUS = "Só matrículas pendentes ou ativas podem ser atribuídas a uma turma."
+ERR_TURMA_CHEIA = "A turma está cheia."
+
+ClassCapacity = Annotated[int, Field(strict=True, ge=1, le=CLASS_CAPACITY_MAX)]
+
+
+def _validar_nome_turma(valor: Optional[str]) -> str:
+    if valor is None:
+        raise ValueError("O nome da turma não pode ser vazio.")
+    nome = valor.strip()
+    if not 1 <= len(nome) <= CLASS_NAME_MAX:
+        raise ValueError(f"O nome da turma deve ter de 1 a {CLASS_NAME_MAX} caracteres.")
+    return nome
+
+
+def _validar_data_turma(valor: Optional[str]) -> Optional[str]:
+    if valor is None:
+        return None
+    if not _DATA_ISO.fullmatch(valor):
+        raise ValueError("Data inválida: use o formato AAAA-MM-DD.")
+    try:
+        date.fromisoformat(valor)
+    except ValueError:
+        raise ValueError("Data inválida: use uma data real no formato AAAA-MM-DD.")
+    return valor
+
+
+class ClassCreateInput(BaseModel):
+    course_id: str
+    name: str
+    starts_on: Optional[str] = None
+    capacity: Optional[ClassCapacity] = None
+
+    nome_valido = field_validator("name")(_validar_nome_turma)
+    data_valida = field_validator("starts_on")(_validar_data_turma)
+
+
+class ClassUpdateInput(BaseModel):
+    """Só os campos enviados mudam; null limpa starts_on e capacity (o nome não pode ser nulo)."""
+    name: Optional[str] = None
+    starts_on: Optional[str] = None
+    capacity: Optional[ClassCapacity] = None
+
+    nome_valido = field_validator("name")(_validar_nome_turma)
+    data_valida = field_validator("starts_on")(_validar_data_turma)
+
+
+class EnrollmentClassInput(BaseModel):
+    class_id: Optional[Annotated[int, Field(strict=True)]]
 
 # Campos do curso auditados na edição (D45). Os de lista ausentes no arquivo valem [].
 COURSE_AUDIT_FIELDS = [
@@ -381,3 +445,156 @@ def list_course_summaries() -> List[Dict]:
                     "level": course_data.get('level')
                 })
     return courses
+
+
+# --- Turmas: rotas (L1, D53) --------------------------------------------------------------
+
+TURMA_CAMPOS = ("name", "starts_on", "capacity")
+
+
+def _curso_existe(course_id: str) -> bool:
+    """O curso existe no catálogo (arquivo JSON). Id com separador de caminho nunca existe."""
+    if not course_id or course_id in (".", "..") or "/" in course_id or "\\" in course_id:
+        return False
+    try:
+        load_course_data(course_id)
+    except HTTPException:
+        return False
+    return True
+
+
+def _mudancas_turma(before: Dict, after: Dict) -> List[Dict]:
+    return [change(campo, before.get(campo), after.get(campo))
+            for campo in TURMA_CAMPOS if before.get(campo) != after.get(campo)]
+
+
+def _descrever_turma(valores: Dict) -> str:
+    partes = [f"'{valores.get('name')}'"]
+    if valores.get("starts_on"):
+        partes.append(f"início {valores['starts_on']}")
+    if valores.get("capacity") is not None:
+        partes.append(f"capacidade {valores['capacity']}")
+    return ", ".join(partes)
+
+
+@router.get("/classes")
+async def list_classes(
+    course_id: Optional[str] = None,
+    current_user: AuthContext = Depends(require_staff),
+):
+    """Turmas com contagens (enrolled = ativas, pending, total). Sem `course_id`, todas as turmas."""
+    return {"status": "success", "classes": Database.list_classes(course_id)}
+
+
+@router.post("/classes")
+async def create_class(body: ClassCreateInput, current_user: AuthContext = Depends(require_roles(Role.ADMIN))):
+    if not _curso_existe(body.course_id):
+        raise HTTPException(status_code=404, detail="Course not found")
+    class_id = Database.create_class(body.course_id, body.name, body.starts_on, body.capacity)
+    if class_id is None:
+        raise HTTPException(status_code=409, detail=ERR_TURMA_DUPLICADA)
+    novos = {"name": body.name, "starts_on": body.starts_on, "capacity": body.capacity}
+    record_audit(
+        "class.create",
+        f"Turma {_descrever_turma(novos)} criada no curso {body.course_id}",
+        user=current_user,
+        entity_type="class",
+        entity_id=class_id,
+        changes=[change("name", None, body.name)] + [
+            change(campo, None, novos[campo]) for campo in ("starts_on", "capacity") if novos[campo] is not None
+        ],
+    )
+    return {"status": "success", "class": Database.get_class(class_id)}
+
+
+@router.put("/classes/{class_id}")
+async def update_class(
+    class_id: int,
+    body: ClassUpdateInput,
+    current_user: AuthContext = Depends(require_roles(Role.ADMIN)),
+):
+    enviados = {campo: getattr(body, campo) for campo in TURMA_CAMPOS if campo in body.model_fields_set}
+    resultado = Database.update_class(class_id, enviados)
+    if resultado["outcome"] == "not_found":
+        raise HTTPException(status_code=404, detail="Class not found")
+    if resultado["outcome"] == "duplicate_name":
+        raise HTTPException(status_code=409, detail=ERR_TURMA_DUPLICADA)
+    if resultado["outcome"] == "capacity_below_total":
+        raise HTTPException(status_code=409, detail=ERR_CAPACIDADE)
+    mudancas = _mudancas_turma(resultado["before"], resultado["after"])
+    if mudancas:  # PUT sem alteração real não grava evento
+        record_audit(
+            "class.update",
+            f"Turma '{resultado['before']['name']}' do curso {resultado['course_id']} atualizada",
+            user=current_user,
+            entity_type="class",
+            entity_id=class_id,
+            changes=mudancas,
+        )
+    return {"status": "success", "class": Database.get_class(class_id)}
+
+
+@router.delete("/classes/{class_id}")
+async def delete_class(class_id: int, current_user: AuthContext = Depends(require_roles(Role.ADMIN))):
+    resultado = Database.delete_class(class_id)
+    if resultado["outcome"] == "not_found":
+        raise HTTPException(status_code=404, detail="Class not found")
+    if resultado["outcome"] == "has_enrollments":
+        raise HTTPException(status_code=409, detail=ERR_TURMA_COM_MATRICULAS)
+    antes = resultado["before"]
+    record_audit(
+        "class.delete",
+        f"Turma {_descrever_turma(antes)} do curso {resultado['course_id']} removida",
+        user=current_user,
+        entity_type="class",
+        entity_id=class_id,
+        changes=[change("name", antes["name"], None)] + [
+            change(campo, antes[campo], None) for campo in ("starts_on", "capacity") if antes[campo] is not None
+        ],
+    )
+    return {"status": "success", "message": "Turma removida."}
+
+
+@router.get("/enrollments")
+async def list_course_enrollments(
+    course_id: str,
+    current_user: AuthContext = Depends(require_roles(Role.ADMIN, Role.SUPPORT)),
+):
+    """Matrículas de um curso (nome, e-mail, status, turma). Sem dado de pagamento."""
+    return {"status": "success", "enrollments": Database.list_enrollments_for_course(course_id)}
+
+
+@router.put("/enrollments/{enrollment_id}/class")
+async def set_enrollment_class(
+    enrollment_id: int,
+    body: EnrollmentClassInput,
+    current_user: AuthContext = Depends(require_roles(Role.ADMIN)),
+):
+    """Atribui a matrícula a uma turma do mesmo curso (ou remove com `class_id` nulo). O responsável é o token."""
+    resultado = Database.assign_enrollment_class(enrollment_id, body.class_id)
+    outcome = resultado["outcome"]
+    if outcome == "enrollment_not_found":
+        raise HTTPException(status_code=404, detail="Enrollment not found")
+    if outcome == "class_not_found":
+        raise HTTPException(status_code=404, detail="Class not found")
+    if outcome == "other_course":
+        raise HTTPException(status_code=409, detail=ERR_TURMA_OUTRO_CURSO)
+    if outcome == "invalid_status":
+        raise HTTPException(status_code=409, detail=ERR_MATRICULA_STATUS)
+    if outcome == "full":
+        raise HTTPException(status_code=409, detail=ERR_TURMA_CHEIA)
+    if outcome == "changed":
+        antes, depois = resultado["before_class"], resultado["after_class"]
+
+        def nome(turma):
+            return f"'{turma['name']}'" if turma else "sem turma"
+
+        record_audit(
+            "enrollment.class_change",
+            f"Matrícula {enrollment_id} do curso {resultado['course_id']}: turma {nome(antes)} -> {nome(depois)}",
+            user=current_user,
+            entity_type="enrollment",
+            entity_id=enrollment_id,
+            changes=[change("class_id", antes["id"] if antes else None, depois["id"] if depois else None)],
+        )
+    return {"status": "success", "enrollment_id": enrollment_id, "class_id": body.class_id}

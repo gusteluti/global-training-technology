@@ -27,6 +27,21 @@ class Database:
             conn.close()
             raise
 
+        # L1 (D53): turmas. Matrícula sem turma tem class_id nulo; bancos antigos ganham a coluna sem perda.
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS classes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                course_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                starts_on TEXT,
+                capacity INTEGER CHECK (capacity IS NULL OR capacity >= 1),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (course_id, name)
+            )
+        """)
+        Database._ensure_column(cursor, "enrollments", "class_id", "INTEGER")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_enrollments_class ON enrollments (class_id)")
+
         # Payments table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS payments (
@@ -193,6 +208,7 @@ class Database:
                 CHECK (status IN ('pending', 'active', 'cancelled', 'refunded')),
             external_reference TEXT,
             enrolled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            class_id INTEGER,
             FOREIGN KEY (user_id) REFERENCES users(id)
         )
     """
@@ -1199,6 +1215,270 @@ class Database:
         rows = cursor.fetchall()
         conn.close()
         return [dict(row) for row in rows]
+
+    # --- Turmas (L1, D53) -------------------------------------------------------------------------
+    # Contam nos números da turma só as matrículas 'active' e 'pending'; cancelled/refunded mantêm class_id
+    # (histórico) mas não contam.
+
+    _SQL_TURMAS = """
+        SELECT c.id, c.course_id, c.name, c.starts_on, c.capacity,
+               COALESCE(SUM(CASE WHEN e.status = 'active' THEN 1 ELSE 0 END), 0) AS enrolled,
+               COALESCE(SUM(CASE WHEN e.status = 'pending' THEN 1 ELSE 0 END), 0) AS pending,
+               COUNT(e.id) AS total
+        FROM classes c
+        LEFT JOIN enrollments e ON e.class_id = c.id AND e.status IN ('active', 'pending')
+        {where}
+        GROUP BY c.id
+        ORDER BY c.course_id, (c.starts_on IS NULL), c.starts_on, c.name, c.id
+    """
+
+    @staticmethod
+    def _id_sqlite_valido(valor) -> bool:
+        """Inteiro que cabe no INTEGER do SQLite (ids enormes vindos da URL não devem virar 500)."""
+        return isinstance(valor, int) and -(2 ** 63) <= valor < 2 ** 63
+
+    @staticmethod
+    def list_classes(course_id: Optional[str] = None) -> List[Dict]:
+        """Turmas com contagens (enrolled=active, pending, total), por curso e depois por data e nome."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            if course_id is None:
+                rows = conn.execute(Database._SQL_TURMAS.format(where="")).fetchall()
+            else:
+                rows = conn.execute(
+                    Database._SQL_TURMAS.format(where="WHERE c.course_id = ?"), (course_id,)
+                ).fetchall()
+            return [dict(row) for row in rows]
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_class(class_id: int) -> Optional[Dict]:
+        """Uma turma com contagens, ou None."""
+        if not Database._id_sqlite_valido(class_id):
+            return None
+        conn = sqlite3.connect(Database.DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            row = conn.execute(
+                Database._SQL_TURMAS.format(where="WHERE c.id = ?"), (class_id,)
+            ).fetchone()
+            return dict(row) if row else None
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_unassigned_counts() -> Dict[str, Dict]:
+        """Por curso: matrículas pending/active sem turma ({"total", "active", "pending"})."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        try:
+            rows = conn.execute(
+                """SELECT course_id,
+                          SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END),
+                          SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END)
+                   FROM enrollments
+                   WHERE class_id IS NULL AND status IN ('active', 'pending')
+                   GROUP BY course_id"""
+            ).fetchall()
+            return {
+                course_id: {"total": (ativas or 0) + (pendentes or 0), "active": ativas or 0, "pending": pendentes or 0}
+                for course_id, ativas, pendentes in rows
+            }
+        finally:
+            conn.close()
+
+    @staticmethod
+    def create_class(course_id: str, name: str, starts_on: Optional[str], capacity: Optional[int]) -> Optional[int]:
+        """Cria a turma. None se o par (curso, nome) já existe."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        try:
+            cursor = conn.execute(
+                "INSERT INTO classes (course_id, name, starts_on, capacity) VALUES (?, ?, ?, ?)",
+                (course_id, name, starts_on, capacity),
+            )
+            conn.commit()
+            return cursor.lastrowid
+        except sqlite3.IntegrityError:
+            return None
+        finally:
+            conn.close()
+
+    @staticmethod
+    def update_class(class_id: int, changes: Dict) -> Dict:
+        """Atualização parcial atômica (BEGIN IMMEDIATE). `changes` tem só os campos enviados
+        (name, starts_on, capacity; None limpa starts_on e capacity).
+
+        `outcome`: not_found | duplicate_name | capacity_below_total | updated. Em `updated` devolve
+        `before` e `after` (name, starts_on, capacity); nada é gravado nos demais casos.
+        """
+        if not Database._id_sqlite_valido(class_id):
+            return {"outcome": "not_found"}
+        conn = Database._abrir_transacao_imediata()
+        try:
+            atual = conn.execute(
+                "SELECT id, course_id, name, starts_on, capacity FROM classes WHERE id = ?", (class_id,)
+            ).fetchone()
+            if atual is None:
+                conn.execute("ROLLBACK")
+                return {"outcome": "not_found"}
+            before = {campo: atual[campo] for campo in ("name", "starts_on", "capacity")}
+            after = {**before, **changes}
+
+            if after["name"] != before["name"]:
+                repetido = conn.execute(
+                    "SELECT 1 FROM classes WHERE course_id = ? AND name = ? AND id != ?",
+                    (atual["course_id"], after["name"], class_id),
+                ).fetchone()
+                if repetido is not None:
+                    conn.execute("ROLLBACK")
+                    return {"outcome": "duplicate_name"}
+            if "capacity" in changes and after["capacity"] is not None:
+                total = conn.execute(
+                    "SELECT COUNT(*) FROM enrollments WHERE class_id = ? AND status IN ('active', 'pending')",
+                    (class_id,),
+                ).fetchone()[0]
+                if after["capacity"] < total:
+                    conn.execute("ROLLBACK")
+                    return {"outcome": "capacity_below_total"}
+
+            conn.execute(
+                "UPDATE classes SET name = ?, starts_on = ?, capacity = ? WHERE id = ?",
+                (after["name"], after["starts_on"], after["capacity"], class_id),
+            )
+            conn.execute("COMMIT")
+            return {"outcome": "updated", "course_id": atual["course_id"], "before": before, "after": after}
+        except sqlite3.IntegrityError:
+            if conn.in_transaction:
+                conn.execute("ROLLBACK")
+            return {"outcome": "duplicate_name"}
+        except Exception:
+            if conn.in_transaction:
+                conn.execute("ROLLBACK")
+            raise
+        finally:
+            conn.close()
+
+    @staticmethod
+    def delete_class(class_id: int) -> Dict:
+        """Remove a turma, atômico. `outcome`: not_found | has_enrollments (qualquer status, histórico) | deleted.
+        Em `deleted` devolve `before` (name, starts_on, capacity)."""
+        if not Database._id_sqlite_valido(class_id):
+            return {"outcome": "not_found"}
+        conn = Database._abrir_transacao_imediata()
+        try:
+            atual = conn.execute(
+                "SELECT course_id, name, starts_on, capacity FROM classes WHERE id = ?", (class_id,)
+            ).fetchone()
+            if atual is None:
+                conn.execute("ROLLBACK")
+                return {"outcome": "not_found"}
+            if conn.execute("SELECT 1 FROM enrollments WHERE class_id = ? LIMIT 1", (class_id,)).fetchone():
+                conn.execute("ROLLBACK")
+                return {"outcome": "has_enrollments"}
+            conn.execute("DELETE FROM classes WHERE id = ?", (class_id,))
+            conn.execute("COMMIT")
+            return {"outcome": "deleted", "course_id": atual["course_id"],
+                    "before": {campo: atual[campo] for campo in ("name", "starts_on", "capacity")}}
+        except Exception:
+            if conn.in_transaction:
+                conn.execute("ROLLBACK")
+            raise
+        finally:
+            conn.close()
+
+    @staticmethod
+    def list_enrollments_for_course(course_id: str) -> List[Dict]:
+        """Matrículas de um curso para a Gestão/Suporte. Sem dados de pagamento nem de conta além de nome e e-mail."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            rows = conn.execute(
+                """SELECT e.id, u.name AS student_name, u.email AS student_email,
+                          e.status, e.class_id, e.enrolled_at
+                   FROM enrollments e JOIN users u ON u.id = e.user_id
+                   WHERE e.course_id = ?
+                   ORDER BY e.id""",
+                (course_id,),
+            ).fetchall()
+            return [dict(row) for row in rows]
+        finally:
+            conn.close()
+
+    @staticmethod
+    def assign_enrollment_class(enrollment_id: int, class_id: Optional[int]) -> Dict:
+        """Atribui a matrícula a uma turma (ou remove com None). Atômico (BEGIN IMMEDIATE): a checagem de
+        capacidade e a gravação acontecem na mesma transação, então duas atribuições simultâneas não
+        estouram a última vaga.
+
+        `outcome`: enrollment_not_found | class_not_found | other_course | invalid_status | full |
+        unchanged (já estava assim, sem alteração) | changed. Em unchanged/changed devolve `before_class` e
+        `after_class` ({id, name} ou None) e `course_id`.
+        """
+        if not Database._id_sqlite_valido(enrollment_id):
+            return {"outcome": "enrollment_not_found"}
+        if class_id is not None and not Database._id_sqlite_valido(class_id):
+            return {"outcome": "class_not_found"}
+        conn = Database._abrir_transacao_imediata()
+        try:
+            matricula = conn.execute(
+                "SELECT id, course_id, status, class_id FROM enrollments WHERE id = ?", (enrollment_id,)
+            ).fetchone()
+            if matricula is None:
+                conn.execute("ROLLBACK")
+                return {"outcome": "enrollment_not_found"}
+
+            def turma_ref(turma_id):
+                if turma_id is None:
+                    return None
+                linha = conn.execute("SELECT id, name FROM classes WHERE id = ?", (turma_id,)).fetchone()
+                return {"id": turma_id, "name": linha["name"] if linha else None}
+
+            before_class = turma_ref(matricula["class_id"])
+            base = {"course_id": matricula["course_id"], "before_class": before_class}
+
+            if class_id is None:
+                if matricula["class_id"] is None:
+                    conn.execute("ROLLBACK")
+                    return {"outcome": "unchanged", **base, "after_class": None}
+                conn.execute("UPDATE enrollments SET class_id = NULL WHERE id = ?", (enrollment_id,))
+                conn.execute("COMMIT")
+                return {"outcome": "changed", **base, "after_class": None}
+
+            turma = conn.execute(
+                "SELECT id, course_id, name, capacity FROM classes WHERE id = ?", (class_id,)
+            ).fetchone()
+            if turma is None:
+                conn.execute("ROLLBACK")
+                return {"outcome": "class_not_found"}
+            if turma["course_id"] != matricula["course_id"]:
+                conn.execute("ROLLBACK")
+                return {"outcome": "other_course"}
+            if matricula["status"] not in ("pending", "active"):
+                conn.execute("ROLLBACK")
+                return {"outcome": "invalid_status"}
+            after_class = {"id": turma["id"], "name": turma["name"]}
+            if matricula["class_id"] == class_id:
+                conn.execute("ROLLBACK")
+                return {"outcome": "unchanged", **base, "after_class": after_class}
+            if turma["capacity"] is not None:
+                ocupadas = conn.execute(
+                    "SELECT COUNT(*) FROM enrollments "
+                    "WHERE class_id = ? AND status IN ('active', 'pending') AND id != ?",
+                    (class_id, enrollment_id),
+                ).fetchone()[0]
+                if ocupadas >= turma["capacity"]:
+                    conn.execute("ROLLBACK")
+                    return {"outcome": "full"}
+            conn.execute("UPDATE enrollments SET class_id = ? WHERE id = ?", (class_id, enrollment_id))
+            conn.execute("COMMIT")
+            return {"outcome": "changed", **base, "after_class": after_class}
+        except Exception:
+            if conn.in_transaction:
+                conn.execute("ROLLBACK")
+            raise
+        finally:
+            conn.close()
 
     @staticmethod
     def get_courses_overview() -> List[Dict]:

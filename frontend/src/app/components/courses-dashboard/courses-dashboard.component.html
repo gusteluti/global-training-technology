@@ -41,3 +41,107 @@
     </div>
   </div>
 </div>
+
+<div class="card mt-3">
+  <div class="card-body">
+    <h5>Turmas por curso</h5>
+    <div *ngFor="let c of courses" class="mb-3">
+      <h6 class="mb-1">{{ c.name || c.id }}</h6>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-1">
+          <thead>
+            <tr>
+              <th>Turma</th>
+              <th>Ativas</th>
+              <th>Pendentes</th>
+              <th>Capacidade</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let t of c.classes" data-testid="turma-row">
+              <td data-testid="turma-name">{{ t.name }}</td>
+              <td data-testid="turma-enrolled">{{ t.enrolled }}</td>
+              <td data-testid="turma-pending">{{ t.pending }}</td>
+              <td data-testid="turma-capacity">{{ t.capacity != null ? t.capacity : '—' }}</td>
+            </tr>
+            <tr *ngIf="!c.classes || c.classes.length === 0">
+              <td colspan="4" class="text-muted">Nenhuma turma neste curso.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="small text-muted">
+        Matrículas sem turma (ativas/pendentes):
+        <span data-testid="turma-unassigned">{{ c.unassigned?.active ?? 0 }}/{{ c.unassigned?.pending ?? 0 }}</span>
+      </div>
+    </div>
+    <div *ngIf="courses.length === 0" class="text-muted">Nenhum curso cadastrado.</div>
+  </div>
+</div>
+
+<div class="card mt-3" *ngIf="canManage">
+  <div class="card-body">
+    <h5>Gerenciar turmas</h5>
+    <div class="alert alert-danger" data-testid="turma-error" *ngIf="turmaError">{{ turmaError }}</div>
+
+    <div class="row g-2 align-items-end mb-3">
+      <div class="col-12 col-md-3">
+        <label class="form-label small mb-1">Curso</label>
+        <select class="form-select" data-testid="turma-new-course" [(ngModel)]="manageCourseId"
+                (ngModelChange)="onManageCourseChange()">
+          <option value="">Selecione um curso</option>
+          <option *ngFor="let c of courses" [value]="c.id">{{ c.name || c.id }}</option>
+        </select>
+      </div>
+      <div class="col-12 col-md-3">
+        <label class="form-label small mb-1">Nome da turma</label>
+        <input class="form-control" type="text" maxlength="80" data-testid="turma-new-name" [(ngModel)]="newName">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label small mb-1">Início</label>
+        <input class="form-control" type="date" data-testid="turma-new-start" [(ngModel)]="newStart">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label small mb-1">Capacidade</label>
+        <input class="form-control" type="number" min="1" data-testid="turma-new-capacity" [(ngModel)]="newCapacity">
+      </div>
+      <div class="col-12 col-md-2">
+        <button type="button" class="btn btn-primary w-100" data-testid="turma-create"
+                [disabled]="!manageCourseId || !newName.trim()" (click)="createClass()">Criar turma</button>
+      </div>
+    </div>
+
+    <h6>Matrículas do curso</h6>
+    <div class="table-responsive" *ngIf="manageCourseId">
+      <table class="table table-sm align-middle">
+        <thead>
+          <tr>
+            <th>Aluno</th>
+            <th>E-mail</th>
+            <th>Status</th>
+            <th>Turma</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let e of enrollments" data-testid="enrollment-row">
+            <td>{{ e.student_name }}</td>
+            <td>{{ e.student_email }}</td>
+            <td>{{ statusLabel(e.status) }}</td>
+            <td>
+              <select class="form-select form-select-sm" data-testid="enrollment-class-select"
+                      [disabled]="e.status !== 'active' && e.status !== 'pending'"
+                      (change)="assignClass(e, $event)">
+                <option value="" [selected]="e.class_id === null || e.class_id === undefined">Sem turma</option>
+                <option *ngFor="let t of manageClasses" [value]="t.id" [selected]="e.class_id === t.id">{{ classOptionLabel(t) }}</option>
+              </select>
+            </td>
+          </tr>
+          <tr *ngIf="enrollments.length === 0">
+            <td colspan="4" class="text-center text-muted">Nenhuma matrícula neste curso.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="text-muted" *ngIf="!manageCourseId">Escolha um curso para ver as matrículas.</div>
+  </div>
+</div>

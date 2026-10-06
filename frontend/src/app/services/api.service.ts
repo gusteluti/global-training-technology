@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { AuthService } from './auth.service';
 
 const BASE = '';
@@ -63,6 +63,21 @@ export class ApiService {
 
   public getAuditLogs() {
     return this.http.get(`${BASE}/api/admin/audit-logs`, this.authHeaders());
+  }
+
+  // Turmas (L1, D53). Escrita e leitura de matrículas são da Gestão; o responsável sempre vem do token.
+  public createClass(dados: { course_id: string; name: string; starts_on?: string; capacity?: number }) {
+    return this.http.post(`${BASE}/api/admin/classes`, dados, this.authHeaders());
+  }
+
+  public getEnrollments(courseId: string) {
+    const params = new HttpParams().set('course_id', courseId);
+    return this.http.get(`${BASE}/api/admin/enrollments`, { ...this.authHeaders(), params });
+  }
+
+  // classId: número JSON estrito, ou null para "Sem turma".
+  public setEnrollmentClass(enrollmentId: number, classId: number | null) {
+    return this.http.put(`${BASE}/api/admin/enrollments/${enrollmentId}/class`, { class_id: classId }, this.authHeaders());
   }
 
   public refundPayment(paymentId: number) {
