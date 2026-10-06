@@ -830,3 +830,19 @@ Suporte e Financeiro sem aba e 403 na API; 401 sem token ou forjado; (8) e2e e b
 porque o resumo `GET /courses` não traz `duration_hours`); esquema de URL sensível a maiúsculas; título de material
 com `|` não sobrevive à edição do campo; o interceptor remove `Authorization` de URLs fora dos 4 prefixos.
 `admin.html` continua no repo como legado (decisão do grupo).
+
+## D58 — dívidas de harness D4, D6, D7, D10: análise e contrato (06/10/2026, modo autônomo D40, fila item 7)
+- **D6** (alteração de `test_admin_angular.py` sem commit): **resolvida**; a mudança foi commitada em `578f6ea` (E9).
+- **D7** (o e2e grava em `backend/db.sqlite` de desenvolvimento e acumula): os três e2e antigos (`test_admin_angular.py`,
+  `test_e2_conta_aluno_angular.py`, `test_e3_painel_angular.py`) exigem backend e frontend já no ar em `localhost:4200`/`:8000`
+  e semeiam o banco de desenvolvimento. Os e2e novos (E5 a L2) já sobem backend e `ng serve` próprios, com banco e
+  diretório de cursos temporários. **Ação:** migrar os três antigos para o mesmo padrão (servidores próprios em portas livres,
+  `DB_PATH` temporário, diretório de cursos temporário, segredo de webhook e CORS de teste, Groq e Mercado Pago falsos quando
+  necessário), mantendo todos os checks e a intenção. `E2E_BASE_URL`/`E2E_API_URL` deixam de ser necessários (podem continuar
+  aceitos como sobrescrita). Nada deve abrir `backend/db.sqlite` nem `backend/courses`.
+- **D4** (27 de 29 checks: os dois de reembolso pela tela pulados com banco vazio): com o banco isolado o harness semeia um
+  pagamento **aprovado** (reembolso só vale para `approved`, E9) e os 29 checks rodam, sem pulos.
+- **D10** (confirmar o teste de duas compras do mesmo curso no mesmo segundo): se existir teste backend verde, citar o nome
+  e o arquivo; se não existir, escrever (guarda verde) em `backend/tests`.
+Entrega só de testes (sem código de produção). Verificação: cada e2e migrado roda verde, uma vez por vez, e `db.sqlite` e
+`backend/courses` ficam byte a byte iguais antes e depois. Sub-branch: `feature/fase2-tdd-h1-harness-e2e`.
