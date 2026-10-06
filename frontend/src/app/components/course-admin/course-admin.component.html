@@ -1,0 +1,104 @@
+<div class="card mb-3">
+  <div class="card-body">
+    <h5>Cursos cadastrados</h5>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Curso</th>
+            <th>Preço</th>
+            <th>Duração</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let c of courses" data-testid="curso-row" [attr.data-course-id]="c.id">
+            <td>{{ c.name }}</td>
+            <td>{{ c.price | currency:'BRL' }}</td>
+            <td><ng-container *ngIf="c.duration_hours !== null">{{ c.duration_hours }} h</ng-container></td>
+            <td class="text-end text-nowrap">
+              <ng-container *ngIf="deletingId !== c.id">
+                <button type="button" class="btn btn-sm btn-outline-primary me-1" data-testid="curso-edit" (click)="edit(c)">Editar</button>
+                <button type="button" class="btn btn-sm btn-outline-danger" data-testid="curso-delete" (click)="askDelete(c)">Excluir</button>
+              </ng-container>
+              <ng-container *ngIf="deletingId === c.id">
+                <span class="me-2">Remover este curso?</span>
+                <button type="button" class="btn btn-sm btn-danger me-1" data-testid="curso-delete-confirm" [disabled]="busy" (click)="confirmDelete(c)">Confirmar exclusão</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-testid="curso-cancel-delete" (click)="cancelDelete()">Cancelar</button>
+              </ng-container>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <h5>{{ editing ? 'Editar curso' : 'Novo curso' }}</h5>
+    <div class="alert alert-danger" *ngIf="error" data-testid="curso-error">{{ error }}</div>
+    <div class="alert alert-success" *ngIf="success" data-testid="curso-success">{{ success }}</div>
+
+    <form data-testid="curso-form" (ngSubmit)="save()" novalidate>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label" for="curso-id">ID do curso</label>
+          <input id="curso-id" class="form-control" name="id" data-testid="curso-id" [(ngModel)]="form.id" [readOnly]="editing" autocomplete="off">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="curso-name">Nome</label>
+          <input id="curso-name" class="form-control" name="name" data-testid="curso-name" [(ngModel)]="form.name" autocomplete="off">
+        </div>
+        <div class="col-12">
+          <label class="form-label" for="curso-description">Descrição</label>
+          <textarea id="curso-description" class="form-control" rows="2" name="description" data-testid="curso-description" [(ngModel)]="form.description"></textarea>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label" for="curso-price">Preço (R$)</label>
+          <input id="curso-price" type="number" step="any" class="form-control" name="price" data-testid="curso-price" [(ngModel)]="form.price">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label" for="curso-hours">Duração (horas)</label>
+          <input id="curso-hours" type="number" step="any" class="form-control" name="hours" data-testid="curso-hours" [(ngModel)]="form.hours">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label" for="curso-level">Nível</label>
+          <input id="curso-level" class="form-control" name="level" data-testid="curso-level" [(ngModel)]="form.level" autocomplete="off">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label" for="curso-audience">Público-alvo</label>
+          <input id="curso-audience" class="form-control" name="audience" data-testid="curso-audience" [(ngModel)]="form.audience" autocomplete="off">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label" for="curso-objectives">Objetivos (um por linha)</label>
+          <textarea id="curso-objectives" class="form-control" rows="4" name="objectives" data-testid="curso-objectives" [(ngModel)]="form.objectives"></textarea>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label" for="curso-topics">Tópicos (um por linha)</label>
+          <textarea id="curso-topics" class="form-control" rows="4" name="topics" data-testid="curso-topics" [(ngModel)]="form.topics"></textarea>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label" for="curso-benefits">Benefícios (um por linha)</label>
+          <textarea id="curso-benefits" class="form-control" rows="4" name="benefits" data-testid="curso-benefits" [(ngModel)]="form.benefits"></textarea>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="curso-faq">FAQ (uma por linha: Pergunta | Resposta)</label>
+          <textarea id="curso-faq" class="form-control" rows="4" name="faq" data-testid="curso-faq" [(ngModel)]="form.faq" placeholder="Pergunta? | Resposta"></textarea>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="curso-materials">Materiais (um por linha: Título | URL | tipo, opcional)</label>
+          <textarea id="curso-materials" class="form-control" rows="4" name="materials" data-testid="curso-materials" [(ngModel)]="form.materials" placeholder="Apostila | https://exemplo.com/apostila.pdf | pdf"></textarea>
+        </div>
+        <div class="col-12">
+          <label class="form-label" for="curso-prompt">Prompt do assistente</label>
+          <textarea id="curso-prompt" class="form-control" rows="3" name="prompt" data-testid="curso-prompt" [(ngModel)]="form.prompt"></textarea>
+        </div>
+      </div>
+      <div class="mt-3">
+        <button type="submit" class="btn btn-primary me-2" data-testid="curso-save" [disabled]="!valid || busy">Salvar curso</button>
+        <button type="button" class="btn btn-outline-secondary" data-testid="curso-cancel-edit" *ngIf="editing" (click)="cancelEdit()">Cancelar edição</button>
+      </div>
+    </form>
+  </div>
+</div>

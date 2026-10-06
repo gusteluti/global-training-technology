@@ -17,6 +17,7 @@ export class AdminDashboardComponent implements OnInit {
     { key: 'financeiro', label: 'Financeiro', roles: ['admin', 'financial'] },
     { key: 'alunos', label: 'Alunos', roles: ['admin', 'financial', 'support'] },
     { key: 'cursos', label: 'Cursos', roles: ['admin', 'financial', 'support'] },
+    { key: 'cadastro-cursos', label: 'Cadastro de cursos', roles: ['admin'] },
     { key: 'ia', label: 'Observabilidade de IA', roles: ['admin', 'financial', 'support'] },
     { key: 'auditoria', label: 'Auditoria', roles: ['admin'] }
   ];

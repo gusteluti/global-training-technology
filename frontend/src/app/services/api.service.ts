@@ -80,6 +80,27 @@ export class ApiService {
     return this.http.put(`${BASE}/api/admin/enrollments/${enrollmentId}/class`, { class_id: classId }, this.authHeaders());
   }
 
+  // Cadastro de cursos (L2, D56). Leitura é da equipe; escrita só da Gestão (a API devolve 403 aos demais).
+  public getAdminCourses() {
+    return this.http.get(`${BASE}/api/admin/courses`, this.authHeaders());
+  }
+
+  public getAdminCourse(courseId: string) {
+    return this.http.get(`${BASE}/api/admin/course/${encodeURIComponent(courseId)}`, this.authHeaders());
+  }
+
+  public createCourse(curso: any) {
+    return this.http.post(`${BASE}/api/admin/create-course`, curso, this.authHeaders());
+  }
+
+  public updateCourse(courseId: string, curso: any) {
+    return this.http.put(`${BASE}/api/admin/course/${encodeURIComponent(courseId)}`, curso, this.authHeaders());
+  }
+
+  public deleteCourse(courseId: string) {
+    return this.http.delete(`${BASE}/api/admin/course/${encodeURIComponent(courseId)}`, this.authHeaders());
+  }
+
   public refundPayment(paymentId: number) {
     return this.http.post(`${BASE}/api/payments/refund/${paymentId}`, {}, this.authHeaders());
   }

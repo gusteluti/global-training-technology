@@ -784,3 +784,49 @@ bancos antigos migram e aparecem "sem turma"; (6) não se aplica; (7) 401/403 po
 máxima 2147483647; matrícula que volta de `cancelled` para `pending` por webhook pode ultrapassar a capacidade;
 tela sem edição nem exclusão de turma (a API tem); o aluno não vê a própria turma; fallback de erro "Não foi
 possível concluir a operação." escolhido pelo orquestrador.
+
+## D56 — cadastro de cursos no Angular e higiene do interceptor: contrato (06/10/2026, modo autônomo D40, fila item 6)
+**Lacunas:** (a) o cadastro de cursos só existe no `frontend/admin.html` (legado); precisa ser portado para o Angular antes
+de o legado sair do repo (PENDENCIAS, seção 4); (b) o interceptor anexa `Authorization` a qualquer chamada quando há token.
+Backend pronto e inalterado (`GET /api/admin/courses`, `GET/PUT/DELETE /api/admin/course/{id}`, `POST /api/admin/create-course`;
+só Gestão escreve; trilha da E8).
+
+**(a) Aba "Cadastro de cursos"** na área administrativa (chave `cadastro-cursos`), **visível só para Gestão**. Componente
+novo `course-admin`. Lista dos cursos e formulário, `data-testid`:
+- lista: `curso-row` (atributo `data-course-id`, nome, preço e duração), `curso-edit`, `curso-delete`, `curso-delete-confirm`
+  (confirmação na própria tela, sem `window.confirm`), `curso-cancel-delete`;
+- formulário: `curso-form`, `curso-id` (somente leitura na edição), `curso-name`, `curso-description`, `curso-price`,
+  `curso-hours`, `curso-level`, `curso-audience`, `curso-objectives`, `curso-topics`, `curso-benefits` (listas: um item por
+  linha), `curso-faq` (uma linha por item: `Pergunta | Resposta`), `curso-prompt`, `curso-materials` (uma linha por item:
+  `Título | URL | tipo`, tipo opcional, padrão `link`), `curso-save`, `curso-cancel-edit`, `curso-error`, `curso-success`.
+- Regras da tela: todos os campos obrigatórios, exceto materiais; preço maior que zero; duração inteira maior que zero; `curso-save`
+  desabilitado enquanto inválido; FAQ sem `|` mostra em `curso-error` "Cada linha do FAQ deve ter o formato: Pergunta | Resposta."
+  e não envia; URL de material que não comece com `http://` ou `https://` mostra "A URL do material deve começar com http:// ou
+  https://." e não envia; erro da API aparece em `curso-error` exatamente como o `detail` recebido (texto), com
+  "Não foi possível concluir a operação." se o `detail` não for texto.
+- Criar: `POST /api/admin/create-course`; editar: carrega `GET /api/admin/course/{id}` no formulário e salva com `PUT`
+  enviando **sempre** `materials` (os carregados, ou os editados); excluir: `curso-delete` mostra `curso-delete-confirm`, só
+  a confirmação chama `DELETE`. A lista é recarregada depois de cada operação e `curso-success` mostra "Curso salvo." ou
+  "Curso removido.". A edição e a exclusão aparecem na trilha da E8 com o gestor logado. Suporte e Financeiro não veem a aba
+  nem a rota (e a API deles dá 403).
+**(b) Interceptor:** `Authorization: Bearer` só é anexado a URLs cujo caminho começa com `/api/admin/`, `/api/dashboard/`,
+`/api/student/` ou `/api/payments/refund/`. Nenhuma outra chamada leva o token (inclui `/api/token`, `/api/auth/*`, `/api/chat`,
+`/api/courses`, `/api/payments/create-checkout` e `/api/payments/webhook`), mesmo com token no navegador.
+**Fora do escopo:** remover `admin.html` (decisão do grupo; fica como legado), reordenar cursos, upload de arquivos de material.
+Sub-branch: `feature/fase2-tdd-l2-cadastro-cursos`.
+
+## D57 — cadastro de cursos no Angular e interceptor entregues (06/10/2026), aguardando validação do PM
+Ciclo: e2e vermelho `570f25e` (5/24); frontend `74c1066` (23/24 por defeito do teste, N4/K1: o dev parou e reportou,
+sem alterar teste); correção do teste pelo agente-testes `cd53fc9` (D56, autoridade 4.3; espera da resposta provocada);
+24/24. Reexecutado pelo orquestrador: build limpo; e2e da L2 24/24, turmas 16/16, auditoria 17/17, observabilidade
+11/11, chat do aluno 11/11, dashboard de alunos 9/9, landing 8/8. Backend inalterado (828 passed, D55).
+Checklist: (1) porta o cadastro de cursos do `admin.html` e corrige a higiene do interceptor (PENDENCIAS); (2) red
+observado, pelo motivo certo; (3) IDOR não se aplica; o responsável da trilha vem do token; (4) materiais: A1 e E4
+(aluno ativo vê os novos, pendente não vê); (5) PUT preserva materiais; (6) o PUT sempre envia `materials`; (7)
+Suporte e Financeiro sem aba e 403 na API; 401 sem token ou forjado; (8) e2e e build; (9) ciclo e documentação.
+**Para revisão do PM:** rótulos escolhidos pelo orquestrador/dev ("Cadastro de cursos", "Editar", "Excluir",
+"Confirmar exclusão", "Salvar curso", "Cancelar edição", "Novo curso", "Remover este curso?", "Curso salvo.",
+"Curso removido.", mensagem de material sem título); duração na lista via N+1 (`GET /course/{id}` por curso,
+porque o resumo `GET /courses` não traz `duration_hours`); esquema de URL sensível a maiúsculas; título de material
+com `|` não sobrevive à edição do campo; o interceptor remove `Authorization` de URLs fora dos 4 prefixos.
+`admin.html` continua no repo como legado (decisão do grupo).

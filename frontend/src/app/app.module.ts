@@ -13,6 +13,7 @@ import { AdminDashboardComponent } from './components/admin-dashboard/admin-dash
 import { FinancialDashboardComponent } from './components/financial-dashboard/financial-dashboard.component';
 import { StudentsDashboardComponent } from './components/students-dashboard/students-dashboard.component';
 import { CoursesDashboardComponent } from './components/courses-dashboard/courses-dashboard.component';
+import { CourseAdminComponent } from './components/course-admin/course-admin.component';
 import { AiObservabilityComponent } from './components/ai-observability/ai-observability.component';
 import { AuditLogsComponent } from './components/audit-logs/audit-logs.component';
 import { CadastroComponent } from './components/cadastro/cadastro.component';
@@ -31,6 +32,7 @@ registerLocaleData(localePt);
     FinancialDashboardComponent,
     StudentsDashboardComponent,
     CoursesDashboardComponent,
+    CourseAdminComponent,
     AiObservabilityComponent,
     AuditLogsComponent,
     CadastroComponent,

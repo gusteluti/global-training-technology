@@ -20,6 +20,7 @@ Fonte do escopo: `Escopo_Fase2_Global_Training_Technology.pdf`, na raiz do repo.
 | **E8 — Auditoria com usuário responsável** | Trilha com a pessoa responsável (id, e-mail, nome, perfil, vindos do token), alteração estruturada antes/depois, entidade, estampa de tempo, login de funcionário (sucesso e falha), append-only por trigger, filtros e limite no endpoint, sem rotas de escrita. Tela `audit-logs` atualizada. Entregue 06/10/2026; **aguardando validação do PM** (D47). | testes `8ebb6dd`, e2e `162b8fd`; backend `56f91be`; frontend `8131b2e` |
 | **E9 — Hardening de pagamento** (acréscimo do PM, fora do PDF) | Assinatura do webhook (fail closed), validação de tópico e id, conferência de valor e moeda, máquina de estados e transição atômica, efeitos colaterais uma vez só, índice único de `transaction_id`, `charged_back` revoga acesso, reembolso só de pagamento aprovado e idempotente, CORS por lista, erro do gateway sem vazar corpo. Entregue 06/10/2026; **aguardando validação do PM** (D50). | testes `a9e9042`, `578f6ea`, `99ca939`; backend `feaa9db` |
 | **Turmas (lacuna do dashboard de cursos)** | Tabela `classes`, matrícula atribuível a uma turma por Gestão, capacidade, contagens por turma e "sem turma" no dashboard, auditoria da E8, tela de gestão (Gestão) e números (todos os perfis). Entregue 06/10/2026; **aguardando validação do PM** (D55). | testes `eb6acf7`, e2e `1a42c8b`; backend `21218b8`; frontend `71a7c63` |
+| **Cadastro de cursos no Angular + interceptor** | Aba "Cadastro de cursos" (só Gestão) com criar, editar e excluir cursos, listas por linha, FAQ, materiais com validação de URL, trilha da E8; interceptor só anexa o token a `/api/admin/`, `/api/dashboard/`, `/api/student/` e `/api/payments/refund/`. Entregue 06/10/2026; **aguardando validação do PM** (D57). | e2e `570f25e`, `cd53fc9`; frontend `74c1066` |
 
 Os dois obrigatórios da E3 (**IDOR** e **material só com matrícula ativa**) foram provados por suíte e por sondagem independente de HTTP (38/38). Detalhes no `HANDOFF_TDD.md`, seção 2.
 
@@ -31,7 +32,7 @@ E4: regressão integral de backend registrada depois do fechamento — **88 pass
 
 ## 2. Em andamento
 
-Modo autônomo (D40): ver `docs/tdd/RELATORIO_NOITE.md`. E5 (D37), E6 (D41), E7 (D44), E8 (D47) e E9 (D50) entregues, aguardando validação do PM. Dívidas de segurança resolvidas (D52); turmas entregues (D55). Próximo: cadastro de cursos no Angular e interceptor (fila D40).
+Modo autônomo (D40): ver `docs/tdd/RELATORIO_NOITE.md`. E5 (D37), E6 (D41), E7 (D44), E8 (D47) e E9 (D50) entregues, aguardando validação do PM. Dívidas de segurança resolvidas (D52); turmas entregues (D55). Cadastro de cursos no Angular e interceptor entregues (D57). Próximo: dívidas de harness e backlog (fila D40).
 
 ---
 
@@ -58,7 +59,7 @@ Componentes em `frontend/src/app/components/`: `admin-dashboard`, `students-dash
 - **"Histórico de interações" no dashboard de alunos** só mostra o total de sessões, porque o chat ainda é **anônimo**. Resolvido na **E5** para o chat autenticado (contagem e data da última conversa por aluno); o chat anônimo da landing page segue fora desse histórico.
 - **Observabilidade de IA vivia em memória.** Resolvido na **E7** (persistida em banco, D44).
 
-**Versão antiga, superada:** `feature/fase2-painel-administrativo` (`aa619ac`, 09/09) é a **versão antiga** dessa mesma área, em `admin.html` com HTML e JavaScript puros. Foi superada pela versão Angular. **Não é trabalho a aproveitar**; serve só de histórico. O `frontend/admin.html` segue versionado como **legado**. O cadastro de cursos ainda existe **só** nele. Isso precisa ser portado para o Angular antes de o legado sair do repo.
+**Versão antiga, superada:** `feature/fase2-painel-administrativo` (`aa619ac`, 09/09) é a **versão antiga** dessa mesma área, em `admin.html` com HTML e JavaScript puros. Foi superada pela versão Angular. **Não é trabalho a aproveitar**; serve só de histórico. O `frontend/admin.html` segue versionado como **legado**. O cadastro de cursos foi portado para o Angular (D57); o legado só pode sair do repo por decisão do grupo.
 
 ---
 
@@ -88,9 +89,10 @@ Tomadas pelo PM. Anteriores às D21 a D26 do log. Cobrem o que o documento de es
 - **E8 — dívidas:** alteração fica sem trilha se a gravação do evento falhar (500 genérico); reembolsos simultâneos podem duplicar evento; falha de login legado vira `role='system'` sem pessoa; sem limitação de taxa em eventos de falha de login; eventos anteriores à E8 sem ator.
 - **E9 — dívidas:** reenvio do link de senha se a entrega falhar; webhook bloqueia o loop; base antiga com `transaction_id` duplicado sem índice; botão Reembolsar visível para não aprovado (409); origem `null` (`file://`); sem limitação de taxa no checkout nem estorno real; `MERCADO_PAGO_WEBHOOK_SECRET` obrigatório no ambiente.
 - **Turmas — dívidas:** edição e exclusão de turma sem tela; o aluno não vê a própria turma; sem atribuição automática nem escolha no checkout; matrícula reativada por webhook pode ultrapassar a capacidade.
+- **L2 — dívidas:** duração na lista por N+1; rótulos escolhidos pelo orquestrador; título de material com `|`; `admin.html` segue como legado.
 - **E5 — textos da tela escolhidos pelo orquestrador**, sem revisão do PM: "Assistente virtual", "Digite sua mensagem", "Enviar", "Nenhuma mensagem ainda. Pergunte algo ao assistente.", "Não foi possível carregar o histórico do chat.", "Não foi possível enviar a mensagem. Tente novamente.", e as colunas "Mensagens no chat" e "Última conversa".
 - **E5 — e2e de E2 e E3 não reexecutados** depois de a E5 alterar `student-dashboard` (mesmo componente do "Meus cursos"). Backend: regressão 131 passed. O e2e antigo grava no `db.sqlite` de desenvolvimento (D7), por isso não foi rodado.
-- **Interceptor HTTP do Angular — higiene.** O interceptor envia o header `Authorization` também em chamadas **públicas**, quando há token no navegador. Não quebra nada hoje; é higiene. Corrigir para anexar o token só a rotas que exigem autenticação.
+- ~~Interceptor HTTP do Angular — higiene.~~ **Resolvido (D57).**
 - ~~bcrypt e o limite de 72 bytes — o item foi citado pelo PM. Contexto: o bcrypt ignora tudo depois de 72 bytes da senha. Senhas longas com o mesmo prefixo de 72 bytes ficam equivalentes. A política de senha (D14, mínimo de 8) não limita o máximo. Decidir se a política ganha limite superior ou um pré-hash.~~ **Resolvido (D52).**
 - ~~Corrida no token de definição de senha — item citado pelo PM. Risco: o token é de uso único, mas dois pedidos concorrentes podem passar pela checagem antes de qualquer um marcar o token como usado. A marcação de uso precisa ser atômica no banco. Confirmar a implementação atual antes de dar o item como fechado.~~ **Resolvido (D52).**
 
