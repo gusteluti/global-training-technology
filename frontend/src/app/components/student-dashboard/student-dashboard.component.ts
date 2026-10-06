@@ -24,6 +24,8 @@ const MENSAGENS_SEM_ACESSO: { [status: string]: string } = {
   refunded: 'Pagamento reembolsado. Os materiais não estão mais disponíveis.'
 };
 
+const MSG_FALHA_PDF = 'Não foi possível baixar o recibo.';
+
 @Component({
   selector: 'app-student-dashboard',
   templateUrl: './student-dashboard.component.html'
@@ -34,6 +36,7 @@ export class StudentDashboardComponent implements OnInit {
   erro = '';
   erroFinanceiro = '';
   receipt: any = null;
+  baixandoPdf = new Set<number>();
   chatMessages: { role: string; content: string }[] = [];
   chatInput = '';
   chatEnviando = false;
@@ -76,6 +79,39 @@ export class StudentDashboardComponent implements OnInit {
     this.api.getMyPaymentReceipt(paymentId).subscribe({
       next: (res: any) => this.receipt = res.receipt || null,
       error: () => this.erroFinanceiro = 'Não foi possível carregar o recibo.'
+    });
+  }
+
+  temReciboPdf(p: any): boolean {
+    return !!p?.receipt_pdf_url && (p.status === 'approved' || p.status === 'refunded');
+  }
+
+  baixarReciboPdf(p: any): void {
+    if (this.baixandoPdf.has(p.id)) {
+      return;
+    }
+    this.erroFinanceiro = '';
+    this.baixandoPdf.add(p.id);
+    this.api.downloadReceiptPdf(p.receipt_pdf_url).subscribe({
+      next: (blob: Blob) => {
+        this.baixandoPdf.delete(p.id);
+        try {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `recibo-${p.id}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } catch {
+          this.erroFinanceiro = MSG_FALHA_PDF;
+        }
+      },
+      error: () => {
+        this.baixandoPdf.delete(p.id);
+        this.erroFinanceiro = MSG_FALHA_PDF;
+      }
     });
   }
 
