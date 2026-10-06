@@ -50,7 +50,10 @@
             <td>{{ p.amount | currency:'BRL' }}</td>
             <td><span class="badge bg-secondary">{{ p.status }}</span></td>
             <td>{{ p.created_at | date:'short' }}</td>
-            <td><button type="button" class="btn btn-outline-primary btn-sm" (click)="verRecibo(p.id)">Ver recibo</button></td>
+            <td><button type="button" class="btn btn-outline-primary btn-sm" (click)="verRecibo(p.id)">Ver recibo</button>
+              <button *ngIf="temReciboPdf(p)" type="button" class="btn btn-outline-secondary btn-sm ms-2"
+                      data-testid="recibo-pdf" [disabled]="baixandoPdf.has(p.id)" (click)="baixarReciboPdf(p)">Baixar PDF</button>
+            </td>
           </tr>
         </tbody>
       </table>

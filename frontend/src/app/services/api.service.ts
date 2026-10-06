@@ -35,6 +35,12 @@ export class ApiService {
     return this.http.get(`${BASE}/api/student/payments/${paymentId}/receipt`, this.authHeaders());
   }
 
+  // Recibo em PDF (B2, D63): download autenticado (token no cabeçalho, nunca na URL). `url` é o
+  // receipt_pdf_url do item de /api/student/payments.
+  public downloadReceiptPdf(url: string) {
+    return this.http.get(`${BASE}${url}`, { ...this.authHeaders(), responseType: 'blob' as const });
+  }
+
   // Chat do aluno logado (E5). O corpo leva só a mensagem: a identidade vem do JWT.
   public sendChatMessage(message: string) {
     return this.http.post(`${BASE}/api/student/chat`, { message }, this.authHeaders());
