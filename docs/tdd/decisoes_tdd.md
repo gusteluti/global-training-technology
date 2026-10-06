@@ -784,3 +784,33 @@ bancos antigos migram e aparecem "sem turma"; (6) não se aplica; (7) 401/403 po
 máxima 2147483647; matrícula que volta de `cancelled` para `pending` por webhook pode ultrapassar a capacidade;
 tela sem edição nem exclusão de turma (a API tem); o aluno não vê a própria turma; fallback de erro "Não foi
 possível concluir a operação." escolhido pelo orquestrador.
+
+## D56 — cadastro de cursos no Angular e higiene do interceptor: contrato (06/10/2026, modo autônomo D40, fila item 6)
+**Lacunas:** (a) o cadastro de cursos só existe no `frontend/admin.html` (legado); precisa ser portado para o Angular antes
+de o legado sair do repo (PENDENCIAS, seção 4); (b) o interceptor anexa `Authorization` a qualquer chamada quando há token.
+Backend pronto e inalterado (`GET /api/admin/courses`, `GET/PUT/DELETE /api/admin/course/{id}`, `POST /api/admin/create-course`;
+só Gestão escreve; trilha da E8).
+
+**(a) Aba "Cadastro de cursos"** na área administrativa (chave `cadastro-cursos`), **visível só para Gestão**. Componente
+novo `course-admin`. Lista dos cursos e formulário, `data-testid`:
+- lista: `curso-row` (atributo `data-course-id`, nome, preço e duração), `curso-edit`, `curso-delete`, `curso-delete-confirm`
+  (confirmação na própria tela, sem `window.confirm`), `curso-cancel-delete`;
+- formulário: `curso-form`, `curso-id` (somente leitura na edição), `curso-name`, `curso-description`, `curso-price`,
+  `curso-hours`, `curso-level`, `curso-audience`, `curso-objectives`, `curso-topics`, `curso-benefits` (listas: um item por
+  linha), `curso-faq` (uma linha por item: `Pergunta | Resposta`), `curso-prompt`, `curso-materials` (uma linha por item:
+  `Título | URL | tipo`, tipo opcional, padrão `link`), `curso-save`, `curso-cancel-edit`, `curso-error`, `curso-success`.
+- Regras da tela: todos os campos obrigatórios, exceto materiais; preço maior que zero; duração inteira maior que zero; `curso-save`
+  desabilitado enquanto inválido; FAQ sem `|` mostra em `curso-error` "Cada linha do FAQ deve ter o formato: Pergunta | Resposta."
+  e não envia; URL de material que não comece com `http://` ou `https://` mostra "A URL do material deve começar com http:// ou
+  https://." e não envia; erro da API aparece em `curso-error` exatamente como o `detail` recebido (texto), com
+  "Não foi possível concluir a operação." se o `detail` não for texto.
+- Criar: `POST /api/admin/create-course`; editar: carrega `GET /api/admin/course/{id}` no formulário e salva com `PUT`
+  enviando **sempre** `materials` (os carregados, ou os editados); excluir: `curso-delete` mostra `curso-delete-confirm`, só
+  a confirmação chama `DELETE`. A lista é recarregada depois de cada operação e `curso-success` mostra "Curso salvo." ou
+  "Curso removido.". A edição e a exclusão aparecem na trilha da E8 com o gestor logado. Suporte e Financeiro não veem a aba
+  nem a rota (e a API deles dá 403).
+**(b) Interceptor:** `Authorization: Bearer` só é anexado a URLs cujo caminho começa com `/api/admin/`, `/api/dashboard/`,
+`/api/student/` ou `/api/payments/refund/`. Nenhuma outra chamada leva o token (inclui `/api/token`, `/api/auth/*`, `/api/chat`,
+`/api/courses`, `/api/payments/create-checkout` e `/api/payments/webhook`), mesmo com token no navegador.
+**Fora do escopo:** remover `admin.html` (decisão do grupo; fica como legado), reordenar cursos, upload de arquivos de material.
+Sub-branch: `feature/fase2-tdd-l2-cadastro-cursos`.
