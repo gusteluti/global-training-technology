@@ -21,18 +21,23 @@ As matrículas são criadas por Database.create_enrollment + record_payment, e o
 valor pedido por Database.update_payment_status_by_reference (o mesmo caminho que o webhook usa depois
 de consultar o Mercado Pago, sem chamada externa).
 
-Limitação D7: o harness usa o banco de dev backend/db.sqlite (gitignored) e o acúmulo de contas de teste
-se repete a cada execução. Correção futura: subir o backend com DB_PATH isolado.
-Os arquivos dos cursos de teste em backend/courses são removidos ao final (create-course grava lá).
+Harness isolado (D58, H1): o teste sobe e derruba os próprios servidores; nada precisa estar de pé antes.
+  - Backend: frontend/e2e/servidor_e2e_h1.py em processo próprio, porta livre, SQLite temporário (DB_PATH
+    isolado), diretório de cursos temporário (create-course grava lá, nunca em backend/courses), segredo de
+    webhook e CORS de teste, Groq e Mercado Pago falsos. A credencial administrativa (login legado
+    /api/admin/login, usada para criar os cursos) é a fabricada pelo helper; o ADMIN_PASSWORD do ambiente do
+    desenvolvedor não é lido.
+  - Frontend: `npx ng serve` em porta livre, com proxy temporário /api -> backend de teste.
+  - backend/db.sqlite e backend/courses de desenvolvimento não são abertos nem alterados (limitação D7 resolvida).
+  - E2E_BASE_URL / E2E_API_URL não são mais usados (apontar para servidores de fora quebraria o isolamento).
 
-Pré-requisitos (de pé antes de rodar):
-  - backend FastAPI em http://127.0.0.1:8000  (cd backend && uvicorn app:app --port 8000)
-  - Angular em http://localhost:4200 com proxy /api -> 8000 (cd frontend && npx ng serve)
-  - Chromium do Playwright instalado: py -3 -m playwright install chromium
-  - credencial administrativa ADMIN_PASSWORD (padrão admin123) para criar os cursos de teste
+O seed das matrículas usa a camada Database dentro do processo do teste, apontando para o MESMO arquivo SQLite
+temporário do backend de teste (apoio_harness_h1.abrir_banco redireciona o import de `db`).
 
-Porta diferente do 4200: defina E2E_BASE_URL. API direta: E2E_API_URL (padrão http://127.0.0.1:8000).
-Execução: py -3 -m pytest frontend/e2e/test_e3_painel_angular.py -s
+Pré-requisitos: dependências do backend, node_modules do frontend e o Chromium do Playwright
+(py -3 -m playwright install chromium). Portas fixas opcionais: E2E_BACKEND_PORT / E2E_FRONT_PORT;
+E2E_NG_TIMEOUT (s, padrão 300). Execução (da raiz do repo):
+  py -3 -m pytest frontend/e2e/test_e3_painel_angular.py -s
 Screenshots vão para E2E_SCREENSHOTS, ou para a pasta temporária do sistema.
 """
 
@@ -51,13 +56,18 @@ import pytest
 
 sync_api = pytest.importorskip("playwright.sync_api")
 
-BASE = os.environ.get("E2E_BASE_URL", "http://localhost:4200").rstrip("/")
-API = os.environ.get("E2E_API_URL", "http://127.0.0.1:8000").rstrip("/")
-BACKEND = Path(__file__).resolve().parents[2] / "backend"
-COURSES_REPO = BACKEND / "courses"
+E2E_DIR = Path(__file__).resolve().parent
+if str(E2E_DIR) not in sys.path:
+    sys.path.insert(0, str(E2E_DIR))
+
+from apoio_harness_h1 import abrir_banco, ambiente_isolado  # noqa: E402
+from servidor_e2e_h1 import GESTAO_SENHA  # noqa: E402
+
+# Preenchido pela fixture `servidores` (URLs e banco do ambiente isolado deste módulo).
+ALVO = {"base": "", "api": "", "db_path": None}
 OUT = Path(os.environ.get("E2E_SCREENSHOTS", Path(tempfile.gettempdir()) / "gt_e2e_painel_aluno"))
 
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
+ADMIN_PASSWORD = GESTAO_SENHA
 SENHA = "senha-aluno-e3-2026"
 TIMEOUT = 5000
 PAGAMENTO_DE_STATUS = {"active": "approved", "pending": "pending"}
@@ -71,12 +81,9 @@ class Falha(Exception):
 
 
 def _seed_backend():
-    if str(BACKEND) not in sys.path:
-        sys.path.insert(0, str(BACKEND))
-    from db import Database
+    Database = abrir_banco(ALVO["db_path"])
     from core.security import get_password_hash
 
-    Database.init_db()
     return Database, get_password_hash
 
 
@@ -90,7 +97,7 @@ def _api(metodo, caminho, corpo=None, token=None):
     if token:
         cabecalhos["Authorization"] = f"Bearer {token}"
     dados = json.dumps(corpo).encode() if corpo is not None else None
-    req = urllib.request.Request(API + caminho, data=dados, headers=cabecalhos, method=metodo)
+    req = urllib.request.Request(ALVO["api"] + caminho, data=dados, headers=cabecalhos, method=metodo)
     try:
         with urllib.request.urlopen(req, timeout=10) as resposta:
             return resposta.status, json.loads(resposta.read() or b"null")
@@ -141,26 +148,26 @@ def semear_matricula(user_id, course_id, status):
     return enrollment_id
 
 
-def remover_cursos(ids):
-    for course_id in ids:
-        try:
-            (COURSES_REPO / f"{course_id}.json").unlink()
-        except FileNotFoundError:
-            pass
-
-
 def caminho_da_url(url):
     return urllib.parse.urlparse(url).path.rstrip("/")
 
 
 def login_na_tela(page, email, senha, rotulo):
     try:
-        page.goto(BASE + "/", wait_until="networkidle")
+        page.goto(ALVO["base"] + "/", wait_until="networkidle")
         page.locator("input[name=email]").first.fill(email, timeout=TIMEOUT)
         page.locator("input[name=password]").first.fill(senha, timeout=TIMEOUT)
         page.locator("button[type=submit]").first.click(timeout=TIMEOUT)
     except sync_api.TimeoutError:
         raise Falha(f"{rotulo}: campos de login não encontrados na tela /")
+
+
+@pytest.fixture(scope="module")
+def servidores():
+    """Backend de teste (banco e cursos temporários) e Angular; derruba tudo (e apaga os cursos) ao final."""
+    with ambiente_isolado("e3") as ambiente:
+        ALVO.update(base=ambiente["base"], api=ambiente["api"], db_path=ambiente["db_path"])
+        yield ambiente
 
 
 @pytest.fixture(scope="module")
@@ -173,7 +180,7 @@ def browser():
             navegador.close()
 
 
-def test_e3_painel_angular_e2e(browser):
+def test_e3_painel_angular_e2e(servidores, browser):
     OUT.mkdir(parents=True, exist_ok=True)
     resultados = []
     erros_console = []
@@ -343,7 +350,7 @@ def test_e3_painel_angular_e2e(browser):
     # --- P7 -------------------------------------------------------------------------
     def p7():
         page = nova_pagina("P7")
-        page.goto(BASE + "/student", wait_until="networkidle")
+        page.goto(ALVO["base"] + "/student", wait_until="networkidle")
         if caminho_da_url(page.url) != "":
             raise Falha(f"P7 guarda: usuário sem login em /student foi levado a {page.url} (esperado /)")
 
@@ -355,7 +362,6 @@ def test_e3_painel_angular_e2e(browser):
             ctx.close()
         except Exception:
             pass
-    remover_cursos(cursos_criados)
 
     passou = sum(1 for _, _, ok, _ in resultados if ok)
     falhas = [f"{codigo} {nome} -> {detalhe}" for codigo, nome, ok, detalhe in resultados if not ok]

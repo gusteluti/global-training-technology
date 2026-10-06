@@ -1,21 +1,34 @@
-"""E2E da área administrativa Angular (Chromium via Playwright): 29 checks.
+"""E2E da área administrativa Angular (Chromium via Playwright): 33 checks, sem pulos.
 
-Login por perfil, abas visíveis por papel, carregamento e gráficos das abas,
+Contagem (D58): os 29 checks históricos (27 quando os 2 de reembolso eram pulados) viraram 33 porque a aba
+"Observabilidade de IA" passou de 1 para 2 gráficos (E7, +1 por perfil) e a Gestão ganhou a aba "Cadastro de
+cursos" (L2, +1). Os dois checks de reembolso pela tela rodam sempre (D4).
+
+Login por perfil, abas visíveis por papel (a Gestão ganhou a aba "Cadastro de cursos" na L2/D56; a lista
+esperada e o clique por texto exato foram atualizados, sem mudar a intenção), carregamento e gráficos das abas,
 reembolso pela tela, erros de console e guard de rota sem login.
 
-Pré-requisitos (ambos precisam estar de pé antes de rodar):
-  - backend FastAPI em http://localhost:8000  (cd backend && uvicorn app:app --port 8000)
-  - Angular em http://localhost:4200          (cd frontend && npx ng serve)
-  - contas admin@gt.com, financeiro@gt.com e suporte@gt.com cadastradas no backend
-    (semeadas a partir do .env: ADMIN_EMAIL/FINANCIAL_EMAIL/SUPPORT_EMAIL e as senhas de perfil)
-  - Chromium do Playwright instalado: py -3 -m playwright install chromium
+Harness isolado (D58, H1): o teste sobe e derruba os próprios servidores; nada precisa estar de pé antes.
+  - Backend: frontend/e2e/servidor_e2e_h1.py em processo próprio, porta livre, SQLite temporário (DB_PATH
+    isolado), diretório de cursos temporário, segredo de webhook e CORS de teste, Groq e Mercado Pago falsos.
+    As contas admin@gt.com / financeiro@gt.com / suporte@gt.com são semeadas pelo próprio helper a partir de
+    variáveis de ambiente fabricadas lá (nunca de um .env real).
+  - Frontend: `npx ng serve` em porta livre, com proxy temporário /api -> backend de teste.
+  - Seed só pela API pública (D4): um curso criado pelo gestor e dois pagamentos APROVADOS (create-checkout
+    falso + webhook assinado, E9), um para o reembolso de cada perfil que reembolsa. Reembolso só vale para
+    `approved`, então com o banco isolado os dois checks de reembolso pela tela rodam, sem pulos.
+  - backend/db.sqlite e backend/courses de desenvolvimento não são abertos nem alterados.
+  - E2E_BASE_URL / E2E_API_URL não são mais usados (apontar para servidores de fora quebraria o isolamento).
 
-Porta diferente do 4200: defina E2E_BASE_URL (ex.: http://localhost:4300).
-Execução: py -3 -m pytest frontend/e2e -s
+Pré-requisitos: dependências do backend, node_modules do frontend e o Chromium do Playwright
+(py -3 -m playwright install chromium). Portas fixas opcionais: E2E_BACKEND_PORT / E2E_FRONT_PORT;
+E2E_NG_TIMEOUT (s, padrão 300). Execução (da raiz do repo):
+  py -3 -m pytest frontend/e2e/test_admin_angular.py -s
 Screenshots vão para a pasta temporária do sistema (ou para E2E_SCREENSHOTS, se definida).
 """
 
 import os
+import re
 import sys
 import tempfile
 import time
@@ -24,15 +37,31 @@ from pathlib import Path
 
 import pytest
 
-BASE = os.environ.get("E2E_BASE_URL", "http://localhost:4200")
+E2E_DIR = Path(__file__).resolve().parent
+if str(E2E_DIR) not in sys.path:
+    sys.path.insert(0, str(E2E_DIR))
+
+from apoio_harness_h1 import _api, ambiente_isolado  # noqa: E402
+from apoio_webhook_mp import enviar_webhook  # noqa: E402  (E9, D48: webhook assinado, id numérico)
+from servidor_e2e_h1 import (  # noqa: E402
+    FINANCEIRO_EMAIL, FINANCEIRO_SENHA, GESTAO_EMAIL, GESTAO_SENHA, SUPORTE_EMAIL, SUPORTE_SENHA,
+)
 
 EXPECTED = {
-    "admin@gt.com": ("admin123", ["Financeiro", "Alunos", "Cursos", "Observabilidade de IA", "Auditoria"]),
-    "financeiro@gt.com": ("fin123", ["Financeiro", "Alunos", "Cursos", "Observabilidade de IA"]),
-    "suporte@gt.com": ("sup123", ["Alunos", "Cursos", "Observabilidade de IA"]),
+    GESTAO_EMAIL: (GESTAO_SENHA, ["Financeiro", "Alunos", "Cursos", "Cadastro de cursos", "Observabilidade de IA", "Auditoria"]),
+    FINANCEIRO_EMAIL: (FINANCEIRO_SENHA, ["Financeiro", "Alunos", "Cursos", "Observabilidade de IA"]),
+    SUPORTE_EMAIL: (SUPORTE_SENHA, ["Alunos", "Cursos", "Observabilidade de IA"]),
 }
 
 OUT = Path(os.environ.get("E2E_SCREENSHOTS", Path(tempfile.gettempdir()) / "gt_e2e_screens"))
+CURSO_ID = "curso-e2e"
+
+
+@pytest.fixture(scope="module")
+def servidores():
+    """Backend de teste (banco e cursos temporários) e Angular; derruba tudo ao final."""
+    with ambiente_isolado("admin") as ambiente:
+        yield ambiente
 
 
 @pytest.fixture(scope="module")
@@ -49,27 +78,49 @@ def browser():
 
 
 @pytest.fixture(scope="module", autouse=True)
-def pagamentos_pendentes_para_reembolso():
-    """Semeia dois pagamentos pendentes (um para o reembolso de cada perfil que reembolsa).
+def pagamentos_aprovados_para_reembolso(servidores):
+    """Semeia dois pagamentos APROVADOS (um para o reembolso de cada perfil que reembolsa).
 
-    A aba Financeiro so mostra o botao 'Reembolsar' para pagamentos nao reembolsados; com banco
-    vazio os dois checks de reembolso pela tela seriam pulados. O seed usa a camada Database do
-    backend (mesmo db.sqlite do servidor), sem tocar em codigo de producao.
+    A aba Financeiro só mostra o botão 'Reembolsar' em pagamento aprovado (E9: os demais respondem 409);
+    sem isso os dois checks de reembolso pela tela seriam pulados (D4). O seed usa só a API do backend de
+    teste: o gestor cria o curso, o aluno faz o checkout (Mercado Pago falso) e o webhook assinado aprova.
     """
-    backend = Path(__file__).resolve().parents[2] / "backend"
-    sys.path.insert(0, str(backend))
-    from db import Database
+    api = servidores["api"]
+    status, corpo = _api(api, "POST", "/api/token", formulario={"username": GESTAO_EMAIL, "password": GESTAO_SENHA})
+    if status != 200:
+        raise RuntimeError(f"seed: login do gestor respondeu HTTP {status}")
+    token = corpo["access_token"]
+    curso = {
+        "id": CURSO_ID, "name": "Curso E2E Reembolso", "description": "Curso do e2e administrativo", "price": 99.9,
+        "duration_hours": 4, "level": "Basico", "target_audience": "Alunos", "objectives": ["Objetivo"],
+        "topics": ["Topico"], "benefits": ["Beneficio"], "faq": [{"question": "Pergunta", "answer": "Resposta"}],
+        "system_prompt": "Prompt", "materials": [],
+    }
+    status, _ = _api(api, "POST", "/api/admin/create-course", curso, token=token)
+    if status != 200:
+        raise RuntimeError(f"seed: create-course respondeu HTTP {status}")
+    emails = []
+    for i in range(2):
+        email = f"e2e.reembolso{i}.{uuid.uuid4().hex[:8]}@teste.com"
+        status, checkout = _api(api, "POST", "/api/payments/create-checkout",
+                                {"course_id": CURSO_ID, "payer": {"name": f"Aluno E2E Reembolso {i}", "email": email}})
+        if status != 200 or not (checkout or {}).get("external_reference"):
+            raise RuntimeError(f"seed: create-checkout respondeu HTTP {status}")
+        status, _ = enviar_webhook(api, checkout["external_reference"])
+        if status != 200:
+            raise RuntimeError(f"seed: webhook respondeu HTTP {status}")
+        emails.append(email)
+    status, painel = _api(api, "GET", "/api/dashboard/financeiro", token=token)
+    if status != 200:
+        raise RuntimeError(f"seed: painel financeiro respondeu HTTP {status}")
+    aprovados = [p for p in painel["payments"] if p["student_email"] in emails and p["status"] == "approved"]
+    if len(aprovados) != 2:
+        raise RuntimeError(f"seed: esperados 2 pagamentos aprovados, encontrados {len(aprovados)}")
+    yield [p["id"] for p in aprovados]
 
-    Database.init_db()
-    user_id = Database.get_or_create_user("e2e.reembolso@teste.com", "Aluno E2E Reembolso")
-    ids = []
-    for _ in range(2):
-        enrollment_id = Database.create_enrollment(user_id, "curso-e2e", f"e2e-{uuid.uuid4().hex[:12]}")
-        ids.append(Database.record_payment(enrollment_id, 99.90, "e2e-seed"))
-    yield ids
 
-
-def test_admin_angular_e2e(browser, pagamentos_pendentes_para_reembolso):
+def test_admin_angular_e2e(servidores, browser, pagamentos_aprovados_para_reembolso):
+    BASE = servidores["base"]
     OUT.mkdir(parents=True, exist_ok=True)
     results = []
 
@@ -99,7 +150,8 @@ def test_admin_angular_e2e(browser, pagamentos_pendentes_para_reembolso):
         check(f"{role}: abas visíveis = {expected_tabs}", tabs == expected_tabs, f"obtido {tabs}")
 
         for tab in tabs:
-            page.locator("ul.nav-tabs button.nav-link", has_text=tab).click()
+            # texto exato: "Cursos" também é substring de "Cadastro de cursos" (aba só da Gestão, L2/D56)
+            page.locator("ul.nav-tabs button.nav-link", has_text=re.compile(rf"^\s*{re.escape(tab)}\s*$")).click()
             time.sleep(1.8)
             slug = tab.lower().replace(" ", "_")
             page.screenshot(path=str(OUT / f"{role}_{slug}.png"), full_page=True)
@@ -127,6 +179,10 @@ def test_admin_angular_e2e(browser, pagamentos_pendentes_para_reembolso):
                       refunded_badges > refunded_antes and dialogs,
                       f"badges refunded antes={refunded_antes}, depois={refunded_badges}, dialogs={dialogs}")
                 page.screenshot(path=str(OUT / f"{role}_financeiro_apos_reembolso.png"), full_page=True)
+            else:
+                # D4: com o banco isolado sempre há pagamento aprovado; sem botão, o check de reembolso não pode sumir.
+                check(f"{role}: reembolso pela tela muda status para refunded", False,
+                      "nenhum pagamento 'approved' com botão Reembolsar na aba Financeiro (o seed deveria tê-lo criado)")
 
         check(f"{role}: sem erros de console", not console_errors, "; ".join(console_errors[:3]))
         ctx.close()

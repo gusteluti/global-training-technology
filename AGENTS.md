@@ -138,7 +138,7 @@ Nomes lidos pelo backend (valores **nunca** no repo):
 
 `ACCESS_TOKEN_EXPIRE_MINUTES`, `ADMIN_PASSWORD`, `ADMIN_TOKEN_SECRET`, `API_BASE_URL`, `CORS_ALLOWED_ORIGINS`, `FINANCIAL_PASSWORD`, `FRONTEND_BASE_URL`, `GROQ_API_KEY`, `GROQ_MODEL`, `GROQ_PRICE_INPUT_PER_1M_USD`, `GROQ_PRICE_OUTPUT_PER_1M_USD`, `JWT_SECRET_KEY`, `MERCADO_PAGO_ACCESS_TOKEN`, `MERCADO_PAGO_WEBHOOK_SECRET`, `PASSWORD_LINK_OUTBOX`, `SUPPORT_PASSWORD`.
 
-Para o e2e, além de `ADMIN_PASSWORD`, são necessárias `E2E_BASE_URL` (ex.: `http://localhost:4200`) e `E2E_API_URL` (ex.: `http://127.0.0.1:8000`).
+Os e2e não precisam de variável nenhuma (D58): os helpers definem valores fabricados no processo do backend de teste.
 
 Duas formas de fornecer as variáveis, sem commitar nenhuma:
 - criar `backend/.env` a partir de `.env.example` (o arquivo é ignorado pelo git), **ou**
@@ -152,29 +152,26 @@ python -m pytest tests
 `backend/tests/conftest.py` aponta `DB_PATH` para um arquivo temporário; a suíte não toca o `db.sqlite` de desenvolvimento. **A regressão** (E1, E2 e fase 2) está dentro dessa mesma suíte: na E3 o resultado foi 81 passed. Não rodar em paralelo com outra execução do repo.
 
 ### 6.3 E2E de navegador (Chromium via Playwright)
-Pré-requisitos: backend e frontend de pé, e o Chromium instalado.
+Desde a D58, **todo e2e sobe os próprios servidores**: backend (processo próprio, banco SQLite temporário, diretório de
+cursos temporário, Groq e Mercado Pago falsos, segredo de webhook e CORS de teste, contas de funcionário fabricadas) e
+`ng serve` em portas livres com proxy temporário. Não é preciso subir nada à mão, não depende de `.env` real e **não
+toca** `backend/db.sqlite` nem `backend/courses` (D7 resolvida). Pré-requisitos: Python com `fastapi`/`uvicorn`/`playwright`,
+`frontend/node_modules` e o Chromium (`py -3 -m playwright install chromium`).
+Execute da raiz do repo, **um por vez, nunca em paralelo**, com `PYTHONUTF8=1 PYTHONIOENCODING=utf-8` no Windows:
 ```
-py -3 -m playwright install chromium
+py -3 -m pytest frontend/e2e/test_admin_angular.py -s              # 33 checks (funcionário, RBAC, reembolso)
+py -3 -m pytest frontend/e2e/test_e2_conta_aluno_angular.py -s     # 8 checks
+py -3 -m pytest frontend/e2e/test_e3_painel_angular.py -s          # 7 checks
+py -3 -m pytest frontend/e2e/test_e5_chat_aluno_angular.py -s      # 11 checks
+py -3 -m pytest frontend/e2e/test_e5_dashboard_alunos_angular.py -s  # 9 checks
+py -3 -m pytest frontend/e2e/test_e6_landing_chat.py -s            # 8 testes
+py -3 -m pytest frontend/e2e/test_e7_observabilidade_angular.py -s # 11 checks
+py -3 -m pytest frontend/e2e/test_e8_auditoria_angular.py -s       # 17 checks
+py -3 -m pytest frontend/e2e/test_l1_turmas_angular.py -s          # 16 checks
+py -3 -m pytest frontend/e2e/test_l2_cadastro_cursos_angular.py -s # 24 checks
 ```
-Backend (terminal 1):
-```
-cd backend
-uvicorn app:app --host 127.0.0.1 --port 8000
-```
-Frontend (terminal 2):
-```
-cd frontend
-npx ng serve
-```
-Teste de cada entrega (exemplo da E3, **confirmado**):
-```
-py -3 -m pytest frontend/e2e/test_e3_painel_angular.py -s
-```
-Os outros dois arquivos de e2e (`test_admin_angular.py` e `test_e2_conta_aluno_angular.py`) seguem o mesmo padrão, mas **essa execução não foi confirmada**; confirmar antes de usar.
-
-Contas usadas pelo e2e (`admin@gt.com`, `financeiro@gt.com`, `suporte@gt.com`) são semeadas a partir do `.env`. O `frontend/proxy.conf.json` encaminha `/api` para `localhost:8000`.
-
-**Atenção (D7):** o e2e grava pagamentos de teste em `backend/db.sqlite` de desenvolvimento. Cada execução acumula. Considerar isso antes de rodar de novo.
+Portas e esperas podem ser fixadas com `E2E_BACKEND_PORT`, `E2E_FRONT_PORT` e `E2E_NG_TIMEOUT`. Se houver um `ng serve` seu na
+porta 4200, ele não é usado nem encerrado. Cada e2e leva de 20 a 90 s. Contagens validadas em 06/10/2026.
 
 ### 6.4 Build do Angular
 ```

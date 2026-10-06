@@ -2,6 +2,8 @@
 
 Documento escrito para quem nunca viu a sessão original. Estado verificado por leitura do git e dos arquivos em 05/10/2026, depois do resgate do log de decisões.
 
+**Atualização de 06/10/2026 (noite autônoma D40, entregas D37 a D59):** E5 a E9, dívidas de segurança, turmas, cadastro de cursos no Angular, interceptor e harness dos e2e entregues e publicadas; ver `docs/tdd/RELATORIO_NOITE.md`. Os comandos de e2e da seção 9 estão desatualizados: valem os do `AGENTS.md`, seção 6.3.
+
 **Atualização de 06/10/2026 (modo autônomo D40; E6 entregue, D41):** ver `docs/tdd/RELATORIO_NOITE.md`.
 
 **Atualização de 06/10/2026 (E5 entregue, D36 e D37):** ver seção 10 e `docs/tdd/decisoes_tdd.md`.
