@@ -1,6 +1,7 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { PainelMatriculas } from '../../resolvers/enrollments.resolver';
+import { ApiService } from '../../services/api.service';
 
 // Rótulos e cores dos status de matrícula (conjunto fechado, D28).
 const ROTULOS_STATUS: { [status: string]: string } = {
@@ -27,17 +28,27 @@ const MENSAGENS_SEM_ACESSO: { [status: string]: string } = {
   selector: 'app-student-dashboard',
   templateUrl: './student-dashboard.component.html'
 })
-export class StudentDashboardComponent {
+export class StudentDashboardComponent implements OnInit {
   enrollments: any[] = [];
+  payments: any[] = [];
   erro = '';
+  erroFinanceiro = '';
+  receipt: any = null;
 
-  constructor(private route: ActivatedRoute) {
+  constructor(private route: ActivatedRoute, private api: ApiService) {
     // Dados vindos do EnrollmentsResolver (rota /student).
     const painel: PainelMatriculas | undefined = this.route.snapshot.data['painel'];
     this.enrollments = painel?.enrollments || [];
     if (painel && !painel.ok) {
       this.erro = 'Não foi possível carregar suas matrículas.';
     }
+  }
+
+  ngOnInit(): void {
+    this.api.getMyPayments().subscribe({
+      next: (res: any) => this.payments = res.payments || [],
+      error: () => this.erroFinanceiro = 'Não foi possível carregar seu histórico financeiro.'
+    });
   }
 
   rotuloStatus(status: string): string {
@@ -50,5 +61,13 @@ export class StudentDashboardComponent {
 
   mensagemSemAcesso(status: string): string {
     return MENSAGENS_SEM_ACESSO[status] || 'Os materiais não estão disponíveis para esta matrícula.';
+  }
+
+  verRecibo(paymentId: number): void {
+    this.erroFinanceiro = '';
+    this.api.getMyPaymentReceipt(paymentId).subscribe({
+      next: (res: any) => this.receipt = res.receipt || null,
+      error: () => this.erroFinanceiro = 'Não foi possível carregar o recibo.'
+    });
   }
 }

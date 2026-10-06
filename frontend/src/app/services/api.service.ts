@@ -26,6 +26,15 @@ export class ApiService {
     return this.http.get(`${BASE}/api/student/enrollments`, this.authHeaders());
   }
 
+  // Histórico financeiro do próprio aluno (E4). O backend deriva o usuário do JWT.
+  public getMyPayments() {
+    return this.http.get(`${BASE}/api/student/payments`, this.authHeaders());
+  }
+
+  public getMyPaymentReceipt(paymentId: number) {
+    return this.http.get(`${BASE}/api/student/payments/${paymentId}/receipt`, this.authHeaders());
+  }
+
   // Dashboards de funcionário (Fase 2): mesmos endpoints usados pelo admin.html.
   public getFinancial() {
     return this.http.get(`${BASE}/api/dashboard/financeiro`, this.authHeaders());

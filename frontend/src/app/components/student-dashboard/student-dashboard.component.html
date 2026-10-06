@@ -34,4 +34,35 @@
       </div>
     </div>
   </div>
+
+  <div class="col-12 mt-4">
+    <h3>Histórico financeiro</h3>
+    <div *ngIf="erroFinanceiro" class="alert alert-danger">{{ erroFinanceiro }}</div>
+    <div *ngIf="!erroFinanceiro && payments.length === 0" class="alert alert-info">Você ainda não tem pagamentos registrados.</div>
+    <div class="table-responsive" *ngIf="payments.length">
+      <table class="table table-striped align-middle">
+        <thead>
+          <tr><th>Curso</th><th>Valor</th><th>Status</th><th>Data</th><th></th></tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let p of payments">
+            <td>{{ p.course_name }}</td>
+            <td>{{ p.amount | currency:'BRL' }}</td>
+            <td><span class="badge bg-secondary">{{ p.status }}</span></td>
+            <td>{{ p.created_at | date:'short' }}</td>
+            <td><button type="button" class="btn btn-outline-primary btn-sm" (click)="verRecibo(p.id)">Ver recibo</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div *ngIf="receipt" class="card border-primary mb-3" aria-live="polite">
+      <div class="card-body">
+        <h4 class="card-title">Recibo #{{ receipt.payment_id }}</h4>
+        <p class="mb-1"><strong>Curso:</strong> {{ receipt.course_name }}</p>
+        <p class="mb-1"><strong>Valor:</strong> {{ receipt.amount | currency:'BRL' }}</p>
+        <p class="mb-0"><strong>Status:</strong> {{ receipt.status }}</p>
+      </div>
+    </div>
+  </div>
 </div>
