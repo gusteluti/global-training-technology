@@ -717,3 +717,47 @@ Checklist: escopo ok; red observado; IDOR não se aplica além da E2 (C6: `user_
 só com matrícula ativa (B10 a B12); compatibilidade (B8 curso antigo); 401/403 inalterados; sem tela; ciclo completo.
 **Riscos:** admin cujo `ADMIN_PASSWORD` do `.env` passe de 72 bytes fica sem conta no Angular (o login legado por
 senha de perfil continua); `materials: null` no PUT continua dando 422; o aviso de startup usa `print`.
+
+## D53 — lacuna "turmas" no dashboard de cursos: análise e contrato (06/10/2026, modo autônomo D40, fila item 6)
+**Lacuna:** o PDF (1.2) pede "número de inscritos por turma"; o sistema não tem o conceito (o dashboard agrega só
+por curso). **Modelo mínimo (decisão de política do orquestrador, revisar):** uma turma pertence a um curso; a
+matrícula pode ser atribuída a uma turma por um gestor; sem atribuição a matrícula fica "sem turma". O comprador
+não escolhe turma no checkout (fluxo de compra não muda).
+
+**Banco:** tabela `classes` (`id`, `course_id`, `name`, `starts_on` data ISO opcional, `capacity` inteiro >= 1
+opcional, `created_at`), único (`course_id`, `name`); coluna nova `enrollments.class_id` (nulo, via
+`_ensure_column`; bancos antigos continuam válidos).
+
+**API (todas sob `/api/admin`, responsável sempre do token):**
+- `GET /classes?course_id=` (qualquer funcionário): `{"status":"success","classes":[{id, course_id, name, starts_on, capacity, enrolled, pending, total}]}`;
+  `enrolled` = matrículas `active` da turma, `pending` = `pending`, `total` = ambas; sem `course_id`, todas.
+- `POST /classes` (só Gestão), corpo `{course_id, name, starts_on?, capacity?}`: curso inexistente 404 "Course not found";
+  `name` 1 a 80 caracteres (strip); `capacity` < 1 ou data inválida 422; nome repetido no curso 409
+  `{"detail":"Já existe uma turma com esse nome neste curso."}`; sucesso 200 `{"status":"success","class":{...}}`.
+- `PUT /classes/{id}` (só Gestão), campos opcionais `name`, `starts_on`, `capacity` (só os enviados mudam; `null` limpa
+  `starts_on` e `capacity`); capacidade abaixo do total atual 409 `{"detail":"A capacidade não pode ser menor que o número de matrículas da turma."}`.
+- `DELETE /classes/{id}` (só Gestão): turma com matrículas atribuídas 409 `{"detail":"A turma tem matrículas e não pode ser removida."}`; inexistente 404.
+- `GET /enrollments?course_id=` (Gestão e Suporte; Financeiro 403): `{"status":"success","enrollments":[{id, student_name, student_email, status, class_id, enrolled_at}]}`; sem dados de pagamento.
+- `PUT /enrollments/{id}/class` (só Gestão), corpo `{"class_id": int|null}`: matrícula inexistente 404; turma inexistente 404;
+  turma de outro curso 409 `{"detail":"A turma pertence a outro curso."}`; só matrícula `pending` ou `active` pode ter turma
+  (`cancelled`/`refunded` 409 `{"detail":"Só matrículas pendentes ou ativas podem ser atribuídas a uma turma."}`); turma cheia
+  (total >= `capacity`, sem contar a própria matrícula se já está nela) 409 `{"detail":"A turma está cheia."}`; `null` remove a turma;
+  atribuir de novo à mesma turma é idempotente (200, sem evento).
+- Quando uma matrícula atribuída vira `cancelled`/`refunded`, ela mantém `class_id` mas deixa de contar nos números da turma.
+
+**Dashboard `GET /api/dashboard/cursos`:** mantém as chaves atuais; cada curso ganha `classes` (lista no mesmo formato de
+`GET /classes`, em ordem de `starts_on` e depois `name`) e `unassigned` = `{total, active, pending}` (matrículas
+`pending` ou `active` sem turma). Curso sem turma devolve `classes: []`.
+
+**Auditoria (E8):** `class.create`, `class.update`, `class.delete` (`entity_type='class'`, `entity_id`, `changes` com
+`name`, `starts_on`, `capacity` antes e depois) e `enrollment.class_change` (`entity_type='enrollment'`,
+`changes` com `class_id` antes e depois), com o responsável do token. Operação recusada não grava evento.
+
+**Tela (Angular, `courses-dashboard`), `data-testid`:** `turma-row` (uma por turma, dentro do curso), `turma-name`,
+`turma-enrolled` (ativos), `turma-pending`, `turma-capacity` (número ou "—"), `turma-unassigned` (por curso, texto
+`ativos/pendentes sem turma`: dois números separados por "/"). Só para Gestão, seção "Gerenciar turmas" com
+`turma-new-course` (select), `turma-new-name`, `turma-new-start`, `turma-new-capacity`, `turma-create` (botão),
+`enrollment-row` (linhas das matrículas do curso escolhido), `enrollment-class-select` (select com "Sem turma" e as turmas
+do curso) e mensagem de erro da API em `turma-error`. Suporte e Financeiro veem os números, não a seção de gestão.
+**Fora do escopo:** o aluno ver a própria turma, escolha de turma no checkout, atribuição automática, calendário de aulas.
+Sub-branch: `feature/fase2-tdd-l1-turmas`.

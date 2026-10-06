@@ -10,7 +10,7 @@ Atualizado a cada entrega. Quem acordou: leia primeiro a seção "Decisões de p
 | 3 | E8 — auditoria | **entregue** (D47): backend 411 passed, e2e 17/17; mergeada e publicada |
 | 4 | E9 — hardening de pagamento | **entregue** (D50): backend 596 passed, e2e anteriores verdes; mergeada e publicada |
 | 5 | Dívidas de segurança (token, bcrypt, update-course) | **entregue** (D52): backend 669 passed; mergeada e publicada |
-| 6 | Lacunas de produto (turma, cadastro de cursos no Angular, interceptor) | pendente |
+| 6 | Lacunas de produto: (a) turmas, (b) cadastro de cursos no Angular + interceptor | (a) em andamento (contrato D53); (b) pendente |
 | 7 | Dívidas de harness (D4, D6, D7, D10) | pendente |
 | 8 | Backlog opcional (recuperação de senha, recibo PDF) | pendente |
 
@@ -23,6 +23,7 @@ Atualizado a cada entrega. Quem acordou: leia primeiro a seção "Decisões de p
 - **E8 (D47):** evento gravado depois da alteração; se a gravação falhar, 500 genérico e alteração sem trilha; falha de gravação em login derruba o login (500).
 - **E9 (D48):** reembolso só de pagamento `approved` (antes aceitava `pending`): é regra de negócio nova; CORS restrito por lista (sem `*`, sem credenciais); webhook fail closed (503 sem segredo configurado); sem janela de tempo na assinatura (motivo na D48).
 - **Dívidas de segurança (D51):** `PUT` do curso sem `materials` passa a preservar os materiais (antes apagava); senha acima de 72 bytes passa a ser recusada no login; conta de funcionário do `.env` com senha acima de 72 bytes deixa de ser criada (aviso no log).
+- **Turmas (D53):** modelo mínimo inventado por mim, pois o PDF só diz "inscritos por turma": turma pertence a um curso, a matrícula é atribuída manualmente por um gestor, capacidade opcional; o comprador não escolhe turma no checkout; o aluno não vê a própria turma.
 
 ## Não feito por limite técnico ou regra
 - SMTP real para o link de senha: sem servidor e sem credenciais.
