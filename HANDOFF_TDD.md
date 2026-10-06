@@ -207,7 +207,7 @@ Fonte do escopo: `Escopo_Fase2_Global_Training_Technology.pdf` (raiz do repo). A
 | **E1** | Identidade unificada | — | **Fechada e mergeada** (`9578a8f`) |
 | **E2** | Conta e login do aluno | item 1.1, RF21 | **Fechada e mergeada** (`351a130`) |
 | **E3** | Painel de inscrições + materiais | item 1.1, RF22 | **Fechada e mergeada** (`da55d8f`), validada 05/10/2026 |
-| **E4** | Histórico financeiro + recibos | item 1.1, RF22 | **EM ANDAMENTO** (liberada pelo PM em 05/10/2026, D33.7) |
+| **E4** | Histórico financeiro + recibos | item 1.1, RF22 | **EM VALIDAÇÃO** — testes E4 7/7 e build Angular verdes; falta regressão integral e e2e antes do fechamento. Implementada diretamente na branch de projeto por orientação do PM: `b27bd6d`, `f9f20cc`, `da6de8e`. |
 | **E5** | Chatbot autenticado: contexto de cursos ativos e histórico persistido | seção 4 | A fazer |
 | **E6** | Segurança de LLM: isolamento de sessão por usuário + filtros OWASP | seção 4 | A fazer |
 | **E7** | Observabilidade de IA completa: `usage` do Groq, custo, persistência | seção 4, RF24 | A fazer |

@@ -22,7 +22,12 @@ Push de `feature/fase2-tdd` e `feature/fase2-tdd-e3-painel-materiais` feito em 0
 
 ## 2. Em andamento
 
-**E4 — Histórico financeiro + recibos (RF22, item 1.1).** Liberada pelo PM em 05/10/2026 (D33.7). Sub-branch ainda não criada no momento deste documento; confirmar com `git branch` antes de começar.
+**E4 — Histórico financeiro + recibos (RF22, item 1.1).** Implementação local iniciada diretamente em `feature/fase2-tdd`, por orientação do PM (sem sub-branch):
+- `b27bd6d` — testes vermelhos do contrato;
+- `f9f20cc` — API e consultas seguras por dono do JWT;
+- `da6de8e` — histórico e recibo na tela Angular do aluno.
+
+Contrato implementado: `GET /api/student/payments` e `GET /api/student/payments/{id}/receipt`; recibo alheio e inexistente devolvem o mesmo 404. Teste específico: **7 passed**. Build Angular: verde. Ainda falta executar e registrar a regressão integral e o e2e de navegador antes de marcar a E4 como fechada.
 
 ---
 
