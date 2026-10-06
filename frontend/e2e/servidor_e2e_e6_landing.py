@@ -11,12 +11,16 @@ marcador `FALHAR-LLM`, o dublê levanta uma exceção (simula o Groq fora do ar)
 Cada chamada (inclusive as que falham) é registrada em --log-llm, uma linha JSON com todas as mensagens
 enviadas ao modelo, para o teste inspecionar o contexto que chegou ao LLM.
 
+E9 (D48): o CORS do backend só libera as origens da lista. A landing de teste é servida por um servidor estático
+em outra porta, então o teste passa essa origem em --cors-origin e o harness a publica em CORS_ALLOWED_ORIGINS.
+
 Uso (feito pelo teste, não à mão):
-  py -3 frontend/e2e/servidor_e2e_e6_landing.py --port 8124 --db-path <tmp>/db.sqlite --outbox <tmp>/o.jsonl --log-llm <tmp>/llm.jsonl
+  py -3 frontend/e2e/servidor_e2e_e6_landing.py --port 8124 --db-path <tmp>/db.sqlite --outbox <tmp>/o.jsonl --log-llm <tmp>/llm.jsonl --cors-origin http://127.0.0.1:8125
 """
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -53,9 +57,12 @@ def main() -> None:
     parser.add_argument("--db-path", required=True)
     parser.add_argument("--outbox", required=True)
     parser.add_argument("--log-llm", required=True)
+    parser.add_argument("--cors-origin", default="", help="origem do servidor estático da landing (CORS_ALLOWED_ORIGINS)")
     args = parser.parse_args()
 
     base._ambiente(args.outbox)
+    if args.cors_origin:
+        os.environ["CORS_ALLOWED_ORIGINS"] = args.cors_origin
     app = base._importar_app_com_banco_isolado(Path(args.db_path))
     _instalar_duble(Path(args.log_llm))
 

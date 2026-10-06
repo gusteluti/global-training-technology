@@ -605,3 +605,74 @@ conta visada; `limit` inválido devolve 422; perfil exibido com o valor cru da A
 **Riscos abertos:** dois reembolsos simultâneos podem gravar dois eventos (corrida de leitura e UPDATE, tratar
 na E9); `mark_payment_refunded` aceita qualquer status (E9); eventos anteriores à E8 ficam com ator nulo; login
 administrativo legado não identifica pessoa; sem limitação de taxa nos eventos de falha de login.
+
+## D48 — E9 (hardening de pagamento): análise e contrato (06/10/2026, modo autônomo D40)
+Acréscimo do PM, não consta do PDF (D33.6); mantida. **Defeitos encontrados em `payments/routes.py`:**
+1. `POST /api/payments/webhook` sem autenticação; `payment_id` vai direto para a URL da consulta ao Mercado Pago, sem validar que é numérico.
+2. Sem conferência de valor nem moeda: qualquer pagamento com `status=approved` e `external_reference` conhecida ativa a matrícula.
+3. Sem idempotência nem máquina de estados: webhook repetido emite outro link de definição de senha; `approved` repetido depois de reembolso **reativa a matrícula reembolsada**; `pending` atrasado rebaixa matrícula ativa.
+4. CORS `allow_origins=["*"]` com credenciais.
+5. `create-checkout` repassa ao cliente o corpo de erro do Mercado Pago.
+6. `refund` aceita qualquer status (inclusive `pending`/`rejected`) e tem corrida entre ler e gravar.
+
+**Contrato:**
+- **Assinatura (fail closed).** Variável `MERCADO_PAGO_WEBHOOK_SECRET` (nome entra em `.env.example` e na lista do `AGENTS.md`, sem valor). Cabeçalhos `x-signature` (`ts=<número>,v1=<hex>`) e `x-request-id`. Manifesto `id:<data_id>;request-id:<x-request-id>;ts:<ts>;` e HMAC-SHA256 hex com o segredo, comparado com `hmac.compare_digest`. `data_id` vem da query `data.id` (preferida) ou de `data.id` no corpo, em minúsculas se alfanumérico. Assinatura ausente, malformada ou inválida: **401** `{"detail":"Assinatura inválida."}`, nada é processado e nenhuma chamada ao Mercado Pago é feita. Segredo não configurado: **503** `{"detail":"Webhook não configurado."}`. Sem janela de tempo: o estado é sempre reconsultado no Mercado Pago, então replay não forja nada, e a janela rejeitaria retentativas legítimas; `ts` precisa estar presente e ser numérico.
+- **Tópico e id.** Só processa `type`/`topic` = `payment` (query ou corpo); outro tópico: 200 `{"status":"ignored","reason":"unsupported topic"}`. `data_id` deve casar `^\d{1,20}$`, senão 400 `{"detail":"Identificador de pagamento inválido."}` (depois da assinatura).
+- **Conferência.** O pagamento do Mercado Pago precisa ter `transaction_amount` igual (2 casas, `Decimal`) ao `amount` gravado e `currency_id` `BRL`. Divergência com status `approved`: o pagamento local **continua como está**, a matrícula não é ativada, grava-se o evento de auditoria `payment.amount_mismatch` (`role='system'`, `entity_type='payment'`, `changes` com valor esperado e recebido) e a resposta é 200 `{"status":"rejected","reason":"amount_mismatch"}`. `external_reference` desconhecida ou sem pagamento local: 200 `{"status":"ignored","reason":"unknown reference"}`, sem alteração e sem e-mail.
+- **Máquina de estados do pagamento.** `refunded` e `charged_back` são terminais: nenhuma notificação os altera (200 `{"status":"ignored","reason":"terminal"}`). `approved` só vai para `refunded` ou `charged_back`; qualquer outro status que chegue (`pending`, `in_process`, `rejected`, `cancelled`) é ignorado (`reason":"stale"`). Os demais estados movem-se livremente entre si e para `approved`. Mesmo status de novo: no-op (`reason":"duplicate"`), sem efeito colateral. A matrícula segue o pagamento pelo mapa fechado atual.
+- **Efeitos colaterais uma vez só.** O link de definição de senha só é emitido e enviado na **transição para `approved`**; dois webhooks `approved` idênticos (inclusive simultâneos, em threads) geram exatamente um token. A transição é atômica no banco (`BEGIN IMMEDIATE` ou `UPDATE ... WHERE status = <anterior>` com conferência de linhas afetadas). `transaction_id` não pode se repetir em dois pagamentos (índice único parcial em valores não nulos); conflito: 200 `ignored`, `reason":"duplicate transaction"`.
+- **Auditoria.** Transição para `approved`, `refunded` ou `charged_back` por webhook grava `payment.status_change` (`role='system'`, `entity_type='payment'`, `entity_id`, `changes` com `payment.status` antes e depois). Eventos de webhook ignorado não gravam.
+- **Reembolso.** `POST /api/payments/refund/{id}`: só pagamento `approved` muda para `refunded` (pagamento e matrícula, na mesma transação, condicional ao status `approved` para evitar corrida); já `refunded`: 200 idempotente com o mesmo corpo, sem novo evento; `pending`, `rejected`, `cancelled`, `in_process`, `charged_back`: **409** `{"detail":"Só é possível reembolsar pagamentos aprovados."}`; inexistente: 404 como hoje. Dois reembolsos simultâneos: um evento. A chamada real de estorno ao gateway continua fora (MVP).
+- **CORS.** Variável `CORS_ALLOWED_ORIGINS` (lista separada por vírgulas, sem `*`). Padrão quando ausente: `FRONTEND_BASE_URL` (padrão `http://localhost:8000`), `http://localhost:4200`, `http://127.0.0.1:4200`, `http://127.0.0.1:8000`. `allow_credentials=False` (a autenticação é por cabeçalho `Authorization`), métodos `GET, POST, PUT, DELETE, OPTIONS`, cabeçalhos `Authorization, Content-Type`. Origem fora da lista não recebe `access-control-allow-origin`. Nome da variável entra em `.env.example` e na lista do `AGENTS.md`.
+- **Checkout.** Erro do Mercado Pago: 502 `{"detail":"Não foi possível iniciar o pagamento. Tente novamente."}` sem repassar o corpo (loga só o status); token do gateway ausente: 503 `{"detail":"Pagamento indisponível no momento."}`. O preço vem sempre do catálogo do servidor (campos `price`/`amount` no corpo são ignorados).
+- **Testes antigos que mudam (autoridade permanente 4.3, encadeamento D33.6 → D48):** os que enviam webhook sem assinatura passam a assinar (o segredo vem de variável de ambiente de teste); os que reembolsam pagamento `pending` passam a aprová-lo antes; o harness de e2e do landing (E6) e os de e2e que chamam o webhook (E7, E8) recebem o segredo e a origem permitida. Intenção preservada. Quem altera: agente-testes.
+- **Fora do escopo:** limitação de taxa no checkout, estorno real no gateway, cabeçalhos de segurança HTTP, conciliação periódica com o gateway.
+Sub-branch: `feature/fase2-tdd-e9-hardening-pagamento`.
+
+## D49 — E9: red observado e ambiguidades resolvidas (06/10/2026)
+Red: `backend/tests/test_e9_hardening_pagamento.py`, commits `a9e9042` (novos) e `578f6ea` (antigos assinam o
+webhook, aprovam antes de reembolsar e configuram CORS; autoridade 4.3, D33.6 → D48). Verificado pelo
+orquestrador: 135 falham e 34 passam no arquivo novo; regressão do agente-testes: 445 verdes + 135 vermelhos,
+nenhum vermelho fora da E9. Decisões de forma e política (modo autônomo, revisar):
+1. **`charged_back` revoga o acesso:** a matrícula vai para `refunded` (dinheiro devolvido ao comprador),
+   dentro do vocabulário fechado de matrícula; sem isso, o recurso pago continuaria liberado depois do estorno
+   (item 4 do checklist). Mapa atualizado só para esse caso.
+2. `refunded` e `charged_back` por webhook só são aceitos a partir de `approved`; vindo de outro estado, o
+   webhook é ignorado (`stale`).
+3. O `data.id` só aceita dígitos ASCII `[0-9]` (`\d` aceitaria dígitos de outros alfabetos).
+4. O corpo de sucesso do webhook processado mantém os campos atuais (`status: "received"`, `payment_id`,
+   `payment_status`, `external_reference`).
+5. `update_payment_status_by_reference` e `update_payment_status` do `Database` mantêm o comportamento atual
+   (os testes de E4, E5, E7 e E8 semeiam por eles); a máquina de estados e a atomicidade ficam em função
+   nova usada só pelo webhook e pelo reembolso.
+6. O botão "Reembolsar" da tela continua aparecendo para qualquer status diferente de `refunded`; em
+   pagamento não aprovado a API devolve 409 e a tela mostra o erro. Ajuste de UX fica como dívida.
+O agente-testes acrescenta testes para os itens 1 (matrícula `refunded`, nenhum material liberado) e 3.
+
+## D50 — E9 entregue (06/10/2026), aguardando validação do PM
+Ciclo: testes vermelhos `a9e9042` (135 falham, 34 passam), atualização dos testes antigos `578f6ea`
+(webhook assinado, aprovação antes do reembolso, CORS no harness), acréscimo D49 `99ca939` (148 falham, 37
+passam); backend `feaa9db` (185/185). Reexecutado pelo orquestrador: backend **596 passed** numa execução só;
+e2e contra o código novo: landing 8/8, observabilidade 11/11, auditoria 17/17, chat do aluno 11/11, dashboard
+de alunos 9/9. Sem alteração de frontend (nada a buildar).
+Checklist de 9 itens: (1) escopo do acréscimo D33.6: assinatura, conferência de valor, idempotência e CORS, mais
+reembolso e erro de checkout; (2) red observado, pelo motivo certo; (3) IDOR: I1 (webhook de uma referência não
+afeta o aluno de outra) e R6 (aluno dono do pagamento recebe 403 no reembolso); (4) recurso pago só com
+matrícula ativa: G1 (chargeback revoga a matrícula e nenhum material aparece), M1b/R9 (`approved` repetido
+não reativa matrícula reembolsada); (5) compatibilidade: bancos antigos ganham o índice único sem derrubar a
+inicialização; (6) não se aplica; (7) 401 sem token, 403 Suporte/aluno no reembolso, 401 assinatura inválida no
+webhook; (8) sem tela nova; e2e anteriores verdes; (9) ciclo completo e documentação.
+**Atrito registrado (D49.5):** os testes de E5 e E7 semeiam o mesmo `transaction_id` em vários pagamentos por
+`update_payment_status_by_reference`; com o índice único, o dev manteve o comportamento antigo dessas duas
+funções exceto que, se outro pagamento já tem aquele `transaction_id`, o status e a matrícula são atualizados e o
+`transaction_id` não é gravado. O webhook usa a função nova e atômica.
+**Escolhas do dev (revisar):** só os 7 status do mapa são aceitos (`authorized`, `in_mediation` etc. =
+`ignored`/`unsupported status`); valor com mais de 2 casas é divergência; tópico ausente é ignorado; sem
+`data.id` = 401; conferência de valor só em `approved`; `payment.status_change` é gravado antes da entrega do
+link de senha.
+**Riscos abertos:** se a entrega do link falhar depois de `approved` gravado, o reenvio do gateway cai em
+`duplicate` e o link não é reemitido (sem rota de reenvio); webhook `async def` com chamadas síncronas bloqueia o
+loop durante a consulta ao gateway (até 15 s); base antiga com `transaction_id` duplicado fica sem índice único
+(só aviso no log); botão "Reembolsar" aparece para pagamento não aprovado e recebe 409 (UX); arquivos estáticos
+abertos por `file://` têm origem `null` e ficam sem CORS; sem limitação de taxa no checkout; sem estorno real no
+gateway; o segredo do webhook precisa ser configurado no ambiente, senão o webhook responde 503.

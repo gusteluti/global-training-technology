@@ -194,7 +194,8 @@ def servidores():
         processo = _iniciar(
             [sys.executable, str(E2E_DIR / "servidor_e2e_e6_landing.py"), "--port", str(porta_api),
              "--db-path", str(tmp / "db.sqlite"), "--outbox", str(tmp / "outbox.jsonl"),
-             "--log-llm", str(tmp / "llm.jsonl")],
+             "--log-llm", str(tmp / "llm.jsonl"),
+             "--cors-origin", base],  # E9 (D48): o CORS só libera a origem do servidor estático da landing
             arquivo, REPO / "backend",
         )
         _esperar_http(api + "/health", 90, processo, "backend de teste", log_api)

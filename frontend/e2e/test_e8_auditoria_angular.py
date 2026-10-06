@@ -73,6 +73,7 @@ if str(E2E_DIR) not in sys.path:
     sys.path.insert(0, str(E2E_DIR))
 
 from servidor_e2e_e5 import ADMIN_EMAIL, ADMIN_PASSWORD  # noqa: E402
+from apoio_webhook_mp import enviar_webhook  # noqa: E402  (E9, D48: webhook assinado, id numérico)
 from servidor_e2e_e8 import (  # noqa: E402
     FINANCEIRO_EMAIL, FINANCEIRO_SENHA, GESTOR2_EMAIL, GESTOR2_SENHA, SENHA_LEGADA_GESTAO,
     SUPORTE_EMAIL, SUPORTE_SENHA,
@@ -382,7 +383,7 @@ def test_e8_auditoria_angular_e2e(servidores, browser):
                              {"course_id": CURSO_ID, "payer": {"name": "Aluno E8", "email": email_aluno}})
         if status != 200 or not (corpo or {}).get("external_reference"):
             raise RuntimeError(f"seed: create-checkout respondeu HTTP {status}")
-        status, _ = _api(api, "POST", "/api/payments/webhook", {"data": {"id": corpo["external_reference"]}})
+        status, _ = enviar_webhook(api, corpo["external_reference"])
         if status != 200:
             raise RuntimeError(f"seed: webhook respondeu HTTP {status}")
         status, painel = _api(api, "GET", "/api/dashboard/financeiro", token=token_g1)

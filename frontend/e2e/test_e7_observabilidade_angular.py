@@ -67,6 +67,7 @@ if str(E2E_DIR) not in sys.path:
 
 from servidor_e2e_e5 import ADMIN_EMAIL, ADMIN_PASSWORD  # noqa: E402
 from servidor_e2e_e7 import SUPPORT_EMAIL, SUPPORT_PASSWORD, TEXTO_RESPOSTA  # noqa: E402
+from apoio_webhook_mp import enviar_webhook  # noqa: E402  (E9, D48: webhook assinado, id numérico)
 # Utilitários de harness e de seed já usados pelo e2e do chat (somente leitura, o arquivo não é alterado).
 from test_e5_chat_aluno_angular import (  # noqa: E402
     ERRO_HTTP, Falha, FRONTEND, REPO, TIMEOUT, _api, _encerrar, _esperar_http, _iniciar,
@@ -317,7 +318,7 @@ def test_e7_observabilidade_angular_e2e(servidores, browser):
         if status != 200 or not (corpo or {}).get("external_reference"):
             raise RuntimeError(f"seed: create-checkout respondeu HTTP {status}")
         referencia = corpo["external_reference"]
-        status, _ = _api(api, "POST", "/api/payments/webhook", {"data": {"id": referencia}})
+        status, _ = enviar_webhook(api, referencia)
         if status != 200:
             raise RuntimeError(f"seed: webhook respondeu HTTP {status}")
 

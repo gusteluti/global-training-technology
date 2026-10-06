@@ -40,6 +40,7 @@ import pytest
 from fastapi.testclient import TestClient
 from jose import jwt as jose_jwt
 
+from apoio_mercado_pago import corpo_pagamento_mp, id_de_pagamento, post_webhook
 from core.security import get_password_hash
 from db import Database
 
@@ -125,10 +126,11 @@ def _conta_funcionario(email, perfil):
 
 
 def _webhook(client, status_pagamento, ref, pagamento_id):
+    # E9 (D48): webhook assinado, id numérico e valor/moeda do pagamento semeado (100.0 BRL).
     resposta = MagicMock(status_code=200)
-    resposta.json.return_value = {"id": pagamento_id, "status": status_pagamento, "external_reference": ref}
+    resposta.json.return_value = corpo_pagamento_mp(status_pagamento, ref, 100.0, pagamento_id)
     with patch("payments.routes.requests.get", return_value=resposta):
-        r = client.post("/api/payments/webhook", json={"data": {"id": pagamento_id}})
+        r = post_webhook(client, pagamento_id)
     assert r.status_code == 200, r.text
 
 
@@ -138,7 +140,11 @@ def _matricula(client, user_id, course_id, status):
     enrollment_id = Database.create_enrollment(user_id, course_id, ref)
     Database.record_payment(enrollment_id, 100.0, "mercado_pago")
     if status != "pending":
-        _webhook(client, PAGAMENTO_DE_STATUS[status], ref, f"pg-{uuid.uuid4().hex[:10]}")
+        pagamento_mp = id_de_pagamento(ref)  # numérico e único por pagamento (E9, D48)
+        if status == "refunded":
+            # E9 (D48): só um pagamento aprovado vai a refunded; aprova antes (mesmo pagamento do gateway).
+            _webhook(client, "approved", ref, pagamento_mp)
+        _webhook(client, PAGAMENTO_DE_STATUS[status], ref, pagamento_mp)
     assert _status_no_banco(enrollment_id) == status, "seed: o webhook não levou a matrícula ao status pedido"
     return enrollment_id
 
