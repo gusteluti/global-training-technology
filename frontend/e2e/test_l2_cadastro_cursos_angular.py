@@ -809,7 +809,13 @@ def test_l2_cadastro_cursos_angular_e2e(servidores, browser):
         if status != 400 or not isinstance(detalhe, str):
             raise Falha(f"D1: a API devolveu HTTP {status} / detail {detalhe!r} para o id duplicado (esperado 400 com texto)")
         preencher_tudo(page, duplicado, "D1")
-        clicar(page, SEL_SALVAR, "D1")
+        try:
+            with page.expect_response(lambda r: r.request.method == "POST"
+                                      and urllib.parse.urlparse(r.url).path == "/api/admin/create-course",
+                                      timeout=TIMEOUT * 2):
+                clicar(page, SEL_SALVAR, "D1")
+        except sync_api.TimeoutError:
+            raise Falha("D1: a tela não enviou POST /api/admin/create-course")
         esperar_texto(page, SEL_ERRO, detalhe, "D1")
         if texto_visivel(page, SEL_SUCESSO) is not None:
             raise Falha("D1: curso-success visível junto do erro de id duplicado")
@@ -1131,9 +1137,11 @@ def test_l2_cadastro_cursos_angular_e2e(servidores, browser):
             page.locator("input[name=name]").first.fill("Aluno Interceptor L2", timeout=TIMEOUT)
             page.locator("input[name=email]").first.fill(f"e2e.l2.{uuid.uuid4().hex[:10]}@teste.com", timeout=TIMEOUT)
             page.locator("input[name=password]").first.fill(SENHA, timeout=TIMEOUT)
-            page.locator("button[type=submit]").first.click(timeout=TIMEOUT)
+            with page.expect_response(lambda r: urllib.parse.urlparse(r.url).path == "/api/auth/register",
+                                      timeout=TIMEOUT * 2):
+                page.locator("button[type=submit]").first.click(timeout=TIMEOUT)
         except sync_api.TimeoutError:
-            raise Falha("N3: formulário de /cadastro não encontrado")
+            raise Falha("N3: formulário de /cadastro não encontrado ou a tela não chamou /api/auth/register")
         esperar(lambda: None if desde("N3-cadastro", caminho="/api/auth/register")
                 else "a tela não chamou /api/auth/register", "N3")
         page.wait_for_load_state("networkidle")
@@ -1150,9 +1158,11 @@ def test_l2_cadastro_cursos_angular_e2e(servidores, browser):
         try:
             abrir_pagina_com_token_velho(page, base, "/definir-senha?token=x")
             page.locator("input[name=password]").first.fill("senha-qualquer-123", timeout=TIMEOUT)
-            page.locator("button[type=submit]").first.click(timeout=TIMEOUT)
+            with page.expect_response(lambda r: urllib.parse.urlparse(r.url).path == "/api/auth/password-setup",
+                                      timeout=TIMEOUT * 2):
+                page.locator("button[type=submit]").first.click(timeout=TIMEOUT)
         except sync_api.TimeoutError:
-            raise Falha("N4: formulário de /definir-senha não encontrado")
+            raise Falha("N4: formulário de /definir-senha não encontrado ou a tela não chamou /api/auth/password-setup")
         esperar(lambda: None if desde("N4-definir-senha", caminho="/api/auth/password-setup")
                 else "a tela não chamou /api/auth/password-setup", "N4")
         page.wait_for_load_state("networkidle")
