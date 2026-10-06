@@ -846,3 +846,16 @@ com `|` não sobrevive à edição do campo; o interceptor remove `Authorization
   e o arquivo; se não existir, escrever (guarda verde) em `backend/tests`.
 Entrega só de testes (sem código de produção). Verificação: cada e2e migrado roda verde, uma vez por vez, e `db.sqlite` e
 `backend/courses` ficam byte a byte iguais antes e depois. Sub-branch: `feature/fase2-tdd-h1-harness-e2e`.
+
+## D59 — dívidas de harness fechadas (06/10/2026), aguardando validação do PM
+Entrega só de testes: `0869edd`. Reexecutado pelo orquestrador: `test_admin_angular.py` 33/33, `test_e2_conta_aluno_angular.py`
+8/8, `test_e3_painel_angular.py` 7/7; `backend/db.sqlite` (sha256 `3ea0951d...`) e `backend/courses` byte a byte iguais antes e
+depois. **D7 resolvida:** os três e2e antigos sobem servidores e banco próprios (helpers `servidor_e2e_h1.py` e
+`apoio_harness_h1.py`), `E2E_BASE_URL`/`E2E_API_URL` não são mais lidos. **D4 resolvida:** os dois checks de reembolso pela
+tela rodam sem pulo; a contagem de checks do `test_admin_angular.py` passou de 29 para **33** (29 históricos + 3 da aba de IA que
+ganhou um segundo gráfico na E7 + 1 da aba "Cadastro de cursos" da L2); o clique "Cursos" passou a usar texto exato (consequência
+mecânica da aba nova, D56). **D6 resolvida** (`578f6ea`). **D10 confirmada:** `backend/tests/test_e1_referencia.py::
+test_d10_duas_compras_mesmo_curso_mesmo_email_mesmo_instante_geram_referencias_distintas`, commitado e verde.
+**Riscos:** `abrir_banco` só redireciona o import de `db` se ele ainda não estiver em `sys.modules`; a suíte de backend
+(`conftest`) abre o `backend/db.sqlite` de desenvolvimento no `init_db` do import, sem alterá-lo; não há guarda automática
+de integridade do `db.sqlite` (a prova foi pelos hashes).

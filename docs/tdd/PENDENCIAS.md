@@ -32,7 +32,7 @@ E4: regressão integral de backend registrada depois do fechamento — **88 pass
 
 ## 2. Em andamento
 
-Modo autônomo (D40): ver `docs/tdd/RELATORIO_NOITE.md`. E5 (D37), E6 (D41), E7 (D44), E8 (D47) e E9 (D50) entregues, aguardando validação do PM. Dívidas de segurança resolvidas (D52); turmas entregues (D55). Cadastro de cursos no Angular e interceptor entregues (D57). Próximo: dívidas de harness e backlog (fila D40).
+Modo autônomo (D40): ver `docs/tdd/RELATORIO_NOITE.md`. E5 (D37), E6 (D41), E7 (D44), E8 (D47) e E9 (D50) entregues, aguardando validação do PM. Dívidas de segurança resolvidas (D52); turmas entregues (D55). Cadastro de cursos no Angular e interceptor entregues (D57). Dívidas de harness resolvidas (D59). Próximo: backlog opcional (fila D40).
 
 ---
 
@@ -76,10 +76,10 @@ Tomadas pelo PM. Anteriores às D21 a D26 do log. Cobrem o que o documento de es
 
 ## 6. Dívidas técnicas abertas
 
-- **D4 — e2e:** 27 vs 29 checks. Os dois checks de reembolso pela tela são pulados com banco vazio. O harness precisa semear um pagamento pendente antes de rodar. Sem mudança de produção para isso.
-- **D6 — pendente:** alteração em `frontend/e2e/test_admin_angular.py` ainda sem commit de follow-up.
-- **D7 — harness:** o seed do e2e grava pagamentos de teste em `backend/db.sqlite` de desenvolvimento, e o acúmulo se repete a cada execução. Correção futura: subir o backend com `DB_PATH` isolado.
-- **D10 — a confirmar:** confirmar que o teste de duas compras do mesmo curso no mesmo segundo está commitado e verde.
+- ~~D4 — e2e: 27 vs 29 checks. Os dois checks de reembolso pela tela são pulados com banco vazio. O harness precisa semear um pagamento pendente antes de rodar. Sem mudança de produção para isso.~~ **Resolvido (D59).**
+- ~~D6 — pendente: alteração em `frontend/e2e/test_admin_angular.py` ainda sem commit de follow-up.~~ **Resolvido (D59).**
+- ~~D7 — harness: o seed do e2e grava pagamentos de teste em `backend/db.sqlite` de desenvolvimento, e o acúmulo se repete a cada execução. Correção futura: subir o backend com `DB_PATH` isolado.~~ **Resolvido (D59).**
+- ~~D10 — a confirmar: confirmar que o teste de duas compras do mesmo curso no mesmo segundo está commitado e verde.~~ **Resolvido (D59).**
 - **D13 — envio de link:** não há servidor de e-mail. A função `send_password_setup_link` grava o link em arquivo de saída de **desenvolvimento, fora do repo**. Troca por SMTP real é trabalho futuro.
 - ~~Defeito latente em `PUT /api/admin/update-course`: usa o mesmo `CourseInput` em que `materials` tem default `[]`. Quem editar um curso sem reenviar `materials` apaga os materiais em silêncio. Hoje nenhuma tela chama esse endpoint, então é risco latente. Vira defeito real quando a área administrativa ganhar edição de curso. Fora do escopo da D28; precisa de decisão do PM.~~ **Resolvido (D52).**
 - **(Resolvido na E6, D38) E5 — erro do LLM vira mensagem do bot.** Se o Groq falhar, `CourseAgent` e `_answer_general_question` devolvem o texto "Desculpe, ocorreu um erro... {exceção}" (comportamento herdado do `/api/chat`). No chat autenticado esse texto é **persistido** como mensagem do assistente, entra no contexto das próximas perguntas e pode expor detalhe da exceção ao aluno. Tratar na E6 (política: o que o aluno vê e se erro é gravado).
@@ -102,7 +102,7 @@ Tomadas pelo PM. Anteriores às D21 a D26 do log. Cobrem o que o documento de es
 
 - **Recuperação de senha do aluno.** Fora do escopo do PDF, mas o login de aluno em produção vai precisar. Item próprio.
 - **Limpeza do histórico do `.chrome-pdf-profile/`.** O commit `92b959a` ("Presentation changes", Gustavo Santos Steluti, 25/05/2026) versionou um perfil de Chrome descartável, com 162 arquivos e 9,8 MB. **Diagnóstico medido:** os cofres estão vazios (0 logins, 0 cookies, 0 autofill, 0 cartões) e não há nenhum padrão de chave nos 162 arquivos. O que vaza é o nome de usuário do Windows num caminho de arquivo, um token de device do media router e um hash de cookie do Google. **Os cofres vazios baixam a urgência, mas não anulam o problema.** O conteúdo já está público em `origin/payment-system`. **Decisão do grupo, não deste time. Não executar**, nem se parecer seguro: reescrever histórico e fazer force-push numa branch do Gustavo é decisão do grupo, com o Gustavo participando. Diagnóstico completo no `HANDOFF_TDD.md`, seção 11.
-- **D4, D6, D7** — dívidas do harness de e2e (seção 6 acima).
+- ~~D4, D6, D7 — dívidas do harness de e2e.~~ **Resolvidas (D59).**
 
 ---
 

@@ -11,7 +11,7 @@ Atualizado a cada entrega. Quem acordou: leia primeiro a seção "Decisões de p
 | 4 | E9 — hardening de pagamento | **entregue** (D50): backend 596 passed, e2e anteriores verdes; mergeada e publicada |
 | 5 | Dívidas de segurança (token, bcrypt, update-course) | **entregue** (D52): backend 669 passed; mergeada e publicada |
 | 6 | Lacunas de produto: (a) turmas, (b) cadastro de cursos no Angular + interceptor — **concluído** | (a) **entregue** (D55): backend 828 passed, e2e 16/16; (b) **entregue** (D57): e2e 24/24, regressões de e2e verdes |
-| 7 | Dívidas de harness (D4, D6, D7, D10) | em andamento (contrato D58; D6 já resolvida) |
+| 7 | Dívidas de harness (D4, D6, D7, D10) | **entregue** (D59): os 3 e2e antigos isolados; 33/8/7 checks; db.sqlite intacto |
 | 8 | Backlog opcional (recuperação de senha, recibo PDF) | pendente |
 
 ## Decisões de política tomadas sem o PM (revisar na volta)
