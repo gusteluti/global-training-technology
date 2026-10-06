@@ -5,6 +5,8 @@ import { StudentDashboardComponent } from './components/student-dashboard/studen
 import { AdminDashboardComponent } from './components/admin-dashboard/admin-dashboard.component';
 import { CadastroComponent } from './components/cadastro/cadastro.component';
 import { DefinirSenhaComponent } from './components/definir-senha/definir-senha.component';
+import { EsqueciSenhaComponent } from './components/esqueci-senha/esqueci-senha.component';
+import { RedefinirSenhaComponent } from './components/redefinir-senha/redefinir-senha.component';
 
 import { AuthGuard } from './guards/auth.guard';
 import { RoleGuard } from './guards/role.guard';
@@ -23,6 +25,8 @@ const routes: Routes = [
   // Rotas públicas da conta do aluno (sem AuthGuard). Devem vir antes do curinga.
   { path: 'cadastro', component: CadastroComponent },
   { path: 'definir-senha', component: DefinirSenhaComponent },
+  { path: 'esqueci-senha', component: EsqueciSenhaComponent },
+  { path: 'redefinir-senha', component: RedefinirSenhaComponent },
   { path: '**', redirectTo: '' }
 ];
 

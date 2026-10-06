@@ -1,0 +1,28 @@
+<div class="row justify-content-center mt-5">
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-body">
+        <h4 class="card-title">Redefinir senha</h4>
+
+        <div *ngIf="mensagem" class="alert alert-success">
+          <span data-testid="redefinir-mensagem">{{ mensagem }}</span>
+          <a href="/" (click)="irParaLogin($event)" class="alert-link ms-2">Ir para o login</a>
+        </div>
+
+        <div *ngIf="error" class="alert alert-danger" data-testid="redefinir-erro">{{ error }}</div>
+
+        <form *ngIf="!mensagem" (ngSubmit)="submit()">
+          <div class="mb-3">
+            <label class="form-label">Nova senha (mínimo 8 caracteres)</label>
+            <input type="password" class="form-control" [(ngModel)]="password" name="password" required data-testid="redefinir-senha" />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Confirmar nova senha</label>
+            <input type="password" class="form-control" [(ngModel)]="confirmar" name="confirmar" required data-testid="redefinir-confirmar" />
+          </div>
+          <button class="btn btn-primary" type="submit" [disabled]="enviando || !token" data-testid="redefinir-enviar">Redefinir senha</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
