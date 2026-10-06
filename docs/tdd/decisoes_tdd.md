@@ -948,3 +948,16 @@ vermelhos fora do arquivo novo. Exigências de forma que o dev deve seguir (vêm
 `/Length` direto; sem `/Filter`; entradas do `xref` de exatamente 20 bytes; `/Helvetica` e `/WinAnsiEncoding`; valor `R$ 1234,50`
 (sem milhar); status e forma de pagamento podem ser o valor bruto ou o rótulo em português; sem a palavra "transa" quando
 não houver transação.
+
+## D65 — recibo em PDF entregue (06/10/2026), aguardando validação do PM
+Ciclo: testes vermelhos de backend `3687b02` (42 falham); backend `553b9d7` (44/44); e2e vermelho `c0eb94d` (3/8);
+frontend `675cbd1` (8/8). Reexecutado pelo orquestrador: arquivo de backend 44 passed (a regressão completa do dev,
+965 passed, 0 failed, numa execução); e2e do botão 8/8, painel 7/7, chat 11/11; build limpo. Além dos testes (parser manual
+de estrutura), abri os PDFs gerados em um leitor real (`pypdf` em modo estrito, instalado só no scratchpad, fora do projeto):
+1 página, texto acentuado correto, linha de reembolso só em `refunded`.
+Checklist: (1) fecha o opcional "recibo em PDF" da decisão 4 do PM; (2) red observado; (3) IDOR: alheio e inexistente = mesmo
+404 do recibo JSON, verificado antes do status (A13); (4) não se aplica (sem material no PDF, A11); (5) pagamento antigo sem
+`transaction_id`/`updated_at` (A20); (6) não se aplica; (7) 401, 403 para funcionário, 409 por status; (8) e2e e build; (9) ciclo e docs.
+**Para revisão do PM:** só `approved` e `refunded` geram PDF; o PDF mostra o nome do aluno e nunca o e-mail; valor sem
+separador de milhar (`R$ 1234,50`); status e forma de pagamento em valor bruto (`approved`, `mercado_pago`); linha truncada em 90
+caracteres; sem logotipo, sem numeração fiscal; rótulos em português escolhidos pelo orquestrador/dev.

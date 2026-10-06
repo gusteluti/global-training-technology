@@ -12,7 +12,7 @@ Atualizado a cada entrega. Quem acordou: leia primeiro a seção "Decisões de p
 | 5 | Dívidas de segurança (token, bcrypt, update-course) | **entregue** (D52): backend 669 passed; mergeada e publicada |
 | 6 | Lacunas de produto: (a) turmas, (b) cadastro de cursos no Angular + interceptor — **concluído** | (a) **entregue** (D55): backend 828 passed, e2e 16/16; (b) **entregue** (D57): e2e 24/24, regressões de e2e verdes |
 | 7 | Dívidas de harness (D4, D6, D7, D10) | **entregue** (D59): os 3 e2e antigos isolados; 33/8/7 checks; db.sqlite intacto |
-| 8 | Backlog opcional: (a) recuperação de senha, (b) recibo PDF | (a) **entregue** (D62): backend 921 passed, e2e 10/10; (b) em andamento (contrato D63) |
+| 8 | Backlog opcional: (a) recuperação de senha, (b) recibo PDF | (a) **entregue** (D62): backend 921 passed, e2e 10/10; (b) **entregue** (D65): backend 965 passed, e2e 8/8 |
 
 ## Decisões de política tomadas sem o PM (revisar na volta)
 - **E6:** textos fixos que o usuário final vê (`INPUT_BLOCKED`, `OFFER_BLOCKED`, `LLM_UNAVAILABLE`, `TOO_LONG`), em D38.
