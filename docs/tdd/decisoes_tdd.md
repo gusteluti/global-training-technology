@@ -524,3 +524,53 @@ backend preserva totais; R1 prova o mesmo na tela. Contadores em memória removi
 do chat anônimo; rótulos da tela escolhidos pelo orquestrador ("Requisições à IA", "Tokens", "Custo",
 "Taxa de resolução", "Conversão", "Requisições por dia", "Tópico", "Ocorrências"); o título "Tópicos não
 compreendidos" aparece no cartão e na seção de tópicos.
+
+## D45 — E8 (auditoria com usuário responsável): análise e contrato (06/10/2026, modo autônomo D40)
+**Achados:** `audit_logs` grava só o perfil (`role`), nunca a pessoa: com dois gestores não há como saber quem
+mudou um preço (PDF seção 2 pede "identificação do usuário responsável"). A alteração é texto livre, sem
+antes/depois, e quando o preço muda os demais campos alterados somem do registro. Reembolso repetido grava
+evento duplicado. Não existe rota de funcionário que edite dado cadastral de aluno: "dados cadastrais"
+cobre o cadastro de cursos (criar, editar, excluir). Qualquer rota futura que altere dado de aluno deve
+chamar a trilha. O login administrativo legado (`/api/admin/login`, senha única por perfil) não identifica
+pessoa; o Angular usa JWT por conta.
+
+**Esquema.** `audit_logs` ganha (via `_ensure_column`): `actor_email`, `actor_name`, `entity_type`,
+`entity_id`, `changes` (JSON em texto: lista de `{"field","before","after"}`). `user_id`/`role` ficam.
+**Append-only:** triggers SQLite abortam `UPDATE` e `DELETE` em `audit_logs`.
+
+**Responsável.** Gravado no servidor a partir do token, nunca do corpo da requisição. JWT de conta de
+funcionário: `user_id`, `actor_email`, `actor_name`, `role`. Token administrativo legado: `user_id` e
+`actor_email` nulos, `actor_name` = "Login administrativo (<rótulo do perfil>)", `role` do perfil.
+Evento do sistema (`manager_reload`): `role='system'`, sem usuário.
+
+**Eventos e `changes`:**
+- `course.create`: `entity_type='course'`, `entity_id`=id do curso; `changes` com `name` e `price` (before nulo).
+- `course.update` / `course.price_change`: `price_change` se o preço mudou, senão `update`; **um evento** com
+  `changes` listando TODOS os campos alterados (`price`, `name`, `description`, `duration_hours`, `level`,
+  `target_audience`, `objectives`, `topics`, `benefits`, `faq`, `system_prompt`, `materials`), com os valores
+  antes e depois; campos iguais não aparecem; cada valor serializado em até 2000 caracteres.
+- `course.delete`: `changes` com `name` e `price` (after nulo).
+- `payment.refund`: `entity_type='payment'`, `entity_id`=id; `changes` com `payment.status` e
+  `enrollment.status` (antes e `refunded`). Reembolsar de novo um pagamento já `refunded` não grava
+  evento novo (o status não mudou).
+- `staff.login`: login bem-sucedido de funcionário (JWT de conta com perfil de funcionário, ou login
+  administrativo legado). `staff.login_failed`: falha em conta de funcionário existente (JWT) ou senha
+  administrativa inválida (legado). Senha e e-mail digitado inexistente nunca são gravados. Login de
+  aluno não é auditado.
+
+**`GET /api/admin/audit-logs` (só Gestão, como hoje):** query opcional `action`, `user_id`, `limit`
+(padrão 100, máximo 500; acima disso vale 500); ordem decrescente por id; cada item traz `id`, `created_at`,
+`user_id`, `role`, `actor_email`, `actor_name`, `entity_type`, `entity_id`, `action`, `detail` e
+`changes` já como lista (não como texto JSON; lista vazia se não houver). Não existe rota para alterar ou
+apagar eventos: `PUT`, `PATCH`, `DELETE` e `POST` em `/api/admin/audit-logs` devolvem 405.
+
+**Compatibilidade:** eventos antigos (sem os campos novos) continuam listados, com `actor_*`/`entity_*`
+nulos e `changes` vazio; `Database.add_audit_log` aceita os campos novos como opcionais.
+
+**Tela `audit-logs` (Angular):** colunas Data, Responsável (e-mail ou nome do ator, mais o perfil; "sistema"
+quando for o caso), Ação, Alteração, Detalhe; `data-testid`: `audit-row` (uma por evento), `audit-actor`,
+`audit-change` (uma por item de `changes`, texto `campo: antes → depois`, valores de lista/objeto em JSON).
+
+**Fora do escopo:** rota de edição de aluno (não existe), IP de origem, exportação, retenção. **Acrescento
+ao E9 (D40):** reembolso só de pagamento `approved` (hoje `mark_payment_refunded` aceita qualquer status).
+Sub-branch: `feature/fase2-tdd-e8-auditoria`.
