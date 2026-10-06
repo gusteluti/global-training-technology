@@ -15,6 +15,7 @@ Fonte do escopo: `Escopo_Fase2_Global_Training_Technology.pdf`, na raiz do repo.
 | **E3 — Painel de inscrições e materiais** | Aluno vê só as próprias matrículas (com status e `enrolled_at`), detalhe de matrícula alheia devolve 404, materiais aparecem só com matrícula `active`, funcionário recebe 403 e sem token recebe 401. Tela `/student` com "Meus cursos". Validada por suíte e merge em 05/10/2026. | testes `734469d`; backend `2e76cfe`; frontend `1eaa7a7`; validação `ad291d0`; merge `da55d8f` |
 | **E4 — Histórico financeiro + recibos** | `GET /api/student/payments` e `GET /api/student/payments/{id}/receipt` (recibo JSON). Recibo alheio e inexistente devolvem o mesmo 404; consultas filtradas pelo dono do JWT. Histórico e recibo na tela `/student`. Feita direto em `feature/fase2-tdd`, sem sub-branch, por orientação do PM. Fechada pelo PM em 05/10/2026 (D34). | testes `b27bd6d`; backend `f9f20cc`; frontend `da6de8e` |
 | **E5 — Chatbot autenticado** | `POST /api/student/chat` e `GET /api/student/chat/history`: o chatbot recebe nome do aluno e cursos `active`, o histórico fica persistido em `chat_messages` e as 10 últimas mensagens vão ao LLM. Chat "Assistente virtual" em `/student`; dashboard de alunos com "Mensagens no chat" e "Última conversa". Entregue 06/10/2026; **aguardando validação do PM** (D37). | testes `7e030c7`, `eeaed3b`, e2e `cf37572`, `970d2c1`; backend `ed5fa3b`; frontend `2421a9c`, `b83e378` |
+| **E6 — Segurança de LLM** | Sessão anônima emitida pelo servidor (landing guarda o id); filtro de entrada (injeção direta, PT e EN); política e dados não confiáveis delimitados no prompt (injeção indireta: nome do aluno, base do curso); filtro de saída (desconto, valor fora do catálogo, vazamento de prompt); falha do LLM sem texto de exceção e sem persistir; limite de 2000 caracteres. Obrigatórios (a) desconto indevido e (b) vazamento entre sessões provados. Entregue 06/10/2026; **aguardando validação do PM** (D41). | testes `481b742`, `fb3744d`, `7208da8`, e2e `a00eaff`; backend `8bbd34a`; landing `7e2f9bd` |
 
 Os dois obrigatórios da E3 (**IDOR** e **material só com matrícula ativa**) foram provados por suíte e por sondagem independente de HTTP (38/38). Detalhes no `HANDOFF_TDD.md`, seção 2.
 
@@ -26,18 +27,11 @@ E4: regressão integral de backend registrada depois do fechamento — **88 pass
 
 ## 2. Em andamento
 
-Nenhuma entrega em andamento. **E5 entregue e mergeada, aguardando validação do PM** (ver tabela da seção 1 e a D37). Próxima: E6.
+Modo autônomo (D40): ver `docs/tdd/RELATORIO_NOITE.md`. E5 (D37) e E6 (D41) entregues, aguardando validação do PM. Próxima: E7.
 
 ---
 
 ## 3. A fazer — escopo de cada entrega
-
-### E6 — Segurança de LLM (seção 4 do escopo)
-- Filtros e controles contra vulnerabilidades da OWASP para LLMs (cita explicitamente *indirect prompt injection*).
-- **Dois testes obrigatórios** (D33.4), no mesmo peso que o IDOR teve na E3:
-  - **(a)** agente manipulado para **conceder desconto indevido**;
-  - **(b)** **vazamento de informação entre sessões** de usuários diferentes.
-- Isolamento de sessão por usuário faz parte da entrega.
 
 ### E7 — Observabilidade de IA (seção 4 e RF24)
 - Painel na área do funcionário com métricas de uso do LangChain e da API do Groq: conversão de atendimento, volume de requisições, tópicos que o modelo não compreendeu, **custo de inferência**.
@@ -96,8 +90,9 @@ Tomadas pelo PM. Anteriores às D21 a D26 do log. Cobrem o que o documento de es
 - **D10 — a confirmar:** confirmar que o teste de duas compras do mesmo curso no mesmo segundo está commitado e verde.
 - **D13 — envio de link:** não há servidor de e-mail. A função `send_password_setup_link` grava o link em arquivo de saída de **desenvolvimento, fora do repo**. Troca por SMTP real é trabalho futuro.
 - **Defeito latente em `PUT /api/admin/update-course`:** usa o mesmo `CourseInput` em que `materials` tem default `[]`. Quem editar um curso sem reenviar `materials` **apaga os materiais em silêncio**. Hoje nenhuma tela chama esse endpoint, então é risco latente. Vira defeito real quando a área administrativa ganhar edição de curso. Fora do escopo da D28; precisa de decisão do PM.
-- **E5 — erro do LLM vira mensagem do bot.** Se o Groq falhar, `CourseAgent` e `_answer_general_question` devolvem o texto "Desculpe, ocorreu um erro... {exceção}" (comportamento herdado do `/api/chat`). No chat autenticado esse texto é **persistido** como mensagem do assistente, entra no contexto das próximas perguntas e pode expor detalhe da exceção ao aluno. Tratar na E6 (política: o que o aluno vê e se erro é gravado).
-- **E5 — sem limite de tamanho da mensagem** no `POST /api/student/chat` (nem `maxlength` no campo). Avaliar na E6 (custo e abuso).
+- **(Resolvido na E6, D38) E5 — erro do LLM vira mensagem do bot.** Se o Groq falhar, `CourseAgent` e `_answer_general_question` devolvem o texto "Desculpe, ocorreu um erro... {exceção}" (comportamento herdado do `/api/chat`). No chat autenticado esse texto é **persistido** como mensagem do assistente, entra no contexto das próximas perguntas e pode expor detalhe da exceção ao aluno. Tratar na E6 (política: o que o aluno vê e se erro é gravado).
+- **(Resolvido na E6, D38) E5 — sem limite de tamanho da mensagem** no `POST /api/student/chat` (nem `maxlength` no campo). Avaliar na E6 (custo e abuso).
+- **E6 — dívidas:** sessões anônimas em memória sem teto (cresce sem limite) e sem limitação de taxa; filtro de saída bloqueia parcelamento legítimo ("12x de R$ 19,33"); filtro de entrada é heurístico (paráfrase e outros idiomas podem passar; a contenção real é o filtro de saída); `backend/test_api.py` e `DOCUMENTACAO_TECNICA_TCC.html` ainda mostram o `session_id` fixo. Textos fixos escolhidos pelo orquestrador (D38): `INPUT_BLOCKED`, `OFFER_BLOCKED`, `LLM_UNAVAILABLE`, `TOO_LONG`.
 - **E5 — textos da tela escolhidos pelo orquestrador**, sem revisão do PM: "Assistente virtual", "Digite sua mensagem", "Enviar", "Nenhuma mensagem ainda. Pergunte algo ao assistente.", "Não foi possível carregar o histórico do chat.", "Não foi possível enviar a mensagem. Tente novamente.", e as colunas "Mensagens no chat" e "Última conversa".
 - **E5 — e2e de E2 e E3 não reexecutados** depois de a E5 alterar `student-dashboard` (mesmo componente do "Meus cursos"). Backend: regressão 131 passed. O e2e antigo grava no `db.sqlite` de desenvolvimento (D7), por isso não foi rodado.
 - **Interceptor HTTP do Angular — higiene.** O interceptor envia o header `Authorization` também em chamadas **públicas**, quando há token no navegador. Não quebra nada hoje; é higiene. Corrigir para anexar o token só a rotas que exigem autenticação.

@@ -46,6 +46,7 @@ Os cursos vivem em um diretorio temporario (admin.routes.COURSES_DIR), como na E
 
 import copy
 import json
+import re
 import sqlite3
 import uuid
 from datetime import datetime, timedelta
@@ -709,7 +710,9 @@ def test_t22_chat_anonimo_segue_funcionando_sem_token_e_sem_gravar_em_chat_messa
     assert r.status_code == 200, r.text
     corpo = r.json()
     assert corpo["status"] == "success"
-    assert corpo["session_id"] == "visitante-e5"
+    # D38 (encadeamento D35.4 P6 -> D38): o servidor emite o id (32 hex); o valor enviado pelo cliente nao e ecoado.
+    assert isinstance(corpo["session_id"], str) and re.fullmatch(r"[0-9a-f]{32}", corpo["session_id"]), corpo
+    assert corpo["session_id"] != "visitante-e5"
     assert isinstance(corpo["message"], str) and corpo["message"].startswith("RESPOSTA-DUBLE-")
     assert llm.chamadas, "o duble deveria ter respondido ao chat anonimo"
     assert _linhas_chat() == [], "o chat anonimo nao grava em chat_messages"

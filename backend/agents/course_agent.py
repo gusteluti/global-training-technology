@@ -1,6 +1,7 @@
 import os
 from typing import Dict, List
 from agents.groq_client import GroqChatClient
+from agents.llm_guard import POLICY_BLOCK, LLMUnavailableError, bloco_base_conhecimento
 
 try:
     from dotenv import load_dotenv
@@ -76,13 +77,10 @@ class CourseAgent:
         knowledge = self.build_knowledge_base()
         system_prompt = self.course_data.get('system_prompt', '')
         
-        return f"""{system_prompt}
+        return f"""{POLICY_BLOCK}
+{system_prompt}
 
-═══════════════════════════════════════════════════════════════════
-BASE DE CONHECIMENTO DO CURSO
-═══════════════════════════════════════════════════════════════════
-
-{knowledge}
+{bloco_base_conhecimento(knowledge)}
 
 ═══════════════════════════════════════════════════════════════════
 INSTRUÇÕES OPERACIONAIS
@@ -142,6 +140,6 @@ Responda em português (pt-BR)."""
             return response_text
             
         except Exception as e:
-            error_msg = f"Desculpe, ocorreu um erro ao processar sua pergunta sobre {self.course_name}: {str(e)}"
-            print(f"Error in course agent ({self.course_id}): {error_msg}")
-            return error_msg
+            # Só o tipo da exceção vai ao log; o texto pode conter detalhes do provedor (E6, D38.6).
+            print(f"Error in course agent ({self.course_id}): {type(e).__name__}")
+            raise LLMUnavailableError() from None

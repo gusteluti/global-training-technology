@@ -14,6 +14,8 @@ Em caso de conflito entre documentos, valem as decisões de número mais alto no
 
 ---
 
+> **Modo autônomo (D40, 06/10/2026):** em janelas autorizadas pelo PM, o orquestrador segue a própria recomendação, não pergunta, e passa à próxima entrega depois de fechar a atual. Mantidos: D30, D32, um agente por vez, ciclo TDD e a proibição de limpar o histórico do `.chrome-pdf-profile/`. Detalhes e a fila na D40 e em `docs/tdd/RELATORIO_NOITE.md`.
+
 ## 1. O modelo de trabalho
 
 O projeto é a Fase 2 da plataforma Global Training Technology: área do aluno, área do funcionário, RBAC, observabilidade de IA e auditoria. O trabalho é feito em **TDD com três papéis e um gerente de projeto**.

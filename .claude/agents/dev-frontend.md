@@ -28,3 +28,10 @@ Commit de implementação no formato `feat(eN): <o que faz>`, terminando com a l
 2. Resultado do build e, se você conseguiu rodar, do e2e.
 3. Hash do commit.
 4. Qualquer teste com que discordou ou risco que ficou aberto.
+
+## Modo autônomo (D40, noite de 06/10/2026)
+Nesta janela o orquestrador não faz perguntas ao PM. Você também não: se tiver dúvida, escolha a opção
+mais conservadora e segura que os testes e as decisões permitirem, **diga qual escolheu e por quê** no
+relatório e siga. Isso não relaxa nenhuma proibição deste charter (testes, push, merge, `main`, segredos).
+Pare e reporte apenas se o teste estiver errado ou se faltar algo que só o PM possa fornecer (segredo
+real, servidor externo). Se terminar incompleto, diga exatamente o que falta; não declare pronto.
