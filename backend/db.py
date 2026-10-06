@@ -42,6 +42,19 @@ class Database:
             )
         """)
 
+        # E9 (D48): o mesmo transaction_id não pode estar em dois pagamentos (índice único parcial,
+        # só valores não nulos). Base antiga com duplicados: não derruba a inicialização; o índice
+        # fica sem ser criado, o problema é registrado e a transição do webhook segue conferindo o
+        # transaction_id antes de gravar.
+        try:
+            cursor.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_transaction_id_unique "
+                "ON payments (transaction_id) WHERE transaction_id IS NOT NULL"
+            )
+        except sqlite3.DatabaseError as exc:
+            print(f"[AVISO] Indice unico de payments.transaction_id nao criado ({type(exc).__name__}): "
+                  "ha transaction_id repetido na base; corrija os duplicados e reinicie.")
+
         # Tokens de definição de senha (E2, D12). Guarda só o SHA-256 do token, nunca o token em claro.
         # used_at marca o uso único; expires_at é UTC (48 h após a emissão).
         cursor.execute("""
@@ -164,6 +177,7 @@ class Database:
     MATRICULA_POR_PAGAMENTO = {
         "approved": "active",
         "refunded": "refunded",
+        "charged_back": "refunded",  # D49.1: estorno devolve o dinheiro ao comprador e revoga o acesso
         "rejected": "cancelled",
         "cancelled": "cancelled",
         "pending": "pending",
@@ -487,6 +501,17 @@ class Database:
         conn.close()
         return payment_id
 
+    # E9 (D48/D49.5): update_payment_status* mantêm o comportamento anterior, com uma exceção imposta pelo
+    # índice único de transaction_id: se outro pagamento já tem esse transaction_id, o status é atualizado
+    # e o transaction_id do pagamento fica como estava (em vez de estourar IntegrityError).
+    _SQL_ATUALIZAR_STATUS_SEM_COLISAO = """
+        UPDATE payments SET status = ?,
+            transaction_id = CASE
+                WHEN ? IS NOT NULL AND EXISTS (SELECT 1 FROM payments o WHERE o.transaction_id = ? AND o.id != ?)
+                THEN transaction_id ELSE ? END,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?"""
+
     @staticmethod
     def update_payment_status(payment_id: int, status: str, transaction_id: Optional[str] = None):
         """Update payment status"""
@@ -494,9 +519,8 @@ class Database:
         cursor = conn.cursor()
 
         cursor.execute(
-            """UPDATE payments SET status = ?, transaction_id = ?, updated_at = CURRENT_TIMESTAMP
-               WHERE id = ?""",
-            (status, transaction_id, payment_id)
+            Database._SQL_ATUALIZAR_STATUS_SEM_COLISAO,
+            (status, transaction_id, transaction_id, payment_id, transaction_id, payment_id)
         )
 
         conn.commit()
@@ -521,9 +545,8 @@ class Database:
             return False
 
         cursor.execute(
-            """UPDATE payments SET status = ?, transaction_id = ?, updated_at = CURRENT_TIMESTAMP
-               WHERE id = ?""",
-            (status, transaction_id, row[0])
+            Database._SQL_ATUALIZAR_STATUS_SEM_COLISAO,
+            (status, transaction_id, transaction_id, row[0], transaction_id, row[0])
         )
         # A matrícula segue o status do pagamento pelo mapa fechado; status desconhecido não a altera.
         status_matricula = Database.MATRICULA_POR_PAGAMENTO.get(status)
@@ -557,6 +580,164 @@ class Database:
         conn.commit()
         conn.close()
         return True
+
+    # E9 (D48/D49): máquina de estados do pagamento, usada só pelo webhook e pelo reembolso.
+    PAGAMENTO_STATUS_WEBHOOK = tuple(MATRICULA_POR_PAGAMENTO)
+    PAGAMENTO_TERMINAIS = ("refunded", "charged_back")
+
+    @staticmethod
+    def _abrir_transacao_imediata() -> sqlite3.Connection:
+        """Conexão com BEGIN IMMEDIATE já aberto: escritores concorrentes esperam em fila (timeout 30 s)."""
+        conn = sqlite3.connect(Database.DB_PATH, timeout=30, isolation_level=None)
+        conn.row_factory = sqlite3.Row
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+        except Exception:
+            conn.close()
+            raise
+        return conn
+
+    @staticmethod
+    def aplicar_transicao_pagamento_webhook(
+        external_reference: str,
+        novo_status: str,
+        transaction_id: str,
+        valor_confere=None,
+    ) -> Dict:
+        """Transição de status vinda do webhook, atômica (BEGIN IMMEDIATE): decide e grava na mesma transação.
+
+        Devolve {"outcome": ..., "payment_id", "amount", "status_before"}. `outcome`:
+        unknown_reference | unsupported_status | terminal | duplicate | stale | amount_mismatch |
+        duplicate_transaction | applied. Só `applied` altera o banco (pagamento e matrícula juntos).
+
+        `valor_confere(pagamento: dict) -> bool` é chamado (dentro da transação) só quando um `approved`
+        mudaria o pagamento; falso -> amount_mismatch, sem alteração.
+        Regras (D48/D49): refunded e charged_back são terminais; approved só vai para refunded/charged_back;
+        refunded/charged_back só a partir de approved; mesmo status é no-op; os demais movem-se livremente.
+        """
+        vazio = {"payment_id": None, "amount": None, "status_before": None}
+        if novo_status not in Database.PAGAMENTO_STATUS_WEBHOOK:
+            return {"outcome": "unsupported_status", **vazio}
+
+        conn = Database._abrir_transacao_imediata()
+        try:
+            pagamento = conn.execute(
+                """SELECT p.id, p.enrollment_id, p.amount, p.status
+                   FROM payments p JOIN enrollments e ON e.id = p.enrollment_id
+                   WHERE e.external_reference = ?
+                   ORDER BY p.id DESC LIMIT 1""",
+                (external_reference,),
+            ).fetchone()
+            if pagamento is None:
+                conn.execute("ROLLBACK")
+                return {"outcome": "unknown_reference", **vazio}
+
+            anterior = pagamento["status"]
+            resultado = {
+                "payment_id": pagamento["id"],
+                "amount": pagamento["amount"],
+                "status_before": anterior,
+            }
+
+            def encerrar(outcome: str) -> Dict:
+                conn.execute("ROLLBACK")
+                return {"outcome": outcome, **resultado}
+
+            if anterior in Database.PAGAMENTO_TERMINAIS:
+                return encerrar("terminal")
+            if anterior == novo_status:
+                return encerrar("duplicate")
+            if anterior == "approved" and novo_status not in Database.PAGAMENTO_TERMINAIS:
+                return encerrar("stale")
+            if novo_status in Database.PAGAMENTO_TERMINAIS and anterior != "approved":
+                return encerrar("stale")
+            if novo_status == "approved" and valor_confere is not None and not valor_confere(dict(pagamento)):
+                return encerrar("amount_mismatch")
+            outro = conn.execute(
+                "SELECT id FROM payments WHERE transaction_id = ? AND id != ?",
+                (transaction_id, pagamento["id"]),
+            ).fetchone()
+            if outro is not None:
+                return encerrar("duplicate_transaction")
+
+            atualizadas = conn.execute(
+                """UPDATE payments SET status = ?, transaction_id = ?, updated_at = CURRENT_TIMESTAMP
+                   WHERE id = ? AND status = ?""",
+                (novo_status, transaction_id, pagamento["id"], anterior),
+            ).rowcount
+            if atualizadas != 1:
+                return encerrar("duplicate")
+            status_matricula = Database.MATRICULA_POR_PAGAMENTO.get(novo_status)
+            if status_matricula:
+                conn.execute(
+                    "UPDATE enrollments SET status = ? WHERE id = ?",
+                    (status_matricula, pagamento["enrollment_id"]),
+                )
+            conn.execute("COMMIT")
+            return {"outcome": "applied", **resultado}
+        except sqlite3.IntegrityError:
+            # Índice único parcial de transaction_id (corrida entre dois pagamentos): nada é gravado.
+            if conn.in_transaction:
+                conn.execute("ROLLBACK")
+            return {"outcome": "duplicate_transaction", **vazio}
+        except Exception:
+            if conn.in_transaction:
+                conn.execute("ROLLBACK")
+            raise
+        finally:
+            conn.close()
+
+    @staticmethod
+    def reembolsar_pagamento_se_aprovado(payment_id: int) -> Dict:
+        """Reembolso atômico: só `approved` vira `refunded` (pagamento e matrícula, mesma transação).
+
+        `outcome`: not_found | refunded (alterou agora) | already_refunded | not_approved.
+        Dois reembolsos simultâneos: um devolve `refunded`, os outros `already_refunded`.
+        """
+        conn = Database._abrir_transacao_imediata()
+        try:
+            pagamento = conn.execute(
+                "SELECT id, enrollment_id, amount, status FROM payments WHERE id = ?", (payment_id,)
+            ).fetchone()
+            if pagamento is None:
+                conn.execute("ROLLBACK")
+                return {"outcome": "not_found"}
+            base = {
+                "payment_id": pagamento["id"],
+                "amount": pagamento["amount"],
+                "payment_status_before": pagamento["status"],
+                "enrollment_status_before": None,
+            }
+            if pagamento["status"] == "refunded":
+                conn.execute("ROLLBACK")
+                return {"outcome": "already_refunded", **base}
+            if pagamento["status"] != "approved":
+                conn.execute("ROLLBACK")
+                return {"outcome": "not_approved", **base}
+
+            matricula = conn.execute(
+                "SELECT status FROM enrollments WHERE id = ?", (pagamento["enrollment_id"],)
+            ).fetchone()
+            base["enrollment_status_before"] = matricula["status"] if matricula else None
+            atualizadas = conn.execute(
+                "UPDATE payments SET status = 'refunded', updated_at = CURRENT_TIMESTAMP "
+                "WHERE id = ? AND status = 'approved'",
+                (payment_id,),
+            ).rowcount
+            if atualizadas != 1:
+                conn.execute("ROLLBACK")
+                return {"outcome": "already_refunded", **base}
+            conn.execute(
+                "UPDATE enrollments SET status = 'refunded' WHERE id = ?", (pagamento["enrollment_id"],)
+            )
+            conn.execute("COMMIT")
+            return {"outcome": "refunded", **base}
+        except Exception:
+            if conn.in_transaction:
+                conn.execute("ROLLBACK")
+            raise
+        finally:
+            conn.close()
 
     @staticmethod
     def list_enrollments_for_user(user_id: int) -> List[Dict]:

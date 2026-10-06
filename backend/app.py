@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 import json
 from pathlib import Path
+from urllib.parse import urlparse
 from typing import Optional
 from pydantic import BaseModel
 
@@ -27,13 +28,45 @@ from db import Database
 # Initialize FastAPI
 app = FastAPI(title="TCC School Chatbot API", version="1.0.0")
 
-# CORS configuration
+# CORS (E9, D48): lista explícita de origens, sem "*" e sem credenciais (a autenticação é pelo
+# cabeçalho Authorization). CORS_ALLOWED_ORIGINS (separada por vírgulas) substitui o padrão.
+def _origem_de(url: str) -> str:
+    partes = urlparse(url.strip())
+    if partes.scheme and partes.netloc:
+        return f"{partes.scheme}://{partes.netloc}"
+    return url.strip().rstrip("/")
+
+
+def cors_allowed_origins() -> list:
+    configuradas = os.getenv("CORS_ALLOWED_ORIGINS")
+    if configuradas is not None and configuradas.strip():
+        candidatas = configuradas.split(",")
+    else:
+        candidatas = [
+            os.getenv("FRONTEND_BASE_URL") or "http://localhost:8000",
+            "http://localhost:4200",
+            "http://127.0.0.1:4200",
+            "http://127.0.0.1:8000",
+        ]
+    origens = []
+    for candidata in candidatas:
+        origem = _origem_de(candidata) if candidata.strip() else ""
+        if not origem:
+            continue
+        if origem == "*":
+            print("[AVISO] CORS_ALLOWED_ORIGINS: '*' ignorado; liste as origens explicitamente.")
+            continue
+        if origem not in origens:
+            origens.append(origem)
+    return origens
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=cors_allowed_origins(),
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # Pydantic models
