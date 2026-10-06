@@ -2,6 +2,8 @@
 
 Não há servidor de e-mail neste projeto. Os pontos únicos de envio são:
 - send_password_setup_link: link de definição de senha (fluxo de compra, D12/D13);
+- send_password_reset_link: link de redefinição de senha do aluno que já tem senha (B1, D60);
+- send_password_changed_notice: aviso de senha alterada, sem senha e sem token (B1, D60);
 - send_account_created_notice: confirmação de conta criada no cadastro direto (D22/D23);
 - send_account_exists_notice: aviso de tentativa de cadastro com e-mail já existente (D22).
 
@@ -40,6 +42,40 @@ def send_password_setup_link(email: str, link: str) -> None:
         email,
         {"link": link},
         log_rotulo=f"link de definição de senha: {link}",
+    )
+
+
+def send_password_reset_link(email: str, link: str) -> None:
+    """Link de redefinição de senha (D60). O link leva o token; vale por 1 hora e uma única vez."""
+    _escrever_outbox(
+        email,
+        {
+            "assunto": "Redefinição de senha",
+            "mensagem": (
+                "Olá. Recebemos um pedido para redefinir a senha da sua conta na Global Training. "
+                f"Para escolher uma nova senha, acesse: {link} "
+                "O link vale por 1 hora e só pode ser usado uma vez. "
+                "Se não foi você, ignore esta mensagem: sua senha atual continua valendo."
+            ),
+            "link": link,
+        },
+        log_rotulo=f"link de redefinição de senha: {link}",
+    )
+
+
+def send_password_changed_notice(email: str, login_url: str) -> None:
+    """Aviso de senha alterada (D60): sem senha, sem token e sem link de redefinição."""
+    _escrever_outbox(
+        email,
+        {
+            "assunto": "Sua senha foi alterada",
+            "mensagem": (
+                "Olá. A senha da sua conta na Global Training foi alterada. "
+                f"Para entrar, acesse a tela de login: {login_url} "
+                "Se não foi você, entre em contato com o suporte."
+            ),
+        },
+        log_rotulo="aviso de senha alterada",
     )
 
 

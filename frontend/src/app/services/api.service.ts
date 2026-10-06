@@ -114,6 +114,14 @@ export class ApiService {
     return this.http.post(`${BASE}/api/auth/password-setup`, dados, this.publicHeaders());
   }
 
+  public requestPasswordReset(dados: { email: string }) {
+    return this.http.post(`${BASE}/api/auth/password-reset/request`, dados, this.publicHeaders());
+  }
+
+  public resetPassword(dados: { token: string; password: string }) {
+    return this.http.post(`${BASE}/api/auth/password-reset`, dados, this.publicHeaders());
+  }
+
   private publicHeaders() {
     return { headers: new HttpHeaders({'Content-Type': 'application/json'}) };
   }

@@ -18,6 +18,8 @@ import { AiObservabilityComponent } from './components/ai-observability/ai-obser
 import { AuditLogsComponent } from './components/audit-logs/audit-logs.component';
 import { CadastroComponent } from './components/cadastro/cadastro.component';
 import { DefinirSenhaComponent } from './components/definir-senha/definir-senha.component';
+import { EsqueciSenhaComponent } from './components/esqueci-senha/esqueci-senha.component';
+import { RedefinirSenhaComponent } from './components/redefinir-senha/redefinir-senha.component';
 import { AuthInterceptor } from './interceptors/auth.interceptor';
 
 // Valores em reais e datas no formato brasileiro (R$ 1.234,56).
@@ -36,7 +38,9 @@ registerLocaleData(localePt);
     AiObservabilityComponent,
     AuditLogsComponent,
     CadastroComponent,
-    DefinirSenhaComponent
+    DefinirSenhaComponent,
+    EsqueciSenhaComponent,
+    RedefinirSenhaComponent
   ],
   imports: [
     BrowserModule,

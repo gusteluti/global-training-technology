@@ -1,6 +1,8 @@
-"""Token de definição de senha do aluno (E2, D12, D14, D16).
+"""Token de definição e de redefinição de senha do aluno (E2, D12, D14, D16; B1, D60).
 
-O token é gerado quando um pagamento vira aprovado e a conta do comprador não tem senha.
+O token de definição ('setup') é gerado quando um pagamento vira aprovado e a conta do comprador não tem senha,
+ou quando um aluno sem senha pede recuperação. O de redefinição ('reset') é gerado no pedido de recuperação de
+um aluno que já tem senha.
 Só o SHA-256 do token é gravado no banco. O token em claro vai apenas no link entregue ao aluno.
 """
 
@@ -13,6 +15,9 @@ from db import Database
 from core.security import get_password_hash
 
 TOKEN_VALIDADE = timedelta(hours=48)  # D12
+TOKEN_VALIDADE_SETUP = TOKEN_VALIDADE
+TOKEN_VALIDADE_RESET = timedelta(hours=1)  # D60
+VALIDADE_POR_FINALIDADE = {"setup": TOKEN_VALIDADE_SETUP, "reset": TOKEN_VALIDADE_RESET}
 SENHA_MINIMA = 8  # D14
 # bcrypt processa no máximo 72 bytes; acima disso a senha não é aceita (evita erro 500).
 SENHA_MAXIMA_BYTES = 72
@@ -42,11 +47,27 @@ def _expirado(expires_at) -> bool:
     return expira <= _agora_utc()
 
 
+def _formatar(momento: datetime) -> str:
+    return momento.isoformat(sep=" ", timespec="seconds")
+
+
 def emitir_token_definicao(user_id: int) -> str:
-    """Cria um token novo para a conta, grava só o hash e devolve o token em claro (uma vez)."""
+    """Cria um token 'setup' novo para a conta, grava só o hash e devolve o token em claro (uma vez)."""
     token = secrets.token_urlsafe(32)
-    expira = (_agora_utc() + TOKEN_VALIDADE).isoformat(sep=" ", timespec="seconds")
-    Database.insert_password_setup_token(user_id, hash_token(token), expira)
+    expira = _formatar(_agora_utc() + TOKEN_VALIDADE_SETUP)
+    Database.insert_password_setup_token(user_id, hash_token(token), expira, "setup")
+    return token
+
+
+def emitir_token_com_limite(user_id: int, purpose: str) -> Optional[str]:
+    """Emite um token da finalidade dada (D60), com o limite de 3 por conta por hora aplicado de forma atômica.
+
+    Invalida os tokens abertos anteriores da mesma conta e finalidade. Devolve o token em claro (uma vez) ou None
+    se o limite foi atingido (nada é gravado)."""
+    token = secrets.token_urlsafe(32)
+    expira = _formatar(_agora_utc() + VALIDADE_POR_FINALIDADE[purpose])
+    if not Database.emitir_token_com_limite(user_id, hash_token(token), expira, purpose):
+        return None
     return token
 
 
@@ -65,8 +86,23 @@ def definir_senha_pelo_token(token: str, senha: str) -> bool:
     if not senha_aceitavel(senha):
         return False
     registro = validar_token(token)
-    if registro is None:
+    if registro is None or registro.get("purpose") != "setup":
         return False
     return Database.definir_senha_com_token(
         registro["id"], registro["user_id"], get_password_hash(senha)
+    )
+
+
+def redefinir_senha_pelo_token(token: str, senha: str) -> Optional[str]:
+    """Redefine a senha da conta DONA de um token 'reset' (D60). Devolve o e-mail da conta, ou None se falhou.
+
+    A política da senha e a validade do token são conferidas ANTES do bcrypt; o hash só é calculado para
+    pedidos que podem valer, e o consumo do token é atômico. Nenhum user_id vindo do cliente é usado."""
+    if not senha_aceitavel(senha):
+        return None
+    registro = validar_token(token)
+    if registro is None or registro.get("purpose") != "reset":
+        return None
+    return Database.redefinir_senha_com_token(
+        hash_token(token), get_password_hash(senha), _agora_utc().strftime("%Y-%m-%d %H:%M:%S")
     )

@@ -21,6 +21,7 @@ Fonte do escopo: `Escopo_Fase2_Global_Training_Technology.pdf`, na raiz do repo.
 | **E9 — Hardening de pagamento** (acréscimo do PM, fora do PDF) | Assinatura do webhook (fail closed), validação de tópico e id, conferência de valor e moeda, máquina de estados e transição atômica, efeitos colaterais uma vez só, índice único de `transaction_id`, `charged_back` revoga acesso, reembolso só de pagamento aprovado e idempotente, CORS por lista, erro do gateway sem vazar corpo. Entregue 06/10/2026; **aguardando validação do PM** (D50). | testes `a9e9042`, `578f6ea`, `99ca939`; backend `feaa9db` |
 | **Turmas (lacuna do dashboard de cursos)** | Tabela `classes`, matrícula atribuível a uma turma por Gestão, capacidade, contagens por turma e "sem turma" no dashboard, auditoria da E8, tela de gestão (Gestão) e números (todos os perfis). Entregue 06/10/2026; **aguardando validação do PM** (D55). | testes `eb6acf7`, e2e `1a42c8b`; backend `21218b8`; frontend `71a7c63` |
 | **Cadastro de cursos no Angular + interceptor** | Aba "Cadastro de cursos" (só Gestão) com criar, editar e excluir cursos, listas por linha, FAQ, materiais com validação de URL, trilha da E8; interceptor só anexa o token a `/api/admin/`, `/api/dashboard/`, `/api/student/` e `/api/payments/refund/`. Entregue 06/10/2026; **aguardando validação do PM** (D57). | e2e `570f25e`, `cd53fc9`; frontend `74c1066` |
+| **Recuperação de senha do aluno** (backlog) | Pedido de link com resposta uniforme, token `reset` de 1 h, limite de 3 por hora, uso único e atômico, aviso de senha alterada, telas `/esqueci-senha` e `/redefinir-senha`. Entregue 06/10/2026; **aguardando validação do PM** (D62). | testes `0e9a040`, e2e `77acad7`; backend `b7b1390`; frontend `dfbd6c2` |
 
 Os dois obrigatórios da E3 (**IDOR** e **material só com matrícula ativa**) foram provados por suíte e por sondagem independente de HTTP (38/38). Detalhes no `HANDOFF_TDD.md`, seção 2.
 
@@ -32,7 +33,7 @@ E4: regressão integral de backend registrada depois do fechamento — **88 pass
 
 ## 2. Em andamento
 
-Modo autônomo (D40): ver `docs/tdd/RELATORIO_NOITE.md`. E5 (D37), E6 (D41), E7 (D44), E8 (D47) e E9 (D50) entregues, aguardando validação do PM. Dívidas de segurança resolvidas (D52); turmas entregues (D55). Cadastro de cursos no Angular e interceptor entregues (D57). Dívidas de harness resolvidas (D59). Próximo: backlog opcional (fila D40).
+Modo autônomo (D40): ver `docs/tdd/RELATORIO_NOITE.md`. E5 (D37), E6 (D41), E7 (D44), E8 (D47) e E9 (D50) entregues, aguardando validação do PM. Dívidas de segurança resolvidas (D52); turmas entregues (D55). Cadastro de cursos no Angular e interceptor entregues (D57). Dívidas de harness resolvidas (D59); recuperação de senha entregue (D62). Próximo: recibo em PDF (opcional, fila D40).
 
 ---
 
@@ -90,6 +91,7 @@ Tomadas pelo PM. Anteriores às D21 a D26 do log. Cobrem o que o documento de es
 - **E9 — dívidas:** reenvio do link de senha se a entrega falhar; webhook bloqueia o loop; base antiga com `transaction_id` duplicado sem índice; botão Reembolsar visível para não aprovado (409); origem `null` (`file://`); sem limitação de taxa no checkout nem estorno real; `MERCADO_PAGO_WEBHOOK_SECRET` obrigatório no ambiente.
 - **Turmas — dívidas:** edição e exclusão de turma sem tela; o aluno não vê a própria turma; sem atribuição automática nem escolha no checkout; matrícula reativada por webhook pode ultrapassar a capacidade.
 - **L2 — dívidas:** duração na lista por N+1; rótulos escolhidos pelo orquestrador; título de material com `|`; `admin.html` segue como legado.
+- **Recuperação de senha — dívidas:** JWT já emitido não é revogado; SMTP real; `href` absoluto no link "Ir para o login" de `definir-senha`; textos de erro escolhidos pelo orquestrador.
 - **E5 — textos da tela escolhidos pelo orquestrador**, sem revisão do PM: "Assistente virtual", "Digite sua mensagem", "Enviar", "Nenhuma mensagem ainda. Pergunte algo ao assistente.", "Não foi possível carregar o histórico do chat.", "Não foi possível enviar a mensagem. Tente novamente.", e as colunas "Mensagens no chat" e "Última conversa".
 - **E5 — e2e de E2 e E3 não reexecutados** depois de a E5 alterar `student-dashboard` (mesmo componente do "Meus cursos"). Backend: regressão 131 passed. O e2e antigo grava no `db.sqlite` de desenvolvimento (D7), por isso não foi rodado.
 - ~~Interceptor HTTP do Angular — higiene.~~ **Resolvido (D57).**
@@ -100,7 +102,7 @@ Tomadas pelo PM. Anteriores às D21 a D26 do log. Cobrem o que o documento de es
 
 ## 7. Backlog (fora das nove entregas)
 
-- **Recuperação de senha do aluno.** Fora do escopo do PDF, mas o login de aluno em produção vai precisar. Item próprio.
+- ~~Recuperação de senha do aluno.~~ **Entregue (D62).**
 - **Limpeza do histórico do `.chrome-pdf-profile/`.** O commit `92b959a` ("Presentation changes", Gustavo Santos Steluti, 25/05/2026) versionou um perfil de Chrome descartável, com 162 arquivos e 9,8 MB. **Diagnóstico medido:** os cofres estão vazios (0 logins, 0 cookies, 0 autofill, 0 cartões) e não há nenhum padrão de chave nos 162 arquivos. O que vaza é o nome de usuário do Windows num caminho de arquivo, um token de device do media router e um hash de cookie do Google. **Os cofres vazios baixam a urgência, mas não anulam o problema.** O conteúdo já está público em `origin/payment-system`. **Decisão do grupo, não deste time. Não executar**, nem se parecer seguro: reescrever histórico e fazer force-push numa branch do Gustavo é decisão do grupo, com o Gustavo participando. Diagnóstico completo no `HANDOFF_TDD.md`, seção 11.
 - ~~D4, D6, D7 — dívidas do harness de e2e.~~ **Resolvidas (D59).**
 
