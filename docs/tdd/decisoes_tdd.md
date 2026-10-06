@@ -814,3 +814,19 @@ novo `course-admin`. Lista dos cursos e formulário, `data-testid`:
 `/api/courses`, `/api/payments/create-checkout` e `/api/payments/webhook`), mesmo com token no navegador.
 **Fora do escopo:** remover `admin.html` (decisão do grupo; fica como legado), reordenar cursos, upload de arquivos de material.
 Sub-branch: `feature/fase2-tdd-l2-cadastro-cursos`.
+
+## D57 — cadastro de cursos no Angular e interceptor entregues (06/10/2026), aguardando validação do PM
+Ciclo: e2e vermelho `570f25e` (5/24); frontend `74c1066` (23/24 por defeito do teste, N4/K1: o dev parou e reportou,
+sem alterar teste); correção do teste pelo agente-testes `cd53fc9` (D56, autoridade 4.3; espera da resposta provocada);
+24/24. Reexecutado pelo orquestrador: build limpo; e2e da L2 24/24, turmas 16/16, auditoria 17/17, observabilidade
+11/11, chat do aluno 11/11, dashboard de alunos 9/9, landing 8/8. Backend inalterado (828 passed, D55).
+Checklist: (1) porta o cadastro de cursos do `admin.html` e corrige a higiene do interceptor (PENDENCIAS); (2) red
+observado, pelo motivo certo; (3) IDOR não se aplica; o responsável da trilha vem do token; (4) materiais: A1 e E4
+(aluno ativo vê os novos, pendente não vê); (5) PUT preserva materiais; (6) o PUT sempre envia `materials`; (7)
+Suporte e Financeiro sem aba e 403 na API; 401 sem token ou forjado; (8) e2e e build; (9) ciclo e documentação.
+**Para revisão do PM:** rótulos escolhidos pelo orquestrador/dev ("Cadastro de cursos", "Editar", "Excluir",
+"Confirmar exclusão", "Salvar curso", "Cancelar edição", "Novo curso", "Remover este curso?", "Curso salvo.",
+"Curso removido.", mensagem de material sem título); duração na lista via N+1 (`GET /course/{id}` por curso,
+porque o resumo `GET /courses` não traz `duration_hours`); esquema de URL sensível a maiúsculas; título de material
+com `|` não sobrevive à edição do campo; o interceptor remove `Authorization` de URLs fora dos 4 prefixos.
+`admin.html` continua no repo como legado (decisão do grupo).
