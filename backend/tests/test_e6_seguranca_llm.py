@@ -496,10 +496,11 @@ def test_t6_mensagem_injetora_que_evita_o_filtro_de_entrada_chega_ao_llm_e_a_sai
     assert injetora in llm.contexto_total(), "essa mensagem nao e injecao direta: deve chegar ao LLM"
     assert r.json()["message"] == OFFER_BLOCKED, "o filtro de saida deve conter o modelo enganado"
     assert cru not in r.text
+    persistido = ator.persistido()  # antes de sondar(): a sondagem persiste uma troca nova (aluno)
     contexto = ator.sondar(llm)
     assert cru not in contexto
     if canal == "aluno":
-        assert ator.persistido() == [("user", injetora), ("assistant", OFFER_BLOCKED)]
+        assert persistido == [("user", injetora), ("assistant", OFFER_BLOCKED)]
 
 
 VAZAMENTOS_DE_PROMPT = [
