@@ -494,3 +494,11 @@ alunos distintos que conversaram), `total_messages` (interações exceto `input_
 
 **Fora do escopo:** alertas, exportação, custo em reais.
 Sub-branch: `feature/fase2-tdd-e7-observabilidade-ia`.
+
+## D43 — E7: red observado e ambiguidade de forma (06/10/2026)
+Red: `backend/tests/test_e7_observabilidade_ia.py`, commit `6b27fc4`. Verificado pelo orquestrador: 73
+falham (tabelas `ai_usage`/`ai_interactions` e chaves do dashboard ausentes) e 4 passam (guardas de
+401 e 403). Regressão: os 271 anteriores verdes. Decisão de forma: `resolution_rate` e `conversion.rate`
+na API são **fração de 0 a 1**; a tela mostra percentual com 1 casa (multiplica por 100). `usage.requests`
+conta todas as chamadas, inclusive as de erro; `errors` é o subconjunto. Demais escolhas conservadoras do
+agente-testes (itens 2 a 13 do relatório dele) aceitas.
