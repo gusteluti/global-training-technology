@@ -75,13 +75,26 @@ def sign_payload(payload: str) -> str:
 
 # --- Senhas de conta (bcrypt) -----------------------------------------------
 
+# bcrypt só processa os 72 primeiros bytes. Acima disso a senha não vale: nem para gravar, nem para conferir
+# (senão uma senha mais longa autenticaria a conta cuja senha é o prefixo de 72 bytes, ou viraria erro 500).
+BCRYPT_MAX_BYTES = 72
+
+
+def senha_excede_limite_bcrypt(password: str) -> bool:
+    return len(password.encode("utf-8")) > BCRYPT_MAX_BYTES
+
+
 def verify_password(plain_password: str, hashed_password: Optional[str]) -> bool:
     if not hashed_password:
+        return False
+    if senha_excede_limite_bcrypt(plain_password):
         return False
     return pwd_context.verify(plain_password, hashed_password)
 
 
 def get_password_hash(password: str) -> str:
+    if senha_excede_limite_bcrypt(password):
+        raise ValueError(f"A senha excede o limite de {BCRYPT_MAX_BYTES} bytes do bcrypt.")
     return pwd_context.hash(password)
 
 

@@ -227,9 +227,14 @@ async def update_course(course_id: str, course: CourseInput, request: Request, c
             existing_data = json.load(f)
         previous_price = existing_data.get('price')
 
+        # `materials` omitido no corpo preserva os existentes; enviado (inclusive []) substitui (D51).
+        new_data = course.dict()
+        if "materials" not in course.model_fields_set:
+            new_data["materials"] = existing_data.get("materials", [])
+
         # Update with new data
         course_data = {
-            **course.dict(),
+            **new_data,
             "created_at": existing_data.get('created_at'),
             "updated_at": __import__('datetime').datetime.now().isoformat()
         }
@@ -242,7 +247,7 @@ async def update_course(course_id: str, course: CourseInput, request: Request, c
 
         # Audit trail: alteração de preço de curso é um evento crítico (Fase 2 - Governança).
         # Um evento só, com todos os campos alterados (E8, D45).
-        changes = _course_changes(existing_data, course.dict())
+        changes = _course_changes(existing_data, new_data)
         if any(item["field"] == "price" for item in changes):
             action = "course.price_change"
             detail = (f"Curso '{course.name}' ({course_id}): preço alterado de "

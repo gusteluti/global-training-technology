@@ -22,7 +22,7 @@ from agents.llm_guard import (
 from agents.manager_agent import ManagerAgent
 from auth import router as auth_router
 from student.routes import router as student_router
-from core.security import get_password_hash
+from core.security import get_password_hash, senha_excede_limite_bcrypt
 from db import Database
 
 # Initialize FastAPI
@@ -99,6 +99,10 @@ async def startup_event():
     for env_prefix, role, default_name in staff_accounts:
         email = os.getenv(f"{env_prefix}_EMAIL")
         password = os.getenv(f"{env_prefix}_PASSWORD")
+        if email and password and senha_excede_limite_bcrypt(password):
+            # Nunca grava a senha (nem trecho dela) no log; só o nome da variável.
+            print(f"[AVISO] Conta de {role} não criada: {env_prefix}_PASSWORD excede 72 bytes (limite do bcrypt).")
+            continue
         if email and password and not Database.get_user_by_email(email):
             name = os.getenv(f"{env_prefix}_NAME", default_name)
             if Database.add_user(email, name, get_password_hash(password), role=role):
