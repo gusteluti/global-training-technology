@@ -761,3 +761,11 @@ opcional, `created_at`), único (`course_id`, `name`); coluna nova `enrollments.
 do curso) e mensagem de erro da API em `turma-error`. Suporte e Financeiro veem os números, não a seção de gestão.
 **Fora do escopo:** o aluno ver a própria turma, escolha de turma no checkout, atribuição automática, calendário de aulas.
 Sub-branch: `feature/fase2-tdd-l1-turmas`.
+
+## D54 — turmas: red observado (06/10/2026)
+Red: `backend/tests/test_l1_turmas.py`, commit `eb6acf7`. Verificado pelo orquestrador: 158 falham (rota, tabela, coluna
+ou campo ausente) e 1 passa (S1, guarda de isolamento). Regressão do agente-testes: 670 verdes (os 669 + S1), 0 vermelhos
+fora do arquivo novo. Escolhas aceitas: nome inválido aceita 400 ou 422; `PUT` com nome repetido no curso devolve 409
+com o mesmo texto do `POST`; `DELETE` de turma com matrícula `cancelled`/`refunded` ainda atribuída devolve 409
+(integridade do histórico). Exigência extra ao dev: a verificação de capacidade e a atribuição devem ser atômicas
+(`BEGIN IMMEDIATE`), mesmo sem teste de concorrência, para duas atribuições simultâneas não estourarem a última vaga.
