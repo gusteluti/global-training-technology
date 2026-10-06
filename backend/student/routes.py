@@ -10,7 +10,7 @@ Regras:
 import json
 from typing import Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, field_validator
 
 import admin.routes as admin_routes
@@ -23,6 +23,7 @@ from agents.llm_guard import (
     LLMUnavailableError,
     bloco_dados_aluno,
 )
+from core.receipt_pdf import gerar_recibo_pdf
 from core.security import AuthContext, Role, require_roles
 from db import Database
 
@@ -31,6 +32,8 @@ router = APIRouter()
 STATUS_COM_MATERIAIS = "active"
 ERRO_MATRICULA_NAO_ENCONTRADA = "Matrícula não encontrada."
 ERRO_PAGAMENTO_NAO_ENCONTRADO = "Pagamento não encontrado."
+ERRO_RECIBO_PDF_INDISPONIVEL = "Recibo em PDF disponível apenas para pagamentos aprovados ou reembolsados."
+STATUS_COM_RECIBO_PDF = ("approved", "refunded")
 JANELA_CONTEXTO_CHAT = 10  # mensagens persistidas anteriores à atual que entram no contexto do LLM (E5)
 
 
@@ -95,6 +98,7 @@ def _montar_pagamento(pagamento: Dict) -> Dict:
         "created_at": pagamento["created_at"],
         "updated_at": pagamento["updated_at"],
         "receipt_url": f"/api/student/payments/{pagamento['id']}/receipt",
+        "receipt_pdf_url": f"/api/student/payments/{pagamento['id']}/receipt.pdf",
     }
 
 
@@ -141,6 +145,37 @@ async def obter_meu_recibo(payment_id: int, current_user: AuthContext = Depends(
         "issued_at": item["updated_at"] or item["created_at"],
     }
     return {"status": "success", "receipt": recibo}
+
+
+@router.get("/payments/{payment_id}/receipt.pdf")
+async def baixar_meu_recibo_pdf(payment_id: int, current_user: AuthContext = Depends(require_roles(Role.STUDENT))):
+    """Recibo em PDF (D63). Posse primeiro (mesmo 404 do recibo JSON), depois status (409)."""
+    pagamento = Database.get_payment_for_user(payment_id, current_user.id)
+    if pagamento is None:
+        raise HTTPException(status_code=404, detail=ERRO_PAGAMENTO_NAO_ENCONTRADO)
+    item = _montar_pagamento(pagamento)
+    if item["status"] not in STATUS_COM_RECIBO_PDF:
+        raise HTTPException(status_code=409, detail=ERRO_RECIBO_PDF_INDISPONIVEL)
+    recibo = {
+        "payment_id": item["id"],
+        "course_name": item["course_name"],
+        "amount": item["amount"],
+        "status": item["status"],
+        "payment_method": item["payment_method"],
+        "transaction_id": item["transaction_id"],
+        "issued_at": item["updated_at"] or item["created_at"],
+    }
+    aluno = Database.get_user_by_id(current_user.id) or {}
+    conteudo = gerar_recibo_pdf(recibo, aluno.get("name"))
+    return Response(
+        content=conteudo,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="recibo-{item["id"]}.pdf"',
+            "Cache-Control": "no-store",
+            "Content-Length": str(len(conteudo)),
+        },
+    )
 
 
 class ChatRequest(BaseModel):
