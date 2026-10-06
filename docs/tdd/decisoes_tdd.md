@@ -502,3 +502,25 @@ falham (tabelas `ai_usage`/`ai_interactions` e chaves do dashboard ausentes) e 4
 na API são **fração de 0 a 1**; a tela mostra percentual com 1 casa (multiplica por 100). `usage.requests`
 conta todas as chamadas, inclusive as de erro; `errors` é o subconjunto. Demais escolhas conservadoras do
 agente-testes (itens 2 a 13 do relatório dele) aceitas.
+
+## D44 — E7 entregue (06/10/2026), aguardando validação do PM
+Ciclo: testes vermelhos de backend `6b27fc4` (73 falham, 4 passam); backend `b36c188` (77/77); e2e vermelho
+da tela `9a61216` (4/11); frontend `530ea3a` (11/11). Reexecutado pelo orquestrador: backend **348 passed**
+numa execução só; e2e da E7 11/11, do dashboard de alunos 9/9, do chat do aluno 11/11; build Angular limpo.
+Checklist de 9 itens:
+1. Escopo: métricas de uso, custo, conversão, resolução e tópicos; sem alertas nem exportação.
+2. Red observado, pelo motivo certo, em backend e tela.
+3. IDOR: identidade só pelo JWT no chat do aluno (A14); `session_hash` nunca expõe o id cru (A12, A13).
+4. Recurso pago só com matrícula ativa: não se aplica (sem material); B5 prova que o dashboard não vaza conversa.
+5. Compatibilidade: banco vazio e banco antigo (F1, F2); chaves antigas do dashboard mantidas.
+6. Schema de escrita do admin: não se aplica.
+7. 401 sem token ou forjado, 403 para aluno (E3, E4); Suporte sem nenhum campo de custo (E2, U2).
+8. Tela: e2e 11/11, build limpo.
+9. Ciclo completo, documentação atualizada.
+**D33.5 (obrigatório):** o `usage` do Groq é persistido em `ai_usage`; D1 e D2 provam que o restart do
+backend preserva totais; R1 prova o mesmo na tela. Contadores em memória removidos do `ManagerAgent`.
+**Para revisão do PM:** definições de `resolution_rate` e `conversion` (D42); preços padrão do Groq
+(0.15 e 0.75 USD por 1M de tokens) são de referência e devem ser conferidos; Suporte não vê custo; tópicos só
+do chat anônimo; rótulos da tela escolhidos pelo orquestrador ("Requisições à IA", "Tokens", "Custo",
+"Taxa de resolução", "Conversão", "Requisições por dia", "Tópico", "Ocorrências"); o título "Tópicos não
+compreendidos" aparece no cartão e na seção de tópicos.

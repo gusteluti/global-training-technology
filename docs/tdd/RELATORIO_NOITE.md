@@ -6,7 +6,7 @@ Atualizado a cada entrega. Quem acordou: leia primeiro a seção "Decisões de p
 | # | Item | Estado |
 |---|---|---|
 | 1 | E6 — segurança de LLM | **entregue** (D41): backend 271 passed, landing 8/8; mergeada e publicada |
-| 2 | E7 — observabilidade de IA | em andamento (contrato D42) |
+| 2 | E7 — observabilidade de IA | **entregue** (D44): backend 348 passed, e2e 11/11; mergeada e publicada |
 | 3 | E8 — auditoria | pendente |
 | 4 | E9 — hardening de pagamento | pendente |
 | 5 | Dívidas de segurança (token, bcrypt, update-course) | pendente |
