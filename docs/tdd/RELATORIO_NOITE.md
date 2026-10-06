@@ -9,7 +9,7 @@ Atualizado a cada entrega. Quem acordou: leia primeiro a seção "Decisões de p
 | 2 | E7 — observabilidade de IA | **entregue** (D44): backend 348 passed, e2e 11/11; mergeada e publicada |
 | 3 | E8 — auditoria | **entregue** (D47): backend 411 passed, e2e 17/17; mergeada e publicada |
 | 4 | E9 — hardening de pagamento | **entregue** (D50): backend 596 passed, e2e anteriores verdes; mergeada e publicada |
-| 5 | Dívidas de segurança (token, bcrypt, update-course) | em andamento (contrato D51) |
+| 5 | Dívidas de segurança (token, bcrypt, update-course) | **entregue** (D52): backend 669 passed; mergeada e publicada |
 | 6 | Lacunas de produto (turma, cadastro de cursos no Angular, interceptor) | pendente |
 | 7 | Dívidas de harness (D4, D6, D7, D10) | pendente |
 | 8 | Backlog opcional (recuperação de senha, recibo PDF) | pendente |

@@ -702,3 +702,18 @@ gateway; o segredo do webhook precisa ser configurado no ambiente, senão o webh
 - Corrida do token: dois pedidos simultâneos de definição de senha com o mesmo token: exatamente um recebe 200,
   os demais 400, a conta termina com a senha do vencedor e `used_at` preenchido uma vez.
 Sub-branch: `feature/fase2-tdd-ds-dividas-seguranca`.
+
+## D52 — dívidas de segurança entregues (06/10/2026), aguardando validação do PM
+Ciclo: testes `57b4136` (34 falham, 39 passam), correção `74dc8d2` (73/73). Reexecutado pelo orquestrador:
+backend **669 passed** numa execução só. Sem frontend. Resultado por dívida:
+1. **Corrida no token de senha:** já estava resolvida (transação atômica); agora há testes de concorrência
+   (8 threads, 3 rodadas, HTTP e função) como guarda. Dívida encerrada.
+2. **bcrypt 72 bytes:** login recusa (400) senha acima de 72 bytes (antes `"A"*72+"x"` entrava na conta de
+   `"A"*72`); `get_password_hash` levanta `ValueError`; conta de funcionário do `.env` com senha acima de 72 bytes
+   não é criada (aviso no log, sem a senha). Decisão de política: o limite superior é 72 bytes (não pré-hash).
+3. **`PUT /api/admin/course/{id}` sem `materials`:** preserva os materiais (e não os lista na trilha); com
+   `materials` (inclusive `[]`) substitui.
+Checklist: escopo ok; red observado; IDOR não se aplica além da E2 (C6: `user_id` do cliente ignorado); material
+só com matrícula ativa (B10 a B12); compatibilidade (B8 curso antigo); 401/403 inalterados; sem tela; ciclo completo.
+**Riscos:** admin cujo `ADMIN_PASSWORD` do `.env` passe de 72 bytes fica sem conta no Angular (o login legado por
+senha de perfil continua); `materials: null` no PUT continua dando 422; o aviso de startup usa `print`.
