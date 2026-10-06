@@ -301,3 +301,22 @@ forma (AGENTS.md 4.1), decididas pelo orquestrador:
 3. **Janela de contexto:** as 10 mensagens persistidas mais recentes do aluno, anteriores à atual,
    mais a mensagem atual. Mensagens mais antigas ficam fora.
 O agente-testes aperta T8 e T19 conforme os itens 3 e 1, antes de o dev começar (intenção preservada).
+
+## D37 — E5 entregue (06/10/2026), aguardando validação do PM
+Ciclo: testes vermelhos de backend `7e030c7` (41 falham, 2 passam; ajuste D36 em `eeaed3b`); backend
+`ed5fa3b` (43/43, regressão 131 passed); e2e vermelho do chat `cf37572` (3/11) e frontend `2421a9c`
+(11/11); e2e vermelho do dashboard `970d2c1` (5/9) e frontend `b83e378` (9/9). Build Angular limpo.
+Resultados reexecutados pelo orquestrador, não só reportados pelos agentes. O complemento do dashboard
+de alunos entrou porque a P5 do PM (D35.4) o pedia e nenhuma tarefa o cobria na primeira rodada.
+Checklist de 9 itens:
+1. Escopo: chat autenticado com contexto e histórico persistido, sem extrapolar (nada de E6/E7).
+2. Red observado pelo motivo certo, três vezes (backend, e2e do chat, e2e do dashboard).
+3. IDOR: T13 a T15 (id do cliente ignorado, A e B isolados, mesmo `session_id` sem mistura); C8 no navegador.
+4. Pago só com matrícula ativa: T10 e T11 (pending, cancelled, refunded fora; nenhuma URL de material
+   nem dado de pagamento no que vai ao LLM nem na resposta).
+5. Compatibilidade: aluno sem matrícula conversa (T12); aluno sem conversa tem lista vazia (T5) e 0/null (T19b).
+6. Schema de escrita do admin: não se aplica.
+7. 401 sem token ou forjado (T17); 403 para admin, financeiro e suporte, com os dois tipos de token (T18, T18b).
+8. Frontend: e2e 11/11 e 9/9, build limpo.
+9. Ciclo completo e documentação atualizada. Ressalvas abertas em `PENDENCIAS.md`, seção 6 (erro do LLM
+   persistido, sem limite de tamanho, textos de tela sem revisão do PM, e2e antigos não reexecutados).

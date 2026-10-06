@@ -14,6 +14,7 @@ Fonte do escopo: `Escopo_Fase2_Global_Training_Technology.pdf`, na raiz do repo.
 | **E2 — Conta e login do aluno** | Conta criada após a compra por link de definição de senha (token com hash, expiração de 48 h e uso único), cadastro direto com resposta uniforme, rota de login e política de senha mínima de 8 caracteres. | testes `47d9b69`; implementação `5b9816a`, `8e43bdc`, `bffe69c`, `38a7a36`; merge `351a130` |
 | **E3 — Painel de inscrições e materiais** | Aluno vê só as próprias matrículas (com status e `enrolled_at`), detalhe de matrícula alheia devolve 404, materiais aparecem só com matrícula `active`, funcionário recebe 403 e sem token recebe 401. Tela `/student` com "Meus cursos". Validada por suíte e merge em 05/10/2026. | testes `734469d`; backend `2e76cfe`; frontend `1eaa7a7`; validação `ad291d0`; merge `da55d8f` |
 | **E4 — Histórico financeiro + recibos** | `GET /api/student/payments` e `GET /api/student/payments/{id}/receipt` (recibo JSON). Recibo alheio e inexistente devolvem o mesmo 404; consultas filtradas pelo dono do JWT. Histórico e recibo na tela `/student`. Feita direto em `feature/fase2-tdd`, sem sub-branch, por orientação do PM. Fechada pelo PM em 05/10/2026 (D34). | testes `b27bd6d`; backend `f9f20cc`; frontend `da6de8e` |
+| **E5 — Chatbot autenticado** | `POST /api/student/chat` e `GET /api/student/chat/history`: o chatbot recebe nome do aluno e cursos `active`, o histórico fica persistido em `chat_messages` e as 10 últimas mensagens vão ao LLM. Chat "Assistente virtual" em `/student`; dashboard de alunos com "Mensagens no chat" e "Última conversa". Entregue 06/10/2026; **aguardando validação do PM** (D37). | testes `7e030c7`, `eeaed3b`, e2e `cf37572`, `970d2c1`; backend `ed5fa3b`; frontend `2421a9c`, `b83e378` |
 
 Os dois obrigatórios da E3 (**IDOR** e **material só com matrícula ativa**) foram provados por suíte e por sondagem independente de HTTP (38/38). Detalhes no `HANDOFF_TDD.md`, seção 2.
 
@@ -25,17 +26,11 @@ E4: regressão integral de backend registrada depois do fechamento — **88 pass
 
 ## 2. Em andamento
 
-Nenhuma entrega em andamento. **Próxima: E5** — aguardando as decisões do PM listadas na D35 (`decisoes_tdd.md`) antes do primeiro teste vermelho.
+Nenhuma entrega em andamento. **E5 entregue e mergeada, aguardando validação do PM** (ver tabela da seção 1 e a D37). Próxima: E6.
 
 ---
 
 ## 3. A fazer — escopo de cada entrega
-
-### E5 — Chatbot autenticado (seção 4 do escopo)
-- Para o aluno logado, o chatbot reconhece automaticamente os dados do aluno, os cursos ativos e o histórico de diálogos anteriores.
-- O histórico de diálogos precisa ser **persistido**.
-- Sem teste obrigatório nomeado pelo PM; o padrão de checklist vale.
-- **Achado na análise (D35):** hoje o histórico vive em memória e o `session_id` vem do cliente. A landing page envia o mesmo `session_id` fixo (`'web-chat-session'`) para todo visitante, então todos os anônimos dividem uma conversa. Isso já é o vazamento entre sessões que a E6 proíbe. Decisões pendentes do PM na D35.
 
 ### E6 — Segurança de LLM (seção 4 do escopo)
 - Filtros e controles contra vulnerabilidades da OWASP para LLMs (cita explicitamente *indirect prompt injection*).
@@ -75,7 +70,7 @@ Componentes em `frontend/src/app/components/`: `admin-dashboard`, `students-dash
 
 **Ressalvas que ficaram em aberto nessa parte:**
 - **Dashboard de cursos sem o conceito de turma.** O escopo pede "número de inscritos por turma". Hoje o dashboard não tem o conceito de turma. É lacuna real frente ao escopo.
-- **"Histórico de interações" no dashboard de alunos** só mostra o total de sessões, porque o chat ainda é **anônimo**. Resolve na **E5**, quando o chat for autenticado.
+- **"Histórico de interações" no dashboard de alunos** só mostra o total de sessões, porque o chat ainda é **anônimo**. Resolvido na **E5** para o chat autenticado (contagem e data da última conversa por aluno); o chat anônimo da landing page segue fora desse histórico.
 - **Observabilidade de IA vive em memória.** Zera no restart. Resolve na **E7**, com persistência em banco.
 
 **Versão antiga, superada:** `feature/fase2-painel-administrativo` (`aa619ac`, 09/09) é a **versão antiga** dessa mesma área, em `admin.html` com HTML e JavaScript puros. Foi superada pela versão Angular. **Não é trabalho a aproveitar**; serve só de histórico. O `frontend/admin.html` segue versionado como **legado**. O cadastro de cursos ainda existe **só** nele. Isso precisa ser portado para o Angular antes de o legado sair do repo.
@@ -101,6 +96,10 @@ Tomadas pelo PM. Anteriores às D21 a D26 do log. Cobrem o que o documento de es
 - **D10 — a confirmar:** confirmar que o teste de duas compras do mesmo curso no mesmo segundo está commitado e verde.
 - **D13 — envio de link:** não há servidor de e-mail. A função `send_password_setup_link` grava o link em arquivo de saída de **desenvolvimento, fora do repo**. Troca por SMTP real é trabalho futuro.
 - **Defeito latente em `PUT /api/admin/update-course`:** usa o mesmo `CourseInput` em que `materials` tem default `[]`. Quem editar um curso sem reenviar `materials` **apaga os materiais em silêncio**. Hoje nenhuma tela chama esse endpoint, então é risco latente. Vira defeito real quando a área administrativa ganhar edição de curso. Fora do escopo da D28; precisa de decisão do PM.
+- **E5 — erro do LLM vira mensagem do bot.** Se o Groq falhar, `CourseAgent` e `_answer_general_question` devolvem o texto "Desculpe, ocorreu um erro... {exceção}" (comportamento herdado do `/api/chat`). No chat autenticado esse texto é **persistido** como mensagem do assistente, entra no contexto das próximas perguntas e pode expor detalhe da exceção ao aluno. Tratar na E6 (política: o que o aluno vê e se erro é gravado).
+- **E5 — sem limite de tamanho da mensagem** no `POST /api/student/chat` (nem `maxlength` no campo). Avaliar na E6 (custo e abuso).
+- **E5 — textos da tela escolhidos pelo orquestrador**, sem revisão do PM: "Assistente virtual", "Digite sua mensagem", "Enviar", "Nenhuma mensagem ainda. Pergunte algo ao assistente.", "Não foi possível carregar o histórico do chat.", "Não foi possível enviar a mensagem. Tente novamente.", e as colunas "Mensagens no chat" e "Última conversa".
+- **E5 — e2e de E2 e E3 não reexecutados** depois de a E5 alterar `student-dashboard` (mesmo componente do "Meus cursos"). Backend: regressão 131 passed. O e2e antigo grava no `db.sqlite` de desenvolvimento (D7), por isso não foi rodado.
 - **Interceptor HTTP do Angular — higiene.** O interceptor envia o header `Authorization` também em chamadas **públicas**, quando há token no navegador. Não quebra nada hoje; é higiene. Corrigir para anexar o token só a rotas que exigem autenticação.
 - **bcrypt e o limite de 72 bytes** — o item foi citado pelo PM. Contexto: o bcrypt ignora tudo depois de 72 bytes da senha. Senhas longas com o mesmo prefixo de 72 bytes ficam equivalentes. A política de senha (D14, mínimo de 8) não limita o máximo. Decidir se a política ganha limite superior ou um pré-hash.
 - **Corrida no token de definição de senha** — item citado pelo PM. Risco: o token é de uso único, mas dois pedidos concorrentes podem passar pela checagem antes de qualquer um marcar o token como usado. A marcação de uso precisa ser atômica no banco. Confirmar a implementação atual antes de dar o item como fechado.
