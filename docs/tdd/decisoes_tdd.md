@@ -892,3 +892,12 @@ orquestrador (revisar):**
   `detail`). Sem token na URL: "Link inválido ou incompleto. Use o link enviado para você." e o envio fica bloqueado.
 **Fora do escopo:** revogar JWT, SMTP real, redefinição de senha de funcionário (é pelo `.env`/Gestão), pergunta secreta.
 Sub-branch: `feature/fase2-tdd-b1-recuperacao-senha`.
+
+## D61 — recuperação de senha: red observado (06/10/2026)
+Red: `backend/tests/test_b1_recuperacao_senha.py`, commit `0e9a040`. Verificado pelo orquestrador: 93 falham (rota
+`/api/auth/password-reset*` ausente, coluna `purpose` ausente) e nenhum passa; a combinação B1 + E9 deixa os 185 da E9
+verdes (o fixture do B1 foi corrigido para não alterar `FRONTEND_BASE_URL` antes do import do `app`). Escolhas aceitas do
+agente-testes: tolerância de validade de 5 min; o limite de 3 tokens por hora conta por `created_at`; um pedido `reset` não
+invalida um `setup` aberto (mesma conta **e** finalidade); o aviso de senha alterada não contém `redefinir-senha`. O D7
+(8 pedidos simultâneos geram no máximo 3 tokens) exige que a contagem e a emissão do limite sejam atômicas
+(`BEGIN IMMEDIATE`), exigência mantida.
