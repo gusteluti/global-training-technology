@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -84,6 +85,43 @@ class Database:
             )
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_chat_messages_user ON chat_messages (user_id, id)")
+
+        # Observabilidade de IA (E7, D42). ai_usage: uma linha por chamada ao Groq (usage, custo no momento da
+        # chamada, latência). ai_interactions: uma linha por mensagem que chegou ao pipeline do chatbot.
+        # Nunca guardam texto de mensagem (exceto `topic` mascarado, só no canal anônimo e só 'unresolved'),
+        # texto de exceção nem o id cru da sessão anônima (session_hash é prefixo de sha256).
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ai_usage (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                channel TEXT NOT NULL CHECK (channel IN ('anonymous', 'student')),
+                user_id INTEGER,
+                session_hash TEXT,
+                call_type TEXT NOT NULL CHECK (call_type IN ('route', 'answer')),
+                model TEXT,
+                prompt_tokens INTEGER NOT NULL DEFAULT 0,
+                completion_tokens INTEGER NOT NULL DEFAULT 0,
+                total_tokens INTEGER NOT NULL DEFAULT 0,
+                cost_usd REAL NOT NULL DEFAULT 0,
+                latency_ms INTEGER NOT NULL DEFAULT 0,
+                status TEXT NOT NULL CHECK (status IN ('ok', 'error'))
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_usage_created ON ai_usage (created_at)")
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ai_interactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                channel TEXT NOT NULL CHECK (channel IN ('anonymous', 'student')),
+                user_id INTEGER,
+                session_hash TEXT,
+                course_id TEXT,
+                outcome TEXT NOT NULL
+                    CHECK (outcome IN ('answered', 'unresolved', 'input_blocked', 'output_blocked', 'llm_error')),
+                topic TEXT
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_interactions_user ON ai_interactions (user_id, id)")
 
         conn.commit()
         conn.close()
@@ -691,6 +729,171 @@ class Database:
                 (user_id,),
             ).fetchall()
             return [row[0] for row in rows]
+        finally:
+            conn.close()
+
+    # --- Observabilidade de IA (E7, D42) --------------------------------------------------------
+
+    AI_OUTCOMES = ("answered", "unresolved", "input_blocked", "output_blocked", "llm_error")
+
+    @staticmethod
+    def add_ai_usage(*, channel: str, user_id: Optional[int], session_hash: Optional[str], call_type: str,
+                     model: Optional[str], prompt_tokens: int, completion_tokens: int, total_tokens: int,
+                     cost_usd: float, latency_ms: int, status: str) -> int:
+        """Uma linha por chamada ao Groq. O custo já vem calculado (preço do momento da chamada)."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        try:
+            cursor = conn.execute(
+                """INSERT INTO ai_usage (channel, user_id, session_hash, call_type, model, prompt_tokens,
+                                         completion_tokens, total_tokens, cost_usd, latency_ms, status)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (channel, user_id, session_hash, call_type, model, prompt_tokens, completion_tokens,
+                 total_tokens, cost_usd, latency_ms, status),
+            )
+            conn.commit()
+            return cursor.lastrowid
+        finally:
+            conn.close()
+
+    @staticmethod
+    def add_ai_interaction(*, channel: str, user_id: Optional[int], session_hash: Optional[str],
+                           course_id: Optional[str], outcome: str, topic: Optional[str]) -> int:
+        """Uma linha por mensagem que chegou ao pipeline. `topic` já vem mascarado (ou None)."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        try:
+            cursor = conn.execute(
+                """INSERT INTO ai_interactions (channel, user_id, session_hash, course_id, outcome, topic)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (channel, user_id, session_hash, course_id, outcome, topic),
+            )
+            conn.commit()
+            return cursor.lastrowid
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_ai_interaction_stats() -> Dict:
+        """Contagens das interações para o painel de observabilidade (chaves antigas e outcomes)."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        try:
+            outcomes = {outcome: 0 for outcome in Database.AI_OUTCOMES}
+            for outcome, total in conn.execute("SELECT outcome, COUNT(*) FROM ai_interactions GROUP BY outcome"):
+                outcomes[outcome] = total
+
+            sessoes_anonimas = conn.execute(
+                "SELECT COUNT(DISTINCT session_hash) FROM ai_interactions "
+                "WHERE channel = 'anonymous' AND session_hash IS NOT NULL"
+            ).fetchone()[0]
+            alunos = conn.execute(
+                "SELECT COUNT(DISTINCT user_id) FROM ai_interactions WHERE channel = 'student' AND user_id IS NOT NULL"
+            ).fetchone()[0]
+            por_curso = {
+                course_id: total
+                for course_id, total in conn.execute(
+                    "SELECT course_id, COUNT(*) FROM ai_interactions "
+                    "WHERE course_id IS NOT NULL AND outcome != 'input_blocked' "
+                    "GROUP BY course_id ORDER BY COUNT(*) DESC, course_id"
+                )
+            }
+            return {
+                "total_sessions": sessoes_anonimas + alunos,
+                "total_messages": sum(total for outcome, total in outcomes.items() if outcome != "input_blocked"),
+                "course_specific_messages": sum(por_curso.values()),
+                "unresolved_messages": outcomes["unresolved"],
+                "messages_per_course": por_curso,
+                "outcomes": outcomes,
+            }
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_ai_usage_totals() -> Dict:
+        """Totais de ai_usage. `requests` conta todas as chamadas (inclusive as de erro)."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        try:
+            row = conn.execute(
+                """SELECT COUNT(*),
+                          COALESCE(SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END), 0),
+                          COALESCE(SUM(prompt_tokens), 0),
+                          COALESCE(SUM(completion_tokens), 0),
+                          COALESCE(SUM(total_tokens), 0),
+                          COALESCE(AVG(latency_ms), 0),
+                          COALESCE(SUM(cost_usd), 0)
+                   FROM ai_usage"""
+            ).fetchone()
+            return {
+                "requests": row[0],
+                "errors": row[1],
+                "prompt_tokens": row[2],
+                "completion_tokens": row[3],
+                "total_tokens": row[4],
+                "avg_latency_ms": round(row[5], 1),
+                "cost_usd": round(row[6], 6),
+            }
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_ai_usage_per_day(days: int = 14) -> List[Dict]:
+        """Série diária (UTC) dos últimos `days` dias consecutivos, terminando hoje, com zeros nos dias vazios."""
+        hoje = datetime.now(timezone.utc).date()
+        inicio = hoje - timedelta(days=days - 1)
+        conn = sqlite3.connect(Database.DB_PATH)
+        try:
+            por_dia = {
+                dia: (requests, cost)
+                for dia, requests, cost in conn.execute(
+                    "SELECT date(created_at), COUNT(*), COALESCE(SUM(cost_usd), 0) FROM ai_usage "
+                    "WHERE date(created_at) >= ? AND date(created_at) <= ? GROUP BY date(created_at)",
+                    (inicio.isoformat(), hoje.isoformat()),
+                )
+            }
+        finally:
+            conn.close()
+        serie = []
+        for deslocamento in range(days):
+            dia = (inicio + timedelta(days=deslocamento)).isoformat()
+            requests, cost = por_dia.get(dia, (0, 0))
+            serie.append({"date": dia, "requests": requests, "cost_usd": round(cost, 6)})
+        return serie
+
+    @staticmethod
+    def get_ai_conversion() -> Dict:
+        """Conversão de atendimento (D42): alunos com >= 1 mensagem no chat autenticado que ganharam uma
+        matrícula 'active' com enrolled_at posterior à primeira mensagem, sobre os alunos que conversaram."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        try:
+            row = conn.execute(
+                """WITH primeira AS (
+                       SELECT user_id, MIN(created_at) AS primeira_mensagem
+                       FROM ai_interactions
+                       WHERE channel = 'student' AND user_id IS NOT NULL
+                       GROUP BY user_id
+                   )
+                   SELECT COUNT(*),
+                          COALESCE(SUM(CASE WHEN EXISTS (
+                              SELECT 1 FROM enrollments e
+                              WHERE e.user_id = primeira.user_id AND e.status = 'active'
+                                AND e.enrolled_at > primeira.primeira_mensagem
+                          ) THEN 1 ELSE 0 END), 0)
+                   FROM primeira"""
+            ).fetchone()
+            return {"students_with_chat": row[0], "converted": row[1]}
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_ai_unresolved_topics(limit: int = 10) -> List[Dict]:
+        """Tópicos mascarados do canal anônimo, agrupados por texto, em ordem decrescente de contagem."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        try:
+            rows = conn.execute(
+                """SELECT topic, COUNT(*) AS total FROM ai_interactions
+                   WHERE channel = 'anonymous' AND outcome = 'unresolved' AND topic IS NOT NULL
+                   GROUP BY topic ORDER BY total DESC, topic ASC LIMIT ?""",
+                (limit,),
+            ).fetchall()
+            return [{"topic": topic, "count": total} for topic, total in rows]
         finally:
             conn.close()
 
