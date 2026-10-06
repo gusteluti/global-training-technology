@@ -653,6 +653,13 @@ function setChatStatus(text) {
   const status = document.querySelector('.chat-header-info span');
   if (status) status.textContent = text;
 }
+const CHAT_SESSION_KEY = 'gt_chat_session_id';
+function getChatSessionId() {
+  try { return sessionStorage.getItem(CHAT_SESSION_KEY) || null; } catch (e) { return null; }
+}
+function saveChatSessionId(id) {
+  try { sessionStorage.setItem(CHAT_SESSION_KEY, id); } catch (e) { /* sem sessionStorage: segue sem guardar */ }
+}
 async function sendMsg() {
   const input = document.getElementById('chat-input');
   const text = input.value.trim();
@@ -663,13 +670,15 @@ async function sendMsg() {
   addMsg('⌛ Processando...', 'bot');
   setChatStatus('Conectando...');
 
+  const sessionId = getChatSessionId();
   try {
     const response = await fetch(`${BACKEND_URL}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text, session_id: 'web-chat-session' })
+      body: JSON.stringify(sessionId ? { message: text, session_id: sessionId } : { message: text })
     });
     const data = await response.json();
+    if (data && typeof data.session_id === 'string' && data.session_id) saveChatSessionId(data.session_id);
     const botMsg = data.status === 'success' ? data.message : `Erro: ${data.message || 'não foi possível responder'}`;
     const msgs = document.getElementById('chat-messages');
     const lastMsg = msgs.lastElementChild;
