@@ -420,3 +420,25 @@ agentes e o que for necessário.** Efeito sobre as regras:
   silenciosa de `materials` em `PUT /api/admin/update-course`; (6) lacunas de produto: turma no dashboard
   de cursos, cadastro de cursos no Angular, higiene do interceptor; (7) dívidas de harness D4, D6, D7,
   D10; (8) backlog: recuperação de senha do aluno, recibo em PDF (opcionais, se sobrar tempo).
+
+## D41 — E6 entregue (06/10/2026), aguardando validação do PM
+Ciclo: testes vermelhos `481b742` (89 falham), ajustes D39 `fb3744d`; backend `8bbd34a`; correção de um teste
+errado (T6, ordem `persistido`/`sondar`; o dev parou e reportou, o agente-testes corrigiu: D38 → D39 → D40)
+`7208da8`; e2e vermelho da landing `a00eaff` (6 de 8 falham); landing `7e2f9bd` (8/8). Reexecutado pelo
+orquestrador: backend **271 passed**; e2e da landing **8 passed**. Checklist de 9 itens:
+1. Escopo: os dois riscos do PDF (desconto indevido e vazamento entre sessões) e injeção direta e indireta; nada de E7.
+2. Red observado, pelo motivo certo, em backend e landing.
+3. IDOR/isolamento: sessão anônima emitida pelo servidor (T10 a T13), alunos isolados (T14, e E5 T13 a T15).
+4. Pago só com matrícula ativa: mantido da E5 (T10 e T11 da E5), mais política e filtro de saída contra valores fora do catálogo.
+5. Compatibilidade: aluno sem matrícula (T52); `/api/chat` anônimo segue com `status`/`message`.
+6. Schema de escrita do admin: não se aplica.
+7. 401 e 403 nos endpoints de aluno (T50, T51).
+8. Landing: e2e 8/8. Não há tela nova no Angular.
+9. Ciclo completo, documentação atualizada.
+**Obrigatórios do PM:** (a) desconto indevido: T1 a T7 (5 respostas manipuladas, 2 canais, 2 caminhos, falsos
+positivos e canário); (b) vazamento entre sessões: T10 a T14 e C4 da landing.
+**Escolhas conservadoras do dev (revisar):** filtro de entrada em PT e EN com verbo + alvo (ex.: "modo DAN"
+sempre bloqueia; "sem restrições" só bloqueia com verbo de persona); filtro de saída bloqueia parcelamento
+("12x de R$ 19,33") por ser valor fora do catálogo; "Não se preocupe, é grátis" passa por conter negação.
+**Dívidas:** teto de sessões anônimas em memória, limitação de taxa, `backend/test_api.py` e
+`DOCUMENTACAO_TECNICA_TCC.html` ainda mostram o `session_id` fixo.
