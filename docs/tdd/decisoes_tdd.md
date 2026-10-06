@@ -395,3 +395,28 @@ antigo alterado: T22 da E5, por D35.4 P6 → D38 (autoridade 4.3). Ambiguidades,
 3. Falha do LLM no chat anônimo: `{"status":"error","message":LLM_UNAVAILABLE}` com HTTP 200 (padrão atual
    do endpoint), sem `session_id` obrigatório.
 O agente-testes ajusta T7 e acrescenta os casos em inglês antes de o dev começar (D38 → D39).
+
+## D40 — modo autônomo da noite de 06/10/2026 (decisão do PM, via usuário)
+O PM vai dormir e quer encontrar todas as pendências prontas ao acordar. Autorização: **não parar
+para perguntar; seguir sempre a recomendação do orquestrador; passar sempre ao próximo ponto; alterar
+agentes e o que for necessário.** Efeito sobre as regras:
+- Suspende, **só nesta janela**, a parada de D31 depois de cada entrega ("reporta e para"): o
+  orquestrador fecha a entrega (checklist, merge `--no-ff` em `feature/fase2-tdd`, documentação, push) e
+  segue para a próxima. O relatório vai para `docs/tdd/RELATORIO_NOITE.md`, atualizado a cada entrega.
+- Dúvida de forma ou de política: o orquestrador decide pela recomendação, registra no log (D41 em
+  diante) com o motivo, e marca em `RELATORIO_NOITE.md` as decisões de política tomadas sem o PM, para
+  revisão na volta. Nenhuma decisão tomada assim é irreversível.
+- **Continuam valendo, sem exceção:** D30 (nunca tocar na `main`, nunca force-push, auditar segredos antes
+  de cada push, parar se o push for rejeitado por divergência); a limpeza do histórico do
+  `.chrome-pdf-profile/` **não** é executada (D33.3, decisão do grupo); um agente por vez; árvore limpa
+  antes de chamar agente; ciclo TDD (red antes do código, verde, verificação do orquestrador).
+- **D32 (autovigilância) continua:** se um gatilho disparar, o orquestrador não pergunta: deixa a
+  árvore limpa e commitada, registra o motivo no relatório e passa ao próximo item independente; se não
+  houver item possível, encerra deixando o estado documentado.
+- Fora do alcance técnico e registrado como tal, sem tentativa: SMTP real (sem servidor nem credenciais),
+  qualquer ação que exija segredo real do usuário.
+- **Fila da noite (ordem):** (1) E6 (backend, depois a landing page); (2) E7; (3) E8; (4) E9;
+  (5) dívidas de segurança: corrida no token de definição de senha, limite de 72 bytes do bcrypt, perda
+  silenciosa de `materials` em `PUT /api/admin/update-course`; (6) lacunas de produto: turma no dashboard
+  de cursos, cadastro de cursos no Angular, higiene do interceptor; (7) dívidas de harness D4, D6, D7,
+  D10; (8) backlog: recuperação de senha do aluno, recibo em PDF (opcionais, se sobrar tempo).

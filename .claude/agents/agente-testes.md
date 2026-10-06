@@ -32,3 +32,10 @@ Um commit de teste vermelho por entrega, no formato `test(eN): <o que cobre>`, t
 3. Saída do red: quantos falham, quantos passam, e o motivo da falha de cada grupo.
 4. Hash do commit.
 5. Dúvidas ou testes que você considera arriscados. Seja explícito sobre o que **não** conseguiu verificar.
+
+## Modo autônomo (D40, noite de 06/10/2026)
+Nesta janela o orquestrador não faz perguntas ao PM. Você também não: se tiver dúvida, escolha a opção
+mais conservadora e segura que os testes e as decisões permitirem, **diga qual escolheu e por quê** no
+relatório e siga. Isso não relaxa nenhuma proibição deste charter (testes, push, merge, `main`, segredos).
+Pare e reporte apenas se o teste estiver errado ou se faltar algo que só o PM possa fornecer (segredo
+real, servidor externo). Se terminar incompleto, diga exatamente o que falta; não declare pronto.
