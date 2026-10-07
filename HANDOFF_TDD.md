@@ -36,6 +36,7 @@ Log completo de decisões: `docs/tdd/decisoes_tdd.md`. Charter dos papéis: `doc
 | `feature/fase2-tdd-e5-chatbot-autenticado` | `b83e378` (+ commit de docs) | E5. Mergeada em `feature/fase2-tdd` (ver `git log`). Aguardando validação do PM. |
 | `backup/fase2-tdd-2026-10-07` | `3ca3ddf` | **Backup** do estado anterior ao design unificado (também na tag `backup-fase2-tdd-2026-10-07`). Não tocar. |
 | `feature/fase2-tdd-d1-design-landing` | `07ba7e7` | D1 (design da landing). Mergeada em `feature/fase2-tdd`. Aguardando validação do PM (D66). |
+| `feature/fase2-tdd-d2-area-aluno` | `e5a2de5` | D2 (nova área do aluno). Mergeada em `feature/fase2-tdd`. Aguardando validação do PM (D67). |
 | `feature/fase2-painel-administrativo` | `aa619ac` (09/09) | Anterior. Não tocar. |
 | `feature/fase2-merge-gustavo` | `9be15e2` | Anterior. Não tocar. |
 | `feature/fase2-angular-integrado` | `d34d89b` | Anterior. Não tocar. |
@@ -233,6 +234,7 @@ Notas de escopo lidas no PDF, para quem for pegar as próximas:
 - **E9:** **não está no PDF — é acréscimo do PM** (D33.6). O PM mantém a entrega por serem defeitos de segurança reais ("entregar sem eles é pior que entregar fora do escopo literal"), e registra a classificação para que o grupo possa cortar a entrega se quiser. Quem for apresentar o trabalho precisa saber que esta é a única das nove que não sai do documento.
 
 | **D1** | Design da landing aplicado à SPA Angular | pedido do PM (07/10/2026), seção 3 do escopo (SPA) | **Entregue em 07/10/2026, aguardando validação do PM (D66).** e2e `34d846a`; frontend `b1ecf40`, `6702f56`, `07ba7e7`. D1 10/10; regressão e2e completa verde; build limpo. |
+| **D2** | Nova Área do Aluno no design da landing | item 1.1, RF21, RF22 (pedido do PM, 07/10/2026) | **Entregue em 07/10/2026, aguardando validação do PM (D67).** e2e `0b4b45e`; frontend `e5a2de5`. D2 10/10; E2, E3, E5 chat, B2 verdes; build limpo. |
 
 ### Backlog (fora das nove entregas)
 - Recuperação de senha do aluno. Fora do escopo, mas login em produção vai precisar.

@@ -988,3 +988,37 @@ E5 chat 11/11, E5 dashboard 9/9, E6 8, E7 11/11, E8 17/17, L1 16/16, L2 24/24, B
 Checklist: (1) só visual, sem mudança de API; (2) red observado; (3)(4)(5)(6) não se aplicam (sem endpoint, sem conteúdo
 pago novo); (7) inalterado; (8) e2e e build; (9) ciclo e docs. **Para revisão do PM:** textos da casca (rodapé, "Área do
 funcionário"), dependências `@fontsource`.
+
+## D67 — nova Área do Aluno no design da landing (D2) — entregue 07/10/2026, aguardando validação do PM
+**Pedido do PM (07/10/2026):** "após aplicar o design construa a área do aluno". Escopo: seção 1.1 do PDF (painel de inscrições
+com cursos, status e materiais; histórico financeiro com recibos e status de pagamentos concluídos ou pendentes), RF21 e RF22.
+Os endpoints já existiam (E2 a E5, B2): a entrega é só de frontend, **sem mudança de API nem de backend**.
+- **Contrato da tela `/student` (decisões de forma do orquestrador, para revisão do PM):**
+  - cabeçalho com o rótulo "Área do aluno", saudação "Olá! Que bom ter você de volta." e "Conectado como <e-mail>"
+    (`aluno-email`). O e-mail vem do próprio JWT (o token não traz o nome; nada de outro aluno aparece);
+  - atalhos "Cursos", "Financeiro", "Assistente" (`atalho-*`) que só rolam a página até a seção (`scrollIntoView`). Não são
+    links `href="#..."`, que levariam o roteador a `/` e ao login;
+  - resumo: "Cursos ativos" (matrículas `active`), "Pagamentos pendentes" (`pending` + `in_process`) e "Total investido"
+    (soma só dos `approved`; reembolsado, pendente e recusado ficam de fora);
+  - cartões de curso (`curso-card`) com as iniciais do curso, o badge de status da matrícula (rótulos da E3), a data
+    "Matrícula em dd/mm/aaaa" (`curso-data`) e os materiais **só** com matrícula `active`;
+  - histórico financeiro com o status do pagamento em português (`pagamento-status`): approved Aprovado, pending Pendente,
+    in_process Em análise, rejected Recusado, cancelled Cancelado, refunded Reembolsado, charged_back Contestado. Status fora
+    desse vocabulário aparece em valor bruto, para não esconder informação. No celular, cada linha vira um cartão empilhado (mesmo
+    DOM: `tbody tr`, "Ver recibo", `recibo-pdf`);
+  - recibo com status em português, forma de pagamento (mercado_pago "Mercado Pago") e "Emitido em";
+  - chat em bolhas no estilo do chatbot da landing.
+- **Datas:** formatadas por `dataBr()` a partir do texto `AAAA-MM-DD...` do backend, sem depender do parser de datas do
+  navegador (o SQLite grava com espaço, não com `T`).
+- **Contratos preservados:** "Meus cursos", `.badge` de matrícula, links de material (E3); tabela, "Ver recibo",
+  `div.card.border-primary`, `h3 ~ .alert-danger` (E4/B2); `chat-panel`, `chat-input`, `chat-send`, `chat-message` com
+  `data-role`, título "Assistente virtual" (E5).
+Ciclo: sub-branch `feature/fase2-tdd-d2-area-aluno`; e2e vermelho `0b4b45e` (`test_d2_area_aluno_angular.py`: 8 de 10 falham
+pelo motivo certo, 2 guardas passam, isolamento A8 e console A10); implementação `e5a2de5`; merge `--no-ff` na branch de projeto.
+Resultados: D2 10/10, E2 8/8, E3 7/7, E5 chat 11/11, B2 8/8; build limpo.
+Checklist: (1) só o que a seção 1.1 pede, sobre a API existente; (2) red observado; (3) IDOR: nenhum identificador vem do
+cliente; a tela de A não mostra curso, e-mail nem material de B (A8); (4) material só com `active`: URLs de pendente e
+reembolsado ausentes do HTML (A4); (5) não se aplica (sem campo novo); (6) não se aplica; (7) inalterado (guards e API);
+(8) e2e, celular (A9) e build; (9) ciclo e docs.
+**Para revisão do PM:** todos os textos novos da tela; o "Total investido" contar só pagamentos aprovados; o tratamento
+de status desconhecido; a ausência do nome do aluno no cabeçalho (exigiria incluir o nome no token ou criar um endpoint `/me`).
