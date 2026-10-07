@@ -144,8 +144,9 @@ a:hover { color: var(--gt-teal-dark); }
 }
 
 .table { --bs-table-color: var(--gt-text); --bs-table-striped-bg: #f7f9fb; --bs-table-hover-bg: #eaf8fc; }
+/* Sem text-transform: os e2e (E5, E8) leem o texto literal dos cabeçalhos. */
 .table thead th {
-  font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px;
+  font-size: 13px; letter-spacing: 0.3px;
   color: var(--gt-muted); font-weight: 700; border-bottom-width: 1px;
 }
 
@@ -155,10 +156,10 @@ a:hover { color: var(--gt-teal-dark); }
 
 .list-group-item-action:hover { background: var(--gt-soft-blue); color: var(--gt-teal-dark); }
 
-/* Rótulo de seção no estilo da landing (".section-tag"). */
+/* Rótulo de seção no estilo da landing (".section-tag"). Versalete em vez de uppercase: o texto lido pelo e2e não muda. */
 .gt-tag {
   font-size: 12px; font-weight: 700; color: var(--gt-teal);
-  letter-spacing: 4px; text-transform: uppercase; margin-bottom: 6px;
+  letter-spacing: 4px; font-variant-caps: all-small-caps; margin-bottom: 6px;
 }
 
 @media (max-width: 768px) {
