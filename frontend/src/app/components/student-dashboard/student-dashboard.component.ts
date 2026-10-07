@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { PainelMatriculas } from '../../resolvers/enrollments.resolver';
 import { ApiService } from '../../services/api.service';
+import { AuthService } from '../../services/auth.service';
 
 // Rótulos e cores dos status de matrícula (conjunto fechado, D28).
 const ROTULOS_STATUS: { [status: string]: string } = {
@@ -24,11 +25,40 @@ const MENSAGENS_SEM_ACESSO: { [status: string]: string } = {
   refunded: 'Pagamento reembolsado. Os materiais não estão mais disponíveis.'
 };
 
+// Status de pagamento em português (D67). Vocabulário do backend (E9); só um status fora dele apareceria em valor bruto.
+const ROTULOS_PAGAMENTO: { [status: string]: string } = {
+  approved: 'Aprovado',
+  pending: 'Pendente',
+  in_process: 'Em análise',
+  rejected: 'Recusado',
+  cancelled: 'Cancelado',
+  refunded: 'Reembolsado',
+  charged_back: 'Contestado'
+};
+
+const CLASSES_PAGAMENTO: { [status: string]: string } = {
+  approved: 'bg-success',
+  pending: 'bg-warning text-dark',
+  in_process: 'bg-info text-dark',
+  rejected: 'bg-danger',
+  cancelled: 'bg-secondary',
+  refunded: 'bg-secondary',
+  charged_back: 'bg-danger'
+};
+
+// Pagamentos que o aluno ainda aguarda (contam no resumo "Pagamentos pendentes").
+const PAGAMENTO_EM_ABERTO = ['pending', 'in_process'];
+
+const FORMAS_PAGAMENTO: { [forma: string]: string } = {
+  mercado_pago: 'Mercado Pago'
+};
+
 const MSG_FALHA_PDF = 'Não foi possível baixar o recibo.';
 
 @Component({
   selector: 'app-student-dashboard',
-  templateUrl: './student-dashboard.component.html'
+  templateUrl: './student-dashboard.component.html',
+  styleUrls: ['./student-dashboard.component.css']
 })
 export class StudentDashboardComponent implements OnInit {
   enrollments: any[] = [];
@@ -41,8 +71,11 @@ export class StudentDashboardComponent implements OnInit {
   chatInput = '';
   chatEnviando = false;
   erroChat = '';
+  email = '';
 
-  constructor(private route: ActivatedRoute, private api: ApiService) {
+  constructor(private route: ActivatedRoute, private api: ApiService, auth: AuthService) {
+    // E-mail do próprio token (nunca de outro aluno): mostrado só no cabeçalho.
+    this.email = auth.decodeToken()?.email || '';
     // Dados vindos do EnrollmentsResolver (rota /student).
     const painel: PainelMatriculas | undefined = this.route.snapshot.data['painel'];
     this.enrollments = painel?.enrollments || [];
@@ -60,6 +93,50 @@ export class StudentDashboardComponent implements OnInit {
       next: (res: any) => this.chatMessages = res.messages || [],
       error: () => this.erroChat = 'Não foi possível carregar o histórico do chat.'
     });
+  }
+
+  // ---- Resumo (D67) ----------------------------------------------------------------------------------
+  get cursosAtivos(): number {
+    return this.enrollments.filter(m => m.status === 'active').length;
+  }
+
+  get pagamentosPendentes(): number {
+    return this.payments.filter(p => PAGAMENTO_EM_ABERTO.includes(p.status)).length;
+  }
+
+  // Só pagamento aprovado conta; reembolsado, pendente e recusado ficam de fora.
+  get totalInvestido(): number {
+    return this.payments
+      .filter(p => p.status === 'approved')
+      .reduce((soma, p) => soma + (Number(p.amount) || 0), 0);
+  }
+
+  // ---- Apresentação ---------------------------------------------------------------------------------
+  iniciais(nome: string): string {
+    const palavras = (nome || '').split(/\s+/).filter(p => /[A-Za-zÀ-ÿ0-9]/.test(p));
+    return palavras.slice(0, 2).map(p => p[0].toUpperCase()).join('') || 'GT';
+  }
+
+  // "2026-10-07 20:10:00" ou ISO -> "07/10/2026", sem depender do parser de datas do navegador.
+  dataBr(valor: string | null | undefined): string {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(valor || '');
+    return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
+  }
+
+  rotuloPagamento(status: string): string {
+    return ROTULOS_PAGAMENTO[status] || status;
+  }
+
+  classePagamento(status: string): string {
+    return CLASSES_PAGAMENTO[status] || 'bg-secondary';
+  }
+
+  rotuloForma(forma: string): string {
+    return FORMAS_PAGAMENTO[forma] || (forma ? 'Outra' : '-');
+  }
+
+  irPara(id: string): void {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   rotuloStatus(status: string): string {

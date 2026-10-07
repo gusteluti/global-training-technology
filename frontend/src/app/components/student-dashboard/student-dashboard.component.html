@@ -1,56 +1,102 @@
-<div class="row">
-  <div class="col-12">
-    <h3>Meus cursos</h3>
-    <div *ngIf="erro" class="alert alert-danger">{{ erro }}</div>
-    <div *ngIf="!erro && enrollments.length === 0" class="alert alert-info">Você ainda não tem matrículas.</div>
-    <div class="row">
-      <div class="col-md-6 mb-3" *ngFor="let m of enrollments">
-        <div class="card h-100">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start mb-3">
-              <h5 class="card-title mb-0">{{ m.course_name }}</h5>
-              <span class="badge ms-2" [ngClass]="classeStatus(m.status)">{{ rotuloStatus(m.status) }}</span>
-            </div>
+<!-- Área do Aluno (D2/D67): design da landing, escopo Fase 2 seção 1.1 (RF21, RF22).
+     Preserva os contratos de tela da E3 (Meus cursos, .badge, links de material), E4/B2 (tabela, Ver recibo,
+     recibo-pdf, card.border-primary, h3 ~ .alert-danger) e E5 (chat-panel, chat-input, chat-send, chat-message). -->
+<section class="card aluno-hero">
+  <div class="card-body">
+    <div class="gt-tag">Área do aluno</div>
+    <h1 class="aluno-titulo">Olá! Que bom ter você de volta.</h1>
+    <p class="text-muted mb-3">Conectado como <strong class="text-break" data-testid="aluno-email">{{ email }}</strong></p>
+    <nav class="aluno-atalhos" aria-label="Seções da área do aluno">
+      <button type="button" class="aluno-atalho" data-testid="atalho-cursos" (click)="irPara('secao-cursos')">Cursos</button>
+      <button type="button" class="aluno-atalho" data-testid="atalho-financeiro" (click)="irPara('secao-financeiro')">Financeiro</button>
+      <button type="button" class="aluno-atalho" data-testid="atalho-assistente" (click)="irPara('secao-assistente')">Assistente</button>
+    </nav>
+  </div>
+</section>
 
-            <ng-container *ngIf="m.status === 'active'; else semAcesso">
-              <h6>Materiais</h6>
-              <div class="list-group" *ngIf="m.materials?.length; else semMateriais">
-                <a *ngFor="let mat of m.materials"
-                   class="list-group-item list-group-item-action"
-                   [href]="mat.url"
-                   target="_blank"
-                   rel="noopener noreferrer">{{ mat.title }}</a>
-              </div>
-              <ng-template #semMateriais>
-                <p class="text-muted small mb-0">Este curso ainda não tem materiais.</p>
-              </ng-template>
-            </ng-container>
+<div class="row g-3 mb-4" aria-label="Resumo">
+  <div class="col-4">
+    <div class="card h-100 aluno-resumo mb-0">
+      <div class="card-body">
+        <div class="aluno-resumo-rotulo">Cursos ativos</div>
+        <div class="aluno-resumo-valor" data-testid="resumo-cursos-ativos">{{ cursosAtivos }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-4">
+    <div class="card h-100 aluno-resumo mb-0">
+      <div class="card-body">
+        <div class="aluno-resumo-rotulo">Pagamentos pendentes</div>
+        <div class="aluno-resumo-valor" data-testid="resumo-pagamentos-pendentes">{{ pagamentosPendentes }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-4">
+    <div class="card h-100 aluno-resumo mb-0">
+      <div class="card-body">
+        <div class="aluno-resumo-rotulo">Total investido</div>
+        <div class="aluno-resumo-valor" data-testid="resumo-total-investido">{{ totalInvestido | currency:'BRL':'symbol':'1.2-2' }}</div>
+      </div>
+    </div>
+  </div>
+</div>
 
-            <ng-template #semAcesso>
-              <p class="text-muted small mb-0">{{ mensagemSemAcesso(m.status) }}</p>
-            </ng-template>
+<section id="secao-cursos" class="aluno-secao" data-testid="secao-cursos">
+  <h3>Meus cursos</h3>
+  <div *ngIf="erro" class="alert alert-danger">{{ erro }}</div>
+  <div *ngIf="!erro && enrollments.length === 0" class="alert alert-info">Você ainda não tem matrículas.</div>
+  <div class="row g-3">
+    <div class="col-12 col-md-6 col-xl-4" *ngFor="let m of enrollments">
+      <div class="card h-100 mb-0 curso-card" data-testid="curso-card">
+        <div class="card-body d-flex flex-column">
+          <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+            <div class="curso-icone" aria-hidden="true">{{ iniciais(m.course_name) }}</div>
+            <span class="badge" [ngClass]="classeStatus(m.status)">{{ rotuloStatus(m.status) }}</span>
           </div>
+          <h5 class="curso-nome text-break">{{ m.course_name }}</h5>
+          <p class="small text-muted mb-3" data-testid="curso-data">Matrícula em {{ dataBr(m.enrolled_at) }}</p>
+
+          <ng-container *ngIf="m.status === 'active'; else semAcesso">
+            <h6 class="curso-subtitulo">Materiais</h6>
+            <div class="list-group" *ngIf="m.materials?.length; else semMateriais">
+              <a *ngFor="let mat of m.materials"
+                 class="list-group-item list-group-item-action text-break"
+                 [href]="mat.url"
+                 target="_blank"
+                 rel="noopener noreferrer">{{ mat.title }} <span class="material-seta" aria-hidden="true">↗</span></a>
+            </div>
+            <ng-template #semMateriais>
+              <p class="text-muted small mb-0">Este curso ainda não tem materiais.</p>
+            </ng-template>
+          </ng-container>
+
+          <ng-template #semAcesso>
+            <p class="text-muted small mb-0 curso-aviso">{{ mensagemSemAcesso(m.status) }}</p>
+          </ng-template>
         </div>
       </div>
     </div>
   </div>
+</section>
 
-  <div class="col-12 mt-4">
-    <h3>Histórico financeiro</h3>
-    <div *ngIf="erroFinanceiro" class="alert alert-danger">{{ erroFinanceiro }}</div>
-    <div *ngIf="!erroFinanceiro && payments.length === 0" class="alert alert-info">Você ainda não tem pagamentos registrados.</div>
-    <div class="table-responsive" *ngIf="payments.length">
-      <table class="table table-striped align-middle">
+<section id="secao-financeiro" class="aluno-secao" data-testid="secao-financeiro">
+  <h3>Histórico financeiro</h3>
+  <div *ngIf="erroFinanceiro" class="alert alert-danger">{{ erroFinanceiro }}</div>
+  <div *ngIf="!erroFinanceiro && payments.length === 0" class="alert alert-info">Você ainda não tem pagamentos registrados.</div>
+  <div class="card mb-3" *ngIf="payments.length">
+    <div class="table-responsive">
+      <table class="table align-middle mb-0 tabela-pagamentos">
         <thead>
           <tr><th>Curso</th><th>Valor</th><th>Status</th><th>Data</th><th></th></tr>
         </thead>
         <tbody>
           <tr *ngFor="let p of payments">
-            <td>{{ p.course_name }}</td>
-            <td>{{ p.amount | currency:'BRL' }}</td>
-            <td><span class="badge bg-secondary">{{ p.status }}</span></td>
-            <td>{{ p.created_at | date:'short' }}</td>
-            <td><button type="button" class="btn btn-outline-primary btn-sm" (click)="verRecibo(p.id)">Ver recibo</button>
+            <td class="pg-curso">{{ p.course_name }}</td>
+            <td class="pg-valor text-nowrap">{{ p.amount | currency:'BRL':'symbol':'1.2-2' }}</td>
+            <td class="pg-status"><span class="badge" data-testid="pagamento-status" [ngClass]="classePagamento(p.status)">{{ rotuloPagamento(p.status) }}</span></td>
+            <td class="pg-data text-nowrap">{{ dataBr(p.created_at) }}</td>
+            <td class="pg-acoes text-nowrap text-end">
+              <button type="button" class="btn btn-outline-primary btn-sm" (click)="verRecibo(p.id)">Ver recibo</button>
               <button *ngIf="temReciboPdf(p)" type="button" class="btn btn-outline-secondary btn-sm ms-2"
                       data-testid="recibo-pdf" [disabled]="baixandoPdf.has(p.id)" (click)="baixarReciboPdf(p)">Baixar PDF</button>
             </td>
@@ -58,29 +104,33 @@
         </tbody>
       </table>
     </div>
+  </div>
 
-    <div *ngIf="receipt" class="card border-primary mb-3" aria-live="polite">
-      <div class="card-body">
-        <h4 class="card-title">Recibo #{{ receipt.payment_id }}</h4>
-        <p class="mb-1"><strong>Curso:</strong> {{ receipt.course_name }}</p>
-        <p class="mb-1"><strong>Valor:</strong> {{ receipt.amount | currency:'BRL' }}</p>
-        <p class="mb-0"><strong>Status:</strong> {{ receipt.status }}</p>
-      </div>
+  <div *ngIf="receipt" class="card border-primary mb-3 aluno-recibo" aria-live="polite">
+    <div class="card-body">
+      <h4 class="card-title">Recibo #{{ receipt.payment_id }}</h4>
+      <p class="mb-1"><strong>Curso:</strong> {{ receipt.course_name }}</p>
+      <p class="mb-1"><strong>Valor:</strong> {{ receipt.amount | currency:'BRL':'symbol':'1.2-2' }}</p>
+      <p class="mb-1"><strong>Status:</strong> {{ rotuloPagamento(receipt.status) }}</p>
+      <p class="mb-1"><strong>Forma de pagamento:</strong> {{ rotuloForma(receipt.payment_method) }}</p>
+      <p class="mb-0" *ngIf="receipt.issued_at"><strong>Emitido em:</strong> {{ dataBr(receipt.issued_at) }}</p>
     </div>
   </div>
-  <div class="col-12 mt-4" data-testid="chat-panel">
-    <h3>Assistente virtual</h3>
-    <div *ngIf="erroChat" class="alert alert-danger">{{ erroChat }}</div>
-    <div class="border rounded p-3 mb-3" style="max-height: 360px; overflow-y: auto;">
+</section>
+
+<section id="secao-assistente" class="aluno-secao" data-testid="chat-panel">
+  <h3>Assistente virtual</h3>
+  <div *ngIf="erroChat" class="alert alert-danger">{{ erroChat }}</div>
+  <div class="card mb-0 chat-card">
+    <div class="chat-mensagens">
       <p *ngIf="chatMessages.length === 0" class="text-muted small mb-0">Nenhuma mensagem ainda. Pergunte algo ao assistente.</p>
       <div *ngFor="let msg of chatMessages"
            data-testid="chat-message"
            [attr.data-role]="msg.role"
-           class="mb-2 p-2 rounded text-break"
-           [ngClass]="msg.role === 'user' ? 'bg-primary text-white ms-auto' : 'bg-light'"
-           style="max-width: 80%; white-space: pre-wrap;">{{ msg.content }}</div>
+           class="chat-bolha text-break"
+           [ngClass]="msg.role === 'user' ? 'chat-bolha-aluno' : 'chat-bolha-bot'">{{ msg.content }}</div>
     </div>
-    <form class="input-group" (ngSubmit)="enviarChat()">
+    <form class="input-group chat-form" (ngSubmit)="enviarChat()">
       <input type="text" class="form-control" name="chatInput" data-testid="chat-input"
              placeholder="Digite sua mensagem" autocomplete="off"
              [(ngModel)]="chatInput">
@@ -88,4 +138,4 @@
               [disabled]="!podeEnviarChat()">Enviar</button>
     </form>
   </div>
-</div>
+</section>
