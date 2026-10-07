@@ -158,8 +158,8 @@ a:hover { color: var(--gt-teal-dark); }
 
 /* Rótulo de seção no estilo da landing (".section-tag"). Versalete em vez de uppercase: o texto lido pelo e2e não muda. */
 .gt-tag {
-  font-size: 12px; font-weight: 700; color: var(--gt-teal);
-  letter-spacing: 4px; font-variant-caps: all-small-caps; margin-bottom: 6px;
+  font-size: 15px; font-weight: 700; color: var(--gt-teal);
+  letter-spacing: 3px; font-variant-caps: all-small-caps; margin-bottom: 6px;
 }
 
 @media (max-width: 768px) {
