@@ -169,6 +169,9 @@ py -3 -m pytest frontend/e2e/test_e7_observabilidade_angular.py -s # 11 checks
 py -3 -m pytest frontend/e2e/test_e8_auditoria_angular.py -s       # 17 checks
 py -3 -m pytest frontend/e2e/test_l1_turmas_angular.py -s          # 16 checks
 py -3 -m pytest frontend/e2e/test_l2_cadastro_cursos_angular.py -s # 24 checks
+py -3 -m pytest frontend/e2e/test_b1_recuperacao_senha_angular.py -s # 10 checks
+py -3 -m pytest frontend/e2e/test_b2_recibo_pdf_angular.py -s      # 8 checks
+py -3 -m pytest frontend/e2e/test_d1_design_landing_angular.py -s  # 10 checks (design da landing, D66)
 ```
 Portas e esperas podem ser fixadas com `E2E_BACKEND_PORT`, `E2E_FRONT_PORT` e `E2E_NG_TIMEOUT`. Se houver um `ng serve` seu na
 porta 4200, ele não é usado nem encerrado. Cada e2e leva de 20 a 90 s. Contagens validadas em 06/10/2026.

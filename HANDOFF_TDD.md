@@ -34,6 +34,8 @@ Log completo de decisões: `docs/tdd/decisoes_tdd.md`. Charter dos papéis: `doc
 | `feature/fase2-tdd-e2-conta-aluno` | `b988b92` | E2. Totalmente mergeada em `feature/fase2-tdd` (merge `351a130`). |
 | `feature/fase2-tdd-e3-painel-materiais` | `1eaa7a7` | E3. Validada e totalmente mergeada em `feature/fase2-tdd` (merge `da55d8f`). |
 | `feature/fase2-tdd-e5-chatbot-autenticado` | `b83e378` (+ commit de docs) | E5. Mergeada em `feature/fase2-tdd` (ver `git log`). Aguardando validação do PM. |
+| `backup/fase2-tdd-2026-10-07` | `3ca3ddf` | **Backup** do estado anterior ao design unificado (também na tag `backup-fase2-tdd-2026-10-07`). Não tocar. |
+| `feature/fase2-tdd-d1-design-landing` | `07ba7e7` | D1 (design da landing). Mergeada em `feature/fase2-tdd`. Aguardando validação do PM (D66). |
 | `feature/fase2-painel-administrativo` | `aa619ac` (09/09) | Anterior. Não tocar. |
 | `feature/fase2-merge-gustavo` | `9be15e2` | Anterior. Não tocar. |
 | `feature/fase2-angular-integrado` | `d34d89b` | Anterior. Não tocar. |
@@ -229,6 +231,8 @@ Notas de escopo lidas no PDF, para quem for pegar as próximas:
 - **E7 (refinamento ADOTADO pelo PM, D33.5):** o `usage` do Groq tem de ser **persistido em banco**. O PDF pede custo de inferência, e métrica que zera no restart não atende. Contador em memória reprova a entrega.
 - **E8:** o PDF exige "estampa de tempo, identificação do usuário responsável e a alteração efetuada" nos eventos críticos (dados cadastrais, preço de curso, reembolso).
 - **E9:** **não está no PDF — é acréscimo do PM** (D33.6). O PM mantém a entrega por serem defeitos de segurança reais ("entregar sem eles é pior que entregar fora do escopo literal"), e registra a classificação para que o grupo possa cortar a entrega se quiser. Quem for apresentar o trabalho precisa saber que esta é a única das nove que não sai do documento.
+
+| **D1** | Design da landing aplicado à SPA Angular | pedido do PM (07/10/2026), seção 3 do escopo (SPA) | **Entregue em 07/10/2026, aguardando validação do PM (D66).** e2e `34d846a`; frontend `b1ecf40`, `6702f56`, `07ba7e7`. D1 10/10; regressão e2e completa verde; build limpo. |
 
 ### Backlog (fora das nove entregas)
 - Recuperação de senha do aluno. Fora do escopo, mas login em produção vai precisar.

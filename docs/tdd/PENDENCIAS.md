@@ -23,6 +23,7 @@ Fonte do escopo: `Escopo_Fase2_Global_Training_Technology.pdf`, na raiz do repo.
 | **Cadastro de cursos no Angular + interceptor** | Aba "Cadastro de cursos" (só Gestão) com criar, editar e excluir cursos, listas por linha, FAQ, materiais com validação de URL, trilha da E8; interceptor só anexa o token a `/api/admin/`, `/api/dashboard/`, `/api/student/` e `/api/payments/refund/`. Entregue 06/10/2026; **aguardando validação do PM** (D57). | e2e `570f25e`, `cd53fc9`; frontend `74c1066` |
 | **Recuperação de senha do aluno** (backlog) | Pedido de link com resposta uniforme, token `reset` de 1 h, limite de 3 por hora, uso único e atômico, aviso de senha alterada, telas `/esqueci-senha` e `/redefinir-senha`. Entregue 06/10/2026; **aguardando validação do PM** (D62). | testes `0e9a040`, e2e `77acad7`; backend `b7b1390`; frontend `dfbd6c2` |
 | **Recibo em PDF** (opcional) | `GET /api/student/payments/{id}/receipt.pdf` (PDF mínimo em Python puro, sem dependência nova), só `approved`/`refunded`, mesmas regras de acesso do recibo JSON, `receipt_pdf_url` na lista, botão "Baixar PDF". Entregue 06/10/2026; **aguardando validação do PM** (D65). | testes `3687b02`, e2e `c0eb94d`; backend `553b9d7`; frontend `675cbd1` |
+| **D1 — Design da landing na SPA** (pedido do PM, 07/10/2026) | Casca com barra escura, logo GT e rodapé; tokens, fontes e componentes da landing em todas as telas Angular; Bootstrap e fontes sem CDN. Backup prévio em `backup/fase2-tdd-2026-10-07` (tag `backup-fase2-tdd-2026-10-07`); merge da `main` sem efeito (já contida). Entregue 07/10/2026; **aguardando validação do PM** (D66). | e2e `34d846a`; frontend `b1ecf40`, `6702f56`, `07ba7e7` |
 
 Os dois obrigatórios da E3 (**IDOR** e **material só com matrícula ativa**) foram provados por suíte e por sondagem independente de HTTP (38/38). Detalhes no `HANDOFF_TDD.md`, seção 2.
 
@@ -34,7 +35,7 @@ E4: regressão integral de backend registrada depois do fechamento — **88 pass
 
 ## 2. Em andamento
 
-Modo autônomo (D40): ver `docs/tdd/RELATORIO_NOITE.md`. E5 (D37), E6 (D41), E7 (D44), E8 (D47) e E9 (D50) entregues, aguardando validação do PM. Dívidas de segurança resolvidas (D52); turmas entregues (D55). Cadastro de cursos no Angular e interceptor entregues (D57). Dívidas de harness resolvidas (D59); recuperação de senha entregue (D62); recibo em PDF entregue (D65). **Fila da noite (D40) concluída.**
+Modo autônomo (D40): ver `docs/tdd/RELATORIO_NOITE.md`. E5 (D37), E6 (D41), E7 (D44), E8 (D47) e E9 (D50) entregues, aguardando validação do PM. Dívidas de segurança resolvidas (D52); turmas entregues (D55). Cadastro de cursos no Angular e interceptor entregues (D57). Dívidas de harness resolvidas (D59); recuperação de senha entregue (D62); recibo em PDF entregue (D65). **Fila da noite (D40) concluída.** Design da landing aplicado à SPA (D66, 07/10/2026).
 
 ---
 
@@ -93,6 +94,7 @@ Tomadas pelo PM. Anteriores às D21 a D26 do log. Cobrem o que o documento de es
 - **Turmas — dívidas:** edição e exclusão de turma sem tela; o aluno não vê a própria turma; sem atribuição automática nem escolha no checkout; matrícula reativada por webhook pode ultrapassar a capacidade.
 - **L2 — dívidas:** duração na lista por N+1; rótulos escolhidos pelo orquestrador; título de material com `|`; `admin.html` segue como legado.
 - **Recibo em PDF — dívidas:** linha truncada em 90 caracteres; sem logotipo nem numeração fiscal; status e forma de pagamento em valor bruto.
+- **D1 — dívidas:** a landing estática segue no Google Fonts e com CSS próprio (não compartilha o `styles.css` da SPA); rótulos da casca escolhidos pelo orquestrador; nenhuma tela foi redesenhada além do que o CSS global alcança (exceto a área do aluno, D2).
 - **Recuperação de senha — dívidas:** JWT já emitido não é revogado; SMTP real; `href` absoluto no link "Ir para o login" de `definir-senha`; textos de erro escolhidos pelo orquestrador.
 - **E5 — textos da tela escolhidos pelo orquestrador**, sem revisão do PM: "Assistente virtual", "Digite sua mensagem", "Enviar", "Nenhuma mensagem ainda. Pergunte algo ao assistente.", "Não foi possível carregar o histórico do chat.", "Não foi possível enviar a mensagem. Tente novamente.", e as colunas "Mensagens no chat" e "Última conversa".
 - **E5 — e2e de E2 e E3 não reexecutados** depois de a E5 alterar `student-dashboard` (mesmo componente do "Meus cursos"). Backend: regressão 131 passed. O e2e antigo grava no `db.sqlite` de desenvolvimento (D7), por isso não foi rodado.

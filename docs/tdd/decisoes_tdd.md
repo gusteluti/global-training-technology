@@ -961,3 +961,30 @@ Checklist: (1) fecha o opcional "recibo em PDF" da decisão 4 do PM; (2) red obs
 **Para revisão do PM:** só `approved` e `refunded` geram PDF; o PDF mostra o nome do aluno e nunca o e-mail; valor sem
 separador de milhar (`R$ 1234,50`); status e forma de pagamento em valor bruto (`approved`, `mercado_pago`); linha truncada em 90
 caracteres; sem logotipo, sem numeração fiscal; rótulos em português escolhidos pelo orquestrador/dev.
+
+## D66 — design da landing aplicado à SPA Angular (D1) — entregue 07/10/2026, aguardando validação do PM
+**Pedido do PM (07/10/2026):** fazer backup do estado atual, mergear a `main` e copiar o design da landing page
+(`frontend/landing_global_training.html`) para o resto do sistema, uma entrega por commit, com a arquitetura de agentes.
+- **Backup:** branch `backup/fase2-tdd-2026-10-07` e tag anotada `backup-fase2-tdd-2026-10-07`, ambas em `3ca3ddf`.
+- **Merge da `main`:** sem efeito (`Already up to date`): `origin/main` (`4b75c30`) já é ancestral de `feature/fase2-tdd`.
+  Nenhum commit de merge vazio foi criado. A `main` não foi tocada.
+- **Contrato visual (decisões de forma do orquestrador, sem regra de negócio):** tokens da landing — nav `#212830`, teal
+  `#0096c7`/`#0077a3`, laranja do logo `#ff7a18`, texto `#17212b`, cinza `#66707c`, borda `#d8e0e8`; Barlow no corpo e Barlow
+  Condensed nos títulos; casca com barra escura (logo "GT" + "Global Training / Technology", perfil e "Sair") e rodapé escuro
+  ("Global Training Technology · Plataforma educacional"); Bootstrap ajustado pelas variáveis `--bs-*`; abas com sublinhado teal;
+  gráficos do Chart.js na paleta da landing; rótulo "Área do funcionário" acima do "Painel administrativo".
+- **Restrições vindas dos e2e existentes (não negociáveis):** (1) o logo **não** é link para `/`: o e2e da B1 procura um link
+  visível para `/` nas telas de senha e ficaria trivialmente satisfeito pela barra; (2) **nenhum `text-transform`** em texto que
+  os e2e leem (o `inner_text` do Playwright aplica a transformação): o uppercase nos cabeçalhos de tabela reprovou E5-dashboard
+  e E8 na regressão e foi retirado; o rótulo de seção usa versalete (`font-variant-caps`), que não muda o texto.
+- **Sem CDN:** Bootstrap (CSS e JS) passa a vir do `node_modules` pelo `angular.json`, e as fontes por `@fontsource/barlow` e
+  `@fontsource/barlow-condensed` (5.3.0, dependências novas, só arquivos de fonte). Motivo: num ambiente sem acesso ao Google
+  Fonts os checks de console de admin, E2 e B1 falhavam com 403; a SPA fica independente de rede externa. A landing estática
+  não foi alterada (continua com o Google Fonts).
+Ciclo: sub-branch `feature/fase2-tdd-d1-design-landing`; e2e vermelho `34d846a` (`test_d1_design_landing_angular.py`, 8 de 10
+falham pelo motivo certo, 2 guardas passam); implementação `b1ecf40`; correção da regressão `6702f56`; ajuste `07ba7e7`;
+merge `--no-ff` na branch de projeto. Resultados: D1 10/10; regressão e2e completa verde (admin 33/33, E2 8/8, E3 7/7,
+E5 chat 11/11, E5 dashboard 9/9, E6 8, E7 11/11, E8 17/17, L1 16/16, L2 24/24, B1 10/10, B2 8/8); build limpo.
+Checklist: (1) só visual, sem mudança de API; (2) red observado; (3)(4)(5)(6) não se aplicam (sem endpoint, sem conteúdo
+pago novo); (7) inalterado; (8) e2e e build; (9) ciclo e docs. **Para revisão do PM:** textos da casca (rodapé, "Área do
+funcionário"), dependências `@fontsource`.
