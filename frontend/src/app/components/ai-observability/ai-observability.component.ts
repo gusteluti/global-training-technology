@@ -76,7 +76,7 @@ export class AiObservabilityComponent implements OnInit, OnDestroy {
         datasets: [{
           label: 'Mensagens',
           data: this.perCourse.map(c => c.value),
-          backgroundColor: '#0dcaf0'
+          backgroundColor: '#00a6d6'
         }]
       },
       options: {
@@ -94,7 +94,7 @@ export class AiObservabilityComponent implements OnInit, OnDestroy {
     const datasets: any[] = [{
       label: 'Requisições',
       data: perDay.map(d => d.requests),
-      backgroundColor: '#0dcaf0',
+      backgroundColor: '#00a6d6',
       yAxisID: 'y'
     }];
     const scales: any = { y: { beginAtZero: true, ticks: { precision: 0 } } };
@@ -102,7 +102,7 @@ export class AiObservabilityComponent implements OnInit, OnDestroy {
       datasets.push({
         label: 'Custo (USD)',
         data: perDay.map(d => d.cost_usd),
-        backgroundColor: '#ffc107',
+        backgroundColor: '#ff7a18',
         yAxisID: 'y1'
       });
       scales.y1 = { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false } };
