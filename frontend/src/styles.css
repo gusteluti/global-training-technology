@@ -1,3 +1,168 @@
-body { padding: 1rem; }
-.navbar-brand { font-weight: 600; }
-.card { margin-bottom: 1rem; }
+/* ==========================================================================
+   Design da landing page (frontend/landing_global_training.html) aplicado à SPA — D66.
+   Os tokens abaixo são os mesmos da landing; o Bootstrap é ajustado pelas variáveis --bs-*
+   para que as telas existentes herdem o visual sem reescrever cada template.
+   ========================================================================== */
+:root {
+  --gt-bg: #ffffff;
+  --gt-bg-soft: #f7f9fb;
+  --gt-teal: #0096c7;
+  --gt-teal-dark: #0077a3;
+  --gt-blue: #00a6d6;
+  --gt-nav: #212830;
+  --gt-text: #17212b;
+  --gt-muted: #66707c;
+  --gt-border: #d8e0e8;
+  --gt-soft-blue: #eaf8fc;
+  --gt-orange: #ff7a18;
+  --gt-font: 'Barlow', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --gt-font-title: 'Barlow Condensed', 'Barlow', system-ui, sans-serif;
+
+  --bs-body-font-family: var(--gt-font);
+  --bs-body-color: var(--gt-text);
+  --bs-body-bg: var(--gt-bg);
+  --bs-primary: #0096c7;
+  --bs-primary-rgb: 0, 150, 199;
+  --bs-link-color: #0096c7;
+  --bs-link-color-rgb: 0, 150, 199;
+  --bs-link-hover-color: #0077a3;
+  --bs-link-hover-color-rgb: 0, 119, 163;
+  --bs-border-color: #d8e0e8;
+  --bs-secondary-color: #66707c;
+  --bs-border-radius: 8px;
+  --bs-focus-ring-color: rgba(0, 150, 199, 0.25);
+}
+
+html, body { min-height: 100%; }
+body {
+  font-family: var(--gt-font);
+  color: var(--gt-text);
+  background: var(--gt-bg-soft);
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+app-root { display: flex; flex-direction: column; min-height: 100vh; }
+
+h1, h2, h3, h4, .card-title, .gt-title {
+  font-family: var(--gt-font-title);
+  font-weight: 900;
+  color: var(--gt-text);
+  letter-spacing: 0.2px;
+}
+h5, h6 { font-weight: 700; }
+.text-muted { color: var(--gt-muted) !important; }
+a { color: var(--gt-teal); }
+a:hover { color: var(--gt-teal-dark); }
+
+/* ---------- Casca: barra, conteúdo, rodapé ---------- */
+.gt-nav {
+  background: var(--gt-nav);
+  border-bottom: 1px solid #1b2229;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 max(24px, calc((100vw - 1180px) / 2));
+  height: 76px;
+  position: sticky; top: 0; z-index: 100;
+}
+.gt-logo { display: flex; align-items: center; gap: 12px; }
+.gt-logo-circle {
+  width: 44px; height: 44px; border-radius: 50%;
+  background: linear-gradient(145deg, #00a6d6 0%, #0076ba 48%, #0dd7d2 100%);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 900; font-size: 17px; color: #fff;
+}
+.gt-logo-text { line-height: 1.15; }
+.gt-logo-text span:first-child { display: block; font-weight: 900; font-size: 15px; color: var(--gt-orange); }
+.gt-logo-text span:last-child { display: block; font-size: 11px; color: #ffffff; letter-spacing: 1px; text-transform: uppercase; }
+.gt-nav-actions { display: flex; align-items: center; gap: 14px; }
+.gt-nav-role {
+  color: #ffffff; font-size: 13px; font-weight: 600; letter-spacing: 0.5px;
+  padding: 4px 12px; border-radius: 20px; background: rgba(255, 255, 255, 0.08);
+}
+.gt-nav-cta {
+  background: transparent; color: #ffffff; padding: 8px 20px;
+  border-radius: 6px; font-weight: 700; font-size: 14px;
+  border: 1.5px solid rgba(255, 255, 255, 0.75); transition: all .2s; cursor: pointer;
+}
+.gt-nav-cta:hover { border-color: #00b7df; color: #00b7df; }
+
+.gt-main { flex: 1 0 auto; padding: 40px 0 56px; }
+.gt-container { max-width: 1180px; }
+
+.gt-footer {
+  background: var(--gt-nav); border-top: 1px solid #1b2229;
+  color: #9aa3ad; font-size: 13px; text-align: center; padding: 22px 24px;
+}
+.gt-footer strong { color: #ffffff; }
+
+/* ---------- Componentes Bootstrap no visual da landing ---------- */
+.card {
+  border: 1px solid var(--gt-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(16, 31, 45, 0.05);
+  margin-bottom: 1rem;
+  background: #ffffff;
+}
+.card-body { padding: 1.5rem; }
+
+.btn { font-weight: 700; border-radius: 8px; transition: all .2s; }
+.btn-primary {
+  --bs-btn-bg: #0096c7; --bs-btn-border-color: #0096c7; --bs-btn-color: #ffffff;
+  --bs-btn-hover-bg: #0077a3; --bs-btn-hover-border-color: #0077a3; --bs-btn-hover-color: #ffffff;
+  --bs-btn-active-bg: #0077a3; --bs-btn-active-border-color: #0077a3;
+  --bs-btn-disabled-bg: #0096c7; --bs-btn-disabled-border-color: #0096c7; --bs-btn-disabled-color: #ffffff;
+  padding: 0.6rem 1.6rem;
+}
+.btn-primary:hover { transform: translateY(-1px); }
+.btn-outline-primary {
+  --bs-btn-color: #0096c7; --bs-btn-border-color: #0096c7;
+  --bs-btn-hover-bg: #0096c7; --bs-btn-hover-border-color: #0096c7; --bs-btn-hover-color: #ffffff;
+  --bs-btn-active-bg: #0077a3; --bs-btn-active-border-color: #0077a3;
+}
+.btn-outline-secondary {
+  --bs-btn-color: #17212b; --bs-btn-border-color: #17212b;
+  --bs-btn-hover-bg: #17212b; --bs-btn-hover-border-color: #17212b; --bs-btn-hover-color: #ffffff;
+}
+.btn-link { font-weight: 600; text-decoration: none; }
+
+.form-control, .form-select {
+  border-color: var(--gt-border); border-radius: 8px; padding: 0.6rem 0.9rem; color: var(--gt-text);
+}
+.form-control:focus, .form-select:focus {
+  border-color: var(--gt-teal); box-shadow: 0 0 0 0.2rem rgba(0, 150, 199, 0.15);
+}
+.form-label { font-size: 13px; font-weight: 600; color: var(--gt-muted); }
+
+.nav-tabs { border-bottom: 1px solid var(--gt-border); gap: 4px; }
+.nav-tabs .nav-link {
+  color: var(--gt-muted); font-weight: 600; border: none;
+  border-bottom: 3px solid transparent; border-radius: 0; padding: 0.7rem 1rem; background: transparent;
+}
+.nav-tabs .nav-link:hover { color: var(--gt-teal); border-bottom-color: #b8e7f1; }
+.nav-tabs .nav-link.active {
+  color: var(--gt-teal); background: transparent; border-bottom-color: var(--gt-teal);
+}
+
+.table { --bs-table-color: var(--gt-text); --bs-table-striped-bg: #f7f9fb; --bs-table-hover-bg: #eaf8fc; }
+.table thead th {
+  font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px;
+  color: var(--gt-muted); font-weight: 700; border-bottom-width: 1px;
+}
+
+.badge { font-weight: 600; border-radius: 20px; padding: 0.4em 0.8em; }
+.alert { border-radius: 8px; }
+.alert-info { background: var(--gt-soft-blue); border-color: #b8e7f1; color: var(--gt-teal-dark); }
+
+.list-group-item-action:hover { background: var(--gt-soft-blue); color: var(--gt-teal-dark); }
+
+/* Rótulo de seção no estilo da landing (".section-tag"). */
+.gt-tag {
+  font-size: 12px; font-weight: 700; color: var(--gt-teal);
+  letter-spacing: 4px; text-transform: uppercase; margin-bottom: 6px;
+}
+
+@media (max-width: 768px) {
+  .gt-nav { padding: 0 16px; height: 68px; }
+  .gt-logo-text span:last-child { display: none; }
+  .gt-main { padding: 24px 0 40px; }
+}

@@ -150,7 +150,7 @@ export class CoursesDashboardComponent implements OnInit, OnDestroy {
         datasets: [{
           label: 'Inscritos',
           data: this.courses.map(c => c.total_enrollments),
-          backgroundColor: '#0d6efd'
+          backgroundColor: '#0096c7'
         }]
       },
       options: {
