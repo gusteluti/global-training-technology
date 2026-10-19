@@ -1085,3 +1085,17 @@ Política decidida pelo orquestrador (marcada para revisão do PM):
   da D10 (duas compras do mesmo curso no mesmo instante não colidem na referência; o webhook só mexe na própria
   matrícula) é preservada com **dois e-mails diferentes**: sem o sufixo aleatório, `curso:timestamp` colidiria do mesmo
   jeito, então a prova de mutação da E1 continua valendo.
+
+## D73 — F3/F4: aluno → cursos e turma; curso → alunos (19/10/2026, modo autônomo D69)
+Política da D68: Suporte vê status, **nunca valores**. Contrato (forma, orquestrador):
+- `GET /api/dashboard/alunos/{user_id}` (todos os perfis internos): `student {id, name, email, created_at}`,
+  `enrollments [{enrollment_id, course_id, course_name, class_id, class_name, class_starts_on, status, enrolled_at}]`,
+  `payments [{payment_id, enrollment_id, course_id, status, created_at, amount}]` — `amount` **ausente** para Suporte —,
+  `chat {messages, last_chat_at}`. Id que não é aluno (inexistente ou funcionário) → 404 `Aluno não encontrado`.
+- `GET /api/dashboard/cursos/{course_id}/alunos` (todos os perfis internos), filtros opcionais `status` e `class_id`
+  (`none` = sem turma): `course {id, name, archived}`, `students [{user_id, name, email, enrollment_id, status,
+  enrolled_at, class_id, class_name, payment_status, amount}]` — `amount` ausente para Suporte. Curso fora do catálogo
+  → 404 `Course not found`. Ordenação: matrícula mais recente primeiro.
+- Aluno: cada item de `/api/student/enrollments` ganha `class_name` e `class_starts_on` (null sem turma); sem IDOR.
+- Telas: no dashboard de alunos, o nome abre o detalhe (`aluno-detalhe`); no de cursos, o curso abre a lista de alunos
+  (`curso-alunos`) com filtros de status e turma; o cartão do curso do aluno mostra `Turma: <nome>` e o início.
