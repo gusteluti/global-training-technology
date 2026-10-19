@@ -56,3 +56,6 @@ temp/
 
 # Exportações de sessão de assistentes de IA (podem conter .env e segredos)
 chat*.json
+
+# Permissões locais do Claude Code
+.claude/settings.local.json
