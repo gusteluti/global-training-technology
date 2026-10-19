@@ -3,6 +3,7 @@ import { ActivatedRoute } from '@angular/router';
 import { PainelMatriculas } from '../../resolvers/enrollments.resolver';
 import { ApiService } from '../../services/api.service';
 import { AuthService } from '../../services/auth.service';
+import { formatarDataSP } from '../../pipes/data-sp.pipe';
 
 // Rótulos e cores dos status de matrícula (conjunto fechado, D28).
 const ROTULOS_STATUS: { [status: string]: string } = {
@@ -117,10 +118,9 @@ export class StudentDashboardComponent implements OnInit {
     return palavras.slice(0, 2).map(p => p[0].toUpperCase()).join('') || 'GT';
   }
 
-  // "2026-10-07 20:10:00" ou ISO -> "07/10/2026", sem depender do parser de datas do navegador.
+  // Texto UTC da API ("2026-10-08 01:30:00" ou ISO) -> dia de São Paulo "07/10/2026" (D71).
   dataBr(valor: string | null | undefined): string {
-    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(valor || '');
-    return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
+    return formatarDataSP(valor, true);
   }
 
   rotuloPagamento(status: string): string {
