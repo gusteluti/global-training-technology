@@ -306,3 +306,4 @@ Fila e respostas do PM em `docs/tdd/PLANO_FEEDBACK_PROF.md`; modo autônomo D69;
 | Entrega | Sub-branch | Red | Implementação | Merge | Resultado |
 |---|---|---|---|---|---|
 | O0 — checkout do aluno + trava do mock | `feature/fase2-tdd-o0-checkout-aluno` | `9dbd134`, `622deb5` (D70) | `1deadb0` | ver `git log` | O0 86/86; regressão 1051 passed; e2e O0 7/7 |
+| F1 — trava de exclusão e arquivar | `feature/fase2-tdd-f1-trava-exclusao` | `554d3ea` | `1be517d`, `cb8a1da`, `2168826` | ver `git log` | F1 55/55; regressão verde (292+260+554); e2e F1 11/11, L2 24/24, admin 33/33 |
