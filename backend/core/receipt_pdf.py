@@ -6,6 +6,8 @@ Formato: PDF 1.4, Helvetica com WinAnsiEncoding (cp1252; o que não cabe vira '?
 
 from typing import Dict, List, Optional, Tuple
 
+from core.fuso import formatar_utc_em_sao_paulo
+
 MAX_LINHA = 90  # limite de caracteres por linha para não estourar a largura da página
 
 
@@ -36,7 +38,7 @@ def _linhas_do_recibo(recibo: Dict, nome_aluno: str) -> List[Tuple[str, str]]:
     ]
     if recibo.get("transaction_id"):
         linhas.append(("F1", f"Transação: {recibo['transaction_id']}"))
-    linhas.append(("F1", f"Data de emissão: {recibo['issued_at']}"))
+    linhas.append(("F1", f"Data de emissão: {formatar_utc_em_sao_paulo(recibo['issued_at'])}"))
     if recibo["status"] == "refunded":
         linhas.append(("F1", ""))
         linhas.append(("F1", "Pagamento reembolsado."))

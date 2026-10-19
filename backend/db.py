@@ -4,6 +4,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from core.fuso import MODIFICADOR_SQLITE_SP, dia_sao_paulo
+
 class Database:
     """SQLite database: contas de usuário, alunos, matrículas, pagamentos e trilha de auditoria."""
 
@@ -1214,17 +1216,21 @@ class Database:
 
     @staticmethod
     def get_ai_usage_per_day(days: int = 14) -> List[Dict]:
-        """Série diária (UTC) dos últimos `days` dias consecutivos, terminando hoje, com zeros nos dias vazios."""
-        hoje = datetime.now(timezone.utc).date()
+        """Série diária dos últimos `days` dias consecutivos, terminando hoje, com zeros nos dias vazios.
+
+        F2 (D71): o dia é o de São Paulo (UTC -3 h fixo), tanto no agrupamento quanto no "hoje" da janela.
+        """
+        hoje = dia_sao_paulo(datetime.now(timezone.utc))
         inicio = hoje - timedelta(days=days - 1)
         conn = sqlite3.connect(Database.DB_PATH)
         try:
             por_dia = {
                 dia: (requests, cost)
                 for dia, requests, cost in conn.execute(
-                    "SELECT date(created_at), COUNT(*), COALESCE(SUM(cost_usd), 0) FROM ai_usage "
-                    "WHERE date(created_at) >= ? AND date(created_at) <= ? GROUP BY date(created_at)",
-                    (inicio.isoformat(), hoje.isoformat()),
+                    "SELECT date(created_at, ?) AS dia, COUNT(*), COALESCE(SUM(cost_usd), 0) FROM ai_usage "
+                    "WHERE date(created_at, ?) >= ? AND date(created_at, ?) <= ? GROUP BY dia",
+                    (MODIFICADOR_SQLITE_SP, MODIFICADOR_SQLITE_SP, inicio.isoformat(),
+                     MODIFICADOR_SQLITE_SP, hoje.isoformat()),
                 )
             }
         finally:
