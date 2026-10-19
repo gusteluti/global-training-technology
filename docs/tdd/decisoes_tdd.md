@@ -1022,3 +1022,19 @@ reembolsado ausentes do HTML (A4); (5) não se aplica (sem campo novo); (6) não
 (8) e2e, celular (A9) e build; (9) ciclo e docs.
 **Para revisão do PM:** todos os textos novos da tela; o "Total investido" contar só pagamentos aprovados; o tratamento
 de status desconhecido; a ausência do nome do aluno no cabeçalho (exigiria incluir o nome no token ou criar um endpoint `/me`).
+
+## D68 — feedback da professora: respostas do PM ao plano (19/10/2026)
+Origem: `docs/tdd/PLANO_FEEDBACK_PROF.md` (feedback da professora e mensagens do grupo de 19/10/2026).
+- **F1 (exclusão de curso):** bloqueada (409) quando existir matrícula em **qualquer** status (`pending`, `active`,
+  `cancelled`, `refunded`). Entra a ação "arquivar": o curso sai do catálogo e do chat, e o aluno ativo mantém o acesso.
+- **F3/F4 (aluno → cursos e curso → alunos):** o perfil Suporte vê o status da matrícula e do pagamento, **nunca valores**.
+  Valores ficam com Financeiro e Gestão, como no RBAC atual.
+- **F5 (turma no checkout):** a vaga fica reservada por 30 min a partir do checkout e é liberada se o pagamento não for
+  aprovado nesse prazo.
+- **F6 (handoff para WhatsApp):** o número é o do PM por enquanto, lido de `WHATSAPP_HANDOFF_NUMBER` e **não versionado**
+  (repo público). Texto pré-preenchido com curso e tema, sem dado pessoal. Limiares: 80% do orçamento de tokens da sessão,
+  2 falhas seguidas do LLM ou 3 "não entendi" seguidos.
+- **F7 (curso por anexo):** a primeira versão aceita JSON e PDF; DOCX fica para depois. O anexo só preenche o formulário
+  como rascunho.
+- **Pendente:** responsável pela troca dos segredos expostos no `chat1.json` (H1). O arquivo foi removido da
+  `feature/fase2-tdd` (`61422d7`); continua na `main` até o próximo PR e no histórico.

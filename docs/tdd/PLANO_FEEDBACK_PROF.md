@@ -121,11 +121,21 @@ Se o prazo do TCC apertar, o corte recomendado é: ondas 0 a 4 completas, F7 só
 
 ---
 
-## 4. Respostas que destravam o início
+### Extras (valor de produto, depois da onda 6)
+| # | Ideia | Por quê |
+|---|---|---|
+| X1 | Progresso do aluno nos materiais ("marcar como concluído") e certificado de conclusão em PDF | é o que o aluno espera de uma plataforma de cursos; reaproveita o gerador de PDF do recibo |
+| X2 | Avaliação do curso pelo aluno (nota + comentário) e NPS no dashboard de cursos | dá à Gestão um sinal de qualidade além da conversão |
+| X3 | Backup automático do SQLite e restauração documentada | hoje um arquivo corrompido apaga tudo |
+| X4 | `/health` com estado do banco, do Groq e do gateway, e alerta quando algum cair | operação mínima de SaaS |
 
-1. F1: todos os status bloqueiam a exclusão? Entra o "arquivar"?
-2. F3/F4: o Suporte vê valores?
-3. F5: reservar a vaga por 30 min no checkout?
-4. F6: número do WhatsApp, texto pré-preenchido e limiares.
-5. F7: só JSON + PDF na primeira versão?
-6. H1: quem troca os segredos e onde eles estão em uso.
+---
+
+## 4. Respostas do PM (19/10/2026, D68)
+
+1. **F1:** todos os status bloqueiam a exclusão, e o "arquivar" entra. ✅
+2. **F3/F4:** o Suporte **não** vê valores, só o status. ✅
+3. **F5:** a vaga fica reservada por 30 min a partir do checkout. ✅
+4. **F6:** o número é o do PM por enquanto. Ele fica na variável de ambiente `WHATSAPP_HANDOFF_NUMBER` e **não** é versionado, porque o repo é público. Texto pré-preenchido e limiares: segue a recomendação do orquestrador (curso + tema sem dado pessoal; 80% do orçamento, 2 falhas do LLM, 3 "não entendi"). ✅
+5. **F7:** JSON + PDF na primeira versão. ✅
+6. **H1:** ainda falta definir quem troca os segredos do `chat1.json`. ⏳
