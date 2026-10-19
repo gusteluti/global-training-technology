@@ -1,13 +1,23 @@
 from datetime import datetime
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+import hashlib
+import hmac
 import os
+import re
+import uuid
 from typing import Optional
 
 import requests
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
 from admin.routes import load_course_data
+from core.audit import change, record_audit
+from core.notifications import send_password_setup_link
+from core.password_setup import emitir_token_definicao
+from core.security import AuthContext, Role, require_roles
+from db import Database
 
 load_dotenv()
 
@@ -15,6 +25,34 @@ router = APIRouter()
 
 MERCADO_PAGO_PREFERENCES_URL = "https://api.mercadopago.com/checkout/preferences"
 MERCADO_PAGO_PAYMENTS_URL = "https://api.mercadopago.com/v1/payments"
+
+# Textos fixos de erro (E9, D48): nunca repassam corpo do gateway nem texto de exceção.
+DETAIL_ASSINATURA = "Assinatura inválida."
+DETAIL_WEBHOOK_NAO_CONFIGURADO = "Webhook não configurado."
+DETAIL_ID_INVALIDO = "Identificador de pagamento inválido."
+DETAIL_CONSULTA_GATEWAY = "Erro ao consultar pagamento no Mercado Pago."
+DETAIL_CHECKOUT_FALHA = "Não foi possível iniciar o pagamento. Tente novamente."
+DETAIL_CHECKOUT_INDISPONIVEL = "Pagamento indisponível no momento."
+DETAIL_REEMBOLSO_NAO_APROVADO = "Só é possível reembolsar pagamentos aprovados."
+
+# Só dígitos ASCII (D49.3): `\d` aceitaria dígitos de outros alfabetos.
+PAYMENT_ID_RE = re.compile(r"[0-9]{1,20}")
+TS_RE = re.compile(r"[0-9]+")
+V1_RE = re.compile(r"[0-9a-fA-F]{64}")
+
+CENTAVOS = Decimal("0.01")
+
+MOTIVO_IGNORADO = {
+    "unknown_reference": "unknown reference",
+    "unsupported_status": "unsupported status",
+    "terminal": "terminal",
+    "duplicate": "duplicate",
+    "stale": "stale",
+    "duplicate_transaction": "duplicate transaction",
+}
+
+# Transições por webhook que entram na trilha de auditoria (D48).
+STATUS_AUDITADOS = ("approved", "refunded", "charged_back")
 
 
 class PayerInput(BaseModel):
@@ -28,14 +66,14 @@ class CheckoutInput(BaseModel):
     payer: PayerInput
 
 
-def get_access_token() -> str:
-    access_token = os.getenv("MERCADO_PAGO_ACCESS_TOKEN")
-    if not access_token:
-        raise HTTPException(
-            status_code=500,
-            detail="MERCADO_PAGO_ACCESS_TOKEN não configurado no backend.",
-        )
-    return access_token
+def _access_token_gateway() -> str:
+    """Token do Mercado Pago ('' quando não configurado ou em branco)."""
+    return (os.getenv("MERCADO_PAGO_ACCESS_TOKEN") or "").strip()
+
+
+def _pagamento_mockado() -> bool:
+    """True quando PAYMENTS_MOCK está ligado (1/true/yes/on). Só para demonstração local."""
+    return (os.getenv("PAYMENTS_MOCK") or "").strip().lower() in ("1", "true", "yes", "on")
 
 
 def money_to_float(value) -> float:
@@ -55,21 +93,73 @@ def validate_payer(payer: PayerInput):
         raise HTTPException(status_code=400, detail="Informe um e-mail válido.")
 
 
-@router.post("/create-checkout")
-async def create_checkout(payload: CheckoutInput, request: Request):
-    validate_payer(payload.payer)
-    course = load_course_data(payload.course_id)
+def iniciar_checkout_curso(
+    course_id: str,
+    nome: str,
+    email: str,
+    telefone: Optional[str],
+    request: Request,
+    *,
+    user_id: Optional[int] = None,
+) -> dict:
+    """Cria a preferência de pagamento no Mercado Pago e persiste matrícula/pagamento 'pending'.
+
+    O preço vem SEMPRE do catálogo do servidor (price/amount do cliente são ignorados).
+    `user_id` força o aluno dono da compra (fluxo autenticado, derivado do JWT): quando informado,
+    nenhuma conta nova é criada e a matrícula é gravada para esse usuário. Quando None (fluxo anônimo
+    da landing legada), a conta é obtida/criada por e-mail, como antes.
+    A matrícula nasce 'pending' e só é ativada pelo webhook quando o pagamento for aprovado.
+    """
+    course = load_course_data(course_id)
     amount = money_to_float(course.get("price"))
-    access_token = get_access_token()
+
+    # ------------------------------------------------------------------------------------------
+    # Modo DEMONSTRAÇÃO (PAYMENTS_MOCK=1): não chama o Mercado Pago. Cria a matrícula/pagamento e
+    # já marca o pagamento como 'approved' e a matrícula como 'active', pelo mesmo caminho de
+    # transição usado pelo webhook (mantém a consistência de estados). Serve só para demo local.
+    # Com a flag desligada (padrão), o fluxo real do Mercado Pago abaixo continua valendo.
+    # ------------------------------------------------------------------------------------------
+    if _pagamento_mockado():
+        external_reference = f"{course_id}:{int(datetime.utcnow().timestamp())}:{uuid.uuid4().hex[:8]}"
+        if user_id is None:
+            user_id = Database.get_or_create_user(email, nome)
+        enrollment_id = Database.create_enrollment(user_id, course_id, external_reference)
+        payment_id = Database.record_payment(enrollment_id, amount, "mock")
+        transaction_id = f"mock-{uuid.uuid4().hex[:12]}"
+        Database.aplicar_transicao_pagamento_webhook(
+            external_reference,
+            "approved",
+            transaction_id,
+            valor_confere=lambda _local: True,
+        )
+        frontend_base_url = os.getenv("FRONTEND_BASE_URL", "http://localhost:8000").rstrip("/")
+        return {
+            "status": "success",
+            "mocked": True,
+            "preference_id": f"mock-pref-{payment_id}",
+            # Retorna à área do aluno sinalizando sucesso; nenhuma aba externa é necessária.
+            "checkout_url": f"{frontend_base_url}/student?payment=success",
+            "sandbox_checkout_url": None,
+            "external_reference": external_reference,
+            "payment_id": payment_id,
+            "payment_status": "approved",
+            "enrollment_status": "active",
+        }
+
+    access_token = _access_token_gateway()
+    if not access_token:
+        raise HTTPException(status_code=503, detail=DETAIL_CHECKOUT_INDISPONIVEL)
 
     frontend_base_url = os.getenv("FRONTEND_BASE_URL", "http://localhost:8000").rstrip("/")
     api_base_url = os.getenv("API_BASE_URL", str(request.base_url).rstrip("/")).rstrip("/")
-    external_reference = f"{payload.course_id}:{int(datetime.utcnow().timestamp())}"
+    # Sufixo aleatório: duas compras do mesmo curso no mesmo segundo não podem compartilhar referência
+    # (o webhook localiza a matrícula pela referência).
+    external_reference = f"{course_id}:{int(datetime.utcnow().timestamp())}:{uuid.uuid4().hex[:8]}"
 
     preference_data = {
         "items": [
             {
-                "id": payload.course_id,
+                "id": course_id,
                 "title": course.get("name", "Curso Global Training"),
                 "description": course.get("description", "Matrícula em curso Global Training Technology"),
                 "quantity": 1,
@@ -78,9 +168,9 @@ async def create_checkout(payload: CheckoutInput, request: Request):
             }
         ],
         "payer": {
-            "name": payload.payer.name,
-            "email": payload.payer.email,
-            "phone": {"number": payload.payer.phone or ""},
+            "name": nome,
+            "email": email,
+            "phone": {"number": telefone or ""},
         },
         "external_reference": external_reference,
         "back_urls": {
@@ -91,33 +181,53 @@ async def create_checkout(payload: CheckoutInput, request: Request):
         "notification_url": f"{api_base_url}/api/payments/webhook",
         "statement_descriptor": "GLOBAL TRAINING",
         "metadata": {
-            "course_id": payload.course_id,
+            "course_id": course_id,
             "course_name": course.get("name"),
-            "student_name": payload.payer.name,
-            "student_email": payload.payer.email,
+            "student_name": nome,
+            "student_email": email,
         },
     }
 
-    response = requests.post(
-        MERCADO_PAGO_PREFERENCES_URL,
-        headers={
-            "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json",
-        },
-        json=preference_data,
-        timeout=15,
-    )
+    # Erros do gateway: o cliente recebe só o texto fixo; o log traz só o status (nunca o corpo).
+    try:
+        response = requests.post(
+            MERCADO_PAGO_PREFERENCES_URL,
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+            },
+            json=preference_data,
+            timeout=15,
+        )
+    except requests.RequestException as exc:
+        print(f"[ERRO] Falha de comunicação com o Mercado Pago no checkout: {type(exc).__name__}")
+        raise HTTPException(status_code=502, detail=DETAIL_CHECKOUT_FALHA)
 
     if response.status_code >= 400:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Erro ao criar checkout no Mercado Pago: {response.text}",
-        )
+        print(f"[ERRO] Mercado Pago recusou a criação do checkout: HTTP {response.status_code}")
+        raise HTTPException(status_code=502, detail=DETAIL_CHECKOUT_FALHA)
 
-    preference = response.json()
+    try:
+        preference = response.json()
+    except ValueError:
+        print("[ERRO] Mercado Pago devolveu resposta ilegível na criação do checkout")
+        raise HTTPException(status_code=502, detail=DETAIL_CHECKOUT_FALHA)
+    if not isinstance(preference, dict):
+        print("[ERRO] Mercado Pago devolveu resposta inesperada na criação do checkout")
+        raise HTTPException(status_code=502, detail=DETAIL_CHECKOUT_FALHA)
+
     checkout_url = preference.get("init_point") or preference.get("sandbox_init_point")
     if not checkout_url:
-        raise HTTPException(status_code=502, detail="Mercado Pago não retornou URL de checkout.")
+        print("[ERRO] Mercado Pago não retornou URL de checkout")
+        raise HTTPException(status_code=502, detail=DETAIL_CHECKOUT_FALHA)
+
+    # Persiste aluno/matrícula/pagamento para alimentar os dashboards
+    # administrativos da Fase 2 (Dashboard de Alunos/Cursos/Financeiro).
+    # Matrícula 'pending'; ativada pelo webhook quando o pagamento for aprovado.
+    if user_id is None:
+        user_id = Database.get_or_create_user(email, nome)
+    enrollment_id = Database.create_enrollment(user_id, course_id, external_reference)
+    Database.record_payment(enrollment_id, amount, "mercado_pago")
 
     return {
         "status": "success",
@@ -128,35 +238,271 @@ async def create_checkout(payload: CheckoutInput, request: Request):
     }
 
 
-@router.post("/webhook")
-async def mercado_pago_webhook(request: Request):
-    data = await request.json()
-    payment_id = data.get("data", {}).get("id") or data.get("id")
-
-    if not payment_id:
-        return {"status": "ignored", "reason": "missing payment id"}
-
-    access_token = get_access_token()
-    response = requests.get(
-        f"{MERCADO_PAGO_PAYMENTS_URL}/{payment_id}",
-        headers={"Authorization": f"Bearer {access_token}"},
-        timeout=15,
+@router.post("/create-checkout")
+async def create_checkout(payload: CheckoutInput, request: Request):
+    validate_payer(payload.payer)
+    return iniciar_checkout_curso(
+        payload.course_id,
+        payload.payer.name,
+        payload.payer.email,
+        payload.payer.phone,
+        request,
     )
 
+
+def _entregar_definicao_de_senha(external_reference: str):
+    """Pagamento aprovado e conta sem senha: emite o token de definição e envia o link (E2, D12/D13)."""
+    conta = Database.get_user_by_external_reference(external_reference)
+    if not conta or conta["password_hash"] is not None:
+        return
+    token = emitir_token_definicao(conta["id"])
+    frontend_base_url = os.getenv("FRONTEND_BASE_URL", "http://localhost:8000").rstrip("/")
+    send_password_setup_link(conta["email"], f"{frontend_base_url}/definir-senha?token={token}")
+
+
+# ---------------------------------------------------------------------------------------------
+# Webhook do Mercado Pago (E9, D48/D49)
+# ---------------------------------------------------------------------------------------------
+
+async def _corpo_json(request: Request) -> dict:
+    """Corpo JSON do webhook; ilegível ou que não seja objeto vira {} (a assinatura decide o resto)."""
+    try:
+        corpo = await request.json()
+    except Exception:  # noqa: BLE001 - qualquer corpo ilegível é tratado como vazio
+        return {}
+    return corpo if isinstance(corpo, dict) else {}
+
+
+def _como_texto_de_id(valor) -> Optional[str]:
+    if isinstance(valor, bool):
+        return None
+    if isinstance(valor, (str, int)):
+        texto = str(valor)
+        return texto or None
+    return None
+
+
+def _data_id(request: Request, corpo: dict) -> Optional[str]:
+    """`data.id` da query (preferido) ou do corpo."""
+    da_query = request.query_params.get("data.id")
+    if da_query:
+        return da_query
+    dados = corpo.get("data")
+    if isinstance(dados, dict):
+        return _como_texto_de_id(dados.get("id"))
+    return None
+
+
+def _assinatura_valida(request: Request, data_id: Optional[str], segredo: str) -> bool:
+    """Confere x-signature (`ts=<número>,v1=<hex>`) contra o manifesto do Mercado Pago. Qualquer falha = False."""
+    cabecalho = request.headers.get("x-signature")
+    request_id = request.headers.get("x-request-id")
+    if not cabecalho or not request_id or not data_id:
+        return False
+
+    partes = {}
+    for pedaco in cabecalho.split(","):
+        chave, separador, valor = pedaco.strip().partition("=")
+        if not separador or chave in partes:
+            return False
+        partes[chave] = valor
+    ts, v1 = partes.get("ts", ""), partes.get("v1", "")
+    if not TS_RE.fullmatch(ts) or not V1_RE.fullmatch(v1):
+        return False
+
+    id_manifesto = data_id.lower() if data_id.isalnum() else data_id
+    manifesto = f"id:{id_manifesto};request-id:{request_id};ts:{ts};"
+    esperado = hmac.new(segredo.encode("utf-8"), manifesto.encode("utf-8"), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(esperado.encode("ascii"), v1.lower().encode("ascii"))
+
+
+def _topico_e_payment(request: Request, corpo: dict) -> bool:
+    """Todos os `type`/`topic` informados (query e corpo) devem ser 'payment', e ao menos um deve existir."""
+    informados = [
+        request.query_params.get("type"),
+        request.query_params.get("topic"),
+        corpo.get("type"),
+        corpo.get("topic"),
+    ]
+    informados = [valor for valor in informados if valor not in (None, "")]
+    return bool(informados) and all(valor == "payment" for valor in informados)
+
+
+def _decimal_ou_none(valor) -> Optional[Decimal]:
+    if isinstance(valor, bool) or not isinstance(valor, (int, float, str, Decimal)):
+        return None
+    try:
+        numero = Decimal(str(valor).strip())
+    except InvalidOperation:
+        return None
+    return numero if numero.is_finite() else None
+
+
+def _valor_esperado(amount) -> Decimal:
+    return Decimal(str(amount)).quantize(CENTAVOS, rounding=ROUND_HALF_UP)
+
+
+def _valor_e_moeda_conferem(pagamento_local: dict, pagamento_mp: dict) -> bool:
+    """Valor igual ao gravado (2 casas, Decimal; mais casas que isso não confere) e moeda BRL."""
+    recebido = _decimal_ou_none(pagamento_mp.get("transaction_amount"))
+    if recebido is None or recebido != _valor_esperado(pagamento_local["amount"]):
+        return False
+    return pagamento_mp.get("currency_id") == "BRL"
+
+
+def _texto_curto(valor, limite: int = 50) -> Optional[str]:
+    return None if valor is None else str(valor)[:limite]
+
+
+def _consultar_pagamento_no_gateway(data_id: str) -> dict:
+    access_token = _access_token_gateway()
+    if not access_token:
+        raise HTTPException(status_code=503, detail=DETAIL_WEBHOOK_NAO_CONFIGURADO)
+    try:
+        response = requests.get(
+            f"{MERCADO_PAGO_PAYMENTS_URL}/{data_id}",
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=15,
+        )
+    except requests.RequestException as exc:
+        print(f"[ERRO] Falha de comunicação com o Mercado Pago no webhook: {type(exc).__name__}")
+        raise HTTPException(status_code=502, detail=DETAIL_CONSULTA_GATEWAY)
+
     if response.status_code >= 400:
-        raise HTTPException(status_code=502, detail="Erro ao consultar pagamento no Mercado Pago.")
+        print(f"[ERRO] Mercado Pago recusou a consulta do pagamento: HTTP {response.status_code}")
+        raise HTTPException(status_code=502, detail=DETAIL_CONSULTA_GATEWAY)
+    try:
+        pagamento = response.json()
+    except ValueError:
+        pagamento = None
+    if not isinstance(pagamento, dict):
+        print("[ERRO] Mercado Pago devolveu resposta inesperada na consulta do pagamento")
+        raise HTTPException(status_code=502, detail=DETAIL_CONSULTA_GATEWAY)
+    return pagamento
 
-    payment = response.json()
-    status = payment.get("status")
-    external_reference = payment.get("external_reference")
 
-    # MVP: do not grant access here yet. In production, persist this event and
-    # release enrollment only when status == "approved".
-    print(f"💳 Payment update: {payment_id} | {status} | {external_reference}")
+@router.post("/webhook")
+async def mercado_pago_webhook(request: Request):
+    # 1. Assinatura (fail closed), antes de qualquer outra coisa.
+    segredo = os.getenv("MERCADO_PAGO_WEBHOOK_SECRET") or ""
+    if not segredo.strip():
+        raise HTTPException(status_code=503, detail=DETAIL_WEBHOOK_NAO_CONFIGURADO)
+    corpo = await _corpo_json(request)
+    data_id = _data_id(request, corpo)
+    if not _assinatura_valida(request, data_id, segredo):
+        raise HTTPException(status_code=401, detail=DETAIL_ASSINATURA)
+
+    # 2. Tópico e identificador.
+    if not _topico_e_payment(request, corpo):
+        return {"status": "ignored", "reason": "unsupported topic"}
+    if not PAYMENT_ID_RE.fullmatch(data_id):
+        raise HTTPException(status_code=400, detail=DETAIL_ID_INVALIDO)
+
+    # 3. O estado do pagamento é sempre reconsultado no Mercado Pago.
+    pagamento_mp = _consultar_pagamento_no_gateway(data_id)
+    status = pagamento_mp.get("status")
+    external_reference = pagamento_mp.get("external_reference")
+    if not isinstance(external_reference, str) or not external_reference:
+        return {"status": "ignored", "reason": "unknown reference"}
+    if not isinstance(status, str):
+        return {"status": "ignored", "reason": "unsupported status"}
+
+    # 4. Transição atômica (máquina de estados, valor e moeda, transaction_id único).
+    resultado = Database.aplicar_transicao_pagamento_webhook(
+        external_reference,
+        status,
+        data_id,
+        valor_confere=lambda local: _valor_e_moeda_conferem(local, pagamento_mp),
+    )
+    outcome = resultado["outcome"]
+    print(f"[PAGAMENTO] Payment update: {data_id} | {status} | {outcome}")
+
+    if outcome == "amount_mismatch":
+        recebido = _decimal_ou_none(pagamento_mp.get("transaction_amount"))
+        record_audit(
+            "payment.amount_mismatch",
+            f"Pagamento #{resultado['payment_id']}: valor ou moeda do Mercado Pago diverge do valor gravado",
+            actor={"role": "system"},
+            entity_type="payment",
+            entity_id=resultado["payment_id"],
+            changes=[
+                change(
+                    "payment.amount",
+                    format(_valor_esperado(resultado["amount"]), "f"),
+                    format(recebido, "f") if recebido is not None
+                    else _texto_curto(pagamento_mp.get("transaction_amount")),
+                ),
+                change("payment.currency", "BRL", _texto_curto(pagamento_mp.get("currency_id"), 20)),
+            ],
+        )
+        return {"status": "rejected", "reason": "amount_mismatch"}
+
+    if outcome != "applied":
+        return {"status": "ignored", "reason": MOTIVO_IGNORADO[outcome]}
+
+    # 5. Efeitos colaterais, uma vez só: só a transição aplicada chega aqui. A entrega do link de
+    #    senha não espera pela trilha; se a trilha falhar, o erro sobe depois da entrega (D45).
+    erro_de_trilha = None
+    if status in STATUS_AUDITADOS:
+        try:
+            record_audit(
+                "payment.status_change",
+                f"Pagamento #{resultado['payment_id']}: {resultado['status_before']} -> {status} (webhook Mercado Pago)",
+                actor={"role": "system"},
+                entity_type="payment",
+                entity_id=resultado["payment_id"],
+                changes=[change("payment.status", resultado["status_before"], status)],
+            )
+        except HTTPException as exc:
+            erro_de_trilha = exc
+    if status == "approved":
+        _entregar_definicao_de_senha(external_reference)
+    if erro_de_trilha is not None:
+        raise erro_de_trilha
 
     return {
         "status": "received",
-        "payment_id": payment_id,
+        "payment_id": data_id,
         "payment_status": status,
         "external_reference": external_reference,
+    }
+
+
+@router.post("/refund/{payment_id}")
+async def refund_payment(
+    payment_id: int,
+    current_user: AuthContext = Depends(require_roles(Role.ADMIN, Role.FINANCIAL)),
+):
+    """
+    Marca um pagamento aprovado como reembolsado localmente e registra a trilha de
+    auditoria (Fase 2 - Governança: reembolsos são eventos críticos).
+    Só `approved` pode ser reembolsado (E9, D48); a condição e a gravação são atômicas, então
+    reembolsos simultâneos geram um único evento. Já reembolsado: 200 idempotente, sem evento novo.
+    A chamada ao gateway de pagamento em produção deve ser feita aqui também;
+    neste MVP apenas o status local é atualizado.
+    """
+    resultado = Database.reembolsar_pagamento_se_aprovado(payment_id)
+    outcome = resultado["outcome"]
+    if outcome == "not_found":
+        raise HTTPException(status_code=404, detail="Pagamento não encontrado.")
+    if outcome == "not_approved":
+        raise HTTPException(status_code=409, detail=DETAIL_REEMBOLSO_NAO_APROVADO)
+
+    # A trilha é gravada depois da alteração; se falhar, a rota termina em 500 genérico.
+    if outcome == "refunded":
+        record_audit(
+            "payment.refund",
+            f"Pagamento #{payment_id} (R$ {float(resultado.get('amount') or 0):.2f}) marcado como reembolsado",
+            user=current_user,
+            entity_type="payment",
+            entity_id=payment_id,
+            changes=[
+                change("payment.status", resultado["payment_status_before"], "refunded"),
+                change("enrollment.status", resultado["enrollment_status_before"], "refunded"),
+            ],
+        )
+
+    return {
+        "status": "success",
+        "message": f"Pagamento #{payment_id} reembolsado.",
     }

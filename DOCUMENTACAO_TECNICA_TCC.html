@@ -1,0 +1,638 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Documentação Técnica TCC</title><style>
+  @page { margin: 22mm 18mm; }
+  body { font-family: "Segoe UI", Arial, sans-serif; color: #111827; line-height: 1.55; max-width: 920px; margin: 0 auto; padding: 34px; }
+  h1 { color: #1f262d; border-bottom: 4px solid #0798c9; padding-bottom: 12px; }
+  h2 { color: #1f262d; margin-top: 34px; border-bottom: 1px solid #d7e0ea; padding-bottom: 8px; }
+  h3 { color: #0798c9; margin-top: 24px; }
+  table { border-collapse: collapse; width: 100%; margin: 14px 0 22px; }
+  th, td { border: 1px solid #d7e0ea; padding: 8px 10px; text-align: left; }
+  th { background: #e8f8fc; }
+  code { font-family: Consolas, monospace; background: #eef4f7; padding: 2px 5px; border-radius: 4px; }
+  pre { background: #101820; color: #e5f6ff; padding: 14px; border-radius: 8px; overflow-wrap: break-word; white-space: pre-wrap; }
+  pre code { background: transparent; color: inherit; padding: 0; }
+  blockquote { border-left: 4px solid #0798c9; padding-left: 14px; color: #5b6675; }
+  li { margin: 4px 0; }
+</style></head><body><h1 id="documentacao-tecnica-para-arguicao-global-training-technology">Documentação Técnica para Arguição - Global Training Technology</h1>
+<p>Este arquivo serve como material de apoio para a apresentação do TCC. Ele reúne as decisões técnicas, fluxos, endpoints, modelo de dados e respostas para perguntas prováveis da banca.</p>
+<h2 id="visao-geral-do-projeto">1. Visão Geral do Projeto</h2>
+<p>O projeto <strong>Global Training Technology</strong> é uma aplicação web para uma escola de cursos profissionalizantes. A solução integra:</p>
+<ul>
+<li>landing page pública para divulgação dos cursos;</li>
+<li>chatbot com IA para atendimento ao aluno;</li>
+<li>painel administrativo protegido por login;</li>
+<li>cadastro dinâmico de cursos;</li>
+<li>backend em FastAPI;</li>
+<li>agentes de IA usando Groq;</li>
+<li>estrutura SQLite preparada para matrículas e pagamentos;</li>
+<li>integração com Mercado Pago Checkout Pro.</li>
+</ul>
+<p>O objetivo técnico principal é centralizar a jornada do aluno: descoberta do curso, atendimento automatizado, matrícula e pagamento online.</p>
+<h2 id="arquitetura-geral">2. Arquitetura Geral</h2>
+<h3 id="camadas">Camadas</h3>
+<p><strong>Frontend</strong></p>
+<ul>
+<li><code>frontend/landing_global_training.html</code></li>
+<li><code>frontend/admin.html</code></li>
+<li>HTML, CSS e JavaScript puro.</li>
+<li>Consome APIs do backend via <code>fetch</code>.</li>
+</ul>
+<p><strong>Backend</strong></p>
+<ul>
+<li><code>backend/app.py</code></li>
+<li>FastAPI como servidor HTTP.</li>
+<li>Rotas públicas, rotas administrativas e rotas de pagamento.</li>
+</ul>
+<p><strong>IA</strong></p>
+<ul>
+<li><code>backend/agents/manager_agent.py</code></li>
+<li><code>backend/agents/course_agent.py</code></li>
+<li><code>backend/agents/groq_client.py</code></li>
+<li>Uso da Groq API para respostas do chatbot.</li>
+</ul>
+<p><strong>Dados</strong></p>
+<ul>
+<li>Cursos em arquivos JSON dentro de <code>backend/courses/</code>.</li>
+<li>SQLite preparado em <code>backend/db.py</code>.</li>
+<li>Variáveis sensíveis em <code>.env</code>.</li>
+</ul>
+<p><strong>Serviços externos</strong></p>
+<ul>
+<li>Groq para LLM.</li>
+<li>Mercado Pago Checkout Pro para pagamento.</li>
+</ul>
+<h2 id="fluxo-principal-do-aluno">3. Fluxo Principal do Aluno</h2>
+<ol>
+<li>O aluno abre a landing page.</li>
+<li>O frontend chama <code>GET /api/courses</code>.</li>
+<li>O backend lê os cursos em JSON e devolve uma lista resumida.</li>
+<li>O aluno pode:
+<ul>
+<li>visualizar cursos;</li>
+<li>tirar dúvidas com IA;</li>
+<li>abrir o modal de matrícula;</li>
+<li>informar nome, e-mail e telefone;</li>
+<li>iniciar checkout no Mercado Pago.</li>
+</ul>
+</li>
+<li>O frontend chama <code>POST /api/payments/create-checkout</code>.</li>
+<li>O backend valida os dados, consulta o curso, cria a preferência no Mercado Pago e retorna a URL.</li>
+<li>O checkout é aberto em outra aba.</li>
+</ol>
+<h2 id="fluxo-administrativo">4. Fluxo Administrativo</h2>
+<ol>
+<li>O administrador acessa <code>frontend/admin.html</code>.</li>
+<li>A tela exige senha administrativa.</li>
+<li>O frontend chama <code>POST /api/admin/login</code>.</li>
+<li>O backend valida a senha usando <code>ADMIN_PASSWORD</code>.</li>
+<li>Se estiver correta, o backend gera um token temporário assinado com HMAC.</li>
+<li>O frontend salva o token em <code>localStorage</code>.</li>
+<li>As próximas chamadas administrativas enviam:</li>
+</ol>
+<pre><code class="language-http">Authorization: Bearer &lt;token&gt;
+</code></pre>
+<ol start="8">
+<li>O administrador cadastra um curso.</li>
+<li>O backend salva um arquivo JSON em <code>backend/courses/</code>.</li>
+<li>O <code>ManagerAgent</code> é recarregado para que o chatbot reconheça o novo curso imediatamente.</li>
+</ol>
+<h2 id="backend-fastapi">5. Backend FastAPI</h2>
+<p>Arquivo principal:</p>
+<pre><code class="language-text">backend/app.py
+</code></pre>
+<p>Responsabilidades:</p>
+<ul>
+<li>iniciar a aplicação FastAPI;</li>
+<li>configurar CORS;</li>
+<li>inicializar o <code>ManagerAgent</code>;</li>
+<li>carregar cursos na inicialização;</li>
+<li>expor rota de chat;</li>
+<li>expor rota pública de cursos;</li>
+<li>incluir routers de admin e pagamentos.</li>
+</ul>
+<h3 id="endpoints-publicos">Endpoints públicos</h3>
+<table>
+<thead>
+<tr>
+<th>Método</th>
+<th>Endpoint</th>
+<th>Função</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET</code></td>
+<td><code>/</code></td>
+<td>Informações básicas da API</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/health</code></td>
+<td>Verifica status, LLM e cursos carregados</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/api/courses</code></td>
+<td>Lista pública de cursos</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/chat</code></td>
+<td>Envia mensagem para o chatbot</td>
+</tr>
+</tbody>
+</table>
+<h3 id="exemplo-de-chamada-do-chat">Exemplo de chamada do chat</h3>
+<pre><code class="language-json">{
+  &quot;message&quot;: &quot;Tem curso de Python?&quot;,
+  &quot;session_id&quot;: &quot;web-chat-session&quot;
+}
+</code></pre>
+<h3 id="exemplo-de-resposta">Exemplo de resposta</h3>
+<pre><code class="language-json">{
+  &quot;status&quot;: &quot;success&quot;,
+  &quot;message&quot;: &quot;Sim, temos o curso Python Básico...&quot;,
+  &quot;session_id&quot;: &quot;web-chat-session&quot;
+}
+</code></pre>
+<h2 id="rotas-administrativas">6. Rotas Administrativas</h2>
+<p>Arquivo:</p>
+<pre><code class="language-text">backend/admin/routes.py
+</code></pre>
+<h3 id="endpoints">Endpoints</h3>
+<table>
+<thead>
+<tr>
+<th>Método</th>
+<th>Endpoint</th>
+<th>Protegido</th>
+<th>Função</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/admin/login</code></td>
+<td>Não</td>
+<td>Login do admin</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/api/admin/courses</code></td>
+<td>Sim</td>
+<td>Lista cursos</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/admin/create-course</code></td>
+<td>Sim</td>
+<td>Cria curso</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/api/admin/course/{course_id}</code></td>
+<td>Sim</td>
+<td>Detalha curso</td>
+</tr>
+<tr>
+<td><code>PUT</code></td>
+<td><code>/api/admin/course/{course_id}</code></td>
+<td>Sim</td>
+<td>Atualiza curso</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/api/admin/course/{course_id}</code></td>
+<td>Sim</td>
+<td>Remove curso</td>
+</tr>
+</tbody>
+</table>
+<h3 id="modelo-de-curso">Modelo de curso</h3>
+<p>O backend usa <code>CourseInput</code> com os campos:</p>
+<pre><code class="language-text">id
+name
+description
+price
+duration_hours
+level
+target_audience
+objectives
+topics
+benefits
+faq
+system_prompt
+</code></pre>
+<h3 id="exemplo-de-curso-em-json">Exemplo de curso em JSON</h3>
+<pre><code class="language-json">{
+  &quot;id&quot;: &quot;python_basics&quot;,
+  &quot;name&quot;: &quot;Python Básico&quot;,
+  &quot;description&quot;: &quot;Curso introdutório de Python para iniciantes&quot;,
+  &quot;price&quot;: 99.90,
+  &quot;duration_hours&quot;: 20,
+  &quot;level&quot;: &quot;Iniciante&quot;,
+  &quot;target_audience&quot;: &quot;Pessoas sem experiência em programação&quot;,
+  &quot;objectives&quot;: [
+    &quot;Entender fundamentos de programação&quot;,
+    &quot;Aprender sintaxe básica de Python&quot;
+  ],
+  &quot;topics&quot;: [
+    &quot;Variáveis e tipos de dados&quot;,
+    &quot;Estruturas de controle&quot;,
+    &quot;Funções&quot;
+  ],
+  &quot;benefits&quot;: [
+    &quot;Certificado ao final&quot;,
+    &quot;Projeto prático incluído&quot;
+  ],
+  &quot;faq&quot;: [
+    {
+      &quot;question&quot;: &quot;Preciso ter experiência anterior?&quot;,
+      &quot;answer&quot;: &quot;Não, o curso começa do zero.&quot;
+    }
+  ],
+  &quot;system_prompt&quot;: &quot;Você é um assistente especialista no curso de Python Básico.&quot;
+}
+</code></pre>
+<h2 id="autenticacao-do-admin">7. Autenticação do Admin</h2>
+<p>A autenticação é simples, mas funcional para o contexto do projeto.</p>
+<h3 id="variaveis-usadas">Variáveis usadas</h3>
+<pre><code class="language-env">ADMIN_PASSWORD=troque_essa_senha
+ADMIN_TOKEN_SECRET=troque_esse_segredo_por_uma_string_grande
+</code></pre>
+<h3 id="como-o-token-e-criado">Como o token é criado</h3>
+<ol>
+<li>O backend recebe a senha.</li>
+<li>Compara com <code>ADMIN_PASSWORD</code> usando <code>secrets.compare_digest</code>.</li>
+<li>Cria um payload:</li>
+</ol>
+<pre><code class="language-text">admin:&lt;expires_at&gt;:&lt;nonce&gt;
+</code></pre>
+<ol start="4">
+<li>Assina o payload com HMAC-SHA256 usando <code>ADMIN_TOKEN_SECRET</code>.</li>
+<li>Codifica o token em Base64 URL-safe.</li>
+<li>Retorna o token ao frontend.</li>
+</ol>
+<h3 id="tempo-de-validade">Tempo de validade</h3>
+<pre><code class="language-text">8 horas
+</code></pre>
+<h3 id="pontos-fortes">Pontos fortes</h3>
+<ul>
+<li>A senha não fica no frontend.</li>
+<li>As rotas administrativas exigem Bearer Token.</li>
+<li>O token tem expiração.</li>
+<li>A assinatura usa HMAC com comparação segura.</li>
+</ul>
+<h3 id="limitacoes-assumidas">Limitações assumidas</h3>
+<ul>
+<li>Não há usuário/senha por perfil.</li>
+<li>O token fica em <code>localStorage</code>.</li>
+<li>Em produção, o ideal seria HTTPS obrigatório, cookies <code>HttpOnly</code> ou autenticação com provedor dedicado.</li>
+</ul>
+<h2 id="ia-e-agentes">8. IA e Agentes</h2>
+<p>O projeto usa uma arquitetura de agentes implementada diretamente em Python.</p>
+<h3 id="componentes">Componentes</h3>
+<p><strong>ManagerAgent</strong></p>
+<p>Arquivo:</p>
+<pre><code class="language-text">backend/agents/manager_agent.py
+</code></pre>
+<p>Funções:</p>
+<ul>
+<li>carregar cursos JSON;</li>
+<li>criar um <code>CourseAgent</code> para cada curso;</li>
+<li>identificar se a pergunta é geral ou sobre um curso específico;</li>
+<li>rotear a pergunta para o agente correto;</li>
+<li>manter histórico por <code>session_id</code>.</li>
+</ul>
+<p><strong>CourseAgent</strong></p>
+<p>Arquivo:</p>
+<pre><code class="language-text">backend/agents/course_agent.py
+</code></pre>
+<p>Funções:</p>
+<ul>
+<li>montar a base de conhecimento do curso;</li>
+<li>incluir descrição, preço, carga horária, objetivos, tópicos, benefícios e FAQ;</li>
+<li>responder perguntas com foco no curso específico.</li>
+</ul>
+<p><strong>GroqChatClient</strong></p>
+<p>Arquivo:</p>
+<pre><code class="language-text">backend/agents/groq_client.py
+</code></pre>
+<p>Funções:</p>
+<ul>
+<li>ler <code>GROQ_API_KEY</code>;</li>
+<li>configurar o modelo via <code>GROQ_MODEL</code>;</li>
+<li>chamar <code>client.chat.completions.create</code>;</li>
+<li>extrair o texto da resposta.</li>
+</ul>
+<h3 id="fluxo-da-ia">Fluxo da IA</h3>
+<pre><code class="language-text">Usuário pergunta
+↓
+POST /api/chat
+↓
+ManagerAgent.process_message()
+↓
+identify_course_intent()
+↓
+CourseAgent.answer_question() ou resposta geral
+↓
+GroqChatClient
+↓
+Resposta para o frontend
+</code></pre>
+<h3 id="estrategia-de-roteamento">Estratégia de roteamento</h3>
+<p>O <code>ManagerAgent</code> tenta identificar o curso de duas formas:</p>
+<ol>
+<li>busca direta por palavras-chave no nome ou ID do curso;</li>
+<li>se não encontrar, pede ao LLM para indicar o curso ou retornar <code>GENERAL</code>.</li>
+</ol>
+<h2 id="pagamento-com-mercado-pago">9. Pagamento com Mercado Pago</h2>
+<p>Arquivo:</p>
+<pre><code class="language-text">backend/payments/routes.py
+</code></pre>
+<h3 id="endpoints-1">Endpoints</h3>
+<table>
+<thead>
+<tr>
+<th>Método</th>
+<th>Endpoint</th>
+<th>Função</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/payments/create-checkout</code></td>
+<td>Cria preferência de pagamento</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/payments/webhook</code></td>
+<td>Recebe atualização de pagamento</td>
+</tr>
+</tbody>
+</table>
+<h3 id="variaveis-usadas-1">Variáveis usadas</h3>
+<pre><code class="language-env">MERCADO_PAGO_ACCESS_TOKEN=TEST-...
+FRONTEND_BASE_URL=http://localhost:8000
+API_BASE_URL=http://localhost:8000
+</code></pre>
+<h3 id="payload-enviado-pelo-frontend">Payload enviado pelo frontend</h3>
+<pre><code class="language-json">{
+  &quot;course_id&quot;: &quot;python_basics&quot;,
+  &quot;payer&quot;: {
+    &quot;name&quot;: &quot;Nome do Aluno&quot;,
+    &quot;email&quot;: &quot;aluno@email.com&quot;,
+    &quot;phone&quot;: &quot;11999999999&quot;
+  }
+}
+</code></pre>
+<h3 id="o-que-o-backend-faz">O que o backend faz</h3>
+<ol>
+<li>Valida nome e e-mail.</li>
+<li>Carrega o curso pelo <code>course_id</code>.</li>
+<li>Converte e valida o preço.</li>
+<li>Monta os dados da preferência.</li>
+<li>Envia requisição para:</li>
+</ol>
+<pre><code class="language-text">https://api.mercadopago.com/checkout/preferences
+</code></pre>
+<ol start="6">
+<li>Retorna <code>checkout_url</code>.</li>
+</ol>
+<h3 id="seguranca-do-pagamento">Segurança do pagamento</h3>
+<ul>
+<li>O cartão não passa pelo sistema.</li>
+<li>Os dados sensíveis ficam no Mercado Pago.</li>
+<li>O backend só cria a preferência.</li>
+<li>O token do Mercado Pago fica em <code>.env</code>.</li>
+</ul>
+<h3 id="webhook">Webhook</h3>
+<p>O webhook recebe o ID do pagamento, consulta:</p>
+<pre><code class="language-text">https://api.mercadopago.com/v1/payments/{payment_id}
+</code></pre>
+<p>Depois retorna o status recebido.</p>
+<p>Na versão atual, o webhook está preparado para validação, mas ainda não libera matrícula automaticamente no banco.</p>
+<h2 id="banco-de-dados">10. Banco de Dados</h2>
+<p>Arquivo:</p>
+<pre><code class="language-text">backend/db.py
+</code></pre>
+<p>Banco:</p>
+<pre><code class="language-text">SQLite
+</code></pre>
+<p>Arquivo gerado:</p>
+<pre><code class="language-text">backend/db.sqlite
+</code></pre>
+<h3 id="tabelas">Tabelas</h3>
+<p><strong>students</strong></p>
+<pre><code class="language-sql">CREATE TABLE IF NOT EXISTS students (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+</code></pre>
+<p><strong>enrollments</strong></p>
+<pre><code class="language-sql">CREATE TABLE IF NOT EXISTS enrollments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_id INTEGER NOT NULL,
+    course_id TEXT NOT NULL,
+    status TEXT DEFAULT 'pending',
+    enrolled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES students(id)
+);
+</code></pre>
+<p><strong>payments</strong></p>
+<pre><code class="language-sql">CREATE TABLE IF NOT EXISTS payments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    enrollment_id INTEGER NOT NULL,
+    amount FLOAT NOT NULL,
+    status TEXT DEFAULT 'pending',
+    payment_method TEXT,
+    transaction_id TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (enrollment_id) REFERENCES enrollments(id)
+);
+</code></pre>
+<h3 id="relacionamentos">Relacionamentos</h3>
+<pre><code class="language-text">students 1:N enrollments
+enrollments 1:N payments
+</code></pre>
+<h3 id="decisao-atual">Decisão atual</h3>
+<p>Os cursos ficam em JSON porque:</p>
+<ul>
+<li>facilita cadastro dinâmico;</li>
+<li>facilita leitura pelos agentes de IA;</li>
+<li>simplifica a demonstração;</li>
+<li>reduz complexidade inicial.</li>
+</ul>
+<p>O SQLite está preparado para persistir a parte transacional: alunos, matrículas e pagamentos.</p>
+<h2 id="frontend">11. Frontend</h2>
+<h3 id="landing-page">Landing page</h3>
+<p>Arquivo:</p>
+<pre><code class="language-text">frontend/landing_global_training.html
+</code></pre>
+<p>Funções:</p>
+<ul>
+<li>apresenta a escola;</li>
+<li>carrega cursos via <code>GET /api/courses</code>;</li>
+<li>renderiza cards dinamicamente;</li>
+<li>abre modal de matrícula;</li>
+<li>chama checkout;</li>
+<li>possui chatbot conectado ao backend.</li>
+</ul>
+<p>Chamadas principais:</p>
+<pre><code class="language-javascript">fetch(`${BACKEND_URL}/api/courses`)
+fetch(`${BACKEND_URL}/api/chat`, ...)
+fetch(`${BACKEND_URL}/api/payments/create-checkout`, ...)
+</code></pre>
+<h3 id="admin">Admin</h3>
+<p>Arquivo:</p>
+<pre><code class="language-text">frontend/admin.html
+</code></pre>
+<p>Funções:</p>
+<ul>
+<li>login administrativo;</li>
+<li>armazenamento temporário do token;</li>
+<li>listagem de cursos;</li>
+<li>cadastro de cursos;</li>
+<li>envio de <code>Authorization: Bearer</code>.</li>
+</ul>
+<p>Chave do token no navegador:</p>
+<pre><code class="language-text">global_training_admin_token
+</code></pre>
+<h2 id="variaveis-de-ambiente">12. Variáveis de Ambiente</h2>
+<p>Exemplo:</p>
+<pre><code class="language-env">GROQ_API_KEY=your_groq_api_key_here
+GROQ_MODEL=openai/gpt-oss-120b
+ENVIRONMENT=development
+
+ADMIN_PASSWORD=troque_essa_senha
+ADMIN_TOKEN_SECRET=troque_esse_segredo_por_uma_string_grande
+
+MERCADO_PAGO_ACCESS_TOKEN=TEST-0000000000000000
+FRONTEND_BASE_URL=http://localhost:8000
+API_BASE_URL=http://localhost:8000
+</code></pre>
+<h3 id="por-que-usar.env">Por que usar <code>.env</code>?</h3>
+<ul>
+<li>Evita expor chaves no código.</li>
+<li>Facilita trocar credenciais entre teste e produção.</li>
+<li>Permite publicar o projeto no GitHub sem vazar segredos.</li>
+</ul>
+<h2 id="seguranca">13. Segurança</h2>
+<h3 id="medidas-implementadas">Medidas implementadas</h3>
+<ul>
+<li><code>.env</code> ignorado pelo Git.</li>
+<li><code>.env.example</code> documenta as variáveis sem expor segredos.</li>
+<li>Senha administrativa apenas no backend.</li>
+<li>Token temporário assinado com HMAC.</li>
+<li>Rotas administrativas protegidas.</li>
+<li>Checkout externo no Mercado Pago.</li>
+<li>Token Mercado Pago apenas no backend.</li>
+<li>Dados de cartão não passam pelo projeto.</li>
+</ul>
+<h3 id="pontos-de-atencao-para-producao">Pontos de atenção para produção</h3>
+<ul>
+<li>Restringir CORS para domínios específicos.</li>
+<li>Usar HTTPS.</li>
+<li>Trocar <code>localStorage</code> por cookie <code>HttpOnly</code>, se possível.</li>
+<li>Persistir pagamento confirmado via webhook.</li>
+<li>Adicionar logs estruturados.</li>
+<li>Adicionar rate limit no login e no chat.</li>
+</ul>
+<h2 id="testes-manuais-importantes">14. Testes Manuais Importantes</h2>
+<h3 id="landing">Landing</h3>
+<ul>
+<li>A página abre corretamente.</li>
+<li>Cursos aparecem na tela.</li>
+<li>Botão &quot;Tirar dúvidas com IA&quot; abre o chat.</li>
+<li>Botão &quot;Matricular agora&quot; abre modal.</li>
+</ul>
+<h3 id="chat">Chat</h3>
+<ul>
+<li>Pergunta geral retorna resposta.</li>
+<li>Pergunta sobre curso existente retorna informação do curso.</li>
+<li>Curso criado no admin passa a ser reconhecido.</li>
+</ul>
+<h3 id="admin-1">Admin</h3>
+<ul>
+<li>Senha errada bloqueia acesso.</li>
+<li>Senha correta libera painel.</li>
+<li>Sem token, rotas admin retornam erro.</li>
+<li>Com token, cursos são listados.</li>
+<li>Novo curso é salvo em JSON.</li>
+</ul>
+<h3 id="pagamento">Pagamento</h3>
+<ul>
+<li>Modal exige dados válidos.</li>
+<li>Curso inexistente retorna erro.</li>
+<li>Curso existente cria checkout.</li>
+<li>Checkout abre em nova aba.</li>
+</ul>
+<h2 id="limitacoes-conhecidas">15. Limitações Conhecidas</h2>
+<p>Estas limitações não invalidam o projeto; elas mostram consciência técnica e próximos passos.</p>
+<ul>
+<li>Matrículas e pagamentos ainda não são gravados automaticamente no SQLite pelo fluxo de checkout.</li>
+<li>Webhook recebe e consulta pagamento, mas ainda não atualiza matrícula.</li>
+<li>Não existe área do aluno.</li>
+<li>Admin possui senha única, sem múltiplos usuários.</li>
+<li>O frontend está em HTML, CSS e JS puro, sem framework.</li>
+<li>CORS está permissivo para facilitar desenvolvimento local.</li>
+</ul>
+<h2 id="proximos-passos-tecnicos">16. Próximos Passos Técnicos</h2>
+<ul>
+<li>Persistir aluno ao iniciar matrícula.</li>
+<li>Criar matrícula com status <code>pending</code>.</li>
+<li>Criar registro de pagamento com status <code>pending</code>.</li>
+<li>No webhook, atualizar pagamento para <code>approved</code>, <code>rejected</code> ou <code>pending</code>.</li>
+<li>Liberar matrícula apenas quando pagamento for aprovado.</li>
+<li>Criar área do aluno.</li>
+<li>Criar dashboard administrativo.</li>
+<li>Implementar edição e exclusão pela interface do admin.</li>
+<li>Fazer deploy com HTTPS e domínio.</li>
+<li>Restringir CORS em produção.</li>
+</ul>
+<h2 id="perguntas-provaveis-da-banca">17. Perguntas Prováveis da Banca</h2>
+<h3 id="por-que-voces-usaram-fastapi">Por que vocês usaram FastAPI?</h3>
+<p>Porque FastAPI é moderno, rápido e possui integração forte com Pydantic para validação de dados. Também gera documentação automática em <code>/docs</code>, o que ajuda no desenvolvimento e nos testes dos endpoints.</p>
+<h3 id="por-que-os-cursos-estao-em-json-e-nao-no-banco">Por que os cursos estão em JSON e não no banco?</h3>
+<p>Na versão atual, os cursos em JSON simplificam o cadastro dinâmico e facilitam a leitura pelos agentes de IA. O banco SQLite foi preparado para a parte transacional, como alunos, matrículas e pagamentos. Em uma próxima etapa, os cursos também podem migrar para tabelas relacionais.</p>
+<h3 id="como-a-ia-sabe-que-um-curso-novo-existe">Como a IA sabe que um curso novo existe?</h3>
+<p>Quando um curso é criado no admin, o backend salva o JSON e chama <code>reload_manager_agent_courses</code>. Isso recarrega os cursos na memória do <code>ManagerAgent</code>, criando ou atualizando os agentes específicos. Assim, o chatbot passa a reconhecer o curso novo sem reiniciar o servidor.</p>
+<h3 id="o-que-e-o-manageragent">O que é o ManagerAgent?</h3>
+<p>É o componente responsável por receber a pergunta, identificar se ela é geral ou sobre um curso específico e rotear para o agente correto.</p>
+<h3 id="o-que-e-o-courseagent">O que é o CourseAgent?</h3>
+<p>É o agente específico de um curso. Ele monta uma base de conhecimento com descrição, preço, duração, objetivos, tópicos, benefícios e FAQ. A resposta é gerada com base nessas informações.</p>
+<h3 id="o-sistema-usa-langchain">O sistema usa LangChain?</h3>
+<p>O projeto usa o conceito de agentes, mas a implementação atual foi feita diretamente em Python com classes próprias. A chamada ao modelo é feita pela Groq API. LangChain ou LangGraph poderiam entrar em uma evolução futura para fluxos mais complexos, ferramentas, memória persistente ou RAG.</p>
+<h3 id="como-funciona-a-seguranca-do-admin">Como funciona a segurança do admin?</h3>
+<p>O admin envia uma senha para o backend. O backend compara com a senha do <code>.env</code>. Se estiver correta, gera um token temporário assinado com HMAC. As rotas administrativas exigem esse token no header <code>Authorization: Bearer</code>.</p>
+<h3 id="por-que-o-token-fica-no-localstorage">Por que o token fica no localStorage?</h3>
+<p>Foi uma escolha simples para o contexto do projeto e para manter a aplicação em HTML/JS puro. Para produção, seria melhor avaliar cookie <code>HttpOnly</code>, HTTPS obrigatório e controle mais robusto de sessão.</p>
+<h3 id="o-pagamento-e-seguro">O pagamento é seguro?</h3>
+<p>Sim, dentro da proposta usada. O sistema não coleta nem processa cartão. Ele cria uma preferência de pagamento no backend e redireciona o aluno para o checkout hospedado pelo Mercado Pago.</p>
+<h3 id="o-que-o-webhook-faz">O que o webhook faz?</h3>
+<p>Ele recebe uma notificação do Mercado Pago, extrai o ID do pagamento, consulta a API do Mercado Pago e retorna o status. A próxima etapa é persistir esse status no SQLite e liberar matrícula apenas quando o pagamento for aprovado.</p>
+<h3 id="por-que-usar-sqlite">Por que usar SQLite?</h3>
+<p>SQLite é simples, leve e suficiente para demonstrar o modelo físico e a persistência inicial. Para produção ou maior volume, poderia ser substituído por PostgreSQL ou MySQL sem mudar a arquitetura geral.</p>
+<h3 id="como-voces-evitam-vazar-chaves-no-github">Como vocês evitam vazar chaves no GitHub?</h3>
+<p>O <code>.env</code> está no <code>.gitignore</code>. O projeto mantém apenas <code>.env.example</code>, que mostra quais variáveis precisam existir, mas sem valores reais.</p>
+<h3 id="o-que-acontece-se-a-groq-estiver-fora-do-ar">O que acontece se a Groq estiver fora do ar?</h3>
+<p>O endpoint de chat trata exceções e retorna mensagem de erro. Como melhoria, o sistema poderia ter fallback com respostas estáticas ou fila de atendimento humano.</p>
+<h3 id="qual-foi-a-parte-mais-complexa-tecnicamente">Qual foi a parte mais complexa tecnicamente?</h3>
+<p>A integração entre cadastro dinâmico de cursos, recarregamento dos agentes e uso imediato desses dados no chatbot e na landing. Essa integração mostra que não é apenas uma página estática, mas um sistema com backend e estado dinâmico.</p>
+<h3 id="o-que-diferencia-este-projeto-de-uma-landing-page-comum">O que diferencia este projeto de uma landing page comum?</h3>
+<p>A landing é apenas uma das interfaces. O sistema possui backend, painel admin protegido, IA com agentes, dados dinâmicos, modelo de banco preparado e integração de pagamento.</p>
+<h3 id="como-voces-dividiriam-a-evolucao-do-sistema">Como vocês dividiriam a evolução do sistema?</h3>
+<ol>
+<li>Persistência completa de matrícula e pagamento.</li>
+<li>Webhook finalizando matrícula aprovada.</li>
+<li>Área do aluno.</li>
+<li>Dashboard administrativo.</li>
+<li>Deploy em produção.</li>
+<li>Certificados e analytics.</li>
+</ol>
+<h2 id="resumo-tecnico-em-uma-frase">18. Resumo Técnico em Uma Frase</h2>
+<p>O projeto é uma plataforma web com frontend em HTML/CSS/JS, backend em FastAPI, agentes de IA com Groq, cursos dinâmicos em JSON, banco SQLite preparado para matrículas/pagamentos e checkout seguro com Mercado Pago.</p>
+</body></html>

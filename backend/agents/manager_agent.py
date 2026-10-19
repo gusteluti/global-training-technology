@@ -2,10 +2,20 @@ import json
 import os
 import re
 import unicodedata
+import uuid
 from pathlib import Path
 from typing import Dict, List, Tuple
+from agents import ai_observability
 from agents.course_agent import CourseAgent
 from agents.groq_client import GroqChatClient
+from agents.llm_guard import (
+    POLICY_BLOCK,
+    InputBlockedError,
+    LLMUnavailableError,
+    entrada_bloqueada,
+    filtrar_saida,
+    precos_do_catalogo,
+)
 
 # Load environment variables if not already loaded
 try:
@@ -13,6 +23,9 @@ try:
     load_dotenv()
 except ImportError:
     pass
+
+_SESSION_ID = re.compile(r"[0-9a-f]{32}")
+
 
 class ManagerAgent:
     """
@@ -25,16 +38,16 @@ class ManagerAgent:
         self.course_agents: Dict[str, CourseAgent] = {}
         self.sessions: Dict = {}  # Store conversation history per session
         self.courses_fingerprint: Dict[str, Tuple[int, int]] = {}
-        
+
         # Initialize Groq chat client
         self.llm = GroqChatClient()
         self.courses_dir = Path(__file__).parent.parent / "courses"
-        print(f"✅ ManagerAgent using Groq model: {self.llm.model}")
-        
+        print(f"[OK] ManagerAgent using Groq model: {self.llm.model}")
+
     def load_courses(self, reload: bool = False):
         """Load all courses from JSON files in courses directory"""
         if not self.courses_dir.exists():
-            print(f"⚠️  Courses directory not found: {self.courses_dir}")
+            print(f"[AVISO]  Courses directory not found: {self.courses_dir}")
             self.courses = {}
             self.course_agents = {}
             self.courses_fingerprint = {}
@@ -53,9 +66,9 @@ class ManagerAgent:
                     
                     # Create course agent for this course
                     course_agents[course_id] = CourseAgent(course_data)
-                    print(f"✓ Loaded course: {course_data.get('name')}")
+                    print(f"[OK] Loaded course: {course_data.get('name')}")
             except Exception as e:
-                print(f"✗ Error loading {course_file}: {str(e)}")
+                print(f"[FALHA] Error loading {course_file}: {str(e)}")
 
         self.courses = courses
         self.course_agents = course_agents
@@ -69,7 +82,7 @@ class ManagerAgent:
             previous_count = len(self.courses)
             loaded_count = self.load_courses(reload=True)
             print(
-                "🔄 Course files changed. "
+                "[RECARREGA] Course files changed. "
                 f"ManagerAgent refreshed from {previous_count} to {loaded_count} course(s)."
             )
             return True
@@ -106,7 +119,8 @@ class ManagerAgent:
         """Create the system prompt for the manager agent"""
         courses_info = self.get_course_names_list()
         
-        return f"""Você é um assistente gerenciador de cursos de uma escola de tecnologia.
+        return f"""{POLICY_BLOCK}
+Você é um assistente gerenciador de cursos de uma escola de tecnologia.
 
 CURSOS DISPONÍVEIS:
 {courses_info}
@@ -155,10 +169,11 @@ MENSAGEM DO USUÁRIO: {user_message}
 
 Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
 """
-            response_text = self.llm.create_chat_completion([
-                {"role": "system", "content": "Você é um assistente que identifica intenções. Responda com apenas uma palavra."},
-                {"role": "user", "content": identify_prompt}
-            ], max_tokens=200, temperature=0.3)
+            with ai_observability.tipo_de_chamada("route"):
+                response_text = self.llm.create_chat_completion([
+                    {"role": "system", "content": "Você é um assistente que identifica intenções. Responda com apenas uma palavra."},
+                    {"role": "user", "content": identify_prompt}
+                ], max_tokens=200, temperature=0.3)
             result = response_text.strip().strip('`"\'').split()[0]
             course_lookup = {course_id.lower(): course_id for course_id in self.courses}
             
@@ -166,7 +181,7 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
                 return course_lookup[result.lower()], True
                 
         except Exception as e:
-            print(f"Error in course identification: {str(e)}")
+            print(f"Error in course identification: {type(e).__name__}")
         
         return "GENERAL", False
 
@@ -209,51 +224,127 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
             courses_list.append(f"{course_id}: {name}")
         return "\n".join(courses_list)
     
-    def process_message(self, user_message: str, session_id: str = "default") -> str:
-        """
-        Process user message and route to appropriate agent or respond directly
-        """
-        self.refresh_courses_if_changed()
+    def resolve_session(self, session_id: str = None) -> str:
+        """Id de sessão anônima efetivo (E6, D38.1).
 
-        # Initialize session if not exists
-        if session_id not in self.sessions:
-            self.sessions[session_id] = []
-        
-        # Identify course intent
-        course_id, is_specific = self.identify_course_intent(user_message)
-        
-        # Get conversation history for context
-        conversation_history = self.sessions[session_id].copy()
-        conversation_history.append({"role": "user", "content": user_message})
-        
-        # If course-specific, use course agent
-        if is_specific and course_id in self.course_agents:
-            response = self.course_agents[course_id].answer_question(
-                user_message, 
-                conversation_history
-            )
-        else:
-            # Use manager agent for general questions
-            response = self._answer_general_question(user_message, conversation_history)
-        
+        Só continua a sessão se o id foi emitido por este servidor (uuid4 em hex) e ela ainda existe
+        em `self.sessions`. Qualquer outro valor (ausente, 'default', 'web-chat-session', inventado,
+        truncado, sessão extinta) abre uma sessão nova com id novo; o valor do cliente nunca é ecoado.
+        """
+        if isinstance(session_id, str) and _SESSION_ID.fullmatch(session_id) and session_id in self.sessions:
+            return session_id
+        novo = uuid.uuid4().hex
+        while novo in self.sessions:
+            novo = uuid.uuid4().hex
+        self.sessions[novo] = []
+        return novo
+
+    def _filtrar_saida(self, resposta: str) -> str:
+        """Filtro de saída (D38.5): descarta desconto, valor fora do catálogo e vazamento de prompt."""
+        return filtrar_saida(resposta, precos_do_catalogo(self.courses.values()))
+
+    def process_message(self, user_message: str, session_id: str) -> str:
+        """
+        Process user message and route to appropriate agent or respond directly.
+
+        `session_id` deve vir de `resolve_session`. Levanta InputBlockedError (injeção direta; nada é
+        gravado no histórico e o LLM não é chamado) ou LLMUnavailableError (falha do provedor; nada é
+        gravado no histórico). A interação e o usage do LLM vão para o banco (E7), só com o hash da sessão.
+        """
+        with ai_observability.identidade_anonima(session_id):
+            if entrada_bloqueada(user_message):
+                ai_observability.registrar_interacao("input_blocked")
+                raise InputBlockedError()
+
+            self.refresh_courses_if_changed()
+
+            # Initialize session if not exists
+            if session_id not in self.sessions:
+                self.sessions[session_id] = []
+
+            # Get conversation history for context
+            conversation_history = self.sessions[session_id].copy()
+            conversation_history.append({"role": "user", "content": user_message})
+
+            response = self._responder(user_message, conversation_history)
+
         # Store in history
         self.sessions[session_id].append({"role": "user", "content": user_message})
         self.sessions[session_id].append({"role": "assistant", "content": response})
-        
+
         # Keep only last 20 messages in history to avoid context overflow
         if len(self.sessions[session_id]) > 40:
             self.sessions[session_id] = self.sessions[session_id][-40:]
-        
+
         return response
-    
-    def _answer_general_question(self, user_message: str, history: List) -> str:
+
+    def _responder(self, user_message: str, conversation_history: List, student_context: str = None,
+                   history_limit: int = 10) -> str:
+        """Identifica o curso, responde (Course Agent ou resposta geral), aplica o filtro de saída e grava
+        a interação (E7). Levanta LLMUnavailableError, depois de gravar a interação como 'llm_error'."""
+        course_id, is_specific = self.identify_course_intent(user_message)
+        curso = course_id if is_specific and course_id in self.course_agents else None
+
+        try:
+            if curso:
+                resposta = self.course_agents[curso].answer_question(
+                    user_message, conversation_history, student_context=student_context, history_limit=history_limit
+                )
+            else:
+                resposta = self._answer_general_question(
+                    user_message, conversation_history, student_context=student_context, history_limit=history_limit
+                )
+        except LLMUnavailableError:
+            ai_observability.registrar_interacao("llm_error", curso)
+            raise
+
+        filtrada = self._filtrar_saida(resposta)
+        if filtrada != resposta:
+            outcome = "output_blocked"
+        elif curso:
+            outcome = "answered"
+        else:
+            outcome = "unresolved"
+        ai_observability.registrar_interacao(outcome, curso, user_message)
+        return filtrada
+
+    def process_authenticated_message(self, user_message: str, student_context: str, history: List) -> str:
+        """Chat do aluno logado (E5). Não lê nem grava em self.sessions.
+
+        `history` são as mensagens persistidas do próprio aluno (anteriores à atual, já limitadas pelo
+        chamador) e `student_context` é o texto com nome e cursos ativos. Os dois chegam ao LLM tanto
+        na resposta geral quanto no Course Agent. A persistência fica com o chamador.
+
+        Levanta InputBlockedError (nada deve ser gravado) ou LLMUnavailableError (nada deve ser gravado).
+        Saída barrada pelo filtro volta como texto fixo, que o chamador grava no lugar do texto cru.
+        A identidade do aluno para a observabilidade (E7) vem do contexto definido pelo chamador
+        (`ai_observability.identidade_aluno`), nunca de parâmetro do cliente.
+        """
+        if entrada_bloqueada(user_message):
+            ai_observability.registrar_interacao("input_blocked")
+            raise InputBlockedError()
+
+        self.refresh_courses_if_changed()
+
+        conversation_history = [{"role": m["role"], "content": m["content"]} for m in history]
+        conversation_history.append({"role": "user", "content": user_message})
+        return self._responder(
+            user_message, conversation_history, student_context=student_context,
+            history_limit=len(conversation_history),
+        )
+
+    def _answer_general_question(
+        self, user_message: str, history: List, student_context: str = None, history_limit: int = 10
+    ) -> str:
         """Answer a general question using the LLM"""
         try:
             # Build messages for LLM
             messages = [{"role": "system", "content": self.create_system_prompt()}]
-            
-            # Add conversation history (last 10 entries to avoid overflow)
-            for msg in history[-10:]:
+            if student_context:
+                messages.append({"role": "system", "content": student_context})
+
+            # Add conversation history (last entries only, to avoid overflow)
+            for msg in history[-history_limit:]:
                 messages.append({"role": msg["role"], "content": msg["content"]})
             
             # Get response from Groq
@@ -261,6 +352,6 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
             return response_text
             
         except Exception as e:
-            error_response = f"Desculpe, ocorreu um erro ao processar sua mensagem: {str(e)}"
-            print(f"Error in general question: {error_response}")
-            return error_response
+            # Só o tipo da exceção vai ao log; o texto pode conter detalhes do provedor (E6, D38.6).
+            print(f"Error in general question: {type(e).__name__}")
+            raise LLMUnavailableError() from None

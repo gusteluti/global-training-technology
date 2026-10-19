@@ -99,6 +99,7 @@
     gap: 24px;
     align-items: start;
   }
+  .layout.form-hidden { grid-template-columns: 1fr; }
   .panel {
     background: var(--card);
     border: 1px solid var(--card-border);
@@ -212,6 +213,104 @@
     padding: 10px 16px;
   }
   .logout-btn.authenticated { display: inline-flex; }
+  .role-badge {
+    display: none;
+    color: #ffffff;
+    background: rgba(0,166,214,0.22);
+    border: 1.5px solid rgba(0,166,214,0.55);
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .5px;
+  }
+  .role-badge.authenticated { display: inline-flex; align-items: center; }
+  .tabs {
+    max-width: 1180px;
+    margin: 0 auto 24px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .tab-btn {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    color: var(--muted);
+    border-radius: 999px;
+    padding: 10px 18px;
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .tab-btn:hover { color: var(--teal); border-color: var(--teal); transform: none; }
+  .tab-btn.active { background: var(--teal); color: #ffffff; border-color: var(--teal); }
+  .tab-panel { display: none; max-width: 1180px; margin: 0 auto; }
+  .tab-panel.active { display: block; }
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .stat-card {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 10px 32px rgba(20,35,50,0.07);
+  }
+  .stat-label { color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; }
+  .stat-value { font-family: 'Barlow Condensed', sans-serif; font-size: 34px; color: var(--text); line-height: 1; }
+  .stat-sub { color: var(--muted); font-size: 12px; margin-top: 6px; }
+  .stat-value.danger { color: var(--danger); }
+  .stat-value.success { color: var(--success); }
+  .bar-list { display: flex; flex-direction: column; gap: 14px; }
+  .bar-row { display: grid; grid-template-columns: minmax(0,1fr) 2fr auto; gap: 12px; align-items: center; }
+  .bar-label { color: var(--text); font-weight: 700; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar-track { background: var(--soft-blue); border-radius: 999px; height: 10px; overflow: hidden; }
+  .bar-fill { background: linear-gradient(90deg, var(--teal), var(--blue)); height: 100%; border-radius: 999px; }
+  .bar-value { color: var(--muted); font-size: 12px; font-weight: 700; white-space: nowrap; }
+  .table-wrap { overflow-x: auto; }
+  table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.data-table th {
+    text-align: left;
+    color: var(--muted);
+    font-weight: 700;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--card-border);
+    white-space: nowrap;
+  }
+  table.data-table td { padding: 12px; border-bottom: 1px solid var(--card-border); color: var(--text); vertical-align: middle; }
+  table.data-table tr:last-child td { border-bottom: none; }
+  .pill { border-radius: 999px; padding: 4px 10px; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; white-space: nowrap; }
+  .pill-approved, .pill-active { background: rgba(53,209,143,.12); color: var(--success); }
+  .pill-pending { background: rgba(255,178,29,.14); color: #b6790a; }
+  .pill-refunded, .pill-failure { background: rgba(255,92,119,.12); color: var(--danger); }
+  .btn-tiny {
+    border: 1px solid var(--danger);
+    background: transparent;
+    color: var(--danger);
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 6px;
+  }
+  .btn-tiny:hover { background: rgba(255,92,119,.1); }
+  .btn-tiny:disabled { opacity: .4; cursor: not-allowed; }
+  .restricted-note {
+    max-width: 1180px;
+    margin: 0 auto 24px;
+    color: var(--muted);
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    line-height: 1.6;
+  }
   @media (max-width: 900px) {
     nav, main { padding-left: 20px; padding-right: 20px; }
     .header { flex-direction: column; align-items: flex-start; }
@@ -222,6 +321,7 @@
     .form-grid { grid-template-columns: 1fr; }
     .actions { flex-direction: column; }
     .actions button { width: 100%; }
+    .bar-row { grid-template-columns: 1fr; }
   }
 </style>
 </head>
@@ -234,8 +334,11 @@
       <span>Admin Technology</span>
     </div>
   </a>
-  <a class="nav-link" href="landing_global_training.html">Ver landing</a>
-  <button type="button" class="logout-btn" id="logoutBtn">Sair</button>
+  <div class="nav-actions">
+    <span class="role-badge" id="roleBadge"></span>
+    <a class="nav-link" href="landing_global_training.html">Ver landing</a>
+    <button type="button" class="logout-btn" id="logoutBtn">Sair</button>
+  </div>
 </nav>
 
 <section class="login-screen" id="loginScreen">
@@ -255,14 +358,25 @@
 <main class="admin-app locked" id="adminApp">
   <section class="header">
     <div>
-      <div class="eyebrow">Painel administrativo</div>
-      <h1>Cadastrar cursos</h1>
-      <p>Os cursos criados aqui são salvos no backend e aparecem automaticamente na landing Global Training quando a API estiver rodando.</p>
+      <div class="eyebrow">Área do funcionário · Fase 2</div>
+      <h1>Painel administrativo</h1>
+      <p>Dashboards de alunos, cursos, financeiro e observabilidade de IA, além do cadastro de cursos usado pela landing e pelos agentes.</p>
     </div>
     <div class="status-pill" id="api-status">API: verificando...</div>
   </section>
 
-  <section class="layout">
+  <nav class="tabs" id="tabsNav">
+    <button type="button" class="tab-btn active" data-tab="cursos" data-roles="admin,financial,support">Cadastro de cursos</button>
+    <button type="button" class="tab-btn" data-tab="alunos" data-roles="admin,financial,support">Dashboard de alunos</button>
+    <button type="button" class="tab-btn" data-tab="cursos-dash" data-roles="admin,financial,support">Dashboard de cursos</button>
+    <button type="button" class="tab-btn" data-tab="financeiro" data-roles="admin,financial">Dashboard financeiro</button>
+    <button type="button" class="tab-btn" data-tab="ia" data-roles="admin,financial,support">Observabilidade de IA</button>
+    <button type="button" class="tab-btn" data-tab="auditoria" data-roles="admin">Auditoria</button>
+  </nav>
+
+  <section class="tab-panel active" id="tab-cursos">
+  <p class="restricted-note" id="courseFormRestrictedNote" hidden>Somente o perfil Gestão pode cadastrar, editar ou remover cursos. Você está vendo o catálogo em modo leitura.</p>
+  <div class="layout">
     <form class="panel" id="courseForm">
       <h2>Novo curso</h2>
       <div id="formMessage" class="message"></div>
@@ -347,12 +461,102 @@
         <p class="empty">Carregando cursos...</p>
       </div>
     </aside>
+  </div>
+  </section>
+
+  <section class="tab-panel" id="tab-alunos">
+    <div class="stat-grid" id="alunosStats"></div>
+    <div class="panel">
+      <h2>Alunos matriculados</h2>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr><th>Aluno</th><th>E-mail</th><th>Matrículas</th><th>Ativas</th><th>Última matrícula</th></tr>
+          </thead>
+          <tbody id="alunosTableBody">
+            <tr><td colspan="5" class="empty">Carregando alunos...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="tab-panel" id="tab-cursos-dash">
+    <div class="panel">
+      <h2>Inscritos por curso</h2>
+      <div class="bar-list" id="cursosBarList"></div>
+    </div>
+    <div class="panel" style="margin-top:24px">
+      <h2>Performance do catálogo</h2>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr><th>Curso</th><th>Preço</th><th>Matrículas</th><th>Aprovadas</th><th>Pendentes</th><th>Conversão</th></tr>
+          </thead>
+          <tbody id="cursosTableBody">
+            <tr><td colspan="6" class="empty">Carregando cursos...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="tab-panel" id="tab-financeiro">
+    <div class="stat-grid" id="financeiroStats"></div>
+    <div class="panel">
+      <h2>Receita aprovada nos últimos meses</h2>
+      <div class="bar-list" id="financeiroBarList"></div>
+    </div>
+    <div class="panel" style="margin-top:24px">
+      <h2>Transações</h2>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr><th>Aluno</th><th>Curso</th><th>Valor</th><th>Status</th><th>Data</th><th></th></tr>
+          </thead>
+          <tbody id="pagamentosTableBody">
+            <tr><td colspan="6" class="empty">Carregando transações...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="tab-panel" id="tab-ia">
+    <div class="stat-grid" id="iaStats"></div>
+    <div class="panel">
+      <h2>Mensagens por curso</h2>
+      <div class="bar-list" id="iaBarList"></div>
+      <p class="hint" style="margin-top:16px">Métricas de uso do LangChain/Groq contabilizadas em memória pelo Manager Agent (RF24). Volume e sessões zeram a cada reinício do backend.</p>
+    </div>
+  </section>
+
+  <section class="tab-panel" id="tab-auditoria">
+    <div class="panel">
+      <h2>Trilhas de auditoria</h2>
+      <p class="hint" style="margin-bottom:16px">Eventos críticos da área do funcionário: alterações cadastrais, mudança de preço de cursos e reembolsos, com usuário responsável e estampa de tempo.</p>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr><th>Data</th><th>Perfil</th><th>Ação</th><th>Detalhe</th></tr>
+          </thead>
+          <tbody id="auditoriaTableBody">
+            <tr><td colspan="4" class="empty">Carregando auditoria...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </section>
 </main>
 
 <script>
-const API_URL = 'http://localhost:8000/api/admin';
+const BASE_API_URL = 'http://localhost:8000';
+const API_URL = `${BASE_API_URL}/api/admin`;
+const DASHBOARD_API_URL = `${BASE_API_URL}/api/dashboard`;
+const PAYMENTS_API_URL = `${BASE_API_URL}/api/payments`;
 const AUTH_STORAGE_KEY = 'global_training_admin_token';
+const ROLE_STORAGE_KEY = 'global_training_admin_role';
+const ROLE_LABEL_STORAGE_KEY = 'global_training_admin_role_label';
 
 const form = document.getElementById('courseForm');
 const message = document.getElementById('formMessage');
@@ -361,19 +565,59 @@ const loginMessage = document.getElementById('loginMessage');
 const loginScreen = document.getElementById('loginScreen');
 const adminApp = document.getElementById('adminApp');
 const logoutBtn = document.getElementById('logoutBtn');
+const roleBadge = document.getElementById('roleBadge');
 const statusPill = document.getElementById('api-status');
 const courseList = document.getElementById('courseList');
 const nameInput = document.getElementById('name');
 const idInput = document.getElementById('id');
+const courseFormPanel = form.closest('.panel');
+const tabsNav = document.getElementById('tabsNav');
+
+const dashboardLoaded = { alunos: false, 'cursos-dash': false, financeiro: false, ia: false, auditoria: false };
 
 function getAdminToken() {
   return localStorage.getItem(AUTH_STORAGE_KEY) || '';
+}
+
+function getAdminRole() {
+  return localStorage.getItem(ROLE_STORAGE_KEY) || '';
 }
 
 function setAuthenticated(isAuthenticated) {
   loginScreen.classList.toggle('authenticated', isAuthenticated);
   adminApp.classList.toggle('locked', !isAuthenticated);
   logoutBtn.classList.toggle('authenticated', isAuthenticated);
+  applyRoleVisibility();
+}
+
+function applyRoleVisibility() {
+  const role = getAdminRole();
+  const roleLabel = localStorage.getItem(ROLE_LABEL_STORAGE_KEY) || '';
+  roleBadge.classList.toggle('authenticated', Boolean(role));
+  roleBadge.textContent = roleLabel ? `Perfil: ${roleLabel}` : '';
+
+  // Somente o perfil Gestão pode cadastrar/editar/remover cursos (RBAC - Fase 2).
+  const isAdmin = role === 'admin';
+  if (courseFormPanel) {
+    courseFormPanel.style.display = isAdmin ? '' : 'none';
+  }
+  const coursesLayout = courseFormPanel ? courseFormPanel.closest('.layout') : null;
+  if (coursesLayout) {
+    coursesLayout.classList.toggle('form-hidden', Boolean(role) && !isAdmin);
+  }
+  const restrictedNote = document.getElementById('courseFormRestrictedNote');
+  if (restrictedNote) {
+    restrictedNote.hidden = !role || isAdmin;
+  }
+
+  tabsNav.querySelectorAll('.tab-btn').forEach(btn => {
+    const allowedRoles = (btn.dataset.roles || '').split(',').filter(Boolean);
+    const isAllowed = !role || allowedRoles.includes(role);
+    btn.hidden = !isAllowed;
+    if (!isAllowed && btn.classList.contains('active')) {
+      activateTab('cursos');
+    }
+  });
 }
 
 function authHeaders(extra = {}) {
@@ -496,8 +740,11 @@ loginForm.addEventListener('submit', async (event) => {
       throw new Error(data.detail || 'Não foi possível autenticar.');
     }
     localStorage.setItem(AUTH_STORAGE_KEY, data.token);
+    localStorage.setItem(ROLE_STORAGE_KEY, data.role || 'admin');
+    localStorage.setItem(ROLE_LABEL_STORAGE_KEY, data.role_label || 'Gestão');
     document.getElementById('admin-password').value = '';
     setAuthenticated(true);
+    activateTab('cursos');
     await loadCourses();
   } catch (error) {
     setLoginMessage('error', error.message);
@@ -506,6 +753,9 @@ loginForm.addEventListener('submit', async (event) => {
 
 logoutBtn.addEventListener('click', () => {
   localStorage.removeItem(AUTH_STORAGE_KEY);
+  localStorage.removeItem(ROLE_STORAGE_KEY);
+  localStorage.removeItem(ROLE_LABEL_STORAGE_KEY);
+  Object.keys(dashboardLoaded).forEach(key => { dashboardLoaded[key] = false; });
   setAuthenticated(false);
   courseList.innerHTML = '<p class="empty">Faça login para carregar os cursos.</p>';
   statusPill.textContent = 'API: aguardando login';
@@ -570,6 +820,248 @@ form.addEventListener('submit', async (event) => {
     setMessage('error', error.message);
   }
 });
+
+// ---------------------------------------------------------------------
+// Fase 2 - Área do Funcionário: navegação por abas e dashboards
+// ---------------------------------------------------------------------
+
+function activateTab(tabId) {
+  tabsNav.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tabId);
+  });
+  document.querySelectorAll('.tab-panel').forEach(panel => {
+    panel.classList.toggle('active', panel.id === `tab-${tabId}`);
+  });
+  loadTabData(tabId);
+}
+
+function loadTabData(tabId) {
+  if (dashboardLoaded[tabId]) return;
+  const loaders = {
+    'alunos': loadAlunosDashboard,
+    'cursos-dash': loadCursosDashboard,
+    'financeiro': loadFinanceiroDashboard,
+    'ia': loadObservabilidadeIA,
+    'auditoria': loadAuditoria,
+  };
+  const loader = loaders[tabId];
+  if (!loader) return;
+  dashboardLoaded[tabId] = true;
+  loader().catch(() => { dashboardLoaded[tabId] = false; });
+}
+
+tabsNav.addEventListener('click', (event) => {
+  const btn = event.target.closest('.tab-btn');
+  if (!btn || btn.hidden) return;
+  activateTab(btn.dataset.tab);
+});
+
+function statCard(label, value, sub = '', extraClass = '') {
+  return `
+    <div class="stat-card">
+      <div class="stat-label">${escapeHTML(label)}</div>
+      <div class="stat-value ${extraClass}">${value}</div>
+      ${sub ? `<div class="stat-sub">${escapeHTML(sub)}</div>` : ''}
+    </div>
+  `;
+}
+
+function barRow(label, value, max, displayValue) {
+  const percent = max > 0 ? Math.max(4, Math.round((value / max) * 100)) : 0;
+  return `
+    <div class="bar-row">
+      <div class="bar-label" title="${escapeHTML(label)}">${escapeHTML(label)}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${percent}%"></div></div>
+      <div class="bar-value">${escapeHTML(displayValue ?? value)}</div>
+    </div>
+  `;
+}
+
+function statusPillHTML(status) {
+  const labels = {
+    approved: 'Aprovado', active: 'Ativo', pending: 'Pendente',
+    refunded: 'Reembolsado', failure: 'Falhou', rejected: 'Rejeitado',
+  };
+  const label = labels[status] || status || 'Desconhecido';
+  return `<span class="pill pill-${escapeHTML(status || 'pending')}">${escapeHTML(label)}</span>`;
+}
+
+async function fetchDashboard(path) {
+  const response = await fetch(`${DASHBOARD_API_URL}/${path}`, { headers: authHeaders() });
+  if (await handleUnauthorized(response)) throw new Error('unauthorized');
+  const data = await response.json();
+  if (!response.ok || data.status !== 'success') {
+    throw new Error(data.detail || `Erro ao carregar ${path}`);
+  }
+  return data;
+}
+
+async function loadAlunosDashboard() {
+  const tbody = document.getElementById('alunosTableBody');
+  try {
+    const data = await fetchDashboard('alunos');
+    const { metrics, students } = data;
+    document.getElementById('alunosStats').innerHTML = [
+      statCard('Alunos cadastrados', metrics.total_students),
+      statCard('Alunos com matrícula ativa', metrics.active_students, '', 'success'),
+      statCard('Sessões de chat com a IA', metrics.total_chat_sessions),
+    ].join('');
+
+    tbody.innerHTML = students.length ? students.map(student => `
+      <tr>
+        <td>${escapeHTML(student.name)}</td>
+        <td>${escapeHTML(student.email)}</td>
+        <td>${student.total_enrollments || 0}</td>
+        <td>${student.active_enrollments || 0}</td>
+        <td>${student.last_enrollment_at ? escapeHTML(student.last_enrollment_at) : '—'}</td>
+      </tr>
+    `).join('') : '<tr><td colspan="5" class="empty">Nenhum aluno matriculado ainda.</td></tr>';
+  } catch (error) {
+    tbody.innerHTML = `<tr><td colspan="5" class="empty">Não foi possível carregar os alunos.</td></tr>`;
+    throw error;
+  }
+}
+
+async function loadCursosDashboard() {
+  const barList = document.getElementById('cursosBarList');
+  const tbody = document.getElementById('cursosTableBody');
+  try {
+    const data = await fetchDashboard('cursos');
+    const courses = data.courses || [];
+    const max = Math.max(1, ...courses.map(c => c.total_enrollments || 0));
+
+    barList.innerHTML = courses.length
+      ? courses.map(c => barRow(c.name || c.id, c.total_enrollments || 0, max)).join('')
+      : '<p class="empty">Nenhuma matrícula registrada ainda.</p>';
+
+    tbody.innerHTML = courses.length ? courses.map(c => `
+      <tr>
+        <td>${escapeHTML(c.name || c.id)}</td>
+        <td>${formatPrice(c.price)}</td>
+        <td>${c.total_enrollments}</td>
+        <td>${c.approved_enrollments}</td>
+        <td>${c.pending_enrollments}</td>
+        <td>${c.conversion_rate}%</td>
+      </tr>
+    `).join('') : '<tr><td colspan="6" class="empty">Nenhum curso com matrículas ainda.</td></tr>';
+  } catch (error) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">Não foi possível carregar os cursos.</td></tr>';
+    throw error;
+  }
+}
+
+async function loadFinanceiroDashboard() {
+  const tbody = document.getElementById('pagamentosTableBody');
+  try {
+    const data = await fetchDashboard('financeiro');
+    const { totals, monthly_revenue: monthlyRevenue, payments } = data;
+
+    document.getElementById('financeiroStats').innerHTML = [
+      statCard('Receita aprovada', formatPrice(totals.revenue_approved), `${totals.approved_count} transação(ões)`, 'success'),
+      statCard('Pendente', formatPrice(totals.revenue_pending), `${totals.pending_count} transação(ões)`),
+      statCard('Reembolsado', formatPrice(totals.revenue_refunded), `${totals.refunded_count} transação(ões)`, 'danger'),
+      statCard('Projeção próximo mês', formatPrice(totals.projected_next_month), 'Média móvel dos últimos meses'),
+    ].join('');
+
+    const maxRevenue = Math.max(1, ...monthlyRevenue.map(m => m.revenue || 0));
+    document.getElementById('financeiroBarList').innerHTML = monthlyRevenue.length
+      ? monthlyRevenue.map(m => barRow(m.month, m.revenue, maxRevenue, formatPrice(m.revenue))).join('')
+      : '<p class="empty">Sem receita aprovada registrada ainda.</p>';
+
+    tbody.innerHTML = (payments && payments.length) ? payments.map(payment => `
+      <tr>
+        <td>${escapeHTML(payment.student_name)}<br><span class="hint">${escapeHTML(payment.student_email)}</span></td>
+        <td>${escapeHTML(payment.course_id)}</td>
+        <td>${formatPrice(payment.amount)}</td>
+        <td>${statusPillHTML(payment.status)}</td>
+        <td>${escapeHTML(payment.created_at)}</td>
+        <td>
+          <button type="button" class="btn-tiny" data-refund-id="${payment.id}" ${payment.status === 'refunded' ? 'disabled' : ''}>
+            ${payment.status === 'refunded' ? 'Reembolsado' : 'Reembolsar'}
+          </button>
+        </td>
+      </tr>
+    `).join('') : '<tr><td colspan="6" class="empty">Nenhuma transação registrada ainda.</td></tr>';
+  } catch (error) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">Não foi possível carregar o financeiro.</td></tr>';
+    throw error;
+  }
+}
+
+document.getElementById('pagamentosTableBody').addEventListener('click', async (event) => {
+  const btn = event.target.closest('[data-refund-id]');
+  if (!btn || btn.disabled) return;
+  const paymentId = btn.dataset.refundId;
+  if (!window.confirm(`Confirmar reembolso do pagamento #${paymentId}? Esta ação é registrada na auditoria.`)) return;
+
+  btn.disabled = true;
+  btn.textContent = 'Processando...';
+  try {
+    const response = await fetch(`${PAYMENTS_API_URL}/refund/${paymentId}`, {
+      method: 'POST',
+      headers: authHeaders(),
+    });
+    if (await handleUnauthorized(response)) return;
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || 'Erro ao reembolsar pagamento');
+    dashboardLoaded.financeiro = false;
+    dashboardLoaded.auditoria = false;
+    await loadFinanceiroDashboard();
+    dashboardLoaded.financeiro = true;
+  } catch (error) {
+    window.alert(error.message);
+    btn.disabled = false;
+    btn.textContent = 'Reembolsar';
+  }
+});
+
+async function loadObservabilidadeIA() {
+  const barList = document.getElementById('iaBarList');
+  try {
+    const data = await fetchDashboard('observabilidade-ia');
+    const metrics = data.metrics || {};
+    const perCourse = metrics.messages_per_course || {};
+
+    document.getElementById('iaStats').innerHTML = [
+      statCard('Sessões de chat', metrics.total_sessions || 0),
+      statCard('Mensagens processadas', metrics.total_messages || 0),
+      statCard('Tópicos não compreendidos', metrics.unresolved_messages || 0, 'Perguntas gerais sem curso identificado', 'danger'),
+      statCard('Modelo em uso', `<span style="font-size:18px">${escapeHTML(metrics.model || '—')}</span>`),
+    ].join('');
+
+    const entries = Object.entries(perCourse);
+    const max = Math.max(1, ...entries.map(([, count]) => count));
+    barList.innerHTML = entries.length
+      ? entries.map(([courseId, count]) => barRow(courseId, count, max)).join('')
+      : '<p class="empty">Nenhuma conversa direcionada a um curso específico ainda.</p>';
+  } catch (error) {
+    barList.innerHTML = '<p class="empty">Não foi possível carregar a observabilidade de IA.</p>';
+    throw error;
+  }
+}
+
+async function loadAuditoria() {
+  const tbody = document.getElementById('auditoriaTableBody');
+  try {
+    const response = await fetch(`${API_URL}/audit-logs`, { headers: authHeaders() });
+    if (await handleUnauthorized(response)) throw new Error('unauthorized');
+    const data = await response.json();
+    if (!response.ok || data.status !== 'success') {
+      throw new Error(data.detail || 'Erro ao carregar auditoria');
+    }
+    tbody.innerHTML = data.logs.length ? data.logs.map(log => `
+      <tr>
+        <td>${escapeHTML(log.created_at)}</td>
+        <td>${escapeHTML(log.role)}</td>
+        <td>${escapeHTML(log.action)}</td>
+        <td>${escapeHTML(log.detail)}</td>
+      </tr>
+    `).join('') : '<tr><td colspan="4" class="empty">Nenhum evento registrado ainda.</td></tr>';
+  } catch (error) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty">Não foi possível carregar a auditoria.</td></tr>';
+    throw error;
+  }
+}
 
 if (getAdminToken()) {
   setAuthenticated(true);

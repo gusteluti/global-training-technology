@@ -32,6 +32,9 @@ backend/venv/
 Thumbs.db
 desktop.ini
 
+# Perfil de navegador local (contém cookies/dados de login; nunca versionar)
+.chrome-pdf-profile/
+
 # Editor and IDE
 .vscode/
 .idea/
@@ -41,6 +44,7 @@ desktop.ini
 # Node/frontend dependencies and build output, if added later
 node_modules/
 dist/
+.angular/
 build/
 .parcel-cache/
 .vite/

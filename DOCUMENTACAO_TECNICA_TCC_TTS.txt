@@ -1,0 +1,29 @@
+Olá! Seja bem-vindo à documentação técnica do projeto Global Training Technology. Aqui está um resumo falado, pronto para ser usado em ferramentas de Text-to-Speech ou para ser ouvido como um audiolivro.
+
+1. O projeto Global Training Technology é uma plataforma web para uma escola de cursos profissionalizantes. Ele tem uma landing page pública, um chatbot com inteligência artificial, um painel administrativo protegido por senha, cadastro dinâmico de cursos, backend em FastAPI, agentes de IA usando Groq, banco de dados SQLite preparado para matrículas e pagamentos, e integração com Mercado Pago.
+
+2. A arquitetura é dividida em frontend, backend, IA e dados. O frontend é feito em HTML, CSS e JavaScript puro, consumindo APIs do backend. O backend usa FastAPI, com rotas públicas, administrativas e de pagamento. A IA é composta por agentes em Python, usando a Groq API para gerar respostas. Os cursos ficam em arquivos JSON, e o banco SQLite armazena alunos, matrículas e pagamentos.
+
+3. O fluxo do aluno é simples: ele acessa a landing page, vê os cursos, pode tirar dúvidas com a IA, se matricular e pagar online. O backend valida os dados e cria a preferência de pagamento no Mercado Pago.
+
+4. O painel administrativo exige senha. Após o login, o admin pode cadastrar cursos, que são salvos em JSON e reconhecidos imediatamente pelo chatbot.
+
+5. O backend expõe rotas para listar cursos, conversar com a IA, criar matrículas e pagamentos. As rotas administrativas exigem token de autenticação.
+
+6. A IA funciona assim: o ManagerAgent recebe a pergunta, identifica se é geral ou sobre um curso, e roteia para o agente correto. O CourseAgent responde com base nas informações do curso. O GroqChatClient faz a chamada à API da Groq.
+
+7. O pagamento é feito pelo Mercado Pago. O backend só cria a preferência e não armazena dados sensíveis de cartão.
+
+8. O banco de dados SQLite armazena alunos, matrículas e pagamentos. Os cursos ficam em JSON para facilitar o cadastro dinâmico.
+
+9. O frontend carrega os cursos, abre o chat com IA e inicia o checkout de pagamento.
+
+10. A segurança inclui variáveis em .env, senha só no backend, token temporário assinado, rotas protegidas e checkout externo.
+
+11. Limitações: matrícula e pagamento ainda não são gravados automaticamente, não há área do aluno, e o admin tem senha única.
+
+12. Próximos passos: persistir matrícula e pagamento, liberar matrícula após pagamento aprovado, criar área do aluno e dashboard admin, e fazer deploy seguro.
+
+Resumo: O projeto é uma plataforma web completa, com frontend, backend, IA, dados dinâmicos e integração de pagamento, pronta para evoluir para produção.
+
+Obrigado por ouvir este resumo técnico! Se quiser detalhes de algum ponto, consulte a documentação completa ou peça um resumo de uma seção específica.

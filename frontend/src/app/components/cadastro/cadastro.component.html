@@ -1,0 +1,33 @@
+<div class="row justify-content-center mt-5">
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-body">
+        <h4 class="card-title">Criar conta de aluno</h4>
+
+        <div *ngIf="success" class="alert alert-success">
+          Conta criada. Você já pode entrar.
+          <a routerLink="/" class="alert-link">Ir para o login</a>
+        </div>
+
+        <div *ngIf="error" class="alert alert-danger">{{ error }}</div>
+
+        <form *ngIf="!success" (ngSubmit)="submit()">
+          <div class="mb-3">
+            <label class="form-label">Nome completo</label>
+            <input class="form-control" [(ngModel)]="name" name="name" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">E-mail</label>
+            <input type="email" class="form-control" [(ngModel)]="email" name="email" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Senha (mínimo 8 caracteres)</label>
+            <input type="password" class="form-control" [(ngModel)]="password" name="password" required />
+          </div>
+          <button class="btn btn-primary" type="submit" [disabled]="enviando">Criar conta</button>
+          <a routerLink="/" class="btn btn-link">Já tenho conta</a>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
