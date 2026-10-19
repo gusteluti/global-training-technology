@@ -72,8 +72,17 @@ def _access_token_gateway() -> str:
 
 
 def _pagamento_mockado() -> bool:
-    """True quando PAYMENTS_MOCK está ligado (1/true/yes/on). Só para demonstração local."""
-    return (os.getenv("PAYMENTS_MOCK") or "").strip().lower() in ("1", "true", "yes", "on")
+    """True só quando o mock está EFETIVO (H3): PAYMENTS_MOCK ligado (1/true/yes/on) E
+    APP_ENV == "development" (sem caixa, aparando espaços). Qualquer outro caso: fluxo real.
+    Uma variável ligada por engano em produção, sozinha, não libera curso sem pagamento."""
+    ligado = (os.getenv("PAYMENTS_MOCK") or "").strip().lower() in ("1", "true", "yes", "on")
+    desenvolvimento = (os.getenv("APP_ENV") or "").strip().lower() == "development"
+    return ligado and desenvolvimento
+
+
+def pagamento_mockado_efetivo() -> bool:
+    """Estado efetivo do mock, exposto no /health."""
+    return _pagamento_mockado()
 
 
 def money_to_float(value) -> float:
@@ -101,6 +110,7 @@ def iniciar_checkout_curso(
     request: Request,
     *,
     user_id: Optional[int] = None,
+    auditor: Optional[AuthContext] = None,
 ) -> dict:
     """Cria a preferência de pagamento no Mercado Pago e persiste matrícula/pagamento 'pending'.
 
@@ -109,12 +119,14 @@ def iniciar_checkout_curso(
     nenhuma conta nova é criada e a matrícula é gravada para esse usuário. Quando None (fluxo anônimo
     da landing legada), a conta é obtida/criada por e-mail, como antes.
     A matrícula nasce 'pending' e só é ativada pelo webhook quando o pagamento for aprovado.
+    `auditor` (aluno do JWT, quando houver) é o responsável do evento `payment.mock_approved`;
+    sem ele (landing), o evento é gravado como sistema.
     """
     course = load_course_data(course_id)
     amount = money_to_float(course.get("price"))
 
     # ------------------------------------------------------------------------------------------
-    # Modo DEMONSTRAÇÃO (PAYMENTS_MOCK=1): não chama o Mercado Pago. Cria a matrícula/pagamento e
+    # Modo DEMONSTRAÇÃO (PAYMENTS_MOCK=1 e APP_ENV=development): não chama o Mercado Pago. Cria a matrícula/pagamento e
     # já marca o pagamento como 'approved' e a matrícula como 'active', pelo mesmo caminho de
     # transição usado pelo webhook (mantém a consistência de estados). Serve só para demo local.
     # Com a flag desligada (padrão), o fluxo real do Mercado Pago abaixo continua valendo.
@@ -131,6 +143,15 @@ def iniciar_checkout_curso(
             "approved",
             transaction_id,
             valor_confere=lambda _local: True,
+        )
+        record_audit(
+            "payment.mock_approved",
+            f"Pagamento #{payment_id}: aprovado pelo modo simulado (PAYMENTS_MOCK, APP_ENV=development)",
+            user=auditor,
+            actor=None if auditor is not None else {"role": "system"},
+            entity_type="payment",
+            entity_id=payment_id,
+            changes=[change("payment.status", "pending", "approved")],
         )
         frontend_base_url = os.getenv("FRONTEND_BASE_URL", "http://localhost:8000").rstrip("/")
         return {
