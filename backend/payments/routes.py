@@ -34,6 +34,9 @@ DETAIL_CONSULTA_GATEWAY = "Erro ao consultar pagamento no Mercado Pago."
 DETAIL_CHECKOUT_FALHA = "Não foi possível iniciar o pagamento. Tente novamente."
 DETAIL_CHECKOUT_INDISPONIVEL = "Pagamento indisponível no momento."
 DETAIL_REEMBOLSO_NAO_APROVADO = "Só é possível reembolsar pagamentos aprovados."
+# S1 (D72): compra do mesmo curso com matrícula ativa.
+DETAIL_JA_MATRICULADO = "Você já está matriculado neste curso."
+DETAIL_EMAIL_JA_TEM_ACESSO = "Este e-mail já tem acesso a este curso. Entre na sua conta para acessá-lo."
 
 # Só dígitos ASCII (D49.3): `\d` aceitaria dígitos de outros alfabetos.
 PAYMENT_ID_RE = re.compile(r"[0-9]{1,20}")
@@ -128,6 +131,32 @@ def iniciar_checkout_curso(
         raise HTTPException(status_code=409, detail=ERR_CURSO_INDISPONIVEL)
     amount = money_to_float(course.get("price"))
 
+    # S1 (D72): antes do mock e do gateway, a matrícula do mesmo usuário no mesmo curso decide.
+    # Dono: aluno do JWT (user_id) ou, na landing, a conta já existente do e-mail (nenhuma conta é criada aqui).
+    if user_id is not None:
+        dono_existente = user_id
+    else:
+        conta = Database.get_user_by_email(email)
+        dono_existente = conta["id"] if conta else None
+    pendente = None
+    if dono_existente is not None:
+        situacao = Database.situacao_compra_do_curso(dono_existente, course_id)
+        if situacao and situacao["status"] == "active":
+            raise HTTPException(
+                status_code=409,
+                detail=DETAIL_JA_MATRICULADO if user_id is not None else DETAIL_EMAIL_JA_TEM_ACESSO,
+            )
+        if situacao and situacao["status"] == "pending":
+            pendente = situacao
+            user_id = dono_existente
+
+    def _retomar_pagamento_pendente(metodo: str) -> int:
+        """Retomada: reaproveita o pagamento pendente (valor atualizado ao preço do catálogo)."""
+        if pendente["payment_id"] is None:
+            return Database.record_payment(pendente["enrollment_id"], amount, metodo)
+        Database.atualizar_valor_pagamento_pendente(pendente["payment_id"], amount)
+        return pendente["payment_id"]
+
     # ------------------------------------------------------------------------------------------
     # Modo DEMONSTRAÇÃO (PAYMENTS_MOCK=1 e APP_ENV=development): não chama o Mercado Pago. Cria a matrícula/pagamento e
     # já marca o pagamento como 'approved' e a matrícula como 'active', pelo mesmo caminho de
@@ -135,11 +164,16 @@ def iniciar_checkout_curso(
     # Com a flag desligada (padrão), o fluxo real do Mercado Pago abaixo continua valendo.
     # ------------------------------------------------------------------------------------------
     if _pagamento_mockado():
-        external_reference = f"{course_id}:{int(datetime.utcnow().timestamp())}:{uuid.uuid4().hex[:8]}"
-        if user_id is None:
-            user_id = Database.get_or_create_user(email, nome)
-        enrollment_id = Database.create_enrollment(user_id, course_id, external_reference)
-        payment_id = Database.record_payment(enrollment_id, amount, "mock")
+        if pendente is not None:
+            # Retomada no modo simulado: aprova a matrícula pendente existente, sem criar outra.
+            external_reference = pendente["external_reference"]
+            payment_id = _retomar_pagamento_pendente("mock")
+        else:
+            external_reference = f"{course_id}:{int(datetime.utcnow().timestamp())}:{uuid.uuid4().hex[:8]}"
+            if user_id is None:
+                user_id = Database.get_or_create_user(email, nome)
+            enrollment_id = Database.create_enrollment(user_id, course_id, external_reference)
+            payment_id = Database.record_payment(enrollment_id, amount, "mock")
         transaction_id = f"mock-{uuid.uuid4().hex[:12]}"
         Database.aplicar_transicao_pagamento_webhook(
             external_reference,
@@ -178,7 +212,11 @@ def iniciar_checkout_curso(
     api_base_url = os.getenv("API_BASE_URL", str(request.base_url).rstrip("/")).rstrip("/")
     # Sufixo aleatório: duas compras do mesmo curso no mesmo segundo não podem compartilhar referência
     # (o webhook localiza a matrícula pela referência).
-    external_reference = f"{course_id}:{int(datetime.utcnow().timestamp())}:{uuid.uuid4().hex[:8]}"
+    # Retomada (D72): a nova preferência usa a MESMA referência da matrícula pendente.
+    if pendente is not None:
+        external_reference = pendente["external_reference"]
+    else:
+        external_reference = f"{course_id}:{int(datetime.utcnow().timestamp())}:{uuid.uuid4().hex[:8]}"
 
     preference_data = {
         "items": [
@@ -248,10 +286,13 @@ def iniciar_checkout_curso(
     # Persiste aluno/matrícula/pagamento para alimentar os dashboards
     # administrativos da Fase 2 (Dashboard de Alunos/Cursos/Financeiro).
     # Matrícula 'pending'; ativada pelo webhook quando o pagamento for aprovado.
-    if user_id is None:
-        user_id = Database.get_or_create_user(email, nome)
-    enrollment_id = Database.create_enrollment(user_id, course_id, external_reference)
-    Database.record_payment(enrollment_id, amount, "mercado_pago")
+    if pendente is not None:
+        _retomar_pagamento_pendente("mercado_pago")
+    else:
+        if user_id is None:
+            user_id = Database.get_or_create_user(email, nome)
+        enrollment_id = Database.create_enrollment(user_id, course_id, external_reference)
+        Database.record_payment(enrollment_id, amount, "mercado_pago")
 
     return {
         "status": "success",

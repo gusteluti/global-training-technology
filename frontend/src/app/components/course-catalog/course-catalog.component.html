@@ -22,14 +22,20 @@
         <h2 class="h5 mb-1" data-testid="catalogo-nome">{{ curso.name }}</h2>
         <div class="text-muted small mb-3">{{ curso.level || 'Curso disponível' }}</div>
         <div class="h4 text-primary mt-auto mb-3" data-testid="catalogo-preco">{{ precoBr(curso.price) }}</div>
-        <button
-          type="button"
-          class="btn btn-primary w-100"
-          data-testid="catalogo-comprar"
-          [disabled]="comprandoId === curso.id"
-          (click)="comprar(curso)">
-          {{ comprandoId === curso.id ? 'Criando pagamento...' : 'Comprar e matricular' }}
-        </button>
+        <div
+          *ngIf="situacao[curso.id] === 'active'; else botaoCompra"
+          class="alert alert-success mb-0 text-center"
+          data-testid="catalogo-ja-matriculado">Você já está matriculado</div>
+        <ng-template #botaoCompra>
+          <button
+            type="button"
+            class="btn btn-primary w-100"
+            data-testid="catalogo-comprar"
+            [disabled]="comprandoId === curso.id"
+            (click)="comprar(curso)">
+            {{ comprandoId === curso.id ? 'Criando pagamento...' : (situacao[curso.id] === 'pending' ? 'Retomar pagamento' : 'Comprar e matricular') }}
+          </button>
+        </ng-template>
       </div>
     </div>
   </div>

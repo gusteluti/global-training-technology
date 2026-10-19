@@ -609,6 +609,59 @@ class Database:
         conn.close()
         return payment_id
 
+    @staticmethod
+    def situacao_compra_do_curso(user_id: int, course_id: str) -> Optional[Dict]:
+        """S1 (D72): matrícula do usuário no curso que impede ou é retomada numa nova compra.
+
+        Devolve {"status": "active"} se houver matrícula ativa (prevalece sobre pendente); senão a pendente
+        mais recente como {"status": "pending", "enrollment_id", "external_reference", "payment_id"}
+        (payment_id = pagamento mais recente da matrícula, ou None); senão None.
+        `cancelled`/`refunded` não contam."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            ativa = conn.execute(
+                "SELECT id FROM enrollments WHERE user_id = ? AND course_id = ? AND status = 'active' LIMIT 1",
+                (user_id, course_id),
+            ).fetchone()
+            if ativa:
+                return {"status": "active"}
+            pendente = conn.execute(
+                """SELECT e.id, e.external_reference,
+                          (SELECT p.id FROM payments p WHERE p.enrollment_id = e.id
+                           ORDER BY p.id DESC LIMIT 1) AS payment_id
+                   FROM enrollments e
+                   WHERE e.user_id = ? AND e.course_id = ? AND e.status = 'pending'
+                     AND e.external_reference IS NOT NULL
+                   ORDER BY e.id DESC LIMIT 1""",
+                (user_id, course_id),
+            ).fetchone()
+            if not pendente:
+                return None
+            return {
+                "status": "pending",
+                "enrollment_id": pendente["id"],
+                "external_reference": pendente["external_reference"],
+                "payment_id": pendente["payment_id"],
+            }
+        finally:
+            conn.close()
+
+    @staticmethod
+    def atualizar_valor_pagamento_pendente(payment_id: int, amount: float) -> bool:
+        """S1 (D72): atualiza o valor de um pagamento ainda `pending` (preço do catálogo mudou)."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        try:
+            cursor = conn.execute(
+                """UPDATE payments SET amount = ?, updated_at = CURRENT_TIMESTAMP
+                   WHERE id = ? AND status = 'pending' AND amount != ?""",
+                (amount, payment_id, amount),
+            )
+            conn.commit()
+            return cursor.rowcount == 1
+        finally:
+            conn.close()
+
     # E9 (D48/D49.5): update_payment_status* mantêm o comportamento anterior, com uma exceção imposta pelo
     # índice único de transaction_id: se outro pagamento já tem esse transaction_id, o status é atualizado
     # e o transaction_id do pagamento fica como estava (em vez de estourar IntegrityError).
