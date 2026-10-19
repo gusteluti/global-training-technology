@@ -156,6 +156,7 @@ async def comprar_curso(
         None,
         request,
         user_id=current_user.id,
+        auditor=current_user,
     )
 
 

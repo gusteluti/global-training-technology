@@ -1048,3 +1048,11 @@ decidida sem o PM segue a recomendação do plano, fica registrada aqui com o mo
 `docs/tdd/RELATORIO_FEEDBACK.md` para revisão. Continuam valendo sem exceção: D30 (sem `main`, sem force-push, auditoria
 antes do push), D32, um agente por vez, árvore limpa, ciclo TDD. Fora do alcance (sem tentativa): SMTP real, qualquer
 segredo real, número do WhatsApp no repo (só `WHATSAPP_HANDOFF_NUMBER`).
+
+## D70 — testes de chat dependiam do catálogo real (19/10/2026, modo autônomo D69)
+A regressão da O0 deu 34 falhas em `test_e7_observabilidade_ia.py`, já presentes antes da O0 (verificado sobre `9dbd134`).
+Causa: o docstring da E7 declara que "o catálogo do bot é o real (backend/courses: ..., lua, ...)", e o commit `15104c7`
+(fora do TDD) apagou `backend/courses/lua.json`. O curso foi removido de propósito; o teste é que estava acoplado a dado de
+produção. Decisão (forma, autoridade permanente 4.3: intenção preservada, quem altera é o agente-testes): os testes de
+backend passam a usar um catálogo do bot em diretório temporário com os cursos de que precisam, sem ler `backend/courses`.
+Encadeamento: D42/D44 (E7) → D70. Os e2e que citam "lua" são verificados na mesma revisão.

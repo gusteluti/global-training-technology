@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 # Import routers
 from admin.routes import list_course_summaries, router as admin_router
-from payments.routes import router as payments_router
+from payments.routes import pagamento_mockado_efetivo, router as payments_router
 from dashboard.routes import router as dashboard_router
 from agents.llm_guard import (
     INPUT_BLOCKED,
@@ -120,7 +120,8 @@ async def health_check():
             "status": "ok",
             "courses_loaded": courses_count,
             "llm": "groq",
-            "available_models": ["mixtral-8x7b-32768"]
+            "available_models": ["mixtral-8x7b-32768"],
+            "payments_mock": pagamento_mockado_efetivo(),
         }
     except Exception as e:
         return {

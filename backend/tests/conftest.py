@@ -3,6 +3,9 @@
 - Variáveis de ambiente mínimas para importar e subir a aplicação.
 - `db_path`: aponta Database.DB_PATH para um arquivo temporário (tmp_path).
 - `banco`: `db_path` + Database.init_db() (schema atual).
+- `catalogo_bot` (D70): catálogo do bot (ManagerAgent) em diretório temporário, copiado de
+  tests/fixtures/catalogo_bot (c_e_c, excel_profissional, lua, python_profissional). Os testes
+  não leem backend/courses, que é dado de produção e pode mudar.
 
 Observação: importar `db` executa Database.init_db() uma vez, no caminho padrão
 (backend/db.sqlite, ignorado pelo git). Os testes não usam esse arquivo: todo
@@ -10,6 +13,7 @@ teste reaponta DB_PATH para tmp_path antes de qualquer operação.
 """
 
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -56,3 +60,24 @@ def banco(db_path):
 
     Database.init_db()
     return db_path
+
+
+@pytest.fixture
+def catalogo_bot(tmp_path, monkeypatch):
+    """Catálogo do bot isolado (D70): todo ManagerAgent criado no teste lê um diretório temporário.
+
+    Seam de teste: envolve ManagerAgent.__init__ e troca `courses_dir` logo depois do construtor,
+    antes do load_courses() do startup. Nenhum código de produção é alterado.
+    """
+    from agents.manager_agent import ManagerAgent
+
+    destino = tmp_path / "catalogo_bot"
+    shutil.copytree(TESTS_DIR / "fixtures" / "catalogo_bot", destino)
+    construtor_original = ManagerAgent.__init__
+
+    def construtor(self, *args, **kwargs):
+        construtor_original(self, *args, **kwargs)
+        self.courses_dir = destino
+
+    monkeypatch.setattr(ManagerAgent, "__init__", construtor)
+    return destino
