@@ -112,6 +112,15 @@ export class ApiService {
     return this.http.delete(`${BASE}/api/admin/course/${encodeURIComponent(courseId)}`, this.authHeaders());
   }
 
+  // Arquivar tira o curso do catálogo e do chat; o aluno ativo mantém o acesso (F1, D68). Só a Gestão.
+  public archiveCourse(courseId: string) {
+    return this.http.post(`${BASE}/api/admin/course/${encodeURIComponent(courseId)}/archive`, {}, this.authHeaders());
+  }
+
+  public unarchiveCourse(courseId: string) {
+    return this.http.post(`${BASE}/api/admin/course/${encodeURIComponent(courseId)}/unarchive`, {}, this.authHeaders());
+  }
+
   public refundPayment(paymentId: number) {
     return this.http.post(`${BASE}/api/payments/refund/${paymentId}`, {}, this.authHeaders());
   }

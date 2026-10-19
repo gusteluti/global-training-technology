@@ -42,7 +42,7 @@ async def dashboard_cursos(current_user: AuthContext = Depends(require_staff)):
     """
     Performance do catálogo: inscritos por turma e taxa de conversão (RF23).
     """
-    catalog = {course["id"]: course for course in list_course_summaries()}
+    catalog = {course["id"]: course for course in list_course_summaries(include_archived=True)}
     overview_by_course = {row["course_id"]: row for row in Database.get_courses_overview()}
     classes_by_course = {}
     for turma in Database.list_classes():
@@ -61,6 +61,7 @@ async def dashboard_cursos(current_user: AuthContext = Depends(require_staff)):
             "name": course.get("name"),
             "price": course.get("price"),
             "level": course.get("level"),
+            "archived": course.get("archived") is True,  # F1: arquivado continua com o histórico
             "total_enrollments": total_enrollments,
             "approved_enrollments": approved_enrollments,
             "pending_enrollments": overview.get("pending_enrollments", 0) or 0,

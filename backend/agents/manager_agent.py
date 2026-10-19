@@ -61,6 +61,9 @@ class ManagerAgent:
             try:
                 with open(course_file, 'r', encoding='utf-8') as f:
                     course_data = json.load(f)
+                    # F1 (D68): curso arquivado fica fora do catálogo do bot e não ganha Course Agent.
+                    if course_data.get('archived') is True:
+                        continue
                     course_id = course_data.get('id', course_file.stem)
                     courses[course_id] = course_data
                     

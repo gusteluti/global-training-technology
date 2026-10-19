@@ -243,6 +243,44 @@ export class CourseAdminComponent implements OnInit {
     return result;
   }
 
+  // Matrícula em qualquer status bloqueia a exclusão (F1, D68); a API também recusa com 409.
+  hasStudents(course: any): boolean {
+    return (course?.enrollments_count ?? 0) > 0;
+  }
+
+  archive(course: any): void {
+    this.setArchived(course, true);
+  }
+
+  unarchive(course: any): void {
+    this.setArchived(course, false);
+  }
+
+  private setArchived(course: any, arquivar: boolean): void {
+    if (this.busy) {
+      return;
+    }
+    const pergunta = arquivar
+      ? `Arquivar o curso "${course.name}"?`
+      : `Desarquivar o curso "${course.name}"?`;
+    if (!confirm(pergunta)) {
+      return;
+    }
+    this.clearMessages();
+    this.busy = true;
+    const chamada = arquivar ? this.api.archiveCourse(course.id) : this.api.unarchiveCourse(course.id);
+    chamada.subscribe({
+      next: () => {
+        this.busy = false;
+        this.loadCourses();
+      },
+      error: err => {
+        this.busy = false;
+        this.error = this.errorText(err);
+      }
+    });
+  }
+
   askDelete(course: any): void {
     this.clearMessages();
     this.deletingId = course.id;
@@ -253,7 +291,7 @@ export class CourseAdminComponent implements OnInit {
   }
 
   confirmDelete(course: any): void {
-    if (this.busy) {
+    if (this.busy || this.hasStudents(course)) {
       return;
     }
     this.clearMessages();
