@@ -45,6 +45,8 @@ class CourseInput(BaseModel):
     system_prompt: str
     # Opcional: cursos antigos continuam aceitos sem o campo (E3, D28).
     materials: List[MaterialInput] = []
+    # F1 (D68): curso arquivado sai do catálogo, do chat e das vendas. Opcional; no PUT, omitido preserva.
+    archived: bool = False
 
 class AdminLoginInput(BaseModel):
     password: str
@@ -111,10 +113,21 @@ class ClassUpdateInput(BaseModel):
 class EnrollmentClassInput(BaseModel):
     class_id: Optional[Annotated[int, Field(strict=True)]]
 
+# Curso: trava de exclusão e arquivamento (F1, D68).
+ERR_CURSO_COM_MATRICULAS = ("Não é possível excluir: o curso tem alunos matriculados. "
+                            "Arquive o curso para tirá-lo do catálogo.")
+ERR_CURSO_INDISPONIVEL = "Este curso não está disponível para novas matrículas."
+
+
+def curso_arquivado(course_data: Optional[Dict]) -> bool:
+    """Só `archived: true` arquiva; curso antigo sem a chave vale como não arquivado."""
+    return bool(course_data) and course_data.get("archived") is True
+
+
 # Campos do curso auditados na edição (D45). Os de lista ausentes no arquivo valem [].
 COURSE_AUDIT_FIELDS = [
     "price", "name", "description", "duration_hours", "level", "target_audience",
-    "objectives", "topics", "benefits", "faq", "system_prompt", "materials",
+    "objectives", "topics", "benefits", "faq", "system_prompt", "materials", "archived",
 ]
 COURSE_LIST_FIELDS = {"objectives", "topics", "benefits", "faq", "materials"}
 
@@ -137,6 +150,8 @@ def _course_changes(before_data: Dict, after_data: Dict) -> List[Dict]:
         if field in COURSE_LIST_FIELDS:
             before = [] if before is None else before
             after = [] if after is None else after
+        if field == "archived":
+            before, after = curso_arquivado(before_data), curso_arquivado(after_data)
         if not _same_value(before, after):
             changes.append(change(field, before, after))
     return changes
@@ -239,7 +254,10 @@ async def create_course(course: CourseInput, request: Request, current_user: Aut
 async def list_courses(current_user: AuthContext = Depends(require_staff)):
     """List all available courses"""
     try:
-        courses = list_course_summaries()
+        courses = list_course_summaries(include_archived=True)
+        contagens = Database.count_enrollments_by_course()
+        for course in courses:
+            course["enrollments_count"] = contagens.get(course["id"], 0)
         return {
             "status": "success",
             "total": len(courses),
@@ -295,6 +313,9 @@ async def update_course(course_id: str, course: CourseInput, request: Request, c
         new_data = course.dict()
         if "materials" not in course.model_fields_set:
             new_data["materials"] = existing_data.get("materials", [])
+        # `archived` omitido preserva o valor atual (F1); curso antigo sem a chave continua sem arquivar.
+        if "archived" not in course.model_fields_set:
+            new_data["archived"] = curso_arquivado(existing_data)
 
         # Update with new data
         course_data = {
@@ -360,8 +381,17 @@ async def delete_course(course_id: str, request: Request, current_user: AuthCont
             course_name = course_data.get('name')
             course_price = course_data.get('price')
 
-        # Delete file
-        course_file.unlink()
+        # F1 (D68): matrícula em qualquer status trava a exclusão; sem matrícula, as turmas saem junto.
+        resultado = Database.excluir_curso_sem_matriculas(course_id, course_file.unlink)
+        if resultado["outcome"] == "has_enrollments":
+            record_audit(
+                "course.delete_blocked",
+                f"Exclusão do curso '{course_name}' ({course_id}) bloqueada: o curso tem matrículas",
+                user=current_user,
+                entity_type="course",
+                entity_id=course_id,
+            )
+            raise HTTPException(status_code=409, detail=ERR_CURSO_COM_MATRICULAS)
 
         loaded_courses = reload_manager_agent_courses(request, f"course deletion: {course_id}")
         record_audit(
@@ -384,6 +414,53 @@ async def delete_course(course_id: str, request: Request, current_user: AuthCont
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error deleting course: {str(e)}")
+
+def _definir_arquivamento(course_id: str, arquivar: bool, request: Request, current_user: AuthContext) -> Dict:
+    """Grava `archived` no JSON do curso (F1). Idempotente: sem mudança, não reescreve nem grava evento."""
+    courses_dir = Path(__file__).parent.parent / "courses"
+    course_file = courses_dir / f"{course_id}.json"
+    if not course_file.exists():
+        course_file = _find_course_file_by_id(courses_dir, course_id)
+    if not course_file:
+        raise HTTPException(status_code=404, detail="Course not found")
+
+    with open(course_file, 'r', encoding='utf-8') as f:
+        course_data = json.load(f)
+    antes = curso_arquivado(course_data)
+    if antes == arquivar:
+        return {"status": "success", "course_id": course_id, "archived": arquivar}
+
+    course_data["archived"] = arquivar
+    course_data["updated_at"] = __import__('datetime').datetime.now().isoformat()
+    with open(course_file, 'w', encoding='utf-8') as f:
+        json.dump(course_data, f, ensure_ascii=False, indent=2)
+
+    reload_manager_agent_courses(request, f"course {'archive' if arquivar else 'unarchive'}: {course_id}")
+    nome = course_data.get("name")
+    record_audit(
+        "course.archive" if arquivar else "course.unarchive",
+        f"Curso '{nome}' ({course_id}) {'arquivado' if arquivar else 'desarquivado'}",
+        user=current_user,
+        entity_type="course",
+        entity_id=course_id,
+        changes=[change("archived", antes, arquivar)],
+    )
+    return {"status": "success", "course_id": course_id, "archived": arquivar}
+
+
+@router.post("/course/{course_id}/archive")
+async def archive_course(course_id: str, request: Request,
+                         current_user: AuthContext = Depends(require_roles(Role.ADMIN))):
+    """Arquiva o curso (F1, D68): sai do catálogo, do chat e das vendas; o aluno ativo mantém o acesso."""
+    return _definir_arquivamento(course_id, True, request, current_user)
+
+
+@router.post("/course/{course_id}/unarchive")
+async def unarchive_course(course_id: str, request: Request,
+                           current_user: AuthContext = Depends(require_roles(Role.ADMIN))):
+    """Desarquiva o curso (F1): volta ao catálogo, ao chat e às vendas."""
+    return _definir_arquivamento(course_id, False, request, current_user)
+
 
 def reload_manager_agent_courses(request: Request, reason: str):
     """Reload in-memory course agents so chat can see admin changes immediately."""
@@ -432,18 +509,26 @@ def _find_course_file_by_id(courses_dir: Path, course_id: str):
 
     return None
 
-def list_course_summaries() -> List[Dict]:
+def list_course_summaries(include_archived: bool = False) -> List[Dict]:
+    """Resumo do catálogo. Padrão (público): sem cursos arquivados (F1).
+    Com `include_archived`, traz todos e o campo `archived` (lista da Gestão e dashboard)."""
     courses = []
     if COURSES_DIR.exists():
         for course_file in COURSES_DIR.glob("*.json"):
             with open(course_file, 'r', encoding='utf-8') as f:
                 course_data = json.load(f)
-                courses.append({
-                    "id": course_data.get('id'),
-                    "name": course_data.get('name'),
-                    "price": course_data.get('price'),
-                    "level": course_data.get('level')
-                })
+            arquivado = curso_arquivado(course_data)
+            if arquivado and not include_archived:
+                continue
+            resumo = {
+                "id": course_data.get('id'),
+                "name": course_data.get('name'),
+                "price": course_data.get('price'),
+                "level": course_data.get('level')
+            }
+            if include_archived:
+                resumo["archived"] = arquivado
+            courses.append(resumo)
     return courses
 
 

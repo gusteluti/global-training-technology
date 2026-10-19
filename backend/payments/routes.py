@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-from admin.routes import load_course_data
+from admin.routes import ERR_CURSO_INDISPONIVEL, curso_arquivado, load_course_data
 from core.audit import change, record_audit
 from core.notifications import send_password_setup_link
 from core.password_setup import emitir_token_definicao
@@ -123,6 +123,9 @@ def iniciar_checkout_curso(
     sem ele (landing), o evento é gravado como sistema.
     """
     course = load_course_data(course_id)
+    # F1 (D68): curso arquivado não vende, nem no modo simulado nem pelo gateway (nada é criado).
+    if curso_arquivado(course):
+        raise HTTPException(status_code=409, detail=ERR_CURSO_INDISPONIVEL)
     amount = money_to_float(course.get("price"))
 
     # ------------------------------------------------------------------------------------------

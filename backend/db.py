@@ -1478,6 +1478,40 @@ class Database:
             conn.close()
 
     @staticmethod
+    def excluir_curso_sem_matriculas(course_id: str, remover_arquivo) -> Dict:
+        """Exclusão de curso (F1, D68), atômica. `outcome`: has_enrollments (qualquer status) | deleted.
+
+        Com o lock de escrita (BEGIN IMMEDIATE) aberto: confere que não há matrícula do curso, remove as
+        turmas dele e chama `remover_arquivo()` (apaga o JSON). Um checkout concorrente espera o lock, então
+        nenhuma matrícula nasce entre a conferência e a remoção. Se apagar o arquivo falhar, nada muda no banco.
+        """
+        conn = Database._abrir_transacao_imediata()
+        try:
+            if conn.execute("SELECT 1 FROM enrollments WHERE course_id = ? LIMIT 1", (course_id,)).fetchone():
+                conn.execute("ROLLBACK")
+                return {"outcome": "has_enrollments"}
+            removidas = conn.execute("DELETE FROM classes WHERE course_id = ?", (course_id,)).rowcount
+            remover_arquivo()
+            conn.execute("COMMIT")
+            return {"outcome": "deleted", "classes_removed": removidas}
+        except Exception:
+            if conn.in_transaction:
+                conn.execute("ROLLBACK")
+            raise
+        finally:
+            conn.close()
+
+    @staticmethod
+    def count_enrollments_by_course() -> Dict[str, int]:
+        """Total de matrículas (todos os status) por curso (F1: `enrollments_count` da lista da Gestão)."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        try:
+            rows = conn.execute("SELECT course_id, COUNT(*) FROM enrollments GROUP BY course_id").fetchall()
+            return {course_id: int(total) for course_id, total in rows}
+        finally:
+            conn.close()
+
+    @staticmethod
     def list_enrollments_for_course(course_id: str) -> List[Dict]:
         """Matrículas de um curso para a Gestão/Suporte. Sem dados de pagamento nem de conta além de nome e e-mail."""
         conn = sqlite3.connect(Database.DB_PATH)
