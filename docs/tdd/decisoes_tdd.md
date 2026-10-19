@@ -1080,3 +1080,8 @@ Política decidida pelo orquestrador (marcada para revisão do PM):
 - `cancelled`/`refunded` não bloqueiam: nova compra cria matrícula nova, como hoje.
 - Tela `/catalogo`: curso com matrícula `active` mostra "Você já está matriculado" sem botão de compra; com `pending`, o
   botão vira "Retomar pagamento".
+- **Ajuste mecânico (autoridade 4.3), encadeamento D10 (E1) → D72:** três testes de `test_e1_referencia.py` faziam duas
+  compras da landing com o **mesmo e-mail** e o mesmo curso, que pela D72 agora retomam a mesma matrícula. A intenção
+  da D10 (duas compras do mesmo curso no mesmo instante não colidem na referência; o webhook só mexe na própria
+  matrícula) é preservada com **dois e-mails diferentes**: sem o sufixo aleatório, `curso:timestamp` colidiria do mesmo
+  jeito, então a prova de mutação da E1 continua valendo.
