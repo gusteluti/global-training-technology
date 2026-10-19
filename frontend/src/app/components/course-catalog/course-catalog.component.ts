@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
+import { catchError, forkJoin, map, of } from 'rxjs';
 import { ApiService } from '../../services/api.service';
 
 // Catálogo de cursos do aluno logado (Parte 1): mostra os mesmos cursos da landing e permite
@@ -22,13 +23,21 @@ export class CourseCatalogComponent implements OnInit {
   erro = '';
   mensagem = '';
   comprandoId: string | null = null;
+  // Situação do aluno por curso (D72): 'active' esconde a compra; 'pending' vira "Retomar pagamento".
+  situacao: Record<string, 'active' | 'pending'> = {};
 
   constructor(private api: ApiService, private router: Router) { }
 
   ngOnInit(): void {
-    this.api.getPublicCourses().subscribe({
-      next: (res: any) => {
-        this.cursos = (res && res.courses) || [];
+    // Se as matrículas não carregarem, o catálogo aparece como antes (o backend continua barrando duplicidade).
+    const matriculas$ = this.api.getMyEnrollments().pipe(
+      map((res: any) => (res && res.enrollments) || []),
+      catchError(() => of([]))
+    );
+    forkJoin({ cursos: this.api.getPublicCourses(), matriculas: matriculas$ }).subscribe({
+      next: ({ cursos, matriculas }: { cursos: any; matriculas: any[] }) => {
+        this.cursos = (cursos && cursos.courses) || [];
+        this.situacao = this.montarSituacao(matriculas);
         this.carregando = false;
       },
       error: () => {
@@ -36,6 +45,21 @@ export class CourseCatalogComponent implements OnInit {
         this.carregando = false;
       }
     });
+  }
+
+  private montarSituacao(matriculas: any[]): Record<string, 'active' | 'pending'> {
+    const situacao: Record<string, 'active' | 'pending'> = {};
+    for (const m of matriculas) {
+      if (!m || !m.course_id) {
+        continue;
+      }
+      if (m.status === 'active') {
+        situacao[m.course_id] = 'active';
+      } else if (m.status === 'pending' && situacao[m.course_id] !== 'active') {
+        situacao[m.course_id] = 'pending';
+      }
+    }
+    return situacao;
   }
 
   precoBr(valor: number | null): string {
