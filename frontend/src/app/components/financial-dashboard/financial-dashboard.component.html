@@ -72,7 +72,7 @@
             <td>{{ p.course_id }}</td>
             <td>{{ p.amount | currency:'BRL':'symbol':'1.2-2' }}</td>
             <td><span class="badge" [ngClass]="p.status === 'approved' ? 'bg-success' : (p.status === 'refunded' ? 'bg-danger' : 'bg-warning text-dark')">{{ p.status }}</span></td>
-            <td>{{ p.created_at }}</td>
+            <td>{{ p.created_at | dataSP }}</td>
             <td class="text-end">
               <button class="btn btn-sm btn-outline-danger" type="button"
                       *ngIf="p.status !== 'refunded'"

@@ -49,9 +49,9 @@
             <td>{{ s.email }}</td>
             <td>{{ s.total_enrollments || 0 }}</td>
             <td>{{ s.active_enrollments || 0 }}</td>
-            <td>{{ s.last_enrollment_at || '—' }}</td>
+            <td>{{ (s.last_enrollment_at | dataSP) || '—' }}</td>
             <td data-testid="aluno-chat-count">{{ s.chat_messages || 0 }}</td>
-            <td data-testid="aluno-last-chat">{{ s.last_chat_at || '—' }}</td>
+            <td data-testid="aluno-last-chat">{{ (s.last_chat_at | dataSP) || '—' }}</td>
           </tr>
           <tr *ngIf="students.length === 0">
             <td colspan="7" class="text-center text-muted">Nenhum aluno matriculado ainda.</td>

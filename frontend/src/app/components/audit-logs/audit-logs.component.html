@@ -20,7 +20,7 @@
         </thead>
         <tbody>
           <tr *ngFor="let log of logs" data-testid="audit-row">
-            <td class="text-nowrap">{{ log.created_at }}</td>
+            <td class="text-nowrap">{{ log.created_at | dataSP }}</td>
             <td data-testid="audit-actor">{{ actor(log) }}</td>
             <td><code>{{ log.action }}</code></td>
             <td>
