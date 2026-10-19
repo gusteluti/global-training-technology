@@ -1038,3 +1038,13 @@ Origem: `docs/tdd/PLANO_FEEDBACK_PROF.md` (feedback da professora e mensagens do
   como rascunho.
 - **Pendente:** responsável pela troca dos segredos expostos no `chat1.json` (H1). O arquivo foi removido da
   `feature/fase2-tdd` (`61422d7`); continua na `main` até o próximo PR e no histórico.
+
+## D69 — modo autônomo do plano do feedback (19/10/2026, decisão do PM)
+O PM vai ficar fora e autorizou: "pode começar a onda; não pare; faça e continue para a próxima fase, a não ser que
+tenha que perguntar algo de importância crítica". Valem as mesmas regras da D40, agora sobre a fila do
+`docs/tdd/PLANO_FEEDBACK_PROF.md` (ondas 0 a 7, na ordem): o orquestrador fecha cada entrega (checklist, merge `--no-ff`
+em `feature/fase2-tdd`, docs, push da branch de projeto) e segue para a próxima, sem parar para perguntar. Política
+decidida sem o PM segue a recomendação do plano, fica registrada aqui com o motivo e marcada em
+`docs/tdd/RELATORIO_FEEDBACK.md` para revisão. Continuam valendo sem exceção: D30 (sem `main`, sem force-push, auditoria
+antes do push), D32, um agente por vez, árvore limpa, ciclo TDD. Fora do alcance (sem tentativa): SMTP real, qualquer
+segredo real, número do WhatsApp no repo (só `WHATSAPP_HANDOFF_NUMBER`).
