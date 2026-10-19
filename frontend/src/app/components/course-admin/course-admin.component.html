@@ -13,13 +13,19 @@
         </thead>
         <tbody>
           <tr *ngFor="let c of courses" data-testid="curso-row" [attr.data-course-id]="c.id">
-            <td>{{ c.name }}</td>
+            <td>
+              {{ c.name }}
+              <span class="badge bg-secondary ms-2" data-testid="curso-arquivado" *ngIf="c.archived">Arquivado</span>
+            </td>
             <td>{{ c.price | currency:'BRL' }}</td>
             <td><ng-container *ngIf="c.duration_hours !== null">{{ c.duration_hours }} h</ng-container></td>
             <td class="text-end text-nowrap">
               <ng-container *ngIf="deletingId !== c.id">
                 <button type="button" class="btn btn-sm btn-outline-primary me-1" data-testid="curso-edit" (click)="edit(c)">Editar</button>
-                <button type="button" class="btn btn-sm btn-outline-danger" data-testid="curso-delete" (click)="askDelete(c)">Excluir</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary me-1" data-testid="curso-archive" *ngIf="!c.archived" [disabled]="busy" (click)="archive(c)">Arquivar</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary me-1" data-testid="curso-unarchive" *ngIf="c.archived" [disabled]="busy" (click)="unarchive(c)">Desarquivar</button>
+                <button type="button" class="btn btn-sm btn-outline-danger" data-testid="curso-delete" [disabled]="hasStudents(c)" (click)="askDelete(c)">Excluir</button>
+                <div class="small text-muted mt-1" data-testid="curso-delete-motivo" *ngIf="hasStudents(c)">Tem alunos matriculados — arquive em vez de excluir.</div>
               </ng-container>
               <ng-container *ngIf="deletingId === c.id">
                 <span class="me-2">Remover este curso?</span>
