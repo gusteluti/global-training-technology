@@ -1056,3 +1056,13 @@ Causa: o docstring da E7 declara que "o catálogo do bot é o real (backend/cour
 produção. Decisão (forma, autoridade permanente 4.3: intenção preservada, quem altera é o agente-testes): os testes de
 backend passam a usar um catálogo do bot em diretório temporário com os cursos de que precisam, sem ler `backend/courses`.
 Encadeamento: D42/D44 (E7) → D70. Os e2e que citam "lua" são verificados na mesma revisão.
+
+## D71 — F2: horário de São Paulo; ajuste mecânico do recibo PDF (19/10/2026, modo autônomo D69)
+Contrato da F2 (forma): o banco e a API continuam em UTC; a tela converte para `America/Sao_Paulo` (Intl) e mostra
+`dd/MM/aaaa HH:mm` (área do aluno só o dia); o backend usa deslocamento fixo de −3 h (sem horário de verão desde 2019,
+sem depender de tzdata) onde ele mesmo gera texto ou agrupa por dia: recibo PDF e série diária da E7.
+Encadeamento (autoridade 4.3): D63/D65 (recibo PDF imprimia `issued_at` cru) → D68/D71. O agente-testes alterou só a data
+esperada de A5, A19 e A20 em `test_b2_recibo_pdf.py` (`c657d64`), antes de o dev começar; a intenção (a data vem do
+pagamento, não do relógio) é preservada e o recibo JSON segue em UTC.
+Fora da F2, como dívida: `monthly_revenue` do financeiro agrupa por mês UTC; datas do chat do aluno não verificadas;
+o teste E7 C8 pode oscilar entre 00:00 e 03:00 UTC.
