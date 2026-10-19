@@ -222,6 +222,9 @@ async def create_course(course: CourseInput, request: Request, current_user: Aut
             **course.dict(),
             "created_at": __import__('datetime').datetime.now().isoformat()
         }
+        # `archived` só é gravado quando verdadeiro: curso novo fica com as chaves de antes (compatibilidade, F1).
+        if course_data.get("archived") is not True:
+            course_data.pop("archived", None)
 
         # Save to JSON
         with open(course_file, 'w', encoding='utf-8') as f:
@@ -313,9 +316,12 @@ async def update_course(course_id: str, course: CourseInput, request: Request, c
         new_data = course.dict()
         if "materials" not in course.model_fields_set:
             new_data["materials"] = existing_data.get("materials", [])
-        # `archived` omitido preserva o valor atual (F1); curso antigo sem a chave continua sem arquivar.
+        # `archived` omitido preserva o valor atual (F1); curso antigo sem a chave continua sem a chave.
         if "archived" not in course.model_fields_set:
-            new_data["archived"] = curso_arquivado(existing_data)
+            if "archived" in existing_data:
+                new_data["archived"] = curso_arquivado(existing_data)
+            else:
+                new_data.pop("archived", None)
 
         # Update with new data
         course_data = {
