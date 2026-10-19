@@ -25,6 +25,7 @@ Fonte do escopo: `Escopo_Fase2_Global_Training_Technology.pdf`, na raiz do repo.
 | **Recibo em PDF** (opcional) | `GET /api/student/payments/{id}/receipt.pdf` (PDF mínimo em Python puro, sem dependência nova), só `approved`/`refunded`, mesmas regras de acesso do recibo JSON, `receipt_pdf_url` na lista, botão "Baixar PDF". Entregue 06/10/2026; **aguardando validação do PM** (D65). | testes `3687b02`, e2e `c0eb94d`; backend `553b9d7`; frontend `675cbd1` |
 | **D1 — Design da landing na SPA** (pedido do PM, 07/10/2026) | Casca com barra escura, logo GT e rodapé; tokens, fontes e componentes da landing em todas as telas Angular; Bootstrap e fontes sem CDN. Backup prévio em `backup/fase2-tdd-2026-10-07` (tag `backup-fase2-tdd-2026-10-07`); merge da `main` sem efeito (já contida). Entregue 07/10/2026; **aguardando validação do PM** (D66). | e2e `34d846a`; frontend `b1ecf40`, `6702f56`, `07ba7e7` |
 | **D2 — Nova Área do Aluno** (pedido do PM, 07/10/2026; escopo 1.1, RF21/RF22) | `/student` refeita no design da landing: cabeçalho com e-mail do token e atalhos, resumo (cursos ativos, pagamentos pendentes, total investido), cartões de curso com data e materiais só com matrícula ativa, status de pagamento e recibo em português, histórico em cartões no celular, chat em bolhas. Sem mudança de API. Entregue 07/10/2026; **aguardando validação do PM** (D67). | e2e `0b4b45e`; frontend `e5a2de5` |
+| **O0 — Checkout do aluno + trava do mock** (plano do feedback, D69) | Testes de caracterização do `POST /api/student/checkout` e da tela `/catalogo` (commit `15104c7`, fora do TDD): JWT dono, 401/403, IDOR, preço do catálogo. `PAYMENTS_MOCK` só vale com `APP_ENV=development`; mock efetivo grava `payment.mock_approved` na auditoria; `/health` mostra `payments_mock`. Testes de chat desacoplados do catálogo real (D70). Regressão 1051 passed; e2e O0 7/7. | testes `9dbd134`, `622deb5`; backend `1deadb0` |
 
 Os dois obrigatórios da E3 (**IDOR** e **material só com matrícula ativa**) foram provados por suíte e por sondagem independente de HTTP (38/38). Detalhes no `HANDOFF_TDD.md`, seção 2.
 
@@ -36,7 +37,7 @@ E4: regressão integral de backend registrada depois do fechamento — **88 pass
 
 ## 2. Em andamento
 
-Modo autônomo (D40): ver `docs/tdd/RELATORIO_NOITE.md`. E5 (D37), E6 (D41), E7 (D44), E8 (D47) e E9 (D50) entregues, aguardando validação do PM. Dívidas de segurança resolvidas (D52); turmas entregues (D55). Cadastro de cursos no Angular e interceptor entregues (D57). Dívidas de harness resolvidas (D59); recuperação de senha entregue (D62); recibo em PDF entregue (D65). **Fila da noite (D40) concluída.** Design da landing aplicado à SPA (D66) e nova Área do Aluno (D67), 07/10/2026.
+Modo autônomo (D40): ver `docs/tdd/RELATORIO_NOITE.md`. E5 (D37), E6 (D41), E7 (D44), E8 (D47) e E9 (D50) entregues, aguardando validação do PM. Dívidas de segurança resolvidas (D52); turmas entregues (D55). Cadastro de cursos no Angular e interceptor entregues (D57). Dívidas de harness resolvidas (D59); recuperação de senha entregue (D62); recibo em PDF entregue (D65). **Fila da noite (D40) concluída.** Design da landing aplicado à SPA (D66) e nova Área do Aluno (D67), 07/10/2026. **Plano do feedback da professora em modo autônomo (D69):** fila em `docs/tdd/PLANO_FEEDBACK_PROF.md`, relatório em `docs/tdd/RELATORIO_FEEDBACK.md`.
 
 ---
 

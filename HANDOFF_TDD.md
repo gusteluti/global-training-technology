@@ -297,3 +297,12 @@ Resumo para quem for levar o assunto ao grupo:
 - O que vaza: nome de usuário do Windows do Gustavo num caminho de arquivo, um token de device do media router e um hash de cookie do Google.
 - Onde está: `origin/payment-system` (na árvore do tip) e, desde 05/10/2026, também no histórico de `feature/fase2-tdd` e da sub-branch da E3.
 - Custo de limpar: reescrita de histórico nas branches afetadas + force-push + coordenação com todo mundo que tenha clone.
+
+
+## 12. Plano do feedback da professora (D68 em diante)
+
+Fila e respostas do PM em `docs/tdd/PLANO_FEEDBACK_PROF.md`; modo autônomo D69; relatório em `docs/tdd/RELATORIO_FEEDBACK.md`.
+
+| Entrega | Sub-branch | Red | Implementação | Merge | Resultado |
+|---|---|---|---|---|---|
+| O0 — checkout do aluno + trava do mock | `feature/fase2-tdd-o0-checkout-aluno` | `9dbd134`, `622deb5` (D70) | `1deadb0` | ver `git log` | O0 86/86; regressão 1051 passed; e2e O0 7/7 |
