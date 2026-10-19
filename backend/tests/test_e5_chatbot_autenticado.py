@@ -41,7 +41,8 @@ um texto unico por chamada. Nenhum teste chama a API real do Groq.
 
 Convencoes (padrao de test_e3/test_e4): banco temporario via conftest, rotas HTTP reais, token real por
 POST /api/token, matricula por Database (create_enrollment + record_payment + status por referencia).
-Os cursos vivem em um diretorio temporario (admin.routes.COURSES_DIR), como na E3.
+Os cursos vivem em um diretorio temporario (admin.routes.COURSES_DIR), como na E3. O catalogo do bot
+(ManagerAgent) tambem (fixture `catalogo_bot` do conftest, D70); backend/courses nao e lido.
 """
 
 import copy
@@ -132,8 +133,8 @@ def llm(monkeypatch):
 
 
 @pytest.fixture
-def cursos(tmp_path, monkeypatch):
-    """Cinco cursos em diretorio temporario, todos com materials (URL unica por curso)."""
+def cursos(tmp_path, monkeypatch, catalogo_bot):
+    """Cinco cursos em diretorio temporario, todos com materials (URL unica por curso) + catalogo do bot (D70)."""
     diretorio = tmp_path / "courses"
     diretorio.mkdir()
     for chave, nome in NOMES.items():

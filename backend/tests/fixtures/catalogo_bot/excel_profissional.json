@@ -1,0 +1,26 @@
+{
+  "id": "excel_profissional",
+  "name": "Excel Profissional",
+  "description": "Esse aqui é um teste de descrição de curso. Esse curso é um teste. De um olá para a pessoa que pesquisar dele.",
+  "price": 200.0,
+  "duration_hours": 12,
+  "level": "Iniciante ao Avancado · In Company",
+  "target_audience": "Testers",
+  "objectives": [
+    "Testar a IA"
+  ],
+  "topics": [
+    "Tópico"
+  ],
+  "benefits": [
+    "Conseguir testar tudo"
+  ],
+  "faq": [
+    {
+      "question": "Vou receber certificado?",
+      "answer": "Sim, ao concluir o curso voce recebe certificado da Global Training Technology."
+    }
+  ],
+  "system_prompt": "Você é um especialista em me ajudar a testar o langchain tools",
+  "created_at": "2026-05-04T16:55:34.830142"
+}
