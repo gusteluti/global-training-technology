@@ -4,13 +4,27 @@ Dashboard de Alunos, Dashboard de Cursos, Dashboard Financeiro e o painel de
 Observabilidade do Chatbot (RF23/RF24), todos protegidos por RBAC (RF21).
 """
 
-from fastapi import APIRouter, Depends, Request
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from core.security import AuthContext, Role, require_roles, require_staff
 from db import Database
 from admin.routes import list_course_summaries
 
 router = APIRouter()
+
+ERRO_ALUNO_NAO_ENCONTRADO = "Aluno não encontrado"
+ERRO_CURSO_NAO_ENCONTRADO = "Course not found"
+
+
+def _pode_ver_valores(current_user: AuthContext) -> bool:
+    """Política D68: Gestão e Financeiro veem valores; Suporte vê só status (a chave `amount` nem aparece)."""
+    return current_user.role in (Role.ADMIN, Role.FINANCIAL)
+
+
+def _sem_amount(itens):
+    return [{chave: valor for chave, valor in item.items() if chave != "amount"} for item in itens]
 
 
 @router.get("/alunos")
@@ -33,6 +47,85 @@ async def dashboard_alunos(request: Request, current_user: AuthContext = Depends
             "active_students": active_students,
             "total_chat_sessions": total_chat_sessions,
         },
+        "students": students,
+    }
+
+
+@router.get("/alunos/{user_id}")
+async def dashboard_aluno_detalhe(user_id: int, current_user: AuthContext = Depends(require_staff)):
+    """
+    Detalhe de um aluno (F3, D73): matrículas com turma, pagamentos e resumo do chat. Id que não é de
+    aluno (inexistente, funcionário, fora do intervalo) responde o mesmo 404. Suporte não recebe `amount`.
+    """
+    detalhe = Database.get_student_detail(user_id)
+    if detalhe is None:
+        raise HTTPException(status_code=404, detail=ERRO_ALUNO_NAO_ENCONTRADO)
+
+    nomes = {course["id"]: course.get("name") for course in list_course_summaries(include_archived=True)}
+    aluno = detalhe["student"]
+    enrollments = [
+        {**item, "course_name": nomes.get(item["course_id"]) or item["course_id"]}
+        for item in detalhe["enrollments"]
+    ]
+    payments = detalhe["payments"]
+    if not _pode_ver_valores(current_user):
+        payments = _sem_amount(payments)
+
+    return {
+        "status": "success",
+        "student": {
+            "id": aluno["id"],
+            "name": aluno["name"],
+            "email": aluno["email"],
+            "created_at": aluno["created_at"],
+        },
+        "enrollments": enrollments,
+        "payments": payments,
+        "chat": {"messages": aluno["chat_messages"] or 0, "last_chat_at": aluno["last_chat_at"]},
+    }
+
+
+@router.get("/cursos/{course_id}/alunos")
+async def dashboard_curso_alunos(
+    course_id: str,
+    status: Optional[str] = None,
+    class_id: Optional[str] = None,
+    current_user: AuthContext = Depends(require_staff),
+):
+    """
+    Alunos de um curso do catálogo (F4, D73), inclusive arquivado. Filtros opcionais `status` e `class_id`
+    (`none` = sem turma). Matrícula mais recente primeiro. Suporte não recebe `amount`.
+    """
+    catalogo = {course["id"]: course for course in list_course_summaries(include_archived=True)}
+    curso = catalogo.get(course_id)
+    if curso is None:
+        raise HTTPException(status_code=404, detail=ERRO_CURSO_NAO_ENCONTRADO)
+
+    sem_turma = class_id is not None and class_id.strip().lower() == "none"
+    turma = None
+    if class_id is not None and not sem_turma:
+        try:
+            turma = int(class_id)
+        except ValueError:
+            turma = None
+        if turma is None:
+            students = []  # class_id não numérico: nenhuma turma corresponde
+        else:
+            students = Database.list_students_of_course(course_id, status, turma)
+    else:
+        students = Database.list_students_of_course(course_id, status, None, sem_turma)
+
+    if not _pode_ver_valores(current_user):
+        students = _sem_amount(students)
+
+    return {
+        "status": "success",
+        "course": {
+            "id": curso["id"],
+            "name": curso.get("name"),
+            "archived": curso.get("archived") is True,
+        },
+        "total": len(students),
         "students": students,
     }
 
