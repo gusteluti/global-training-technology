@@ -20,6 +20,7 @@ import { CadastroComponent } from './components/cadastro/cadastro.component';
 import { DefinirSenhaComponent } from './components/definir-senha/definir-senha.component';
 import { EsqueciSenhaComponent } from './components/esqueci-senha/esqueci-senha.component';
 import { RedefinirSenhaComponent } from './components/redefinir-senha/redefinir-senha.component';
+import { CourseCatalogComponent } from './components/course-catalog/course-catalog.component';
 import { AuthInterceptor } from './interceptors/auth.interceptor';
 
 // Valores em reais e datas no formato brasileiro (R$ 1.234,56).
@@ -40,7 +41,8 @@ registerLocaleData(localePt);
     CadastroComponent,
     DefinirSenhaComponent,
     EsqueciSenhaComponent,
-    RedefinirSenhaComponent
+    RedefinirSenhaComponent,
+    CourseCatalogComponent
   ],
   imports: [
     BrowserModule,

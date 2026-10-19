@@ -71,6 +71,11 @@ def _access_token_gateway() -> str:
     return (os.getenv("MERCADO_PAGO_ACCESS_TOKEN") or "").strip()
 
 
+def _pagamento_mockado() -> bool:
+    """True quando PAYMENTS_MOCK está ligado (1/true/yes/on). Só para demonstração local."""
+    return (os.getenv("PAYMENTS_MOCK") or "").strip().lower() in ("1", "true", "yes", "on")
+
+
 def money_to_float(value) -> float:
     try:
         amount = float(value)
@@ -88,12 +93,59 @@ def validate_payer(payer: PayerInput):
         raise HTTPException(status_code=400, detail="Informe um e-mail válido.")
 
 
-@router.post("/create-checkout")
-async def create_checkout(payload: CheckoutInput, request: Request):
-    validate_payer(payload.payer)
-    course = load_course_data(payload.course_id)
-    # O preço vem sempre do catálogo do servidor; price/amount enviados pelo cliente são ignorados.
+def iniciar_checkout_curso(
+    course_id: str,
+    nome: str,
+    email: str,
+    telefone: Optional[str],
+    request: Request,
+    *,
+    user_id: Optional[int] = None,
+) -> dict:
+    """Cria a preferência de pagamento no Mercado Pago e persiste matrícula/pagamento 'pending'.
+
+    O preço vem SEMPRE do catálogo do servidor (price/amount do cliente são ignorados).
+    `user_id` força o aluno dono da compra (fluxo autenticado, derivado do JWT): quando informado,
+    nenhuma conta nova é criada e a matrícula é gravada para esse usuário. Quando None (fluxo anônimo
+    da landing legada), a conta é obtida/criada por e-mail, como antes.
+    A matrícula nasce 'pending' e só é ativada pelo webhook quando o pagamento for aprovado.
+    """
+    course = load_course_data(course_id)
     amount = money_to_float(course.get("price"))
+
+    # ------------------------------------------------------------------------------------------
+    # Modo DEMONSTRAÇÃO (PAYMENTS_MOCK=1): não chama o Mercado Pago. Cria a matrícula/pagamento e
+    # já marca o pagamento como 'approved' e a matrícula como 'active', pelo mesmo caminho de
+    # transição usado pelo webhook (mantém a consistência de estados). Serve só para demo local.
+    # Com a flag desligada (padrão), o fluxo real do Mercado Pago abaixo continua valendo.
+    # ------------------------------------------------------------------------------------------
+    if _pagamento_mockado():
+        external_reference = f"{course_id}:{int(datetime.utcnow().timestamp())}:{uuid.uuid4().hex[:8]}"
+        if user_id is None:
+            user_id = Database.get_or_create_user(email, nome)
+        enrollment_id = Database.create_enrollment(user_id, course_id, external_reference)
+        payment_id = Database.record_payment(enrollment_id, amount, "mock")
+        transaction_id = f"mock-{uuid.uuid4().hex[:12]}"
+        Database.aplicar_transicao_pagamento_webhook(
+            external_reference,
+            "approved",
+            transaction_id,
+            valor_confere=lambda _local: True,
+        )
+        frontend_base_url = os.getenv("FRONTEND_BASE_URL", "http://localhost:8000").rstrip("/")
+        return {
+            "status": "success",
+            "mocked": True,
+            "preference_id": f"mock-pref-{payment_id}",
+            # Retorna à área do aluno sinalizando sucesso; nenhuma aba externa é necessária.
+            "checkout_url": f"{frontend_base_url}/student?payment=success",
+            "sandbox_checkout_url": None,
+            "external_reference": external_reference,
+            "payment_id": payment_id,
+            "payment_status": "approved",
+            "enrollment_status": "active",
+        }
+
     access_token = _access_token_gateway()
     if not access_token:
         raise HTTPException(status_code=503, detail=DETAIL_CHECKOUT_INDISPONIVEL)
@@ -102,12 +154,12 @@ async def create_checkout(payload: CheckoutInput, request: Request):
     api_base_url = os.getenv("API_BASE_URL", str(request.base_url).rstrip("/")).rstrip("/")
     # Sufixo aleatório: duas compras do mesmo curso no mesmo segundo não podem compartilhar referência
     # (o webhook localiza a matrícula pela referência).
-    external_reference = f"{payload.course_id}:{int(datetime.utcnow().timestamp())}:{uuid.uuid4().hex[:8]}"
+    external_reference = f"{course_id}:{int(datetime.utcnow().timestamp())}:{uuid.uuid4().hex[:8]}"
 
     preference_data = {
         "items": [
             {
-                "id": payload.course_id,
+                "id": course_id,
                 "title": course.get("name", "Curso Global Training"),
                 "description": course.get("description", "Matrícula em curso Global Training Technology"),
                 "quantity": 1,
@@ -116,9 +168,9 @@ async def create_checkout(payload: CheckoutInput, request: Request):
             }
         ],
         "payer": {
-            "name": payload.payer.name,
-            "email": payload.payer.email,
-            "phone": {"number": payload.payer.phone or ""},
+            "name": nome,
+            "email": email,
+            "phone": {"number": telefone or ""},
         },
         "external_reference": external_reference,
         "back_urls": {
@@ -129,10 +181,10 @@ async def create_checkout(payload: CheckoutInput, request: Request):
         "notification_url": f"{api_base_url}/api/payments/webhook",
         "statement_descriptor": "GLOBAL TRAINING",
         "metadata": {
-            "course_id": payload.course_id,
+            "course_id": course_id,
             "course_name": course.get("name"),
-            "student_name": payload.payer.name,
-            "student_email": payload.payer.email,
+            "student_name": nome,
+            "student_email": email,
         },
     }
 
@@ -171,10 +223,10 @@ async def create_checkout(payload: CheckoutInput, request: Request):
 
     # Persiste aluno/matrícula/pagamento para alimentar os dashboards
     # administrativos da Fase 2 (Dashboard de Alunos/Cursos/Financeiro).
-    # Conta do aluno (role 'student', sem senha) e matrícula 'pending'; a matrícula é
-    # ativada pelo webhook quando o pagamento for aprovado.
-    user_id = Database.get_or_create_user(payload.payer.email, payload.payer.name)
-    enrollment_id = Database.create_enrollment(user_id, payload.course_id, external_reference)
+    # Matrícula 'pending'; ativada pelo webhook quando o pagamento for aprovado.
+    if user_id is None:
+        user_id = Database.get_or_create_user(email, nome)
+    enrollment_id = Database.create_enrollment(user_id, course_id, external_reference)
     Database.record_payment(enrollment_id, amount, "mercado_pago")
 
     return {
@@ -184,6 +236,18 @@ async def create_checkout(payload: CheckoutInput, request: Request):
         "sandbox_checkout_url": preference.get("sandbox_init_point"),
         "external_reference": external_reference,
     }
+
+
+@router.post("/create-checkout")
+async def create_checkout(payload: CheckoutInput, request: Request):
+    validate_payer(payload.payer)
+    return iniciar_checkout_curso(
+        payload.course_id,
+        payload.payer.name,
+        payload.payer.email,
+        payload.payer.phone,
+        request,
+    )
 
 
 def _entregar_definicao_de_senha(external_reference: str):

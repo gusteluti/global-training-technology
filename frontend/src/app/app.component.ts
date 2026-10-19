@@ -9,13 +9,13 @@ import { AuthService } from './services/auth.service';
   selector: 'app-root',
   template: `
     <nav class="gt-nav" data-testid="app-nav">
-      <div class="gt-logo" data-testid="app-logo">
+      <a class="gt-logo gt-logo-link" data-testid="app-logo" routerLink="/" aria-label="Voltar para a página inicial" style="cursor:pointer; text-decoration:none;">
         <div class="gt-logo-circle" aria-hidden="true">GT</div>
         <div class="gt-logo-text">
           <span data-testid="app-logo-nome">Global Training</span>
           <span>Technology</span>
         </div>
-      </div>
+      </a>
       <div class="gt-nav-actions" *ngIf="auth.isAuthenticated()">
         <span class="gt-nav-role">{{ auth.getRoleLabel() }}</span>
         <button class="gt-nav-cta" type="button" (click)="logout()">Sair</button>

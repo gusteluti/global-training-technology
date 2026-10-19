@@ -50,6 +50,11 @@ export class ApiService {
     return this.http.get(`${BASE}/api/student/chat/history`, this.authHeaders());
   }
 
+  // Checkout do aluno logado (Parte 1): o corpo leva só o curso; o aluno vem do JWT no backend.
+  public studentCheckout(courseId: string) {
+    return this.http.post(`${BASE}/api/student/checkout`, { course_id: courseId }, this.authHeaders());
+  }
+
   // Dashboards de funcionário (Fase 2): mesmos endpoints usados pelo admin.html.
   public getFinancial() {
     return this.http.get(`${BASE}/api/dashboard/financeiro`, this.authHeaders());

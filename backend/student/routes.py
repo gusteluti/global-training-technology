@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, field_validator
 
 import admin.routes as admin_routes
+import payments.routes as payments_routes
 from agents.ai_observability import identidade_aluno
 from agents.llm_guard import (
     INPUT_BLOCKED,
@@ -117,6 +118,45 @@ async def obter_minha_matricula(enrollment_id: int, current_user: AuthContext = 
     if matricula is None:
         raise HTTPException(status_code=404, detail=ERRO_MATRICULA_NAO_ENCONTRADA)
     return {"status": "success", "enrollment": _montar_item(matricula)}
+
+
+class CheckoutCursoInput(BaseModel):
+    """Corpo do checkout do aluno logado. Só o curso; o aluno vem sempre do JWT (nunca do corpo)."""
+
+    course_id: str
+
+    @field_validator("course_id")
+    @classmethod
+    def _course_id_valido(cls, valor: str) -> str:
+        valor = (valor or "").strip()
+        if not valor:
+            raise ValueError("Informe o curso.")
+        return valor
+
+
+@router.post("/checkout")
+async def comprar_curso(
+    corpo: CheckoutCursoInput,
+    request: Request,
+    current_user: AuthContext = Depends(require_roles(Role.STUDENT)),
+):
+    """Checkout de compra/matrícula iniciado pelo próprio aluno logado (Parte 1).
+
+    O aluno é SEMPRE o dono do JWT: nome e e-mail vêm da conta do token, não do corpo (sem IDOR).
+    O preço vem do catálogo do servidor. Cria matrícula/pagamento 'pending' e devolve a URL de
+    pagamento; o acesso ao curso (materiais) só é liberado quando o webhook confirmar o pagamento.
+    """
+    aluno = Database.get_user_by_id(current_user.id) or {}
+    nome = aluno.get("name") or "Aluno"
+    email = aluno.get("email") or ""
+    return payments_routes.iniciar_checkout_curso(
+        corpo.course_id,
+        nome,
+        email,
+        None,
+        request,
+        user_id=current_user.id,
+    )
 
 
 @router.get("/payments")
