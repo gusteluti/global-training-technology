@@ -11,7 +11,8 @@ Contrato (D63):
     com (, ) e \\ escapados e xref válida. Os testes validam a estrutura SEM biblioteca de PDF (parse manual).
   - Texto: "RECIBO DE PAGAMENTO", "Global Training Technology", id do recibo, nome do aluno (nunca o e-mail),
     curso, valor "R$ 250,00" (sem separador de milhar, vírgula decimal, duas casas), status, forma de
-    pagamento, id da transação quando houver, data de emissão (= issued_at do recibo JSON) e, só em
+    pagamento, id da transação quando houver, data de emissão (= issued_at do recibo JSON, impressa no horário de
+    São Paulo como dd/mm/aaaa HH:MM desde a F2; o JSON continua UTC) e, só em
     'refunded', a linha "Pagamento reembolsado.". Nada de outro aluno, token, URL de material ou hash.
   - GET /api/student/payments: cada item ganha receipt_pdf_url; os campos antigos não mudam.
 
@@ -409,7 +410,7 @@ def test_a5_conteudo_do_recibo_aprovado(client):
     assert "mercado_pago" in texto or "Mercado Pago" in texto
     assert "mp-recibo-a5-991" in texto
     assert recibo["issued_at"] == "2024-02-29 13:45:10"
-    assert recibo["issued_at"] in texto, texto
+    assert "29/02/2024 10:45" in texto, texto  # F2: issued_at UTC impresso no horário de São Paulo
     assert "Pagamento reembolsado." not in texto
 
 
@@ -730,7 +731,7 @@ def test_a19_duas_chamadas_devolvem_o_mesmo_conteudo_e_a_data_vem_do_pagamento(c
     assert int(primeira.headers["content-length"]) == len(primeira.content)
     assert int(segunda.headers["content-length"]) == len(segunda.content)
     texto = _texto_do_pdf(primeira.content)
-    assert "2020-01-03 04:05:06" in texto
+    assert "03/01/2020 01:05" in texto  # F2: updated_at 2020-01-03 04:05:06 UTC no horário de São Paulo
     hoje = date.today()
     assert hoje.isoformat() not in texto and hoje.strftime("%d/%m/%Y") not in texto, "a data não pode vir do relógio"
 
@@ -749,7 +750,7 @@ def test_a20_pagamento_antigo_sem_transaction_id_e_sem_updated_at_usa_created_at
 
     _validar_estrutura(r.content)
     texto = _texto_do_pdf(r.content)
-    assert "2019-05-06 07:08:09" in texto, texto
+    assert "06/05/2019 04:08" in texto, texto  # F2: created_at 2019-05-06 07:08:09 UTC no horário de São Paulo
     assert "R$ 80,00" in texto
     assert "transa" not in texto.lower()
     assert "None" not in texto and "null" not in texto.lower()
