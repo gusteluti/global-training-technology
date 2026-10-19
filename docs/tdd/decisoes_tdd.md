@@ -1066,3 +1066,17 @@ esperada de A5, A19 e A20 em `test_b2_recibo_pdf.py` (`c657d64`), antes de o dev
 pagamento, não do relógio) é preservada e o recibo JSON segue em UTC.
 Fora da F2, como dívida: `monthly_revenue` do financeiro agrupa por mês UTC; datas do chat do aluno não verificadas;
 o teste E7 C8 pode oscilar entre 00:00 e 03:00 UTC.
+
+## D72 — S1: compra duplicada do mesmo curso (19/10/2026, modo autônomo D69)
+Política decidida pelo orquestrador (marcada para revisão do PM):
+- Checkout do aluno logado: matrícula `active` do mesmo curso → 409 `Você já está matriculado neste curso.`, sem criar
+  nada e sem chamar o gateway.
+- Matrícula `pending` do mesmo curso (aluno logado ou mesmo e-mail na landing) → **retomar**: não cria matrícula nem
+  pagamento novos; gera nova preferência com a **mesma** `external_reference` e devolve o novo link. Qualquer link pago
+  ativa a mesma matrícula pelo webhook. Se o preço do catálogo mudou, o valor do pagamento pendente é atualizado.
+- Landing (anônima) com e-mail que já tem matrícula `active` no curso → 409 `Este e-mail já tem acesso a este curso.
+  Entre na sua conta para acessá-lo.` Troca consciente: revela a quem souber e-mail e curso que existe a matrícula
+  (enumeração, cf. D21), em troca de não cobrar duas vezes. **Revisão do PM.**
+- `cancelled`/`refunded` não bloqueiam: nova compra cria matrícula nova, como hoje.
+- Tela `/catalogo`: curso com matrícula `active` mostra "Você já está matriculado" sem botão de compra; com `pending`, o
+  botão vira "Retomar pagamento".
