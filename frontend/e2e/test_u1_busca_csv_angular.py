@@ -27,7 +27,8 @@ Escolhas de forma aceitas pelo teste (nenhuma define política):
 
 Seed (harness D58, SQLite temporário):
   - 30 alunos "Aluno Pag NN" (sem matrícula) + Zuleica (matrícula ativa, pagamento aprovado 777,77 em
-    2026-10-08 01:30 UTC) + Otávio (matrícula pendente, pagamento pendente 333,33): 32 alunos -> 2 páginas (25 + 7).
+    2026-10-08 01:30 UTC) + Otávio (matrícula pendente, pagamento pendente 333,33,
+    há 2 dias): 32 alunos -> 2 páginas (25 + 7).
   - Curso U1 criado pela API de Gestão.
   - Auditoria (INSERT direto; a trilha só recusa UPDATE/DELETE):
       "U1E2E alfa" em 2026-10-08 01:30 UTC (dia 07/10 em São Paulo)
@@ -49,6 +50,11 @@ Cenários:
   X4 Suporte: nenhum exportar-csv na aba Alunos nem na lista de alunos do curso
   K1 sem erros de console de /api (4xx/5xx) nem exceções de página
 
+Ajuste mecânico D74 (U1) -> D81 (S6, autoridade 4.3): o pagamento pendente do Otávio tinha data fixa (2026-09-20),
+que a S6 (pendente com mais de 7 dias vira `cancelled` nas leituras do dashboard) expira, e o filtro "Pendente" (F2)
+deixaria de achá-lo. A data passa a ser relativa a hoje (UTC, há 2 dias). Zuleica e os eventos de auditoria continuam
+em instantes fixos (aprovado / trilha de auditoria, sem expiração; base dos testes de fuso). Intenção preservada.
+
 Execução (da raiz do repo, um por vez): py -3 -m pytest frontend/e2e/test_u1_busca_csv_angular.py -s
 """
 
@@ -62,6 +68,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -198,7 +205,8 @@ def semear():
     zuleica = criar_aluno(Database, "Zuleica Buscavel", "zuleica")
     otavio = criar_aluno(Database, "Otavio Pendente", "otavio")
     matricular(Database, zuleica, curso["id"], "active", "2026-10-08 01:30:00", 777.77, "approved")
-    matricular(Database, otavio, curso["id"], "pending", "2026-09-20 12:00:00", 333.33, "pending")
+    matricular(Database, otavio, curso["id"], "pending",
+               (datetime.now(timezone.utc) - timedelta(days=2)).strftime("%Y-%m-%d 12:00:00"), 333.33, "pending")
     evento_auditoria("U1E2E alfa", "2026-10-08 01:30:00")
     evento_auditoria("U1E2E beta", "2026-10-09 15:00:00")
     evento_auditoria("U1E2E gama", "2026-10-05 12:00:00")
