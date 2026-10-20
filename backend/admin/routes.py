@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel, Field, field_validator
 from typing import Annotated, Any, List, Dict, Optional
 from dotenv import load_dotenv
@@ -17,6 +17,7 @@ from core.security import (
     TOKEN_TTL_SECONDS,
 )
 from core.audit import change, legacy_actor, record_audit
+from admin import course_draft
 from db import Database
 
 load_dotenv()
@@ -281,6 +282,32 @@ async def create_course(course: CourseInput, request: Request, current_user: Aut
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error creating course: {str(e)}")
+
+@router.post("/course-draft")
+def course_draft_from_file(file: UploadFile = File(...),
+                           current_user: AuthContext = Depends(require_roles(Role.ADMIN))):
+    """Rascunho de curso a partir de anexo JSON ou PDF (F7, D78). Nada é gravado: o curso só nasce quando a
+    Gestão salva o formulário pela rota de criação. O responsável vem só do token."""
+    conteudo = file.file.read(course_draft.MAX_BYTES + 1)
+    if len(conteudo) > course_draft.MAX_BYTES:
+        raise HTTPException(status_code=413, detail=course_draft.MSG_413)
+    try:
+        formato, dados = course_draft.detectar_formato(conteudo)
+        if formato == "json":
+            draft, warnings = course_draft.montar_rascunho(dados, "json")
+        else:
+            draft, warnings = course_draft.rascunho_do_pdf(conteudo)
+    except course_draft.DraftError as erro:
+        raise HTTPException(status_code=erro.status_code, detail=erro.detail)
+
+    nome = course_draft.sanitizar_nome_arquivo(file.filename)
+    record_audit(
+        "course.draft_from_file",
+        f"Rascunho de curso gerado a partir de arquivo {formato.upper()} ({nome})",
+        user=current_user,
+        entity_type="course",
+    )
+    return {"status": "success", "format": formato, "draft": draft, "warnings": warnings}
 
 @router.get("/courses")
 async def list_courses(current_user: AuthContext = Depends(require_staff)):
