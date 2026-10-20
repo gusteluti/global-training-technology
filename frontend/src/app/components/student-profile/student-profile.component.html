@@ -1,0 +1,52 @@
+<!-- Meu perfil (U3/S5, D80): só os dados do próprio aluno; a identidade vem do token. -->
+<div class="row justify-content-center mt-4">
+  <div class="col-md-8 col-lg-6">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h3 class="mb-0">Meu perfil</h3>
+      <a routerLink="/student" class="btn btn-link">Voltar para a área do aluno</a>
+    </div>
+
+    <div *ngIf="ok" class="alert alert-success" data-testid="perfil-ok">{{ ok }}</div>
+    <div *ngIf="erro" class="alert alert-danger" data-testid="perfil-erro">{{ erro }}</div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Dados pessoais</h5>
+        <form (ngSubmit)="salvarDados()">
+          <div class="mb-3">
+            <label class="form-label">E-mail</label>
+            <input class="form-control" [value]="email" disabled />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Nome</label>
+            <input class="form-control" [(ngModel)]="nome" name="nome" data-testid="perfil-nome" required maxlength="120" />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Telefone</label>
+            <input class="form-control" [(ngModel)]="telefone" name="telefone" data-testid="perfil-telefone" />
+          </div>
+          <button class="btn btn-primary" type="submit" data-testid="perfil-salvar" [disabled]="enviando">Salvar</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">Trocar senha</h5>
+        <form (ngSubmit)="trocarSenha()">
+          <div class="mb-3">
+            <label class="form-label">Senha atual</label>
+            <input type="password" class="form-control" [(ngModel)]="senhaAtual" name="senhaAtual"
+                   data-testid="perfil-senha-atual" autocomplete="current-password" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Nova senha (mínimo 8 caracteres)</label>
+            <input type="password" class="form-control" [(ngModel)]="senhaNova" name="senhaNova"
+                   data-testid="perfil-senha-nova" autocomplete="new-password" required />
+          </div>
+          <button class="btn btn-primary" type="submit" data-testid="perfil-senha-salvar" [disabled]="enviando">Trocar senha</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>

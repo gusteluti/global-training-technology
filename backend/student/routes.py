@@ -8,11 +8,12 @@ Regras:
 """
 
 import json
-from typing import Dict, List, Optional
+import re
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 import admin.routes as admin_routes
 import payments.routes as payments_routes
@@ -29,7 +30,17 @@ from agents.llm_guard import (
 )
 from core import rate_limit
 from core.receipt_pdf import gerar_recibo_pdf
-from core.security import AuthContext, Role, require_roles
+from core.audit import record_audit
+from core.password_setup import senha_aceitavel
+from core.security import (
+    ERRO_SESSAO_EXPIRADA,
+    AuthContext,
+    Role,
+    create_account_token,
+    get_password_hash,
+    require_roles,
+    verify_password,
+)
 from db import Database
 
 router = APIRouter()
@@ -313,3 +324,98 @@ def _handoff_aluno(manager_agent, mensagem: str, user_id: int, course_id: Option
 async def historico_do_chat(current_user: AuthContext = Depends(require_roles(Role.STUDENT))):
     """Conversa contínua do próprio aluno, em ordem cronológica crescente."""
     return {"status": "success", "messages": Database.list_chat_messages(current_user.id)}
+
+
+# --- Perfil do aluno (U3, D80) ------------------------------------------------------------------------------------
+# O alvo é sempre o dono do JWT: id, e-mail, papel ou qualquer outro campo do corpo é ignorado.
+
+NOME_MAXIMO = 120
+TELEFONE_MIN_DIGITOS = 10
+TELEFONE_MAX_DIGITOS = 15
+# Telefone aceita dígitos e a pontuação usual; letras ou outros símbolos tornam o valor inválido.
+_TELEFONE_PERMITIDO = re.compile(r"[0-9\s()+.\-]*")
+ERRO_NOME = "Informe o nome (de 1 a 120 caracteres)."
+ERRO_TELEFONE = "Telefone inválido: informe de 10 a 15 dígitos."
+ERRO_SENHA_ATUAL = "Senha atual incorreta."
+ERRO_NOVA_SENHA = "A nova senha precisa ter pelo menos 8 caracteres (e no máximo 72 bytes)."
+
+
+class PerfilInput(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    # Validados na rota, para a mensagem de erro sair em português.
+    name: Any = None
+    phone: Any = None
+
+
+class TrocaSenhaInput(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    current_password: str
+    new_password: str
+
+
+def _validar_nome(valor: Any) -> str:
+    nome = valor.strip() if isinstance(valor, str) else ""
+    if not nome or len(nome) > NOME_MAXIMO:
+        raise HTTPException(status_code=422, detail=ERRO_NOME)
+    return nome
+
+
+def _validar_telefone(valor: Any) -> Optional[str]:
+    """Telefone limpo (só dígitos), ou None para remover. Vazio ou nulo remove; fora da regra -> 422."""
+    if valor is None or (isinstance(valor, str) and not valor.strip()):
+        return None
+    if not isinstance(valor, str) or not _TELEFONE_PERMITIDO.fullmatch(valor):
+        raise HTTPException(status_code=422, detail=ERRO_TELEFONE)
+    digitos = re.sub(r"\D", "", valor)
+    if not TELEFONE_MIN_DIGITOS <= len(digitos) <= TELEFONE_MAX_DIGITOS:
+        raise HTTPException(status_code=422, detail=ERRO_TELEFONE)
+    return digitos
+
+
+def _perfil(user_id: int) -> Dict:
+    perfil = Database.get_student_profile(user_id) or {}
+    return {
+        "status": "success",
+        "id": perfil.get("id"),
+        "name": perfil.get("name"),
+        "email": perfil.get("email"),
+        "phone": perfil.get("phone"),
+    }
+
+
+@router.get("/me")
+async def meu_perfil(current_user: AuthContext = Depends(require_roles(Role.STUDENT))):
+    """Dados do próprio aluno (dono do JWT)."""
+    return _perfil(current_user.id)
+
+
+@router.put("/me")
+async def atualizar_meu_perfil(corpo: PerfilInput,
+                               current_user: AuthContext = Depends(require_roles(Role.STUDENT))):
+    """Atualiza nome e telefone do próprio aluno. E-mail não muda. Telefone omitido no corpo fica como está."""
+    nome = _validar_nome(corpo.name)
+    alterar_telefone = "phone" in corpo.model_fields_set
+    telefone = _validar_telefone(corpo.phone) if alterar_telefone else None
+    Database.update_student_profile(current_user.id, nome, telefone, alterar_telefone)
+    return _perfil(current_user.id)
+
+
+@router.post("/me/password")
+async def trocar_minha_senha(corpo: TrocaSenhaInput,
+                             current_user: AuthContext = Depends(require_roles(Role.STUDENT))):
+    """Troca de senha do próprio aluno (S5, D80). Sucesso incrementa token_version (as outras sessões caem) e
+    devolve um token novo para a sessão atual."""
+    conta = Database.get_password_hash_and_version(current_user.id)
+    if conta is None or not verify_password(corpo.current_password, conta["password_hash"]):
+        raise HTTPException(status_code=400, detail=ERRO_SENHA_ATUAL)
+    if not senha_aceitavel(corpo.new_password):
+        raise HTTPException(status_code=400, detail=ERRO_NOVA_SENHA)
+    versao = Database.trocar_senha(current_user.id, conta["password_hash"], conta["token_version"] or 0,
+                                   get_password_hash(corpo.new_password))
+    if versao is None:
+        # Outra troca (ou a desativação) aconteceu entre a conferência e a gravação: esta sessão já não vale.
+        raise HTTPException(status_code=401, detail=ERRO_SESSAO_EXPIRADA)
+    record_audit("student.password_change", "Senha alterada pelo próprio aluno", user=current_user,
+                 entity_type="student", entity_id=str(current_user.id))
+    token = create_account_token(current_user.id, current_user.email, Role.STUDENT.value, versao)
+    return {"status": "success", "token": token}

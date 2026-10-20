@@ -762,3 +762,36 @@ async def set_enrollment_class(
             changes=[change("class_id", antes["id"] if antes else None, depois["id"] if depois else None)],
         )
     return {"status": "success", "enrollment_id": enrollment_id, "class_id": body.class_id}
+
+
+# --- Conta do aluno: desativar / reativar (S4, D80) ---------------------------------------------------------------
+
+ERRO_ALUNO_NAO_ENCONTRADO = "Aluno não encontrado"
+
+
+def _alterar_conta_do_aluno(user_id: int, ativo: bool, current_user: AuthContext) -> dict:
+    """Só Gestão. Id que não é de aluno (inexistente, funcionário, fora do INTEGER) -> 404. Idempotente: o evento
+    só é gravado quando o estado muda. O responsável vem do token."""
+    resultado = Database.set_student_active(user_id, ativo)
+    if resultado is None:
+        raise HTTPException(status_code=404, detail=ERRO_ALUNO_NAO_ENCONTRADO)
+    if resultado["changed"]:
+        record_audit(
+            "student.reactivate" if ativo else "student.deactivate",
+            f"Conta do aluno {user_id} {'reativada' if ativo else 'desativada'}",
+            user=current_user,
+            entity_type="student",
+            entity_id=str(user_id),
+            changes=[change("is_active", not ativo, ativo)],
+        )
+    return {"status": "success", "user_id": user_id, "is_active": ativo}
+
+
+@router.post("/students/{user_id}/deactivate")
+async def deactivate_student(user_id: int, current_user: AuthContext = Depends(require_roles(Role.ADMIN))):
+    return _alterar_conta_do_aluno(user_id, False, current_user)
+
+
+@router.post("/students/{user_id}/reactivate")
+async def reactivate_student(user_id: int, current_user: AuthContext = Depends(require_roles(Role.ADMIN))):
+    return _alterar_conta_do_aluno(user_id, True, current_user)

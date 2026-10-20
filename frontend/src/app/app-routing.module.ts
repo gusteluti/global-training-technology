@@ -8,6 +8,7 @@ import { DefinirSenhaComponent } from './components/definir-senha/definir-senha.
 import { EsqueciSenhaComponent } from './components/esqueci-senha/esqueci-senha.component';
 import { RedefinirSenhaComponent } from './components/redefinir-senha/redefinir-senha.component';
 import { CourseCatalogComponent } from './components/course-catalog/course-catalog.component';
+import { StudentProfileComponent } from './components/student-profile/student-profile.component';
 
 import { AuthGuard } from './guards/auth.guard';
 import { RoleGuard } from './guards/role.guard';
@@ -22,6 +23,7 @@ const routes: Routes = [
   // Link do e-mail de conta existente (D26). Rota explícita: sem ela cai no curinga.
   { path: 'login', component: LoginComponent },
   { path: 'student', component: StudentDashboardComponent, canActivate: [AuthGuard, RoleGuard], data: { roles: ['student'] }, resolve: { painel: EnrollmentsResolver } },
+  { path: 'student/perfil', component: StudentProfileComponent, canActivate: [AuthGuard, RoleGuard], data: { roles: ['student'] } },
   { path: 'catalogo', component: CourseCatalogComponent, canActivate: [AuthGuard, RoleGuard], data: { roles: ['student'] } },
   { path: 'admin', component: AdminDashboardComponent, canActivate: [AuthGuard, RoleGuard], data: { roles: STAFF_ROLES } },
   // Rotas públicas da conta do aluno (sem AuthGuard). Devem vir antes do curinga.

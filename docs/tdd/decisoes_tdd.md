@@ -1235,3 +1235,32 @@ Política decidida pelo orquestrador (revisão do PM). Contrato:
   `test_b1_recuperacao_senha.py::test_f11_*` conferem com 7–8 logins errados no mesmo e-mail que a senha dos
   perdedores não autentica; pela D79 o 6º vira 429. A conferência passa a limpar `login_attempts` entre as tentativas,
   mantendo a exigência estrita de 400 (intenção preservada: só a senha vencedora autentica).
+
+## D80 — S4/S5/U3/U9: conta do aluno (20/10/2026, modo autônomo D69)
+Política decidida pelo orquestrador (revisão do PM). Contrato:
+- **Banco:** `users.is_active` (padrão 1) e `users.token_version` (padrão 0), migração idempotente. O JWT de conta
+  ganha a claim `tv`; token sem `tv` vale como 0 (compatível). Toda rota autenticada por JWT de conta confere, no banco,
+  conta existente, ativa e `tv` igual; senão 401 `Sessão expirada. Entre novamente.` (token legado de funcionário não
+  muda).
+- **S5:** definir senha (E2), redefinir senha (B1) e trocar senha logado incrementam `token_version`: tokens emitidos
+  antes deixam de valer.
+- **S4:** `POST /api/admin/students/{user_id}/deactivate` e `/reactivate` (só Gestão; id que não é aluno → 404 `Aluno
+  não encontrado`), idempotentes; desativar incrementa `token_version`; eventos `student.deactivate` /
+  `student.reactivate`. Login de aluno desativado **com a senha certa** → 403 `Sua conta está desativada. Fale com o
+  suporte.` (senha errada continua com a resposta genérica, sem enumeração). O detalhe do aluno (F3) e a lista de alunos
+  trazem `is_active`.
+- **U3:** `GET /api/student/me` → `{id, name, email, phone}`; `PUT /api/student/me` `{name, phone}` (e-mail não muda;
+  nome 1–120 caracteres aparados; telefone opcional, 10 a 15 dígitos depois de limpar; inválido → 422 com mensagem em
+  português); `POST /api/student/me/password` `{current_password, new_password}`: senha atual errada → 400 `Senha atual
+  incorreta.`; nova senha com a política da D14/D52; sucesso devolve `{status, token}` novo (a sessão atual continua,
+  as outras caem) e grava `student.password_change`. Nada aceita id de usuário do cliente.
+- **Telas:** `/student/perfil` (link "Meu perfil" na área do aluno) com `perfil-nome`, `perfil-telefone`,
+  `perfil-salvar`, `perfil-senha-atual`, `perfil-senha-nova`, `perfil-senha-salvar`, mensagens `perfil-ok` /
+  `perfil-erro`; o cabeçalho da área do aluno mostra `Olá, <primeiro nome>!` (resolve a dívida da D2). No detalhe do
+  aluno (F3), Gestão vê `aluno-desativar` / `aluno-reativar` com confirmação e o badge `aluno-desativado`.
+- **U9:** resposta 401 de rota `/api/student/` ou `/api/dashboard/`/`/api/admin/` com JWT → a SPA apaga o token e vai
+  para `/login?next=<rota atual>` mostrando `Sua sessão expirou. Entre novamente.`
+- Forma (dev, aceita pelo orquestrador): telefone em tabela `user_profiles` (a migração de `users` só ganha as duas
+  colunas da D80); `<base href="/">` no `index.html` (faltava; rotas de dois segmentos como `/student/perfil` ficavam
+  em branco); sessão expirada sinalizada por `?sessao=expirada`. Dívidas: troca de senha logado sem limite de
+  tentativas; conta desativada ainda recebe link de recuperação (não reativa a conta).

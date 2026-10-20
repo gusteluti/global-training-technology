@@ -93,6 +93,8 @@ export class StudentDashboardComponent implements OnInit {
   chatWhatsapp: AcaoWhatsapp | null = null;
   erroChat = '';
   email = '';
+  // Primeiro nome do próprio aluno (GET /api/student/me, D80); vazio mantém a saudação genérica.
+  primeiroNome = '';
 
   constructor(private route: ActivatedRoute, private router: Router, private api: ApiService, auth: AuthService) {
     // E-mail do próprio token (nunca de outro aluno): mostrado só no cabeçalho.
@@ -106,6 +108,10 @@ export class StudentDashboardComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.api.getMyProfile().subscribe({
+      next: (res: any) => this.primeiroNome = String(res?.name || '').trim().split(/\s+/)[0] || '',
+      error: () => this.primeiroNome = ''
+    });
     this.api.getMyPayments().subscribe({
       next: (res: any) => this.payments = res.payments || [],
       error: () => this.erroFinanceiro = 'Não foi possível carregar seu histórico financeiro.'

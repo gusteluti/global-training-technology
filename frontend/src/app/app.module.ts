@@ -21,6 +21,7 @@ import { DefinirSenhaComponent } from './components/definir-senha/definir-senha.
 import { EsqueciSenhaComponent } from './components/esqueci-senha/esqueci-senha.component';
 import { RedefinirSenhaComponent } from './components/redefinir-senha/redefinir-senha.component';
 import { CourseCatalogComponent } from './components/course-catalog/course-catalog.component';
+import { StudentProfileComponent } from './components/student-profile/student-profile.component';
 import { AuthInterceptor } from './interceptors/auth.interceptor';
 import { DataSpPipe } from './pipes/data-sp.pipe';
 
@@ -44,6 +45,7 @@ registerLocaleData(localePt);
     EsqueciSenhaComponent,
     RedefinirSenhaComponent,
     CourseCatalogComponent,
+    StudentProfileComponent,
     DataSpPipe
   ],
   imports: [
