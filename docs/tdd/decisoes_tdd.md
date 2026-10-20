@@ -1314,3 +1314,19 @@ estabelecimento, 7 dias). **Revisão do PM.** Contrato:
   (`Cancelamento em análise`, `Cancelamento aprovado`, `Cancelamento recusado: <motivo>`). Dashboard financeiro: seção
   "Solicitações de cancelamento" com `cancelamento-row`, `cancelamento-aprovar` (confirm), `cancelamento-motivo` +
   `cancelamento-recusar`.
+
+## D83 — U8: edição de turma, término e horário (20/10/2026, modo autônomo D69)
+Contrato (forma; textos marcados para revisão):
+- Turma ganha `ends_on` (`AAAA-MM-DD`, opcional) e `schedule` (texto livre aparado, até 120 caracteres, opcional, ex.
+  `Seg e Qua, 19h às 22h`), colunas novas com migração idempotente; turma antiga devolve `null`. Aceitos em
+  `POST /api/admin/classes` e `PUT /api/admin/classes/{id}` (PUT sem o campo preserva). `ends_on` anterior a
+  `starts_on` → 422 `A data de término não pode ser anterior ao início.`; `schedule` acima de 120 → 422
+  `O horário pode ter no máximo 120 caracteres.` Auditoria da L1 passa a registrar as mudanças desses campos.
+- Leitura: `/api/admin/classes`, dashboard de cursos, `GET /api/courses/{id}/turmas` (D75), detalhe do aluno (F3),
+  `/api/student/enrollments` (`class_ends_on`, `class_schedule`) e o bloco de turmas do chat (F5b) passam a incluir
+  término e horário. Nenhuma regra de venda muda (abertas continuam pelo início, D75).
+- Tela de turmas (dashboard de cursos, só Gestão): cada turma ganha `turma-editar` (formulário na linha:
+  `turma-edit-nome`, `-inicio`, `-fim`, `-horario`, `-capacidade`, `turma-edit-salvar`, `turma-edit-cancelar`) e
+  `turma-excluir` (confirm com o nome; o 409 da L1 aparece em `turma-erro`). A criação ganha `turma-new-end` e
+  `turma-new-schedule`. Catálogo: rótulo da turma inclui o horário quando houver. Área do aluno: `curso-turma`
+  acrescenta ` · <horário>` e ` · término em dd/mm/aaaa` quando houver.
