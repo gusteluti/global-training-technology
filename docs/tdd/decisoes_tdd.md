@@ -1159,3 +1159,6 @@ Contrato (forma, orquestrador; textos visíveis marcados para revisão):
 - Complemento (forma): curso com turmas abertas **todas lotadas** → nenhuma ação (não vende); curso cujas turmas já
   começaram todas (nenhuma aberta) → tratado como sem turmas (ação com `class_id` nulo, coerente com o checkout sem
   turma da D75). Turma lotada aparece no prompt marcada como lotada, sem ação.
+- Ajuste mecânico (autoridade 4.3), guarda original → D76: `test_admin_angular.py` ("sem login: /admin volta para a
+  tela de login") e `test_e3_painel_angular.py` (P7) passam a esperar `/login?next=<rota>` (`7a816d1`); intenção
+  preservada (sem login não entra e cai no login).
