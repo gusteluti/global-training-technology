@@ -1264,3 +1264,23 @@ Política decidida pelo orquestrador (revisão do PM). Contrato:
   colunas da D80); `<base href="/">` no `index.html` (faltava; rotas de dois segmentos como `/student/perfil` ficavam
   em branco); sessão expirada sinalizada por `?sessao=expirada`. Dívidas: troca de senha logado sem limite de
   tentativas; conta desativada ainda recebe link de recuperação (não reativa a conta).
+
+## D81 — U4/S6: matrícula manual e expiração de pendente (20/10/2026, modo autônomo D69)
+Política decidida pelo orquestrador (revisão do PM). Contrato:
+- **U4:** `POST /api/admin/enrollments` (só Gestão) `{email, name?, course_id, class_id?, reason, amount?}`.
+  `reason` obrigatório (5 a 300 caracteres aparados); `amount` ≥ 0, padrão 0 (cortesia). Curso inexistente/arquivado →
+  404 `Course not found`; turma com as regras da D75 (404 `Turma não encontrada`, 409 lotada); aluno já `active` no
+  curso → 409 `O aluno já está matriculado neste curso.` Conta inexistente é criada (aluno sem senha) e recebe o link de
+  definição de senha da E2 (mesmo mecanismo de envio); conta de funcionário → 409 `Este e-mail pertence a um
+  funcionário.` Cria matrícula `active` e pagamento `approved` com `payment_method` `manual` e o valor informado, numa
+  transação; uma `pending` existente do mesmo curso é reaproveitada (vira `active`) em vez de criar outra. Evento
+  `enrollment.manual` com motivo, valor, curso e turma. Tela: no dashboard de cursos (lista de alunos do curso, F4),
+  botão `matricula-manual-abrir` (só Gestão) com formulário `matricula-manual-email`, `-nome`, `-turma`, `-valor`,
+  `-motivo`, `-salvar` e mensagens `matricula-manual-ok` / `-erro`. Recibo do aluno mostra forma de pagamento
+  "Matrícula manual".
+- **S6:** pagamento `pending` (e a matrícula `pending` dele) criado há mais de **7 dias** passa a `cancelled`
+  (pagamento e matrícula), liberando a vaga. Executado por `Database.expirar_pendentes()` no startup e antes das
+  leituras de dashboard, listas do aluno e checkout (UPDATE barato, idempotente). Cada expiração grava
+  `payment.expired`. Webhook `approved` depois da expiração: a máquina de estados da E9 já permite
+  `cancelled → approved`; a matrícula volta a `active` (regra da S8 para a turma) e grava `payment.approved_after_expiry`.
+  Retomada (D72) só vale para `pending`: a expirada não é retomada (compra nova).
