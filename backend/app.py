@@ -8,7 +8,8 @@ from typing import Optional
 from pydantic import BaseModel
 
 # Import routers
-from admin.routes import list_course_summaries, router as admin_router
+from fastapi import HTTPException
+from admin.routes import curso_arquivado, list_course_summaries, load_course_data, router as admin_router
 from payments.routes import pagamento_mockado_efetivo, router as payments_router
 from dashboard.routes import router as dashboard_router
 from agents.llm_guard import (
@@ -213,6 +214,15 @@ async def public_courses():
         "total": len(courses),
         "courses": courses
     }
+
+@app.get("/api/courses/{course_id}/turmas")
+async def public_course_classes(course_id: str):
+    """Turmas abertas do curso para a compra (F5a, D75): lista pura `[{id, name, starts_on, capacity,
+    seats_left}]`, sem dado de aluno. Curso inexistente ou arquivado -> 404 `Course not found`."""
+    course = load_course_data(course_id)
+    if curso_arquivado(course):
+        raise HTTPException(status_code=404, detail="Course not found")
+    return Database.list_open_classes_for_sale(course_id)
 
 # Include admin routes
 app.include_router(admin_router, prefix="/api/admin", tags=["admin"])
