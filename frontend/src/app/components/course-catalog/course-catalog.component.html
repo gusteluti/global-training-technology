@@ -27,11 +27,25 @@
           class="alert alert-success mb-0 text-center"
           data-testid="catalogo-ja-matriculado">Você já está matriculado</div>
         <ng-template #botaoCompra>
+          <select
+            *ngIf="turmas[curso.id]?.length"
+            class="form-select mb-2"
+            data-testid="catalogo-turma"
+            [attr.aria-label]="'Turma de ' + curso.name"
+            [disabled]="comprandoId === curso.id"
+            (change)="escolherTurma(curso.id, $any($event.target).value)">
+            <option value="" [selected]="!turmaEscolhida[curso.id]">Escolha a turma</option>
+            <option
+              *ngFor="let turma of turmas[curso.id]"
+              [value]="turma.id"
+              [disabled]="lotada(turma)"
+              [selected]="turmaEscolhida[curso.id] === turma.id">{{ rotuloTurma(turma) }}</option>
+          </select>
           <button
             type="button"
             class="btn btn-primary w-100"
             data-testid="catalogo-comprar"
-            [disabled]="comprandoId === curso.id"
+            [disabled]="comprandoId === curso.id || faltaTurma(curso)"
             (click)="comprar(curso)">
             {{ comprandoId === curso.id ? 'Criando pagamento...' : (situacao[curso.id] === 'pending' ? 'Retomar pagamento' : 'Comprar e matricular') }}
           </button>

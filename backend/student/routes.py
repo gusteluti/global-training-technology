@@ -127,6 +127,8 @@ class CheckoutCursoInput(BaseModel):
     """Corpo do checkout do aluno logado. Só o curso; o aluno vem sempre do JWT (nunca do corpo)."""
 
     course_id: str
+    # F5a (D75): turma opcional (sem ela, a matrícula nasce sem turma).
+    class_id: Optional[int] = None
 
     @field_validator("course_id")
     @classmethod
@@ -160,6 +162,7 @@ async def comprar_curso(
         request,
         user_id=current_user.id,
         auditor=current_user,
+        class_id=corpo.class_id,
     )
 
 

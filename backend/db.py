@@ -43,6 +43,9 @@ class Database:
         """)
         Database._ensure_column(cursor, "enrollments", "class_id", "INTEGER")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_enrollments_class ON enrollments (class_id)")
+        # F5a (D75): fim da reserva de vaga do checkout, em UTC 'AAAA-MM-DD HH:MM:SS' (mesmo formato de
+        # CURRENT_TIMESTAMP). Nulo = sem reserva (atribuída pela Gestão ou anterior à F5a).
+        Database._ensure_column(cursor, "enrollments", "reserved_until", "TEXT")
 
         # Payments table
         cursor.execute("""
@@ -662,6 +665,173 @@ class Database:
         finally:
             conn.close()
 
+    # --- F5a (D75): turma no checkout, reserva de vaga e lotação ---------------------------------------
+    RESERVA_VAGA = timedelta(minutes=30)
+
+    # Ocupação de uma turma PARA VENDA (não muda os números do dashboard L1): active + pending com reserva
+    # válida + pending sem reserva. `id != ?` exclui a própria matrícula (retomada e webhook).
+    _SQL_OCUPACAO_VENDA = """
+        SELECT COUNT(*) FROM enrollments
+        WHERE class_id = ? AND id != ?
+          AND (status = 'active'
+               OR (status = 'pending' AND (reserved_until IS NULL OR reserved_until > ?)))
+    """
+
+    @staticmethod
+    def _utc_texto(instante: datetime) -> str:
+        """Instante UTC no formato do banco (o mesmo de CURRENT_TIMESTAMP)."""
+        return instante.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+    @staticmethod
+    def _conferir_turma_para_venda(conn: sqlite3.Connection, course_id: str, class_id, excluir_enrollment_id,
+                                   agora: datetime) -> str:
+        """'ok' | 'not_found' (inexistente, de outro curso ou já iniciada em São Paulo) | 'full'."""
+        if not Database._id_sqlite_valido(class_id):
+            return "not_found"
+        turma = conn.execute(
+            "SELECT id, course_id, starts_on, capacity FROM classes WHERE id = ?", (class_id,)
+        ).fetchone()
+        if turma is None or turma[1] != course_id:
+            return "not_found"
+        if turma[2] is not None and str(turma[2]) < dia_sao_paulo(agora).isoformat():
+            return "not_found"
+        capacidade = turma[3]
+        if capacidade is None:
+            return "ok"
+        ocupadas = conn.execute(
+            Database._SQL_OCUPACAO_VENDA,
+            (class_id, excluir_enrollment_id if excluir_enrollment_id is not None else -1,
+             Database._utc_texto(agora)),
+        ).fetchone()[0]
+        return "full" if ocupadas >= capacidade else "ok"
+
+    @staticmethod
+    def conferir_turma_para_venda(course_id: str, class_id, excluir_enrollment_id: Optional[int] = None) -> str:
+        """Conferência prévia (sem lock), antes do gateway. A decisão final é a de `reservar_vaga_no_checkout`."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        try:
+            return Database._conferir_turma_para_venda(
+                conn, course_id, class_id, excluir_enrollment_id, datetime.now(timezone.utc)
+            )
+        finally:
+            conn.close()
+
+    @staticmethod
+    def reservar_vaga_no_checkout(
+        course_id: str,
+        class_id: int,
+        *,
+        amount: float,
+        payment_method: str,
+        external_reference: str,
+        pendente_enrollment_id: Optional[int] = None,
+        user_id: Optional[int] = None,
+        email: Optional[str] = None,
+        nome: Optional[str] = None,
+    ) -> Dict:
+        """Conferência de vaga e gravação na MESMA transação (BEGIN IMMEDIATE): duas compras da última vaga
+        não vendem as duas. Retomada (pendente_enrollment_id): troca a turma e renova a reserva da pendente
+        (a própria reserva não conta contra ela) e reaproveita o pagamento pendente. Compra nova: cria a conta
+        (landing, por e-mail, se não existir), a matrícula 'pending' com turma e reserva e o pagamento.
+
+        Devolve {"outcome": "ok" | "not_found" | "full" | "stale", "enrollment_id", "payment_id"}.
+        Só "ok" grava. "stale": a pendente deixou de estar pendente durante a compra."""
+        agora = datetime.now(timezone.utc)
+        conn = Database._abrir_transacao_imediata()
+        try:
+            outcome = Database._conferir_turma_para_venda(conn, course_id, class_id, pendente_enrollment_id, agora)
+            if outcome != "ok":
+                conn.execute("ROLLBACK")
+                return {"outcome": outcome, "enrollment_id": None, "payment_id": None}
+            reserva = Database._utc_texto(agora + Database.RESERVA_VAGA)
+
+            if pendente_enrollment_id is not None:
+                atualizadas = conn.execute(
+                    "UPDATE enrollments SET class_id = ?, reserved_until = ? WHERE id = ? AND status = 'pending'",
+                    (class_id, reserva, pendente_enrollment_id),
+                ).rowcount
+                if atualizadas != 1:
+                    conn.execute("ROLLBACK")
+                    return {"outcome": "stale", "enrollment_id": None, "payment_id": None}
+                enrollment_id = pendente_enrollment_id
+                pagamento = conn.execute(
+                    "SELECT id FROM payments WHERE enrollment_id = ? ORDER BY id DESC LIMIT 1", (enrollment_id,)
+                ).fetchone()
+                if pagamento is None:
+                    payment_id = conn.execute(
+                        "INSERT INTO payments (enrollment_id, amount, payment_method, status) "
+                        "VALUES (?, ?, ?, 'pending')",
+                        (enrollment_id, amount, payment_method),
+                    ).lastrowid
+                else:
+                    payment_id = pagamento["id"]
+                    conn.execute(
+                        """UPDATE payments SET amount = ?, updated_at = CURRENT_TIMESTAMP
+                           WHERE id = ? AND status = 'pending' AND amount != ?""",
+                        (amount, payment_id, amount),
+                    )
+            else:
+                if user_id is None:
+                    conta = conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+                    if conta is not None:
+                        user_id = conta["id"]
+                    else:
+                        user_id = conn.execute(
+                            "INSERT INTO users (email, name, password_hash, role) VALUES (?, ?, NULL, 'student')",
+                            (email, nome),
+                        ).lastrowid
+                enrollment_id = conn.execute(
+                    """INSERT INTO enrollments (user_id, course_id, status, external_reference, class_id,
+                                                reserved_until)
+                       VALUES (?, ?, 'pending', ?, ?, ?)""",
+                    (user_id, course_id, external_reference, class_id, reserva),
+                ).lastrowid
+                payment_id = conn.execute(
+                    "INSERT INTO payments (enrollment_id, amount, payment_method, status) VALUES (?, ?, ?, 'pending')",
+                    (enrollment_id, amount, payment_method),
+                ).lastrowid
+            conn.execute("COMMIT")
+            return {"outcome": "ok", "enrollment_id": enrollment_id, "payment_id": payment_id}
+        except Exception:
+            if conn.in_transaction:
+                conn.execute("ROLLBACK")
+            raise
+        finally:
+            conn.close()
+
+    @staticmethod
+    def list_open_classes_for_sale(course_id: str) -> List[Dict]:
+        """Turmas abertas do curso (início nulo ou >= hoje em São Paulo) com vagas para venda.
+        `seats_left` nulo sem capacidade; nunca negativo. Ordem: início (nulos por último) e nome."""
+        agora = datetime.now(timezone.utc)
+        conn = sqlite3.connect(Database.DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            turmas = conn.execute(
+                """SELECT id, name, starts_on, capacity FROM classes
+                   WHERE course_id = ? AND (starts_on IS NULL OR starts_on >= ?)
+                   ORDER BY (starts_on IS NULL), starts_on, name, id""",
+                (course_id, dia_sao_paulo(agora).isoformat()),
+            ).fetchall()
+            resultado = []
+            for turma in turmas:
+                seats_left = None
+                if turma["capacity"] is not None:
+                    ocupadas = conn.execute(
+                        Database._SQL_OCUPACAO_VENDA, (turma["id"], -1, Database._utc_texto(agora))
+                    ).fetchone()[0]
+                    seats_left = max(turma["capacity"] - ocupadas, 0)
+                resultado.append({
+                    "id": turma["id"],
+                    "name": turma["name"],
+                    "starts_on": turma["starts_on"],
+                    "capacity": turma["capacity"],
+                    "seats_left": seats_left,
+                })
+            return resultado
+        finally:
+            conn.close()
+
     # E9 (D48/D49.5): update_payment_status* mantêm o comportamento anterior, com uma exceção imposta pelo
     # índice único de transaction_id: se outro pagamento já tem esse transaction_id, o status é atualizado
     # e o transaction_id do pagamento fica como estava (em vez de estourar IntegrityError).
@@ -834,6 +1004,8 @@ class Database:
                     "UPDATE enrollments SET status = ? WHERE id = ?",
                     (status_matricula, pagamento["enrollment_id"]),
                 )
+            if status_matricula == "active":
+                resultado["class_overflow"] = Database._tirar_da_turma_se_lotada(conn, pagamento["enrollment_id"])
             conn.execute("COMMIT")
             return {"outcome": "applied", **resultado}
         except sqlite3.IntegrityError:
@@ -847,6 +1019,30 @@ class Database:
             raise
         finally:
             conn.close()
+
+    @staticmethod
+    def _tirar_da_turma_se_lotada(conn: sqlite3.Connection, enrollment_id: int) -> Optional[Dict]:
+        """S8 (D75), dentro da transação do webhook: matrícula ativada com reserva já vencida numa turma que
+        os outros lotaram fica sem turma. Devolve {"enrollment_id", "class_id", "class_name"} quando tirou;
+        None caso contrário (sem turma, sem reserva, reserva válida, sem capacidade ou com vaga)."""
+        agora = datetime.now(timezone.utc)
+        linha = conn.execute(
+            """SELECT e.class_id, e.reserved_until, c.capacity, c.name
+               FROM enrollments e JOIN classes c ON c.id = e.class_id
+               WHERE e.id = ?""",
+            (enrollment_id,),
+        ).fetchone()
+        if linha is None or linha["reserved_until"] is None or linha["capacity"] is None:
+            return None
+        if str(linha["reserved_until"]) > Database._utc_texto(agora):
+            return None
+        ocupadas = conn.execute(
+            Database._SQL_OCUPACAO_VENDA, (linha["class_id"], enrollment_id, Database._utc_texto(agora))
+        ).fetchone()[0]
+        if ocupadas < linha["capacity"]:
+            return None
+        conn.execute("UPDATE enrollments SET class_id = NULL WHERE id = ?", (enrollment_id,))
+        return {"enrollment_id": enrollment_id, "class_id": linha["class_id"], "class_name": linha["name"]}
 
     @staticmethod
     def reembolsar_pagamento_se_aprovado(payment_id: int) -> Dict:

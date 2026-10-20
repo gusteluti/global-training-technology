@@ -37,6 +37,9 @@ DETAIL_REEMBOLSO_NAO_APROVADO = "Só é possível reembolsar pagamentos aprovado
 # S1 (D72): compra do mesmo curso com matrícula ativa.
 DETAIL_JA_MATRICULADO = "Você já está matriculado neste curso."
 DETAIL_EMAIL_JA_TEM_ACESSO = "Este e-mail já tem acesso a este curso. Entre na sua conta para acessá-lo."
+# F5a (D75): turma escolhida no checkout.
+DETAIL_TURMA_NAO_ENCONTRADA = "Turma não encontrada"
+DETAIL_TURMA_LOTADA = "Esta turma está lotada. Escolha outra turma."
 
 # Só dígitos ASCII (D49.3): `\d` aceitaria dígitos de outros alfabetos.
 PAYMENT_ID_RE = re.compile(r"[0-9]{1,20}")
@@ -67,6 +70,35 @@ class PayerInput(BaseModel):
 class CheckoutInput(BaseModel):
     course_id: str
     payer: PayerInput
+    # F5a (D75): turma opcional; sem ela (ou null), a matrícula nasce sem turma, como antes.
+    class_id: Optional[int] = None
+
+
+def _exigir_turma_vendavel(outcome: str) -> None:
+    """Resultado da conferência de turma (D75) -> erro HTTP; 'ok' segue."""
+    if outcome == "not_found":
+        raise HTTPException(status_code=404, detail=DETAIL_TURMA_NAO_ENCONTRADA)
+    if outcome == "full":
+        raise HTTPException(status_code=409, detail=DETAIL_TURMA_LOTADA)
+    if outcome != "ok":
+        # "stale": a pendente mudou de estado durante a compra; uma nova tentativa decide de novo.
+        raise HTTPException(status_code=502, detail=DETAIL_CHECKOUT_FALHA)
+
+
+def registrar_lotacao_de_turma(resultado: dict) -> None:
+    """S8 (D75): a ativação tirou a matrícula da turma lotada; a Gestão realoca a partir deste evento."""
+    overflow = resultado.get("class_overflow")
+    if not overflow:
+        return
+    record_audit(
+        "enrollment.class_overflow",
+        f"Matrícula #{overflow['enrollment_id']}: pagamento aprovado após a reserva vencer e a turma "
+        f"\"{overflow['class_name']}\" estava lotada; matrícula ativada sem turma",
+        actor={"role": "system"},
+        entity_type="enrollment",
+        entity_id=overflow["enrollment_id"],
+        changes=[change("enrollment.class_id", overflow["class_id"], None)],
+    )
 
 
 def _access_token_gateway() -> str:
@@ -114,6 +146,7 @@ def iniciar_checkout_curso(
     *,
     user_id: Optional[int] = None,
     auditor: Optional[AuthContext] = None,
+    class_id: Optional[int] = None,
 ) -> dict:
     """Cria a preferência de pagamento no Mercado Pago e persiste matrícula/pagamento 'pending'.
 
@@ -124,6 +157,8 @@ def iniciar_checkout_curso(
     A matrícula nasce 'pending' e só é ativada pelo webhook quando o pagamento for aprovado.
     `auditor` (aluno do JWT, quando houver) é o responsável do evento `payment.mock_approved`;
     sem ele (landing), o evento é gravado como sistema.
+    `class_id` (F5a, D75): turma escolhida. Conferida antes do gateway (404/409 sem criar nada) e de novo,
+    atomicamente, na gravação, que reserva a vaga por 30 min. O lock não é segurado durante a chamada HTTP.
     """
     course = load_course_data(course_id)
     # F1 (D68): curso arquivado não vende, nem no modo simulado nem pelo gateway (nada é criado).
@@ -150,6 +185,28 @@ def iniciar_checkout_curso(
             pendente = situacao
             user_id = dono_existente
 
+    if class_id is not None:
+        # Conferência prévia: turma inválida ou lotada não chama o gateway nem grava nada.
+        _exigir_turma_vendavel(Database.conferir_turma_para_venda(
+            course_id, class_id, pendente["enrollment_id"] if pendente is not None else None
+        ))
+
+    def _reservar_vaga(referencia: str, metodo: str) -> int:
+        """Conferência e gravação atômicas da turma (D75); devolve o id do pagamento."""
+        reserva = Database.reservar_vaga_no_checkout(
+            course_id,
+            class_id,
+            amount=amount,
+            payment_method=metodo,
+            external_reference=referencia,
+            pendente_enrollment_id=pendente["enrollment_id"] if pendente is not None else None,
+            user_id=user_id,
+            email=email,
+            nome=nome,
+        )
+        _exigir_turma_vendavel(reserva["outcome"])
+        return reserva["payment_id"]
+
     def _retomar_pagamento_pendente(metodo: str) -> int:
         """Retomada: reaproveita o pagamento pendente (valor atualizado ao preço do catálogo)."""
         if pendente["payment_id"] is None:
@@ -164,7 +221,13 @@ def iniciar_checkout_curso(
     # Com a flag desligada (padrão), o fluxo real do Mercado Pago abaixo continua valendo.
     # ------------------------------------------------------------------------------------------
     if _pagamento_mockado():
-        if pendente is not None:
+        if class_id is not None:
+            external_reference = (
+                pendente["external_reference"] if pendente is not None
+                else f"{course_id}:{int(datetime.utcnow().timestamp())}:{uuid.uuid4().hex[:8]}"
+            )
+            payment_id = _reservar_vaga(external_reference, "mock")
+        elif pendente is not None:
             # Retomada no modo simulado: aprova a matrícula pendente existente, sem criar outra.
             external_reference = pendente["external_reference"]
             payment_id = _retomar_pagamento_pendente("mock")
@@ -175,7 +238,7 @@ def iniciar_checkout_curso(
             enrollment_id = Database.create_enrollment(user_id, course_id, external_reference)
             payment_id = Database.record_payment(enrollment_id, amount, "mock")
         transaction_id = f"mock-{uuid.uuid4().hex[:12]}"
-        Database.aplicar_transicao_pagamento_webhook(
+        transicao = Database.aplicar_transicao_pagamento_webhook(
             external_reference,
             "approved",
             transaction_id,
@@ -190,6 +253,7 @@ def iniciar_checkout_curso(
             entity_id=payment_id,
             changes=[change("payment.status", "pending", "approved")],
         )
+        registrar_lotacao_de_turma(transicao)
         frontend_base_url = os.getenv("FRONTEND_BASE_URL", "http://localhost:8000").rstrip("/")
         return {
             "status": "success",
@@ -286,7 +350,10 @@ def iniciar_checkout_curso(
     # Persiste aluno/matrícula/pagamento para alimentar os dashboards
     # administrativos da Fase 2 (Dashboard de Alunos/Cursos/Financeiro).
     # Matrícula 'pending'; ativada pelo webhook quando o pagamento for aprovado.
-    if pendente is not None:
+    if class_id is not None:
+        # Gravação depois do gateway, com nova conferência atômica: só uma compra leva a última vaga.
+        _reservar_vaga(external_reference, "mercado_pago")
+    elif pendente is not None:
         _retomar_pagamento_pendente("mercado_pago")
     else:
         if user_id is None:
@@ -312,6 +379,7 @@ async def create_checkout(payload: CheckoutInput, request: Request):
         payload.payer.email,
         payload.payer.phone,
         request,
+        class_id=payload.class_id,
     )
 
 
@@ -521,6 +589,10 @@ async def mercado_pago_webhook(request: Request):
         except HTTPException as exc:
             erro_de_trilha = exc
     if status == "approved":
+        try:
+            registrar_lotacao_de_turma(resultado)
+        except HTTPException as exc:
+            erro_de_trilha = erro_de_trilha or exc
         _entregar_definicao_de_senha(external_reference)
     if erro_de_trilha is not None:
         raise erro_de_trilha
