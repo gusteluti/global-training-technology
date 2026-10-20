@@ -15,6 +15,7 @@ Início: 19/10/2026. Fila: `docs/tdd/PLANO_FEEDBACK_PROF.md`. Atualizado ao fim 
 | F5a — turma no checkout, reserva e lotação | entregue | red `14dcb11`; backend `4b6901d`; front `34cbc01` | regressão 1384 passed; 8 e2e verdes |
 | F5b — chat com turmas e botão de matrícula | entregue | red `df50614`; backend `066a925`; front `cff3d11`; ajuste guarda `7a816d1` | regressão 1431 passed; 13 e2e verdes |
 | F6 — handoff para o WhatsApp | entregue | red `74eadf7`; backend `1f93951`; front `6c5d50d` | regressão 1524 passed; 7 e2e verdes |
+| F7 — curso a partir de anexo (JSON e PDF) | entregue | red `5acc911`; backend `89c22e8`; front `e7651db` | regressão 1591 passed; 4 e2e verdes |
 
 ## Decisões de política tomadas sem o PM (para revisão)
 
@@ -28,8 +29,10 @@ Início: 19/10/2026. Fila: `docs/tdd/PLANO_FEEDBACK_PROF.md`. Atualizado ao fim 
 - **F5a/S8 (D75):** pagamento que chega depois de a reserva expirar, com turma lotada, ativa a matrícula **sem turma** e avisa a Gestão pela auditoria (`enrollment.class_overflow`). Turmas já iniciadas não são vendidas. Na disputa da última vaga, quem perde recebe 409 depois de uma preferência criada no gateway (não paga). Landing estática sem seleção de turma.
 - **F5b (D76):** botões "Matricular na turma <nome>" / "Matricular no curso" (até 3); turmas todas lotadas → sem botão; aluno já ativo → sem botão. Visitante da landing é levado ao login e volta ao catálogo com a turma escolhida. O texto da instrução ao LLM é do orquestrador/dev.
 - **F6 (D77):** texto do WhatsApp `Olá! Vim do assistente virtual da Global Training e gostaria de falar com um atendente sobre o curso <nome>/os cursos.`; label `Falar com um atendente no WhatsApp`; palavras de pedido de humano incluem "suporte" e "pessoa"; entrada bloqueada não recebe o link. **Para ligar em produção: definir `WHATSAPP_HANDOFF_NUMBER=<número do PM com DDI 55>` no `.env` do servidor (não no repo).**
+- **F7 (D78):** dependência nova `pypdf` (rodar `pip install -r backend/requirements.txt`). Do PDF não vêm as instruções do assistente (injeção). Avisos de tipo inválido e de material descartado escritos pelo dev. A chamada ao LLM do rascunho não entra na observabilidade (E7).
 
 ## Paradas e itens pulados
 
 - Observação O0: o `frontend/node_modules` local estava sem `@fontsource/barlow*` (instalado com `--no-save`). Em clone novo, rodar `npm ci`.
 - O harness e2e (`servidor_e2e_e5/e7/h1`) ainda lê o catálogo real do bot (`c_e_c`, `python_profissional`); não quebra hoje.
+- **Achado de segurança (F7):** `POST /api/admin/create-course` aceita `id` vindo do cliente sem validação; um `id` com `../` pode gravar o JSON fora de `backend/courses` (só Gestão). Tratado na entrega S10 da onda 6.
