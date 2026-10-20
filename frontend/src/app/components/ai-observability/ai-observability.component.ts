@@ -2,6 +2,13 @@ import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/co
 import { ApiService } from '../../services/api.service';
 import { Chart } from '../../charts';
 
+const MOTIVOS_HANDOFF: { key: string; label: string }[] = [
+  { key: 'user_request', label: 'Pedido do usuário' },
+  { key: 'llm_failures', label: 'Falhas da IA' },
+  { key: 'token_budget', label: 'Limite de tokens' },
+  { key: 'unresolved', label: 'Dúvidas não resolvidas' }
+];
+
 @Component({
   selector: 'app-ai-observability',
   templateUrl: './ai-observability.component.html'
@@ -11,6 +18,7 @@ export class AiObservabilityComponent implements OnInit, OnDestroy {
   @ViewChild('perDayChart', { static: true }) perDayChart!: ElementRef<HTMLCanvasElement>;
 
   metrics: any = null;
+  handoffReasons: { label: string; count: number }[] = [];
   error = '';
   private chart?: Chart;
   private dayChart?: Chart;
@@ -21,6 +29,8 @@ export class AiObservabilityComponent implements OnInit, OnDestroy {
     this.api.getAiObservability().subscribe({
       next: (r: any) => {
         this.metrics = r.metrics || {};
+        const porMotivo = (this.metrics.handoff && this.metrics.handoff.by_reason) || {};
+        this.handoffReasons = MOTIVOS_HANDOFF.map(m => ({ label: m.label, count: Number(porMotivo[m.key] || 0) }));
         this.renderMessagesChart();
         this.renderPerDayChart();
       },
@@ -56,6 +66,15 @@ export class AiObservabilityComponent implements OnInit, OnDestroy {
 
   get topics(): { topic: string; count: number }[] {
     return (this.metrics && this.metrics.unresolved_topics) || [];
+  }
+
+  // Encaminhamentos ao WhatsApp (D77): total, taxa e motivos com rótulo em português.
+  get handoff(): any {
+    return (this.metrics && this.metrics.handoff) || {};
+  }
+
+  get handoffRateText(): string {
+    return this.percent(this.handoff.rate);
   }
 
   private percent(fraction: number | undefined | null): string {

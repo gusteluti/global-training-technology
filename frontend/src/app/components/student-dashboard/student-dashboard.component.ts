@@ -13,6 +13,15 @@ interface AcaoChat {
   label: string;
 }
 
+// Ação de encaminhamento ao WhatsApp devolvida pelo chat (D77).
+interface AcaoWhatsapp {
+  type: string;
+  url: string;
+  label: string;
+}
+
+const PREFIXO_WHATSAPP = 'https://wa.me/';
+
 // Rótulos e cores dos status de matrícula (conjunto fechado, D28).
 const ROTULOS_STATUS: { [status: string]: string } = {
   pending: 'Pendente',
@@ -81,6 +90,7 @@ export class StudentDashboardComponent implements OnInit {
   chatEnviando = false;
   // Ações de matrícula da última resposta (F5b, D76). Montadas pelo servidor e não persistidas no histórico.
   chatAcoes: AcaoChat[] = [];
+  chatWhatsapp: AcaoWhatsapp | null = null;
   erroChat = '';
   email = '';
 
@@ -214,6 +224,7 @@ export class StudentDashboardComponent implements OnInit {
     this.chatEnviando = true;
     this.erroChat = '';
     this.chatAcoes = [];
+    this.chatWhatsapp = null;
     this.api.sendChatMessage(texto).subscribe({
       next: (res: any) => {
         this.chatMessages = [
@@ -223,14 +234,26 @@ export class StudentDashboardComponent implements OnInit {
         ];
         this.chatAcoes = (Array.isArray(res.actions) ? res.actions : [])
           .filter((a: any) => a && a.type === 'enroll' && a.course_id && a.label);
+        this.chatWhatsapp = this.acaoWhatsapp(res.actions);
         this.chatInput = '';
         this.chatEnviando = false;
       },
-      error: () => {
+      error: (err: any) => {
         this.erroChat = 'Não foi possível enviar a mensagem. Tente novamente.';
+        this.chatWhatsapp = this.acaoWhatsapp(err?.error?.actions);
         this.chatEnviando = false;
       }
     });
+  }
+
+  // Só aceita link que aponte para https://wa.me/ (defesa, D77).
+  private acaoWhatsapp(actions: any): AcaoWhatsapp | null {
+    if (!Array.isArray(actions)) {
+      return null;
+    }
+    const acao = actions.find((a: any) => a && a.type === 'handoff' && typeof a.url === 'string'
+      && a.url.startsWith(PREFIXO_WHATSAPP) && typeof a.label === 'string' && a.label);
+    return acao ? { type: acao.type, url: acao.url, label: acao.label } : null;
   }
 
   // Leva ao catálogo com o curso e, se houver, a turma pré-selecionada (D75/D76).
