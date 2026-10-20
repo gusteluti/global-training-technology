@@ -35,6 +35,10 @@ em que o backend gravou (o formato e escolha do dev; o teste so exige que seja d
 Convencoes (padrao de test_s1/test_l1): banco temporario do conftest, cursos em diretorio temporario, Mercado Pago
 falso por patch de `payments.routes.requests.post/get`, webhook assinado com o segredo de teste, PAYMENTS_MOCK e
 APP_ENV removidos do ambiente. Turmas criadas por Database.create_class (camada existente da L1).
+
+Ajuste mecanico D75 (F5a) -> D83 (U8, autoridade 4.3): os itens de GET /api/courses/{id}/turmas ganharam `ends_on` e
+`schedule` (nulos para turma sem eles). t1 e t10 passam a esperar as duas chaves; intencao preservada (campos exatos,
+nenhum dado de aluno).
 """
 
 import json
@@ -72,7 +76,8 @@ ERR_LOTADA = "Esta turma está lotada. Escolha outra turma."
 ERR_CURSO = "Course not found"
 EVENTO_OVERFLOW = "enrollment.class_overflow"
 ACAO_MOCK = "payment.mock_approved"
-CAMPOS_TURMA_PUBLICA = {"id", "name", "starts_on", "capacity", "seats_left"}
+# Ajuste mecanico D75 (F5a) -> D83 (U8, autoridade 4.3): a lista publica ganhou `ends_on` e `schedule`.
+CAMPOS_TURMA_PUBLICA = {"id", "name", "starts_on", "ends_on", "schedule", "capacity", "seats_left"}
 STATUS_PAGAMENTO = {"pending": "pending", "active": "approved", "cancelled": "cancelled", "refunded": "refunded"}
 RESERVA = timedelta(minutes=30)
 FOLGA = timedelta(seconds=2)
@@ -414,7 +419,8 @@ def test_t1_lista_turmas_abertas_sem_token_com_campos_exatos(client):
     assert r.status_code == 200, r.text
     corpo = r.json()
     assert isinstance(corpo, list), corpo
-    assert corpo == [{"id": t, "name": "Turma Manha", "starts_on": _dia_sp(7), "capacity": 20, "seats_left": 20}]
+    assert corpo == [{"id": t, "name": "Turma Manha", "starts_on": _dia_sp(7), "ends_on": None, "schedule": None,
+                      "capacity": 20, "seats_left": 20}]
 
 
 def test_t2_turma_ja_iniciada_fica_de_fora_e_a_de_hoje_em_sp_entra(client):
