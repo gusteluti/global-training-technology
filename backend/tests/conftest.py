@@ -41,6 +41,10 @@ os.environ.update({
     "FRONTEND_BASE_URL": "http://localhost:8000",
     "API_BASE_URL": "http://localhost:8000",
 })
+# F6 (D77): o handoff para o WhatsApp so liga nos testes que definem o numero (fabricado). Um valor vindo do shell
+# de quem roda a suite nao pode mudar o comportamento das outras suites (E7, F5b...).
+for _variavel in ("WHATSAPP_HANDOFF_NUMBER", "CHAT_TOKEN_BUDGET"):
+    os.environ.pop(_variavel, None)
 
 
 @pytest.fixture
