@@ -336,8 +336,10 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
                 resposta = self._answer_general_question(
                     user_message, conversation_history, student_context=student_context, history_limit=history_limit
                 )
-        except LLMUnavailableError:
+        except LLMUnavailableError as erro:
             ai_observability.registrar_interacao("llm_error", curso)
+            # F6 (D77): o curso roteado acompanha o erro para o texto do handoff (nunca dado do usuário).
+            erro.curso = curso
             raise
 
         filtrada = self._filtrar_saida(resposta)

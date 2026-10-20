@@ -11,11 +11,13 @@ import json
 from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, field_validator
 
 import admin.routes as admin_routes
 import payments.routes as payments_routes
 from agents.ai_observability import identidade_aluno
+from agents.handoff import acoes_de_handoff
 from agents.manager_agent import montar_acoes
 from agents.llm_guard import (
     INPUT_BLOCKED,
@@ -284,12 +286,23 @@ def conversar_com_o_chatbot(
             )
     except InputBlockedError:
         return {"status": "success", "message": INPUT_BLOCKED, "actions": []}
-    except LLMUnavailableError:
+    except LLMUnavailableError as erro:
+        # F6 (D77): mesmo 502 e mesmo detail; o corpo ganha `actions` só quando o handoff vale.
+        handoff = _handoff_aluno(manager_agent, corpo.message, current_user.id, getattr(erro, "curso", None))
+        if handoff:
+            return JSONResponse(status_code=502, content={"detail": LLM_UNAVAILABLE, "actions": handoff})
         raise HTTPException(status_code=502, detail=LLM_UNAVAILABLE)
-    # Só o texto é persistido; as ações (F5b, D76) são montadas pelo servidor e não vão ao histórico.
+    # Só o texto é persistido; as ações (F5b, D76; F6, D77) são montadas pelo servidor e não vão ao histórico.
     Database.add_chat_exchange(current_user.id, corpo.message, resultado.texto)
     acoes = montar_acoes(resultado, Database.list_active_course_ids_for_user(current_user.id))
+    acoes += _handoff_aluno(manager_agent, corpo.message, current_user.id, resultado.curso)
     return {"status": "success", "message": resultado.texto, "actions": acoes}
+
+
+def _handoff_aluno(manager_agent, mensagem: str, user_id: int, course_id: Optional[str]) -> list:
+    """Ação de handoff (F6, D77) do aluno do JWT; o nome do curso vem do catálogo do servidor."""
+    nome = (manager_agent.courses.get(course_id) or {}).get("name") if course_id else None
+    return acoes_de_handoff(mensagem, user_id=user_id, course_id=course_id, course_name=nome)
 
 
 @router.get("/chat/history")

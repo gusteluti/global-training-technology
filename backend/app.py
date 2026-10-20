@@ -20,6 +20,7 @@ from agents.llm_guard import (
     InputBlockedError,
     LLMUnavailableError,
 )
+from agents.handoff import acoes_de_handoff
 from agents.manager_agent import ManagerAgent, montar_acoes
 from auth import router as auth_router
 from student.routes import router as student_router
@@ -156,6 +157,12 @@ async def chat_courses_debug(request: Request):
         ]
     }
 
+def _handoff_anonimo(manager_agent, mensagem: str, session_id: str, course_id: Optional[str]) -> list:
+    """Ação de handoff (F6, D77) da sessão anônima; o nome do curso vem do catálogo do servidor."""
+    nome = (manager_agent.courses.get(course_id) or {}).get("name") if course_id else None
+    return acoes_de_handoff(mensagem, session_id=session_id, course_id=course_id, course_name=nome)
+
+
 @app.post("/api/chat")
 async def chat(chat_msg: ChatMessage, request: Request):
     """
@@ -189,15 +196,22 @@ async def chat(chat_msg: ChatMessage, request: Request):
             resultado = manager_agent.process_message(user_message, session_id)
         except InputBlockedError:
             return {"status": "success", "message": INPUT_BLOCKED, "session_id": session_id, "actions": []}
-        except LLMUnavailableError:
-            return {"status": "error", "message": LLM_UNAVAILABLE, "session_id": session_id}
+        except LLMUnavailableError as erro:
+            corpo = {"status": "error", "message": LLM_UNAVAILABLE, "session_id": session_id}
+            # F6 (D77): o erro continua como antes; ganha `actions` só quando o handoff vale.
+            handoff = _handoff_anonimo(manager_agent, user_message, session_id, getattr(erro, "curso", None))
+            if handoff:
+                corpo["actions"] = handoff
+            return corpo
 
         return {
             "status": "success",
             "message": resultado.texto,
             "session_id": session_id,
             # F5b (D76): ações montadas pelo servidor a partir do curso roteado; visitante não tem matrícula.
-            "actions": montar_acoes(resultado),
+            # F6 (D77): a ação de handoff, quando vale, vem depois das de matrícula.
+            "actions": montar_acoes(resultado)
+            + _handoff_anonimo(manager_agent, user_message, session_id, resultado.curso),
         }
     except Exception as e:
         # Nada do texto da exceção vai ao cliente (E6, D38.6); o log leva só o tipo.
