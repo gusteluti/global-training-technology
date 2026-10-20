@@ -16,6 +16,7 @@ from pydantic import BaseModel, field_validator
 import admin.routes as admin_routes
 import payments.routes as payments_routes
 from agents.ai_observability import identidade_aluno
+from agents.manager_agent import montar_acoes
 from agents.llm_guard import (
     INPUT_BLOCKED,
     LLM_UNAVAILABLE,
@@ -278,15 +279,17 @@ def conversar_com_o_chatbot(
         # E7: o contexto de observabilidade (canal e aluno) vem só do JWT e é definido nesta thread,
         # a mesma que chama o LLM (o endpoint é síncrono e roda em threadpool).
         with identidade_aluno(current_user.id):
-            resposta = manager_agent.process_authenticated_message(
+            resultado = manager_agent.process_authenticated_message(
                 corpo.message, _contexto_do_aluno(current_user.id), historico
             )
     except InputBlockedError:
-        return {"status": "success", "message": INPUT_BLOCKED}
+        return {"status": "success", "message": INPUT_BLOCKED, "actions": []}
     except LLMUnavailableError:
         raise HTTPException(status_code=502, detail=LLM_UNAVAILABLE)
-    Database.add_chat_exchange(current_user.id, corpo.message, resposta)
-    return {"status": "success", "message": resposta}
+    # Só o texto é persistido; as ações (F5b, D76) são montadas pelo servidor e não vão ao histórico.
+    Database.add_chat_exchange(current_user.id, corpo.message, resultado.texto)
+    acoes = montar_acoes(resultado, Database.list_active_course_ids_for_user(current_user.id))
+    return {"status": "success", "message": resultado.texto, "actions": acoes}
 
 
 @router.get("/chat/history")
