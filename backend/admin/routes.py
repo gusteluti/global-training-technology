@@ -17,12 +17,22 @@ from core.security import (
     TOKEN_TTL_SECONDS,
 )
 from core.audit import change, legacy_actor, record_audit
+from core import login_limit
 from admin import course_draft
 from db import Database
 
 load_dotenv()
 router = APIRouter()
 COURSES_DIR = Path(__file__).parent.parent / "courses"
+
+# S10 (D79): id de curso. Só ids neste padrão (string inteira) são criados ou procurados; qualquer outro vale como
+# curso inexistente e nunca monta caminho de arquivo.
+PADRAO_ID_CURSO = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}")
+ERRO_ID_CURSO = "Id do curso inválido: use letras minúsculas, números, _ ou -."
+
+
+def id_curso_valido(course_id: Any) -> bool:
+    return isinstance(course_id, str) and PADRAO_ID_CURSO.fullmatch(course_id) is not None
 
 class MaterialInput(BaseModel):
     """Material didático. Só aparece para o aluno com matrícula ativa (E3, D28)."""
@@ -158,11 +168,15 @@ def _course_changes(before_data: Dict, after_data: Dict) -> List[Dict]:
     return changes
 
 @router.post("/login")
-async def admin_login(credentials: AdminLoginInput):
+async def admin_login(credentials: AdminLoginInput, request: Request):
+    # S2 (D79): o login legado (só senha) é limitado por IP.
+    ip = login_limit.ip_do_cliente(request)
+    login_limit.exigir_nao_bloqueado(None, ip)
     try:
         role = resolve_role_from_password(credentials.password)
     except HTTPException as exc:
         if exc.status_code == 401:
+            login_limit.registrar_falha(None, ip)
             # Senha inválida: nunca grava a senha digitada nem diz de quem foi a tentativa.
             record_audit(
                 "staff.login_failed",
@@ -236,6 +250,8 @@ async def create_course(course: CourseInput, request: Request, current_user: Aut
     Create a new course from form data
     Saves as JSON file in courses directory
     """
+    if not id_curso_valido(course.id):
+        raise HTTPException(status_code=422, detail=ERRO_ID_CURSO)
     try:
         courses_dir = Path(__file__).parent.parent / "courses"
         courses_dir.mkdir(exist_ok=True)
@@ -330,10 +346,7 @@ async def list_courses(current_user: AuthContext = Depends(require_staff)):
 async def get_course(course_id: str, current_user: AuthContext = Depends(require_staff)):
     """Get full details of a specific course"""
     try:
-        courses_dir = Path(__file__).parent.parent / "courses"
-        course_file = courses_dir / f"{course_id}.json"
-        if not course_file.exists():
-            course_file = _find_course_file_by_id(courses_dir, course_id)
+        course_file = _arquivo_do_curso(Path(__file__).parent.parent / "courses", course_id)
 
         if not course_file:
             raise HTTPException(status_code=404, detail="Course not found")
@@ -355,10 +368,7 @@ async def get_course(course_id: str, current_user: AuthContext = Depends(require
 async def update_course(course_id: str, course: CourseInput, request: Request, current_user: AuthContext = Depends(require_roles(Role.ADMIN))):
     """Update an existing course"""
     try:
-        courses_dir = Path(__file__).parent.parent / "courses"
-        course_file = courses_dir / f"{course_id}.json"
-        if not course_file.exists():
-            course_file = _find_course_file_by_id(courses_dir, course_id)
+        course_file = _arquivo_do_curso(Path(__file__).parent.parent / "courses", course_id)
 
         if not course_file:
             raise HTTPException(status_code=404, detail="Course not found")
@@ -429,10 +439,7 @@ async def update_course(course_id: str, course: CourseInput, request: Request, c
 async def delete_course(course_id: str, request: Request, current_user: AuthContext = Depends(require_roles(Role.ADMIN))):
     """Delete a course"""
     try:
-        courses_dir = Path(__file__).parent.parent / "courses"
-        course_file = courses_dir / f"{course_id}.json"
-        if not course_file.exists():
-            course_file = _find_course_file_by_id(courses_dir, course_id)
+        course_file = _arquivo_do_curso(Path(__file__).parent.parent / "courses", course_id)
 
         if not course_file:
             raise HTTPException(status_code=404, detail="Course not found")
@@ -479,10 +486,7 @@ async def delete_course(course_id: str, request: Request, current_user: AuthCont
 
 def _definir_arquivamento(course_id: str, arquivar: bool, request: Request, current_user: AuthContext) -> Dict:
     """Grava `archived` no JSON do curso (F1). Idempotente: sem mudança, não reescreve nem grava evento."""
-    courses_dir = Path(__file__).parent.parent / "courses"
-    course_file = courses_dir / f"{course_id}.json"
-    if not course_file.exists():
-        course_file = _find_course_file_by_id(courses_dir, course_id)
+    course_file = _arquivo_do_curso(Path(__file__).parent.parent / "courses", course_id)
     if not course_file:
         raise HTTPException(status_code=404, detail="Course not found")
 
@@ -541,6 +545,9 @@ def reload_manager_agent_courses(request: Request, reason: str):
     return loaded_courses
 
 def load_course_data(course_id: str) -> Dict:
+    """Dados do curso pelo id; id fora do padrão (S10) ou curso ausente -> 404 `Course not found`."""
+    if not id_curso_valido(course_id):
+        raise HTTPException(status_code=404, detail="Course not found")
     course_file = COURSES_DIR / f"{course_id}.json"
     if course_file.exists():
         with open(course_file, 'r', encoding='utf-8') as f:
@@ -550,21 +557,31 @@ def load_course_data(course_id: str) -> Dict:
         for candidate in COURSES_DIR.glob("*.json"):
             with open(candidate, 'r', encoding='utf-8') as f:
                 course_data = json.load(f)
-            if course_data.get("id") == course_id:
+            if id_curso_valido(course_data.get("id")) and course_data.get("id") == course_id:
                 return course_data
 
     raise HTTPException(status_code=404, detail="Course not found")
 
+def _arquivo_do_curso(courses_dir: Path, course_id: str) -> Optional[Path]:
+    """Arquivo JSON do curso (nome `<id>.json` ou id interno igual). Id fora do padrão (S10): None, sem montar
+    caminho."""
+    if not id_curso_valido(course_id):
+        return None
+    course_file = courses_dir / f"{course_id}.json"
+    if course_file.exists():
+        return course_file
+    return _find_course_file_by_id(courses_dir, course_id)
+
 def _find_course_file_by_id(courses_dir: Path, course_id: str):
-    """Find a course JSON file whose internal id matches the requested id."""
-    if not courses_dir.exists():
+    """Find a course JSON file whose internal id matches the requested id (S10: só ids no padrão)."""
+    if not id_curso_valido(course_id) or not courses_dir.exists():
         return None
 
     for candidate in courses_dir.glob("*.json"):
         try:
             with open(candidate, 'r', encoding='utf-8') as f:
                 course_data = json.load(f)
-            if course_data.get("id") == course_id:
+            if id_curso_valido(course_data.get("id")) and course_data.get("id") == course_id:
                 return candidate
         except Exception:
             continue
@@ -600,8 +617,8 @@ TURMA_CAMPOS = ("name", "starts_on", "capacity")
 
 
 def _curso_existe(course_id: str) -> bool:
-    """O curso existe no catálogo (arquivo JSON). Id com separador de caminho nunca existe."""
-    if not course_id or course_id in (".", "..") or "/" in course_id or "\\" in course_id:
+    """O curso existe no catálogo (arquivo JSON). Id fora do padrão (S10) nunca existe."""
+    if not id_curso_valido(course_id):
         return False
     try:
         load_course_data(course_id)

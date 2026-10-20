@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import json
@@ -25,6 +26,7 @@ from agents.manager_agent import ManagerAgent, montar_acoes
 from auth import router as auth_router
 from student.routes import router as student_router
 from core.security import get_password_hash, senha_excede_limite_bcrypt
+from core import rate_limit
 from db import Database
 
 # Initialize FastAPI
@@ -79,6 +81,8 @@ class ChatMessage(BaseModel):
 @app.on_event("startup")
 async def startup_event():
     """Load courses and initialize manager agent on startup"""
+    # S9 (D79): estado em memória dos limites de taxa (chat e checkout) nasce zerado a cada startup.
+    rate_limit.redefinir_limites()
     try:
         manager_agent = ManagerAgent()
         manager_agent.load_courses()
@@ -169,7 +173,10 @@ async def chat(chat_msg: ChatMessage, request: Request):
     Main chat endpoint (visitante anônimo)
     Expected input: {"message": "user message", "session_id": "optional, emitido pelo servidor"}
     A resposta traz sempre o session_id efetivo; um id desconhecido abre uma sessão nova (E6, D38.1).
+    S9 (D79): 30 mensagens por minuto por IP; acima disso, 429 sem chegar ao LLM.
     """
+    if not rate_limit.permitir_chat(request):
+        return JSONResponse(status_code=429, content={"status": "error", "message": rate_limit.ERRO_CHAT})
     try:
         manager_agent = getattr(request.app.state, "manager_agent", None)
         if not manager_agent:

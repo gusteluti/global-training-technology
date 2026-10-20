@@ -1,11 +1,12 @@
 import logging
 import os
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from datetime import timedelta
 from pydantic import BaseModel, ConfigDict
 
 from core.audit import record_audit
+from core import login_limit
 from core.security import create_access_token, verify_password, get_password_hash
 from core.password_setup import (
     definir_senha_pelo_token,
@@ -150,11 +151,19 @@ async def password_reset(dados: PasswordResetInput):
 
 
 @router.post("/api/token")
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
-    """Standard OAuth2 password flow: returns JWT access token."""
+async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
+    """Standard OAuth2 password flow: returns JWT access token.
+
+    S2 (D79): e-mail ou IP bloqueado -> 429 antes de conferir a senha; cada falha conta para o e-mail
+    normalizado e para o IP (e-mail inexistente conta igual); sucesso zera as falhas do e-mail."""
+    email_normalizado = login_limit.normalizar_email(form_data.username)
+    ip = login_limit.ip_do_cliente(request)
+    login_limit.exigir_nao_bloqueado(email_normalizado, ip)
+
     user = Database.get_user_by_email(form_data.username)
     if not user:
         # E-mail inexistente nunca vai para a trilha (E8, D45).
+        login_limit.registrar_falha(email_normalizado, ip)
         raise HTTPException(status_code=400, detail="Usuário ou senha inválidos")
 
     # Só contas de funcionário são auditadas; login de aluno (certo ou errado) não gera evento.
@@ -170,8 +179,10 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         if is_staff:
             # Conta existente: grava a conta alvo, nunca a senha digitada.
             record_audit("staff.login_failed", "Login recusado (senha inválida) em conta de funcionário", actor=actor)
+        login_limit.registrar_falha(email_normalizado, ip)
         raise HTTPException(status_code=400, detail="Usuário ou senha inválidos")
 
+    login_limit.registrar_sucesso(email_normalizado)
     if is_staff:
         record_audit("staff.login", "Login de funcionário", actor=actor)
 

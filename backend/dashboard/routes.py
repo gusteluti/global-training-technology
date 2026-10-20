@@ -12,7 +12,7 @@ from core.audit import record_audit
 from core.csv_export import data_sp, decimal_br, resposta_csv, rotulo_matricula, rotulo_pagamento
 from core.security import AuthContext, Role, require_roles, require_staff
 from db import Database
-from admin.routes import list_course_summaries
+from admin.routes import id_curso_valido, list_course_summaries
 
 router = APIRouter()
 
@@ -84,6 +84,8 @@ def _filtrar_pagamentos(payments: List[Dict], q: Optional[str], status: Optional
 
 def _alunos_do_curso(course_id: str, status: Optional[str], class_id: Optional[str]):
     """Curso do catálogo (None se não existir) e as matrículas filtradas (F4, D73)."""
+    if not id_curso_valido(course_id):
+        return None, []  # S10 (D79): id fora do padrão vale como curso inexistente
     catalogo = {course["id"]: course for course in list_course_summaries(include_archived=True)}
     curso = catalogo.get(course_id)
     if curso is None:

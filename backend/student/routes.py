@@ -27,6 +27,7 @@ from agents.llm_guard import (
     LLMUnavailableError,
     bloco_dados_aluno,
 )
+from core import rate_limit
 from core.receipt_pdf import gerar_recibo_pdf
 from core.security import AuthContext, Role, require_roles
 from db import Database
@@ -44,8 +45,8 @@ JANELA_CONTEXTO_CHAT = 10  # mensagens persistidas anteriores à atual que entra
 def _carregar_curso(course_id: str) -> Optional[Dict]:
     """Dados do curso (JSON em COURSES_DIR), ou None se o arquivo não existir."""
     diretorio = admin_routes.COURSES_DIR
-    if not diretorio.exists():
-        return None
+    if not admin_routes.id_curso_valido(course_id) or not diretorio.exists():
+        return None  # S10 (D79): id fora do padrão não monta caminho
 
     arquivo = diretorio / f"{course_id}.json"
     if arquivo.exists():
@@ -58,7 +59,7 @@ def _carregar_curso(course_id: str) -> Optional[Dict]:
                 dados = json.load(f)
         except Exception:
             continue
-        if dados.get("id") == course_id:
+        if admin_routes.id_curso_valido(dados.get("id")) and dados.get("id") == course_id:
             return dados
     return None
 
@@ -154,6 +155,9 @@ async def comprar_curso(
     O preço vem do catálogo do servidor. Cria matrícula/pagamento 'pending' e devolve a URL de
     pagamento; o acesso ao curso (materiais) só é liberado quando o webhook confirmar o pagamento.
     """
+    # S9 (D79): 10 checkouts por minuto por IP e por aluno (do JWT); o 429 não cria nada nem chama o gateway.
+    if not rate_limit.permitir_checkout(request, current_user.id):
+        raise HTTPException(status_code=429, detail=rate_limit.ERRO_CHECKOUT)
     aluno = Database.get_user_by_id(current_user.id) or {}
     nome = aluno.get("name") or "Aluno"
     email = aluno.get("email") or ""

@@ -638,6 +638,13 @@ def _disparar_simultaneos(tarefa, quantidade):
 
 @pytest.mark.parametrize("rodada", [1, 2, 3])
 def test_c1_pedidos_simultaneos_com_o_mesmo_token_so_um_vence(client, rodada):
+    """Só um dos pedidos simultâneos define a senha; só a senha vencedora autentica.
+
+    Encadeamento D52 (corrida do token) -> D79 (limite de tentativas de login): a conferência faz 7 logins errados
+    no mesmo e-mail, e pela D79 o 6º viraria 429. Antes de cada login de conferência de senha perdedora, as falhas
+    registradas em `login_attempts` são apagadas direto no banco temporário (sqlite3, sem função de produção),
+    mantendo a exigência estrita de 400 para os perdedores e 200 para o vencedor (intenção preservada).
+    """
     from app import app as fastapi_app
 
     email = f"corrida.c1.{rodada}@ds.test"
@@ -658,6 +665,7 @@ def test_c1_pedidos_simultaneos_com_o_mesmo_token_so_um_vence(client, rodada):
     _login_ok(client, email, senhas[vencedor])                       # a conta ficou com a senha do vencedor
     for i, senha in enumerate(senhas):
         if i != vencedor:
+            _executar("DELETE FROM login_attempts")                  # D79: só limpa o contador, não a conferência
             r = _login(client, email, senha)
             assert r.status_code == 400, f"a senha do perdedor {i} não pode autenticar (HTTP {r.status_code})"
 

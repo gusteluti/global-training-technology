@@ -29,6 +29,8 @@ except ImportError:
 _SESSION_ID = re.compile(r"[0-9a-f]{32}")
 
 MAX_ENROLL_ACTIONS = 3
+# S9 (D79): teto de sessões anônimas em memória; ao abrir uma nova acima do teto, sai a menos recente.
+MAX_ANON_SESSIONS = 5000
 LABEL_MATRICULAR_CURSO = "Matricular no curso"
 
 
@@ -271,10 +273,16 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
         truncado, sessão extinta) abre uma sessão nova com id novo; o valor do cliente nunca é ecoado.
         """
         if isinstance(session_id, str) and _SESSION_ID.fullmatch(session_id) and session_id in self.sessions:
+            # Uso recente vai para o fim da ordem (a menos recente fica no começo).
+            self.sessions[session_id] = self.sessions.pop(session_id)
             return session_id
         novo = uuid.uuid4().hex
         while novo in self.sessions:
             novo = uuid.uuid4().hex
+        # S9 (D79): respeita o teto descartando as sessões menos recentes antes de abrir a nova.
+        teto = max(1, int(MAX_ANON_SESSIONS))
+        while len(self.sessions) >= teto:
+            self.sessions.pop(next(iter(self.sessions)))
         self.sessions[novo] = []
         return novo
 
