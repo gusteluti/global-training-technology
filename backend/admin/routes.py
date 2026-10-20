@@ -188,17 +188,46 @@ async def get_audit_logs(
     action: Optional[str] = None,
     user_id: Optional[int] = None,
     limit: int = Database.AUDIT_LIST_DEFAULT_LIMIT,
+    q: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    offset: int = Query(0, ge=0),
     current_user: AuthContext = Depends(require_roles(Role.ADMIN)),
 ):
     """Trilhas de auditoria dos eventos críticos da área do funcionário (Fase 2 - Governança).
 
     Somente leitura (E8): não há rota para alterar ou apagar eventos. `user_id` aqui é filtro de consulta.
-    Padrão de 100 itens; acima de 500 vale 500.
+    Padrão de 100 itens; acima de 500 vale 500. U1 (D74): `q` na descrição ou no e-mail do responsável,
+    `date_from`/`date_to` (AAAA-MM-DD, dias de São Paulo, inclusivos; inválida -> 422) e `offset`.
     """
     return {
         "status": "success",
-        "logs": Database.list_audit_logs(limit=limit, action=action, user_id=user_id),
+        "logs": Database.list_audit_logs(
+            limit=limit,
+            action=action,
+            user_id=user_id,
+            q=q.strip() if q and q.strip() else None,
+            date_from=_data_iso_ou_422(date_from, "date_from"),
+            date_to=_data_iso_ou_422(date_to, "date_to"),
+            offset=offset,
+        ),
     }
+
+
+_DATA_ISO = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _data_iso_ou_422(valor: Optional[str], campo: str) -> Optional[str]:
+    """'AAAA-MM-DD' de calendário válida ou 422 (U1, D74). Vazio = sem filtro."""
+    if valor is None or not valor.strip():
+        return None
+    valor = valor.strip()
+    try:
+        if not _DATA_ISO.match(valor):
+            raise ValueError
+        return date.fromisoformat(valor).isoformat()
+    except ValueError:
+        raise HTTPException(status_code=422, detail=f"{campo} inválida: use AAAA-MM-DD.")
 
 @router.post("/create-course")
 async def create_course(course: CourseInput, request: Request, current_user: AuthContext = Depends(require_roles(Role.ADMIN))):

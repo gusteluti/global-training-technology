@@ -992,12 +992,16 @@ class Database:
         return dict(row) if row else None
 
     @staticmethod
-    def get_payments_overview(limit: int = 50) -> List[Dict]:
-        """Individual payments with student/course context (Dashboard Financeiro)."""
+    def get_payments_overview(limit: Optional[int] = 50) -> List[Dict]:
+        """Individual payments with student/course context (Dashboard Financeiro).
+
+        `limit=None` devolve todos (U1, D74: a lista do painel pagina e filtra na rota)."""
         conn = sqlite3.connect(Database.DB_PATH)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-        cursor.execute("""
+        limite_sql = "" if limit is None else "LIMIT ?"
+        params = () if limit is None else (limit,)
+        cursor.execute(f"""
             SELECT
                 p.id,
                 p.amount,
@@ -1011,8 +1015,8 @@ class Database:
             JOIN enrollments e ON e.id = p.enrollment_id
             JOIN users s ON s.id = e.user_id
             ORDER BY p.id DESC
-            LIMIT ?
-        """, (limit,))
+            {limite_sql}
+        """, params)
         rows = cursor.fetchall()
         conn.close()
         return [dict(row) for row in rows]
@@ -1061,13 +1065,30 @@ class Database:
     AUDIT_LIST_MAX_LIMIT = 500
 
     @staticmethod
-    def list_audit_logs(limit: int = 100, action: Optional[str] = None, user_id: Optional[int] = None) -> List[Dict]:
-        """Eventos do mais novo para o mais antigo. `limit` fica entre 1 e 500; `changes` volta como lista."""
+    def list_audit_logs(
+        limit: int = 100,
+        action: Optional[str] = None,
+        user_id: Optional[int] = None,
+        *,
+        q: Optional[str] = None,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
+        offset: int = 0,
+    ) -> List[Dict]:
+        """Eventos do mais novo para o mais antigo. `limit` fica entre 1 e 500; `changes` volta como lista.
+
+        U1 (D74): `q` procura na descrição ou no e-mail do responsável (LIKE com escape); `date_from`/`date_to`
+        ('AAAA-MM-DD', já validados) são dias de São Paulo, inclusivos; `offset` pula os primeiros eventos.
+        """
         try:
             limit = int(limit)
         except (TypeError, ValueError):
             limit = Database.AUDIT_LIST_DEFAULT_LIMIT
         limit = max(1, min(limit, Database.AUDIT_LIST_MAX_LIMIT))
+        try:
+            offset = max(0, int(offset or 0))
+        except (TypeError, ValueError):
+            offset = 0
 
         where, params = [], []
         if action is not None:
@@ -1076,6 +1097,16 @@ class Database:
         if user_id is not None:
             where.append("user_id = ?")
             params.append(user_id)
+        if q:
+            padrao = "%" + q.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%"
+            where.append("(detail LIKE ? ESCAPE '!' OR actor_email LIKE ? ESCAPE '!')")
+            params.extend([padrao, padrao])
+        if date_from:
+            where.append("date(created_at, ?) >= ?")
+            params.extend([MODIFICADOR_SQLITE_SP, date_from])
+        if date_to:
+            where.append("date(created_at, ?) <= ?")
+            params.extend([MODIFICADOR_SQLITE_SP, date_to])
         clause = f"WHERE {' AND '.join(where)}" if where else ""
 
         conn = sqlite3.connect(Database.DB_PATH)
@@ -1084,8 +1115,8 @@ class Database:
             rows = conn.execute(
                 f"""SELECT id, user_id, role, actor_email, actor_name, entity_type, entity_id,
                            action, detail, changes, created_at
-                    FROM audit_logs {clause} ORDER BY id DESC LIMIT ?""",
-                (*params, limit),
+                    FROM audit_logs {clause} ORDER BY id DESC LIMIT ? OFFSET ?""",
+                (*params, limit, offset),
             ).fetchall()
         finally:
             conn.close()
