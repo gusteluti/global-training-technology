@@ -1212,3 +1212,22 @@ Política da D68: primeira versão aceita JSON e PDF; o anexo só preenche o for
 - Tela "Cadastro de cursos": controle `curso-anexo-input` (arquivo) que, ao enviar, abre o formulário de **novo curso**
   preenchido com o rascunho, mostra os avisos em `curso-anexo-avisos` e erros em `curso-anexo-erro`; salvar usa a
   criação existente.
+
+## D79 — S2/S9/S10: limite de tentativas, limite de taxa e id de curso (20/10/2026, modo autônomo D69)
+Política decidida pelo orquestrador (revisão do PM). Contrato:
+- **S10 — id de curso:** `POST /api/admin/create-course` só aceita `id` que case com `^[a-z0-9][a-z0-9_-]{0,63}$`;
+  senão 422 `Id do curso inválido: use letras minúsculas, números, _ ou -.` e nada é gravado. Nas rotas que recebem
+  `course_id` na URL (PUT, DELETE, archive/unarchive, turmas, alunos do curso, CSV), id fora do padrão nunca monta
+  caminho de arquivo: resposta 404 como curso inexistente. Cursos existentes com ids válidos continuam iguais.
+- **S2 — login:** `POST /api/token` (aluno e funcionário): 5 falhas para o **mesmo e-mail** (sem caixa, aparado) em
+  15 min bloqueiam esse e-mail por 15 min; 20 falhas do **mesmo IP** em 15 min bloqueiam o IP por 15 min. Bloqueado →
+  429 `Muitas tentativas. Tente novamente em alguns minutos.`, mesmo com a senha certa. E-mail inexistente conta igual
+  (sem enumeração). Sucesso zera as falhas daquele e-mail. `POST /api/admin/login` (legado, só senha): o limite por IP.
+  Estado em tabela (`login_attempts`), sobrevive a restart. Primeiro bloqueio de cada janela grava `auth.locked` na
+  auditoria (e-mail mascarado ou IP, nunca a senha).
+- **S9 — taxa:** `POST /api/chat` (anônimo): 30 mensagens por minuto por IP → 429 `Muitas mensagens em pouco tempo.
+  Aguarde um instante.`; sessões anônimas em memória com teto de 5000 (descarta a menos recente). Checkouts (aluno e
+  landing): 10 por minuto por IP (e por aluno no fluxo logado) → 429 `Muitas tentativas de compra em pouco tempo.
+  Aguarde um instante.` Estado em memória criado no startup do app.
+- IP = `request.client.host` (não confia em `X-Forwarded-For`; atrás de proxy precisa de configuração — dívida).
+- Telas: login e chat mostram o texto do 429 como erro, sem travar a tela.
