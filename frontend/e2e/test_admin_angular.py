@@ -8,6 +8,10 @@ Login por perfil, abas visíveis por papel (a Gestão ganhou a aba "Cadastro de 
 esperada e o clique por texto exato foram atualizados, sem mudar a intenção), carregamento e gráficos das abas,
 reembolso pela tela, erros de console e guard de rota sem login.
 
+Guarda sem login (autoridade permanente 4.3, encadeamento guarda original -> D76): o AuthGuard agora leva o não
+logado a `/login?next=<rota pedida>` em vez de `/`. O check passou a exigir `/login` com `next=/admin` e o
+formulário de login visível; a intenção (sem login não entra e cai no login) é a mesma, e a contagem segue 33.
+
 Harness isolado (D58, H1): o teste sobe e derruba os próprios servidores; nada precisa estar de pé antes.
   - Backend: frontend/e2e/servidor_e2e_h1.py em processo próprio, porta livre, SQLite temporário (DB_PATH
     isolado), diretório de cursos temporário, segredo de webhook e CORS de teste, Groq e Mercado Pago falsos.
@@ -32,6 +36,7 @@ import re
 import sys
 import tempfile
 import time
+import urllib.parse
 import uuid
 from pathlib import Path
 
@@ -192,8 +197,14 @@ def test_admin_angular_e2e(servidores, browser, pagamentos_aprovados_para_reembo
     page = ctx.new_page()
     page.goto(BASE + "/admin", wait_until="networkidle")
     time.sleep(1.0)
-    check("sem login: /admin volta para a tela de login", page.url.rstrip("/") == BASE.rstrip("/") or page.url.endswith("/"),
-          page.url)
+    # D76 (guarda original -> D76): o AuthGuard leva o não logado a /login?next=<rota pedida> (antes ia para "/").
+    # A intenção fica: sem login não entra em /admin e cai na tela de login, com o formulário.
+    _url = urllib.parse.urlparse(page.url)
+    _next = urllib.parse.parse_qs(_url.query).get("next")
+    _no_login = (_url.path.rstrip("/") == "/login" and _next == ["/admin"]
+                 and page.locator("input[name=email]").count() > 0
+                 and page.locator("input[name=password]").count() > 0)
+    check("sem login: /admin volta para a tela de login", _no_login, page.url)
     ctx.close()
 
     passed = sum(1 for _, ok, _ in results if ok)

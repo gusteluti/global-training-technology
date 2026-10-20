@@ -11,8 +11,10 @@ Cenários (checks numerados):
      estão ausentes da tela
   P6 sem erros de console nem exceções de página nas telas acima. Erro reprova quando: HTTP 400,
      HTTP 404 em /api/ ou HTTP 5xx, ou exceção de página. Sem lista de tolerância: E3 não tem 400 esperado
-  P7 usuário não logado em /student é redirecionado para / (AuthGuard). Este check é guarda de
-     preservação: o guard já existe no frontend, então pode passar antes da implementação (ver relatório)
+  P7 usuário não logado em /student é redirecionado para a tela de login (AuthGuard). Este check é guarda de
+     preservação: o guard já existe no frontend, então pode passar antes da implementação (ver relatório).
+     Autoridade permanente 4.3, encadeamento guarda original -> D76: o destino era "/" e passou a ser
+     `/login?next=/student`; a intenção (sem login não entra e cai no login) é preservada.
 
 Seed: um aluno com senha, matrícula ativa no curso com materiais, matrícula pending em outro curso com
 materiais, e um segundo aluno com matrícula ativa em um curso com materiais próprios (P5).
@@ -351,10 +353,14 @@ def test_e3_painel_angular_e2e(servidores, browser):
     def p7():
         page = nova_pagina("P7")
         page.goto(ALVO["base"] + "/student", wait_until="networkidle")
-        if caminho_da_url(page.url) != "":
-            raise Falha(f"P7 guarda: usuário sem login em /student foi levado a {page.url} (esperado /)")
+        # D76 (guarda original -> D76): o destino passou de "/" para /login?next=<rota pedida>.
+        partes = urllib.parse.urlparse(page.url)
+        proximo = urllib.parse.parse_qs(partes.query).get("next")
+        if caminho_da_url(page.url) != "/login" or proximo != ["/student"]:
+            raise Falha(f"P7 guarda: usuário sem login em /student foi levado a {page.url} "
+                        "(esperado /login?next=/student)")
 
-    cenario("P7", "usuário não logado em /student é redirecionado para /", p7)
+    cenario("P7", "usuário não logado em /student é redirecionado para /login?next=/student", p7)
 
     # --- limpeza ----------------------------------------------------------------------
     for ctx in contextos:
