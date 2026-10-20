@@ -1284,3 +1284,7 @@ Política decidida pelo orquestrador (revisão do PM). Contrato:
   `payment.expired`. Webhook `approved` depois da expiração: a máquina de estados da E9 já permite
   `cancelled → approved`; a matrícula volta a `active` (regra da S8 para a turma) e grava `payment.approved_after_expiry`.
   Retomada (D72) só vale para `pending`: a expirada não é retomada (compra nova).
+- Ajuste mecânico (autoridade 4.3), D73 (F3) → D81: o cenário de `test_f3_aluno_curso.py` grava pagamentos `pending`
+  com datas fixas de setembro/2026, que pela S6 expiram nas leituras. Os testes passam a usar datas **relativas a
+  hoje** (pendentes com menos de 7 dias; turmas futuras relativas), preservando a intenção. A mesma correção vale para
+  qualquer teste com data fixa que a passagem do tempo tornaria inválida (varredura feita na mesma revisão).
