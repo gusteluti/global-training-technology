@@ -311,3 +311,4 @@ Fila e respostas do PM em `docs/tdd/PLANO_FEEDBACK_PROF.md`; modo autônomo D69;
 | S1 — compra duplicada | `feature/fase2-tdd-s1-compra-duplicada` | `47a7172`, `013949d` (D10→D72) | `1f3dda6`, `a67a700` | ver `git log` | regressão 1153 passed; 8 e2e verdes |
 | F3/F4 — aluno ↔ curso | `feature/fase2-tdd-f3-aluno-curso` | `dbcc791` | `bec2701`, `08d9ecc` | ver `git log` | backend 67/67; regressão verde; 6 e2e verdes |
 | U1/U2 — busca, paginação e CSV | `feature/fase2-tdd-u1-busca-csv` | `ec1388d` | `72a2d8d`, `64eac03` | ver `git log` | backend 99/99; regressão 1220 passed; 6 e2e verdes |
+| F5a — turma no checkout e reserva | `feature/fase2-tdd-f5a-turma-checkout` | `14dcb11` | `4b6901d`, `34cbc01` | ver `git log` | backend 65/65; regressão 1384 passed; 8 e2e verdes |
