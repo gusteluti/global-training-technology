@@ -312,3 +312,4 @@ Fila e respostas do PM em `docs/tdd/PLANO_FEEDBACK_PROF.md`; modo autônomo D69;
 | F3/F4 — aluno ↔ curso | `feature/fase2-tdd-f3-aluno-curso` | `dbcc791` | `bec2701`, `08d9ecc` | ver `git log` | backend 67/67; regressão verde; 6 e2e verdes |
 | U1/U2 — busca, paginação e CSV | `feature/fase2-tdd-u1-busca-csv` | `ec1388d` | `72a2d8d`, `64eac03` | ver `git log` | backend 99/99; regressão 1220 passed; 6 e2e verdes |
 | F5a — turma no checkout e reserva | `feature/fase2-tdd-f5a-turma-checkout` | `14dcb11` | `4b6901d`, `34cbc01` | ver `git log` | backend 65/65; regressão 1384 passed; 8 e2e verdes |
+| F5b — chat com turmas e ação de matrícula | `feature/fase2-tdd-f5b-chat-turmas` | `df50614`, `7a816d1` (guarda→D76) | `066a925`, `cff3d11` | ver `git log` | backend 47/47; regressão 1431 passed; 13 e2e verdes |

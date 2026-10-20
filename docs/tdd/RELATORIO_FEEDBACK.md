@@ -13,6 +13,7 @@ Início: 19/10/2026. Fila: `docs/tdd/PLANO_FEEDBACK_PROF.md`. Atualizado ao fim 
 | F3/F4 — aluno ↔ curso e turma do aluno | entregue | red `dbcc791`; backend `bec2701`; front `08d9ecc` | regressão verde; 6 e2e verdes |
 | U1/U2 — busca, paginação e CSV | entregue | red `ec1388d`; backend `72a2d8d`; front `64eac03` | regressão 1220 passed; 6 e2e verdes |
 | F5a — turma no checkout, reserva e lotação | entregue | red `14dcb11`; backend `4b6901d`; front `34cbc01` | regressão 1384 passed; 8 e2e verdes |
+| F5b — chat com turmas e botão de matrícula | entregue | red `df50614`; backend `066a925`; front `cff3d11`; ajuste guarda `7a816d1` | regressão 1431 passed; 13 e2e verdes |
 
 ## Decisões de política tomadas sem o PM (para revisão)
 
@@ -24,6 +25,7 @@ Início: 19/10/2026. Fila: `docs/tdd/PLANO_FEEDBACK_PROF.md`. Atualizado ao fim 
 - **F3/F4:** a lista de alunos do curso não mostra valor na tela para nenhum perfil (a API manda para Gestão/Financeiro). Textos novos escolhidos pelo orquestrador/dev: "início em", "Alunos de <curso>", "Fechar", "Nenhum aluno neste curso." etc.
 - **U1/U2 (D74):** exportação CSV só Gestão e Financeiro (Suporte 403); cada exportação vai para a auditoria. Financeiro e auditoria sem paginação na tela (só busca/filtro); mensagem de lista vazia com busca ativa continua a antiga. Busca das listas em memória (dívida de desempenho).
 - **F5a/S8 (D75):** pagamento que chega depois de a reserva expirar, com turma lotada, ativa a matrícula **sem turma** e avisa a Gestão pela auditoria (`enrollment.class_overflow`). Turmas já iniciadas não são vendidas. Na disputa da última vaga, quem perde recebe 409 depois de uma preferência criada no gateway (não paga). Landing estática sem seleção de turma.
+- **F5b (D76):** botões "Matricular na turma <nome>" / "Matricular no curso" (até 3); turmas todas lotadas → sem botão; aluno já ativo → sem botão. Visitante da landing é levado ao login e volta ao catálogo com a turma escolhida. O texto da instrução ao LLM é do orquestrador/dev.
 
 ## Paradas e itens pulados
 
