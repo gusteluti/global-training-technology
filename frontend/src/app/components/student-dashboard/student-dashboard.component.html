@@ -79,6 +79,27 @@
           <ng-template #semAcesso>
             <p class="text-muted small mb-0 curso-aviso">{{ mensagemSemAcesso(m.status) }}</p>
           </ng-template>
+
+          <div class="mt-3" *ngIf="m.cancellation || m.can_request_cancellation || erroCancelamento[m.id]">
+            <p class="small mb-2" data-testid="curso-cancelamento-status" *ngIf="textoCancelamento(m.cancellation)">{{ textoCancelamento(m.cancellation) }}</p>
+            <div class="alert alert-danger small py-2 mb-2" *ngIf="erroCancelamento[m.id]">{{ erroCancelamento[m.id] }}</div>
+            <ng-container *ngIf="m.can_request_cancellation">
+              <button type="button" class="btn btn-outline-danger btn-sm" data-testid="curso-cancelar"
+                      *ngIf="cancelarAbertoId !== m.id" (click)="abrirCancelamento(m)">Pedir cancelamento</button>
+              <div *ngIf="cancelarAbertoId === m.id">
+                <textarea class="form-control form-control-sm mb-2" rows="3" maxlength="500"
+                          data-testid="curso-cancelar-motivo" [name]="'motivo-cancelamento-' + m.id"
+                          placeholder="Motivo (opcional)" aria-label="Motivo do cancelamento"
+                          [(ngModel)]="motivoCancelamento"></textarea>
+                <div class="d-flex gap-2">
+                  <button type="button" class="btn btn-danger btn-sm" data-testid="curso-cancelar-enviar"
+                          [disabled]="enviandoCancelamento" (click)="enviarCancelamento(m)">Enviar pedido</button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm"
+                          [disabled]="enviandoCancelamento" (click)="cancelarAbertoId = null">Voltar</button>
+                </div>
+              </div>
+            </ng-container>
+          </div>
         </div>
       </div>
     </div>
