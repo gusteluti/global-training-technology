@@ -1117,3 +1117,24 @@ Contrato (forma, orquestrador; política marcada para revisão):
   relatório em `entity_id`. Aceitam os mesmos filtros da lista correspondente.
 - Telas: campo de busca e paginação em alunos, financeiro e auditoria (com datas); botão "Exportar CSV" só para Gestão e
   Financeiro.
+
+## D75 — F5a: turma no checkout, reserva de vaga e lotação (19/10/2026, modo autônomo D69)
+Política da D68: a vaga fica reservada por 30 min a partir do checkout. Contrato (forma; política marcada):
+- `GET /api/courses/{course_id}/turmas` (público): turmas abertas do curso não arquivado — `starts_on` nulo ou
+  `>=` hoje em São Paulo —, `[{id, name, starts_on, capacity, seats_left}]` (`seats_left` nulo sem capacidade), em
+  ordem de `starts_on` (nulos por último) e nome. Nenhum dado de aluno. Curso inexistente ou arquivado → 404
+  `Course not found`.
+- **Ocupação** de uma turma para venda: matrículas `active` + `pending` com reserva válida (`reserved_until` > agora) +
+  `pending` sem `reserved_until` (atribuídas pela Gestão ou anteriores à F5a). Nova coluna `enrollments.reserved_until`.
+  Os números de turma do dashboard (L1) não mudam.
+- Checkouts (aluno e landing) aceitam `class_id` opcional; sem ele, comportamento de hoje (sem turma). Com ele: turma de
+  outro curso, inexistente ou já iniciada → 404 `Turma não encontrada`; lotada → 409 `Esta turma está lotada. Escolha
+  outra turma.`; senão a matrícula nasce com a turma e `reserved_until` = agora + 30 min. Conferência e gravação
+  atômicas (duas compras simultâneas da última vaga: uma vende, a outra recebe 409).
+- Retomada (D72) com `class_id`: troca a turma da pendente (com a mesma conferência de vaga) e renova a reserva.
+- **S8 (política, revisão do PM):** pagamento aprovado pelo webhook depois de a reserva expirar, com a turma já lotada
+  por outros → o pagamento e a matrícula são ativados (o dinheiro entrou), mas a matrícula fica **sem turma**
+  (`class_id` nulo) e grava o evento `enrollment.class_overflow` para a Gestão realocar. Com vaga, mantém a turma.
+- Tela `/catalogo`: curso com turmas abertas mostra `catalogo-turma` (seleção obrigatória) com nome, início e vagas;
+  turma lotada aparece desabilitada "(lotada)". A compra envia `class_id`. Aceita `?curso=<id>&turma=<id>` para
+  pré-selecionar (usado pelo chat na F5b). A landing estática fica sem seleção de turma (dívida).
