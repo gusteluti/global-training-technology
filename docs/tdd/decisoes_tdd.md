@@ -1260,3 +1260,7 @@ Política decidida pelo orquestrador (revisão do PM). Contrato:
   aluno (F3), Gestão vê `aluno-desativar` / `aluno-reativar` com confirmação e o badge `aluno-desativado`.
 - **U9:** resposta 401 de rota `/api/student/` ou `/api/dashboard/`/`/api/admin/` com JWT → a SPA apaga o token e vai
   para `/login?next=<rota atual>` mostrando `Sua sessão expirou. Entre novamente.`
+- Forma (dev, aceita pelo orquestrador): telefone em tabela `user_profiles` (a migração de `users` só ganha as duas
+  colunas da D80); `<base href="/">` no `index.html` (faltava; rotas de dois segmentos como `/student/perfil` ficavam
+  em branco); sessão expirada sinalizada por `?sessao=expirada`. Dívidas: troca de senha logado sem limite de
+  tentativas; conta desativada ainda recebe link de recuperação (não reativa a conta).
