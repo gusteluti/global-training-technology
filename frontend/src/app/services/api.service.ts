@@ -21,6 +21,11 @@ export class ApiService {
     return this.http.get(`${BASE}/api/courses`);
   }
 
+  // Turmas abertas de um curso (F5a, D75): rota pública, sem dado de aluno.
+  public getCourseTurmas(courseId: string) {
+    return this.http.get(`${BASE}/api/courses/${encodeURIComponent(courseId)}/turmas`);
+  }
+
   // Área do aluno (E3, D28): só as matrículas do próprio usuário do token.
   public getMyEnrollments() {
     return this.http.get(`${BASE}/api/student/enrollments`, this.authHeaders());
@@ -51,8 +56,13 @@ export class ApiService {
   }
 
   // Checkout do aluno logado (Parte 1): o corpo leva só o curso; o aluno vem do JWT no backend.
-  public studentCheckout(courseId: string) {
-    return this.http.post(`${BASE}/api/student/checkout`, { course_id: courseId }, this.authHeaders());
+  // F5a (D75): `class_id` opcional; sem ele, o corpo é o de antes.
+  public studentCheckout(courseId: string, classId?: number | null) {
+    const corpo: any = { course_id: courseId };
+    if (classId !== undefined && classId !== null) {
+      corpo.class_id = classId;
+    }
+    return this.http.post(`${BASE}/api/student/checkout`, corpo, this.authHeaders());
   }
 
   // Dashboards de funcionário (Fase 2): mesmos endpoints usados pelo admin.html.
