@@ -1,9 +1,17 @@
 import { Component, OnInit } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { PainelMatriculas } from '../../resolvers/enrollments.resolver';
 import { ApiService } from '../../services/api.service';
 import { AuthService } from '../../services/auth.service';
 import { formatarDataSP } from '../../pipes/data-sp.pipe';
+
+// Ação de matrícula devolvida pelo chat (D76).
+interface AcaoChat {
+  type: string;
+  course_id: string;
+  class_id: number | null;
+  label: string;
+}
 
 // Rótulos e cores dos status de matrícula (conjunto fechado, D28).
 const ROTULOS_STATUS: { [status: string]: string } = {
@@ -71,10 +79,12 @@ export class StudentDashboardComponent implements OnInit {
   chatMessages: { role: string; content: string }[] = [];
   chatInput = '';
   chatEnviando = false;
+  // Ações de matrícula da última resposta (F5b, D76). Montadas pelo servidor e não persistidas no histórico.
+  chatAcoes: AcaoChat[] = [];
   erroChat = '';
   email = '';
 
-  constructor(private route: ActivatedRoute, private api: ApiService, auth: AuthService) {
+  constructor(private route: ActivatedRoute, private router: Router, private api: ApiService, auth: AuthService) {
     // E-mail do próprio token (nunca de outro aluno): mostrado só no cabeçalho.
     this.email = auth.decodeToken()?.email || '';
     // Dados vindos do EnrollmentsResolver (rota /student).
@@ -203,6 +213,7 @@ export class StudentDashboardComponent implements OnInit {
     const texto = this.chatInput;
     this.chatEnviando = true;
     this.erroChat = '';
+    this.chatAcoes = [];
     this.api.sendChatMessage(texto).subscribe({
       next: (res: any) => {
         this.chatMessages = [
@@ -210,6 +221,8 @@ export class StudentDashboardComponent implements OnInit {
           { role: 'user', content: texto },
           { role: 'assistant', content: res.message }
         ];
+        this.chatAcoes = (Array.isArray(res.actions) ? res.actions : [])
+          .filter((a: any) => a && a.type === 'enroll' && a.course_id && a.label);
         this.chatInput = '';
         this.chatEnviando = false;
       },
@@ -218,5 +231,14 @@ export class StudentDashboardComponent implements OnInit {
         this.chatEnviando = false;
       }
     });
+  }
+
+  // Leva ao catálogo com o curso e, se houver, a turma pré-selecionada (D75/D76).
+  abrirMatricula(acao: AcaoChat): void {
+    const queryParams: { [k: string]: string } = { curso: String(acao.course_id) };
+    if (acao.class_id !== null && acao.class_id !== undefined) {
+      queryParams['turma'] = String(acao.class_id);
+    }
+    this.router.navigate(['/catalogo'], { queryParams });
   }
 }

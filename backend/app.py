@@ -20,7 +20,7 @@ from agents.llm_guard import (
     InputBlockedError,
     LLMUnavailableError,
 )
-from agents.manager_agent import ManagerAgent
+from agents.manager_agent import ManagerAgent, montar_acoes
 from auth import router as auth_router
 from student.routes import router as student_router
 from core.security import get_password_hash, senha_excede_limite_bcrypt
@@ -186,16 +186,18 @@ async def chat(chat_msg: ChatMessage, request: Request):
 
         # Route message through manager agent
         try:
-            response = manager_agent.process_message(user_message, session_id)
+            resultado = manager_agent.process_message(user_message, session_id)
         except InputBlockedError:
-            response = INPUT_BLOCKED
+            return {"status": "success", "message": INPUT_BLOCKED, "session_id": session_id, "actions": []}
         except LLMUnavailableError:
             return {"status": "error", "message": LLM_UNAVAILABLE, "session_id": session_id}
-        
+
         return {
             "status": "success",
-            "message": response,
-            "session_id": session_id
+            "message": resultado.texto,
+            "session_id": session_id,
+            # F5b (D76): ações montadas pelo servidor a partir do curso roteado; visitante não tem matrícula.
+            "actions": montar_acoes(resultado),
         }
     except Exception as e:
         # Nada do texto da exceção vai ao cliente (E6, D38.6); o log leva só o tipo.
