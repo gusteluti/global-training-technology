@@ -907,7 +907,10 @@ class Database:
         conn.row_factory = sqlite3.Row
         try:
             rows = conn.execute(
-                "SELECT id, course_id, status, enrolled_at FROM enrollments WHERE user_id = ? ORDER BY id DESC",
+                """SELECT e.id, e.course_id, e.status, e.enrolled_at,
+                          c.name AS class_name, c.starts_on AS class_starts_on
+                   FROM enrollments e LEFT JOIN classes c ON c.id = e.class_id
+                   WHERE e.user_id = ? ORDER BY e.id DESC""",
                 (user_id,),
             ).fetchall()
             return [dict(row) for row in rows]
@@ -921,7 +924,10 @@ class Database:
         conn.row_factory = sqlite3.Row
         try:
             row = conn.execute(
-                "SELECT id, course_id, status, enrolled_at FROM enrollments WHERE id = ? AND user_id = ?",
+                """SELECT e.id, e.course_id, e.status, e.enrolled_at,
+                          c.name AS class_name, c.starts_on AS class_starts_on
+                   FROM enrollments e LEFT JOIN classes c ON c.id = e.class_id
+                   WHERE e.id = ? AND e.user_id = ?""",
                 (enrollment_id, user_id),
             ).fetchone()
             return dict(row) if row else None
@@ -1583,6 +1589,89 @@ class Database:
                    WHERE e.course_id = ?
                    ORDER BY e.id""",
                 (course_id,),
+            ).fetchall()
+            return [dict(row) for row in rows]
+        finally:
+            conn.close()
+
+    # --- Detalhe do aluno e alunos do curso (F3/F4, D73) -------------------------------------------
+
+    @staticmethod
+    def get_student_detail(user_id: int) -> Optional[Dict]:
+        """Conta de aluno com matrículas (e turma), pagamentos e resumo do chat. None se o id não for de aluno
+        (inexistente, funcionário ou fora do INTEGER do SQLite). Sem hash de senha."""
+        if not Database._id_sqlite_valido(user_id):
+            return None
+        conn = sqlite3.connect(Database.DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            aluno = conn.execute(
+                """SELECT u.id, u.name, u.email, u.created_at,
+                          (SELECT COUNT(*) FROM chat_messages c
+                            WHERE c.user_id = u.id AND c.role = 'user') AS chat_messages,
+                          (SELECT c.created_at FROM chat_messages c
+                            WHERE c.user_id = u.id AND c.role = 'user'
+                            ORDER BY c.id DESC LIMIT 1) AS last_chat_at
+                   FROM users u WHERE u.id = ? AND u.role = 'student'""",
+                (user_id,),
+            ).fetchone()
+            if aluno is None:
+                return None
+            matriculas = conn.execute(
+                """SELECT e.id AS enrollment_id, e.course_id, e.class_id, c.name AS class_name,
+                          c.starts_on AS class_starts_on, e.status, e.enrolled_at
+                   FROM enrollments e LEFT JOIN classes c ON c.id = e.class_id
+                   WHERE e.user_id = ?
+                   ORDER BY e.enrolled_at DESC, e.id DESC""",
+                (user_id,),
+            ).fetchall()
+            pagamentos = conn.execute(
+                """SELECT p.id AS payment_id, p.enrollment_id, e.course_id, p.status, p.created_at, p.amount
+                   FROM payments p JOIN enrollments e ON e.id = p.enrollment_id
+                   WHERE e.user_id = ?
+                   ORDER BY p.created_at DESC, p.id DESC""",
+                (user_id,),
+            ).fetchall()
+            return {
+                "student": dict(aluno),
+                "enrollments": [dict(row) for row in matriculas],
+                "payments": [dict(row) for row in pagamentos],
+            }
+        finally:
+            conn.close()
+
+    @staticmethod
+    def list_students_of_course(course_id: str, status: Optional[str] = None, class_id=None,
+                                sem_turma: bool = False) -> List[Dict]:
+        """Matrículas de um curso com aluno, turma e o último pagamento da matrícula (status e valor).
+        Filtros opcionais: status; turma (class_id) ou sem turma. Mais recente primeiro."""
+        where = ["e.course_id = ?"]
+        params: list = [course_id]
+        if status is not None:
+            where.append("e.status = ?")
+            params.append(status)
+        if sem_turma:
+            where.append("e.class_id IS NULL")
+        elif class_id is not None:
+            if not Database._id_sqlite_valido(class_id):
+                return []
+            where.append("e.class_id = ?")
+            params.append(class_id)
+        conn = sqlite3.connect(Database.DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            rows = conn.execute(
+                f"""SELECT u.id AS user_id, u.name, u.email, e.id AS enrollment_id, e.status, e.enrolled_at,
+                           e.class_id, c.name AS class_name,
+                           p.status AS payment_status, p.amount
+                    FROM enrollments e
+                    JOIN users u ON u.id = e.user_id
+                    LEFT JOIN classes c ON c.id = e.class_id
+                    LEFT JOIN payments p ON p.id = (
+                        SELECT MAX(p2.id) FROM payments p2 WHERE p2.enrollment_id = e.id)
+                    WHERE {" AND ".join(where)}
+                    ORDER BY e.enrolled_at DESC, e.id DESC""",
+                params,
             ).fetchall()
             return [dict(row) for row in rows]
         finally:

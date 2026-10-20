@@ -77,6 +77,9 @@ def _montar_item(matricula: Dict) -> Dict:
         "course_name": (curso or {}).get("name") or matricula["course_id"],
         "status": matricula["status"],
         "enrolled_at": matricula["enrolled_at"],
+        # F3 (D73): turma do próprio aluno; null quando a matrícula não tem turma.
+        "class_name": matricula.get("class_name"),
+        "class_starts_on": matricula.get("class_starts_on"),
     }
     # Só a matrícula ativa recebe materiais. Nos demais status o campo nem existe na resposta.
     if matricula["status"] == STATUS_COM_MATERIAIS:
