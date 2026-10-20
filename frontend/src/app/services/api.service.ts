@@ -64,6 +64,24 @@ export class ApiService {
     return this.http.get(`${BASE}/api/dashboard/alunos`, this.authHeaders());
   }
 
+  // F3/F4 (D73): detalhe do aluno e alunos de um curso. `amount` não vem para o Suporte (D68).
+  public getStudentDetail(userId: number) {
+    return this.http.get(`${BASE}/api/dashboard/alunos/${encodeURIComponent(String(userId))}`, this.authHeaders());
+  }
+
+  // Filtros opcionais: status (pending/active/cancelled/refunded) e class_id (id da turma ou 'none').
+  public getCourseStudents(courseId: string, filtros: { status?: string; class_id?: string } = {}) {
+    let params = new HttpParams();
+    if (filtros.status) {
+      params = params.set('status', filtros.status);
+    }
+    if (filtros.class_id) {
+      params = params.set('class_id', filtros.class_id);
+    }
+    return this.http.get(`${BASE}/api/dashboard/cursos/${encodeURIComponent(courseId)}/alunos`,
+      { ...this.authHeaders(), params });
+  }
+
   public getCoursesMetrics() {
     return this.http.get(`${BASE}/api/dashboard/cursos`, this.authHeaders());
   }

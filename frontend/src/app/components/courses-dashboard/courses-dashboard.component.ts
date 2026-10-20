@@ -30,6 +30,14 @@ export class CoursesDashboardComponent implements OnInit, OnDestroy {
   enrollments: any[] = [];
   turmaError = '';
 
+  // Alunos do curso (F4, D73): todos os perfis internos; a tela não mostra valores.
+  alunosCurso: any = null;
+  alunos: any[] = [];
+  alunosErro = '';
+  filtroStatus = '';
+  filtroTurma = '';
+  readonly statusOpcoes = ['active', 'pending', 'cancelled', 'refunded'];
+
   constructor(private api: ApiService, private auth: AuthService) { }
 
   ngOnInit(): void {
@@ -54,6 +62,36 @@ export class CoursesDashboardComponent implements OnInit, OnDestroy {
   get manageClasses(): any[] {
     const course = this.courses.find(c => c.id === this.manageCourseId);
     return course?.classes || [];
+  }
+
+  abrirAlunosCurso(curso: any): void {
+    this.alunosCurso = curso;
+    this.filtroStatus = '';
+    this.filtroTurma = '';
+    this.carregarAlunosCurso();
+  }
+
+  fecharAlunosCurso(): void {
+    this.alunosCurso = null;
+    this.alunos = [];
+    this.alunosErro = '';
+  }
+
+  carregarAlunosCurso(): void {
+    const curso = this.alunosCurso;
+    if (!curso) {
+      return;
+    }
+    const filtros = { status: this.filtroStatus, class_id: this.filtroTurma };
+    this.alunosErro = '';
+    this.api.getCourseStudents(curso.id, filtros).subscribe({
+      next: (r: any) => {
+        if (curso === this.alunosCurso && filtros.status === this.filtroStatus && filtros.class_id === this.filtroTurma) {
+          this.alunos = r.students || [];
+        }
+      },
+      error: err => this.alunosErro = this.errorText(err)
+    });
   }
 
   statusLabel(status: string): string {
