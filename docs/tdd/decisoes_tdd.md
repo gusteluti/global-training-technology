@@ -1330,3 +1330,7 @@ Contrato (forma; textos marcados para revisão):
   `turma-excluir` (confirm com o nome; o 409 da L1 aparece em `turma-erro`). A criação ganha `turma-new-end` e
   `turma-new-schedule`. Catálogo: rótulo da turma inclui o horário quando houver. Área do aluno: `curso-turma`
   acrescenta ` · <horário>` e ` · término em dd/mm/aaaa` quando houver.
+- Ajuste mecânico (autoridade 4.3), D53 (L1) / D75 (F5a) → D83: as listas de campos exatos da turma em
+  `test_l1_turmas.py` (`CAMPOS_TURMA`, campos permitidos em `changes`) e `test_f5a_turma_checkout.py`
+  (`CAMPOS_TURMA_PUBLICA`, esperado da t1) passam a incluir `ends_on` e `schedule` (`d0d9241`); intenção preservada
+  (campos exatos e "só o que mudou").
