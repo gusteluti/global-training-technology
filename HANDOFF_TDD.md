@@ -310,3 +310,4 @@ Fila e respostas do PM em `docs/tdd/PLANO_FEEDBACK_PROF.md`; modo autônomo D69;
 | F2 — horário de São Paulo | `feature/fase2-tdd-f2-fuso-horario` | `c657d64`, `af121b1` | `5b702cc`, `07f54aa` | ver `git log` | backend 62/62; regressão verde (5 blocos); e2e F2 10/10 + 6 e2e de telas tocadas verdes |
 | S1 — compra duplicada | `feature/fase2-tdd-s1-compra-duplicada` | `47a7172`, `013949d` (D10→D72) | `1f3dda6`, `a67a700` | ver `git log` | regressão 1153 passed; 8 e2e verdes |
 | F3/F4 — aluno ↔ curso | `feature/fase2-tdd-f3-aluno-curso` | `dbcc791` | `bec2701`, `08d9ecc` | ver `git log` | backend 67/67; regressão verde; 6 e2e verdes |
+| U1/U2 — busca, paginação e CSV | `feature/fase2-tdd-u1-busca-csv` | `ec1388d` | `72a2d8d`, `64eac03` | ver `git log` | backend 99/99; regressão 1220 passed; 6 e2e verdes |
