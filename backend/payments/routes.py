@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 
 from admin.routes import ERR_CURSO_INDISPONIVEL, curso_arquivado, load_course_data
+from core import rate_limit
 from core.audit import change, record_audit
 from core.notifications import send_password_setup_link
 from core.password_setup import emitir_token_definicao
@@ -372,6 +373,9 @@ def iniciar_checkout_curso(
 
 @router.post("/create-checkout")
 async def create_checkout(payload: CheckoutInput, request: Request):
+    # S9 (D79): 10 checkouts por minuto por IP; o 429 não cria nada nem chama o gateway.
+    if not rate_limit.permitir_checkout(request):
+        raise HTTPException(status_code=429, detail=rate_limit.ERRO_CHECKOUT)
     validate_payer(payload.payer)
     return iniciar_checkout_curso(
         payload.course_id,

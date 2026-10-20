@@ -197,6 +197,21 @@ class Database:
             )
         """)
 
+        # S2 (D79): limite de tentativas de login. Uma linha por falha ('fail') ou bloqueio ('lock') de um e-mail
+        # normalizado ou de um IP. Datas em UTC no formato de CURRENT_TIMESTAMP. Nunca guarda senha.
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS login_attempts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                scope TEXT NOT NULL CHECK (scope IN ('email', 'ip')),
+                key TEXT NOT NULL,
+                kind TEXT NOT NULL CHECK (kind IN ('fail', 'lock')),
+                created_at TEXT NOT NULL
+            )
+        """)
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_login_attempts_key ON login_attempts (scope, key, kind, created_at)"
+        )
+
         conn.commit()
         conn.close()
         print("[OK] Database initialized")
@@ -1269,6 +1284,81 @@ class Database:
             )
             conn.commit()
             return cursor.lastrowid
+        finally:
+            conn.close()
+
+    # --- Limite de tentativas de login (S2, D79) ------------------------------------------------
+
+    @staticmethod
+    def login_bloqueado(chaves: List[Tuple[str, str]], desde: str) -> bool:
+        """Há bloqueio ('lock') criado depois de `desde` para alguma das chaves (scope, key)?"""
+        if not chaves:
+            return False
+        conn = sqlite3.connect(Database.DB_PATH)
+        try:
+            for scope, key in chaves:
+                linha = conn.execute(
+                    "SELECT 1 FROM login_attempts WHERE scope = ? AND key = ? AND kind = 'lock' AND created_at > ? "
+                    "LIMIT 1",
+                    (scope, key, desde),
+                ).fetchone()
+                if linha:
+                    return True
+            return False
+        finally:
+            conn.close()
+
+    @staticmethod
+    def registrar_falha_de_login(chaves: List[Tuple[str, str, int]], agora: str, desde: str,
+                                 descartar_antes_de: str) -> List[Tuple[str, str]]:
+        """Grava uma falha para cada chave (scope, key, limite) e, atomicamente, um bloqueio para cada chave que
+        chegou ao limite de falhas depois de `desde` e ainda não tem bloqueio vigente. Devolve as chaves
+        bloqueadas agora (um evento de auditoria por bloqueio). Linhas anteriores a `descartar_antes_de` saem."""
+        novos_bloqueios = []
+        conn = sqlite3.connect(Database.DB_PATH, isolation_level=None, timeout=30)
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            try:
+                conn.execute("DELETE FROM login_attempts WHERE created_at < ?", (descartar_antes_de,))
+                for scope, key, limite in chaves:
+                    conn.execute(
+                        "INSERT INTO login_attempts (scope, key, kind, created_at) VALUES (?, ?, 'fail', ?)",
+                        (scope, key, agora),
+                    )
+                    falhas = conn.execute(
+                        "SELECT COUNT(*) FROM login_attempts WHERE scope = ? AND key = ? AND kind = 'fail' "
+                        "AND created_at > ?",
+                        (scope, key, desde),
+                    ).fetchone()[0]
+                    if falhas < limite:
+                        continue
+                    vigente = conn.execute(
+                        "SELECT 1 FROM login_attempts WHERE scope = ? AND key = ? AND kind = 'lock' "
+                        "AND created_at > ? LIMIT 1",
+                        (scope, key, desde),
+                    ).fetchone()
+                    if vigente:
+                        continue
+                    conn.execute(
+                        "INSERT INTO login_attempts (scope, key, kind, created_at) VALUES (?, ?, 'lock', ?)",
+                        (scope, key, agora),
+                    )
+                    novos_bloqueios.append((scope, key))
+                conn.execute("COMMIT")
+            except Exception:
+                conn.execute("ROLLBACK")
+                raise
+        finally:
+            conn.close()
+        return novos_bloqueios
+
+    @staticmethod
+    def limpar_falhas_de_login(scope: str, key: str) -> None:
+        """Login certo zera as falhas daquela chave (os bloqueios não mudam)."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        try:
+            conn.execute("DELETE FROM login_attempts WHERE scope = ? AND key = ? AND kind = 'fail'", (scope, key))
+            conn.commit()
         finally:
             conn.close()
 
