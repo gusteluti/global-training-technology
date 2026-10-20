@@ -44,6 +44,9 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", str(6
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+# D80: JWT de conta válido na assinatura, mas de conta apagada, inativa ou com versão de token antiga.
+ERRO_SESSAO_EXPIRADA = "Sessão expirada. Entre novamente."
+
 # Compatibilidade: o nome antigo do perfil de conta continua disponível.
 AuthContext = User
 
@@ -107,6 +110,15 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return jwt.encode(to_encode, _jwt_secret(), algorithm=JWT_ALGORITHM)
 
 
+def create_account_token(user_id: int, email: str, role: str, token_version: int,
+                         expires_delta: Optional[timedelta] = None) -> str:
+    """JWT de conta com a versão atual do token da conta (claim `tv`, D80)."""
+    return create_access_token(
+        {"user_id": user_id, "email": email, "role": role, "tv": int(token_version or 0)},
+        expires_delta=expires_delta,
+    )
+
+
 def _user_from_jwt(token: str) -> User:
     try:
         payload = jwt.decode(token, _jwt_secret(), algorithms=[JWT_ALGORITHM])
@@ -118,9 +130,19 @@ def _user_from_jwt(token: str) -> User:
     if user_id is None or email is None:
         raise HTTPException(status_code=401, detail="Credenciais inválidas")
 
-    user_data = Database.get_user_by_email(email)
-    if not user_data:
-        raise HTTPException(status_code=401, detail="Credenciais inválidas")
+    # D80: toda requisição com JWT de conta confere no banco (uma consulta) que a conta existe, está ativa e que a
+    # versão do token (`tv`; token sem `tv` vale como 0) é a atual. Senão a sessão acabou.
+    versao = payload.get("tv", 0)
+    user_data = Database.get_session_user(user_id) if isinstance(user_id, int) else None
+    if (
+        not user_data
+        or user_data["email"] != email
+        or not user_data.get("is_active")
+        or not isinstance(versao, int)
+        or isinstance(versao, bool)
+        or versao != user_data.get("token_version")
+    ):
+        raise HTTPException(status_code=401, detail=ERRO_SESSAO_EXPIRADA)
 
     return User(
         id=user_data["id"],

@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict
 
 from core.audit import record_audit
 from core import login_limit
-from core.security import create_access_token, verify_password, get_password_hash
+from core.security import create_account_token, verify_password, get_password_hash
 from core.password_setup import (
     definir_senha_pelo_token,
     emitir_token_com_limite,
@@ -43,6 +43,8 @@ RESPOSTA_PEDIDO_REDEFINICAO = {
     "message": "Se o e-mail estiver cadastrado, enviaremos um link para redefinir a senha.",
 }
 RESPOSTA_REDEFINICAO = {"status": "success", "message": "Senha redefinida. Faça login para entrar."}
+# Login de aluno desativado com a senha certa (S4, D80).
+ERRO_CONTA_DESATIVADA = "Sua conta está desativada. Fale com o suporte."
 
 
 def _frontend_base() -> str:
@@ -182,10 +184,16 @@ async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequ
         login_limit.registrar_falha(email_normalizado, ip)
         raise HTTPException(status_code=400, detail="Usuário ou senha inválidos")
 
+    if not user.get("is_active", 1):
+        # D80: só com a senha certa a conta desativada é revelada (senha errada segue a resposta genérica acima).
+        # Não é falha de senha (não conta no limite) nem login concluído (não zera as falhas).
+        raise HTTPException(status_code=403, detail=ERRO_CONTA_DESATIVADA)
+
     login_limit.registrar_sucesso(email_normalizado)
     if is_staff:
         record_audit("staff.login", "Login de funcionário", actor=actor)
 
     access_token_expires = timedelta(minutes=60*8)
-    token = create_access_token({"user_id": user["id"], "email": user["email"], "role": user.get("role", "student")}, expires_delta=access_token_expires)
+    token = create_account_token(user["id"], user["email"], user.get("role") or "student",
+                                 user.get("token_version") or 0, expires_delta=access_token_expires)
     return {"access_token": token, "token_type": "bearer"}

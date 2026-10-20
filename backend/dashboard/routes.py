@@ -192,6 +192,7 @@ async def dashboard_aluno_detalhe(user_id: int, current_user: AuthContext = Depe
             "name": aluno["name"],
             "email": aluno["email"],
             "created_at": aluno["created_at"],
+            "is_active": bool(aluno["is_active"]),
         },
         "enrollments": enrollments,
         "payments": payments,

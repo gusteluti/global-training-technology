@@ -42,6 +42,18 @@ class Database:
             )
         """)
         Database._ensure_column(cursor, "enrollments", "class_id", "INTEGER")
+        # S4/S5 (D80): conta ativa e versão do token. Bancos antigos ganham as colunas com os padrões (idempotente).
+        Database._ensure_column(cursor, "users", "is_active", "INTEGER NOT NULL DEFAULT 1")
+        Database._ensure_column(cursor, "users", "token_version", "INTEGER NOT NULL DEFAULT 0")
+        # U3 (D80): telefone do perfil do aluno, fora de `users` (a tabela de contas só ganha as colunas da D80).
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_profiles (
+                user_id INTEGER PRIMARY KEY,
+                phone TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_enrollments_class ON enrollments (class_id)")
         # F5a (D75): fim da reserva de vaga do checkout, em UTC 'AAAA-MM-DD HH:MM:SS' (mesmo formato de
         # CURRENT_TIMESTAMP). Nulo = sem reserva (atribuída pela Gestão ou anterior à F5a).
@@ -374,7 +386,11 @@ class Database:
     def get_user_by_email(email: str) -> Optional[dict]:
         conn = sqlite3.connect(Database.DB_PATH)
         cursor = conn.cursor()
-        cursor.execute("SELECT id, email, name, password_hash, role, created_at FROM users WHERE email = ?", (email,))
+        cursor.execute(
+            "SELECT id, email, name, password_hash, role, created_at, is_active, token_version "
+            "FROM users WHERE email = ?",
+            (email,),
+        )
         row = cursor.fetchone()
         conn.close()
         if not row:
@@ -385,7 +401,9 @@ class Database:
             "name": row[2],
             "password_hash": row[3],
             "role": row[4],
-            "created_at": row[5]
+            "created_at": row[5],
+            "is_active": row[6],
+            "token_version": row[7],
         }
 
     @staticmethod
@@ -397,6 +415,121 @@ class Database:
                 "SELECT id, email, name, password_hash, role FROM users WHERE id = ?", (user_id,)
             ).fetchone()
             return dict(row) if row else None
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_session_user(user_id) -> Optional[dict]:
+        """Conta conferida em toda requisição com JWT de conta (D80): uma consulta só."""
+        if not Database._id_sqlite_valido(user_id):
+            return None
+        conn = sqlite3.connect(Database.DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            row = conn.execute(
+                "SELECT id, email, name, role, created_at, is_active, token_version FROM users WHERE id = ?",
+                (user_id,),
+            ).fetchone()
+            return dict(row) if row else None
+        finally:
+            conn.close()
+
+    @staticmethod
+    def set_student_active(user_id, ativo: bool) -> Optional[Dict]:
+        """Desativa/reativa uma conta de aluno (S4, D80). None se o id não for de aluno. Idempotente: só muda na
+        transição. Desativar incrementa token_version na mesma instrução."""
+        if not Database._id_sqlite_valido(user_id):
+            return None
+        conn = sqlite3.connect(Database.DB_PATH, isolation_level=None, timeout=30)
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            try:
+                row = conn.execute(
+                    "SELECT is_active FROM users WHERE id = ? AND role = 'student'", (user_id,)
+                ).fetchone()
+                if row is None:
+                    conn.execute("ROLLBACK")
+                    return None
+                mudou = bool(row[0]) != bool(ativo)
+                if mudou:
+                    if ativo:
+                        conn.execute("UPDATE users SET is_active = 1 WHERE id = ?", (user_id,))
+                    else:
+                        conn.execute(
+                            "UPDATE users SET is_active = 0, token_version = token_version + 1 WHERE id = ?",
+                            (user_id,),
+                        )
+                conn.execute("COMMIT")
+                return {"changed": mudou, "is_active": bool(ativo)}
+            except Exception:
+                conn.execute("ROLLBACK")
+                raise
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_student_profile(user_id: int) -> Optional[Dict]:
+        """Perfil do aluno (U3, D80): id, nome, e-mail e telefone. Sem hash de senha nem token_version."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            row = conn.execute(
+                """SELECT u.id, u.name, u.email, p.phone
+                   FROM users u LEFT JOIN user_profiles p ON p.user_id = u.id
+                   WHERE u.id = ?""",
+                (user_id,),
+            ).fetchone()
+            return dict(row) if row else None
+        finally:
+            conn.close()
+
+    @staticmethod
+    def update_student_profile(user_id: int, name: str, phone: Optional[str], alterar_telefone: bool) -> None:
+        """Grava o nome (e, se pedido, o telefone) da conta do próprio aluno numa transação. E-mail nunca muda."""
+        conn = sqlite3.connect(Database.DB_PATH, isolation_level=None, timeout=30)
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            try:
+                conn.execute("UPDATE users SET name = ? WHERE id = ?", (name, user_id))
+                if alterar_telefone:
+                    conn.execute(
+                        """INSERT INTO user_profiles (user_id, phone, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
+                           ON CONFLICT(user_id) DO UPDATE SET phone = excluded.phone,
+                           updated_at = CURRENT_TIMESTAMP""",
+                        (user_id, phone),
+                    )
+                conn.execute("COMMIT")
+            except Exception:
+                conn.execute("ROLLBACK")
+                raise
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_password_hash_and_version(user_id: int) -> Optional[Dict]:
+        conn = sqlite3.connect(Database.DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            row = conn.execute(
+                "SELECT password_hash, token_version FROM users WHERE id = ?", (user_id,)
+            ).fetchone()
+            return dict(row) if row else None
+        finally:
+            conn.close()
+
+    @staticmethod
+    def trocar_senha(user_id: int, hash_atual: Optional[str], versao_atual: int, novo_hash: str) -> Optional[int]:
+        """Troca de senha logado (S5, D80): grava o hash novo e incrementa token_version na mesma instrução, só se a
+        senha e a versão ainda são as conferidas (a corrida perde). Devolve a versão nova, ou None se nada mudou."""
+        conn = sqlite3.connect(Database.DB_PATH, timeout=30)
+        try:
+            mudou = conn.execute(
+                "UPDATE users SET password_hash = ?, token_version = token_version + 1 "
+                "WHERE id = ? AND password_hash IS ? AND token_version = ? AND is_active = 1",
+                (novo_hash, user_id, hash_atual, versao_atual),
+            ).rowcount == 1
+            conn.commit()
+            return versao_atual + 1 if mudou else None
         finally:
             conn.close()
 
@@ -509,7 +642,8 @@ class Database:
                     (token_id,),
                 ).rowcount == 1
                 definiu = marcou and conn.execute(
-                    "UPDATE users SET password_hash = ? WHERE id = ? AND password_hash IS NULL",
+                    "UPDATE users SET password_hash = ?, token_version = token_version + 1 "
+                    "WHERE id = ? AND password_hash IS NULL",
                     (password_hash, user_id),
                 ).rowcount == 1
                 if not definiu:
@@ -549,7 +683,11 @@ class Database:
                     "WHERE user_id = ? AND used_at IS NULL",
                     (user_id,),
                 )
-                conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (password_hash, user_id))
+                # S5 (D80): a troca de senha e a revogação dos tokens antigos vão na mesma instrução.
+                conn.execute(
+                    "UPDATE users SET password_hash = ?, token_version = token_version + 1 WHERE id = ?",
+                    (password_hash, user_id),
+                )
                 conn.execute("COMMIT")
                 return email
             except Exception:
@@ -1772,6 +1910,7 @@ class Database:
                 s.email,
                 s.name,
                 s.created_at,
+                s.is_active,
                 COUNT(e.id) AS total_enrollments,
                 SUM(CASE WHEN e.status = 'active' THEN 1 ELSE 0 END) AS active_enrollments,
                 MAX(e.enrolled_at) AS last_enrollment_at,
@@ -1788,7 +1927,7 @@ class Database:
         """)
         rows = cursor.fetchall()
         conn.close()
-        return [dict(row) for row in rows]
+        return [{**dict(row), "is_active": bool(row["is_active"])} for row in rows]
 
     # --- Turmas (L1, D53) -------------------------------------------------------------------------
     # Contam nos números da turma só as matrículas 'active' e 'pending'; cancelled/refunded mantêm class_id
@@ -2025,7 +2164,7 @@ class Database:
         conn.row_factory = sqlite3.Row
         try:
             aluno = conn.execute(
-                """SELECT u.id, u.name, u.email, u.created_at,
+                """SELECT u.id, u.name, u.email, u.created_at, u.is_active,
                           (SELECT COUNT(*) FROM chat_messages c
                             WHERE c.user_id = u.id AND c.role = 'user') AS chat_messages,
                           (SELECT c.created_at FROM chat_messages c
