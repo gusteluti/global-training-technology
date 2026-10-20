@@ -10,7 +10,8 @@ export class AuthGuard implements CanActivate {
     if (this.auth.isAuthenticated()) {
       return true;
     }
-    this.router.navigate(['/']);
+    // Quem não está logado vai ao login e volta à rota pedida depois (D76).
+    this.router.navigate(['/login'], { queryParams: { next: state.url } });
     return false;
   }
 }
