@@ -1,4 +1,7 @@
 import { Component } from '@angular/core';
+
+// U9 (D80): texto mostrado quando a SPA encerra a sessão depois de um 401 (?sessao=expirada).
+const MSG_SESSAO_EXPIRADA = 'Sua sessão expirou. Entre novamente.';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 
@@ -19,11 +22,17 @@ export class LoginComponent {
   email = '';
   password = '';
   error = '';
+  aviso = '';
 
-  constructor(private auth: AuthService, private router: Router, private route: ActivatedRoute) { }
+  constructor(private auth: AuthService, private router: Router, private route: ActivatedRoute) {
+    this.route.queryParamMap.subscribe(params => {
+      this.aviso = params.get('sessao') === 'expirada' ? MSG_SESSAO_EXPIRADA : '';
+    });
+  }
 
   submit() {
     this.error = '';
+    this.aviso = '';
     this.auth.login(this.email, this.password).subscribe({
       next: ok => {
         if (ok) {

@@ -55,6 +55,20 @@ export class ApiService {
     return this.http.get(`${BASE}/api/student/chat/history`, this.authHeaders());
   }
 
+  // Perfil do próprio aluno (U3/S5, D80). Nenhuma chamada leva id de usuário: a identidade vem do JWT.
+  public getMyProfile() {
+    return this.http.get(`${BASE}/api/student/me`, this.authHeaders());
+  }
+
+  public updateMyProfile(name: string, phone: string | null) {
+    return this.http.put(`${BASE}/api/student/me`, { name, phone }, this.authHeaders());
+  }
+
+  public changeMyPassword(currentPassword: string, newPassword: string) {
+    return this.http.post(`${BASE}/api/student/me/password`,
+      { current_password: currentPassword, new_password: newPassword }, this.authHeaders());
+  }
+
   // Checkout do aluno logado (Parte 1): o corpo leva só o curso; o aluno vem do JWT no backend.
   // F5a (D75): `class_id` opcional; sem ele, o corpo é o de antes.
   public studentCheckout(courseId: string, classId?: number | null) {
@@ -194,6 +208,15 @@ export class ApiService {
 
   public unarchiveCourse(courseId: string) {
     return this.http.post(`${BASE}/api/admin/course/${encodeURIComponent(courseId)}/unarchive`, {}, this.authHeaders());
+  }
+
+  // Desativar/reativar conta de aluno (S4, D80): só Gestão; a API devolve 403 aos demais.
+  public deactivateStudent(userId: number) {
+    return this.http.post(`${BASE}/api/admin/students/${encodeURIComponent(String(userId))}/deactivate`, {}, this.authHeaders());
+  }
+
+  public reactivateStudent(userId: number) {
+    return this.http.post(`${BASE}/api/admin/students/${encodeURIComponent(String(userId))}/reactivate`, {}, this.authHeaders());
   }
 
   public refundPayment(paymentId: number) {

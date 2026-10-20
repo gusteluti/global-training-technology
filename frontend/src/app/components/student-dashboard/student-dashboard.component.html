@@ -4,13 +4,15 @@
 <section class="card aluno-hero">
   <div class="card-body">
     <div class="gt-tag">Área do aluno</div>
-    <h1 class="aluno-titulo">Olá! Que bom ter você de volta.</h1>
+    <h1 class="aluno-titulo" *ngIf="primeiroNome; else saudacaoGenerica">Olá, {{ primeiroNome }}!</h1>
+    <ng-template #saudacaoGenerica><h1 class="aluno-titulo">Olá! Que bom ter você de volta.</h1></ng-template>
     <p class="text-muted mb-3">Conectado como <strong class="text-break" data-testid="aluno-email">{{ email }}</strong></p>
     <nav class="aluno-atalhos" aria-label="Seções da área do aluno">
       <button type="button" class="aluno-atalho" data-testid="atalho-cursos" (click)="irPara('secao-cursos')">Cursos</button>
       <button type="button" class="aluno-atalho" data-testid="atalho-financeiro" (click)="irPara('secao-financeiro')">Financeiro</button>
       <button type="button" class="aluno-atalho" data-testid="atalho-assistente" (click)="irPara('secao-assistente')">Assistente</button>
       <a class="aluno-atalho" data-testid="atalho-catalogo" routerLink="/catalogo">Comprar cursos</a>
+      <a class="aluno-atalho" data-testid="atalho-perfil" routerLink="/student/perfil">Meu perfil</a>
     </nav>
   </div>
 </section>

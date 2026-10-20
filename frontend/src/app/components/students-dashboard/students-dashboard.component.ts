@@ -47,10 +47,15 @@ export class StudentsDashboardComponent implements OnInit {
   detalheErro = '';
   private detalheId: number | null = null;
 
+  // Desativar/reativar conta (S4, D80): só Gestão; a API também reforça.
+  podeGerenciarConta = false;
+  alterandoConta = false;
+
   constructor(private api: ApiService, private auth: AuthService) { }
 
   ngOnInit(): void {
     this.podeExportar = ['admin', 'financial'].includes(this.auth.getRole() || '');
+    this.podeGerenciarConta = this.auth.getRole() === 'admin';
     this.carregar();
   }
 
@@ -121,6 +126,33 @@ export class StudentsDashboardComponent implements OnInit {
         }
       },
       error: err => this.detalheErro = err?.error?.detail || 'Não foi possível carregar o aluno.'
+    });
+  }
+
+  alternarConta(desativar: boolean): void {
+    const aluno = this.detalhe?.student;
+    if (!this.podeGerenciarConta || this.alterandoConta || !aluno) {
+      return;
+    }
+    const pergunta = desativar
+      ? `Desativar a conta de "${aluno.name}"?`
+      : `Reativar a conta de "${aluno.name}"?`;
+    if (!confirm(pergunta)) {
+      return;
+    }
+    this.alterandoConta = true;
+    this.detalheErro = '';
+    const chamada = desativar ? this.api.deactivateStudent(aluno.id) : this.api.reactivateStudent(aluno.id);
+    chamada.subscribe({
+      next: () => {
+        this.alterandoConta = false;
+        this.abrirDetalhe(aluno);
+        this.carregar();
+      },
+      error: err => {
+        this.alterandoConta = false;
+        this.detalheErro = err?.error?.detail || 'Não foi possível alterar a conta do aluno.';
+      }
     });
   }
 
