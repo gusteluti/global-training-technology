@@ -171,6 +171,14 @@ export class ApiService {
     return this.http.post(`${BASE}/api/admin/create-course`, curso, this.authHeaders());
   }
 
+  // F7 (D78): rascunho de curso a partir de anexo (JSON ou PDF). Multipart com o campo `file`; sem Content-Type
+  // fixo para o navegador definir o boundary. O token vai pelo interceptor (rota /api/admin/).
+  public createCourseDraft(arquivo: File) {
+    const dados = new FormData();
+    dados.append('file', arquivo, arquivo.name);
+    return this.http.post(`${BASE}/api/admin/course-draft`, dados);
+  }
+
   public updateCourse(courseId: string, curso: any) {
     return this.http.put(`${BASE}/api/admin/course/${encodeURIComponent(courseId)}`, curso, this.authHeaders());
   }
