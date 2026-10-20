@@ -316,3 +316,4 @@ Fila e respostas do PM em `docs/tdd/PLANO_FEEDBACK_PROF.md`; modo autônomo D69;
 | F6 — handoff WhatsApp | `feature/fase2-tdd-f6-handoff-whatsapp` | `74eadf7` | `1f93951`, `6c5d50d` | ver `git log` | backend 93/93; regressão 1524 passed; 7 e2e verdes |
 | F7 — curso a partir de anexo | `feature/fase2-tdd-f7-curso-anexo` | `5acc911` | `89c22e8`, `e7651db` | ver `git log` | backend 67/67; regressão 1591 passed; 4 e2e verdes |
 | S2/S9/S10 — limites e id de curso | `feature/fase2-tdd-s2-limites-seguranca` | `31b131b`, `03e998b`, `f5b425a` | `8b9e222` | ver `git log` | backend 65/65; regressão verde; 12 e2e verdes |
+| S4/S5/U3/U9 — conta do aluno | `feature/fase2-tdd-s4-conta-aluno` | `ea05128` | `facd5ad`, `cac20ce` | ver `git log` | backend 69/69; regressão 1725 passed; 14 e2e verdes |
