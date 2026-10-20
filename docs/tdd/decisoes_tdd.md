@@ -1138,3 +1138,21 @@ Política da D68: a vaga fica reservada por 30 min a partir do checkout. Contrat
 - Tela `/catalogo`: curso com turmas abertas mostra `catalogo-turma` (seleção obrigatória) com nome, início e vagas;
   turma lotada aparece desabilitada "(lotada)". A compra envia `class_id`. Aceita `?curso=<id>&turma=<id>` para
   pré-selecionar (usado pelo chat na F5b). A landing estática fica sem seleção de turma (dívida).
+
+## D76 — F5b: chat do curso mostra turmas e oferece a matrícula (19/10/2026, modo autônomo D69)
+Contrato (forma, orquestrador; textos visíveis marcados para revisão):
+- Quando a mensagem é roteada para um curso (Course Agent), o prompt recebe, como **dado não confiável delimitado**
+  (padrão E6), a lista de turmas abertas do curso (nome, início, vagas — mesma regra de venda da D75; sem dado de aluno)
+  e a instrução de apresentar as turmas, perguntar qual faz mais sentido para o usuário (data, disponibilidade) e
+  **não** inventar turma, preço ou link.
+- A resposta JSON dos dois chats (`POST /api/chat` e `POST /api/student/chat`) ganha `actions` (lista; vazia quando
+  não se aplica), montada **pelo servidor**, nunca a partir do texto do LLM: para o curso roteado, uma ação
+  `{type: "enroll", course_id, class_id, label}` por turma aberta com vaga (até 3, na ordem da D75; label
+  `Matricular na turma <nome>`); curso sem turmas → uma ação com `class_id` nulo e label `Matricular no curso`.
+  Sem ação para: resposta geral, curso arquivado, entrada bloqueada, falha do LLM, saída barrada pelo filtro e aluno
+  logado que já tem matrícula `active` no curso. `actions` não é persistido no histórico.
+- Telas: no chat do aluno (`/student`), cada ação vira o botão `chat-acao-matricular` que leva a
+  `/catalogo?curso=<id>&turma=<id>`. Na landing, o mesmo botão leva a `<APP_URL>/login?area=aluno&next=<caminho>`.
+- Login e guarda (parte do U9): o `AuthGuard` manda quem não está logado para `/login?next=<rota pedida>`; o login de
+  **aluno** segue o `next` só se for caminho interno (começa com `/`, não com `//`, sem esquema), senão vai para
+  `/student` (sem redirecionamento aberto). Funcionário continua indo para `/admin`.
