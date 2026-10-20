@@ -1231,3 +1231,7 @@ Política decidida pelo orquestrador (revisão do PM). Contrato:
   Aguarde um instante.` Estado em memória criado no startup do app.
 - IP = `request.client.host` (não confia em `X-Forwarded-For`; atrás de proxy precisa de configuração — dívida).
 - Telas: login e chat mostram o texto do 429 como erro, sem travar a tela.
+- Ajuste mecânico (autoridade 4.3), D52 (corrida do token) / D62 (B1) → D79: `test_ds_dividas_seguranca.py::test_c1_*` e
+  `test_b1_recuperacao_senha.py::test_f11_*` conferem com 7–8 logins errados no mesmo e-mail que a senha dos
+  perdedores não autentica; pela D79 o 6º vira 429. A conferência passa a limpar `login_attempts` entre as tentativas,
+  mantendo a exigência estrita de 400 (intenção preservada: só a senha vencedora autentica).
