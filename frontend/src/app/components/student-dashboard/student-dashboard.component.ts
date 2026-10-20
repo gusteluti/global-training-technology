@@ -68,7 +68,8 @@ const CLASSES_PAGAMENTO: { [status: string]: string } = {
 const PAGAMENTO_EM_ABERTO = ['pending', 'in_process'];
 
 const FORMAS_PAGAMENTO: { [forma: string]: string } = {
-  mercado_pago: 'Mercado Pago'
+  mercado_pago: 'Mercado Pago',
+  manual: 'Matrícula manual'
 };
 
 const MSG_FALHA_PDF = 'Não foi possível baixar o recibo.';
