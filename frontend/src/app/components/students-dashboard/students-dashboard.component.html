@@ -29,7 +29,18 @@
 
 <div class="card">
   <div class="card-body">
-    <h5>Alunos matriculados</h5>
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+      <h5 class="mb-0">Alunos matriculados</h5>
+      <button type="button" class="btn btn-sm btn-outline-primary" data-testid="exportar-csv" *ngIf="podeExportar"
+              [disabled]="exportando" (click)="exportarCsv()">Exportar CSV</button>
+    </div>
+    <div class="row g-2 mb-3">
+      <div class="col-12 col-md-6">
+        <input type="text" class="form-control form-control-sm" data-testid="alunos-busca"
+               placeholder="Buscar por nome ou e-mail" aria-label="Buscar por nome ou e-mail"
+               [(ngModel)]="busca" (keyup.enter)="buscar()">
+      </div>
+    </div>
     <div class="table-responsive">
       <table class="table table-hover align-middle">
         <thead>
@@ -60,6 +71,13 @@
           </tr>
         </tbody>
       </table>
+    </div>
+    <div class="d-flex justify-content-end align-items-center gap-2">
+      <button type="button" class="btn btn-sm btn-outline-secondary" data-testid="paginacao-anterior"
+              [disabled]="pagina <= 1" (click)="irParaPagina(pagina - 1)">Anterior</button>
+      <span class="small text-muted" data-testid="paginacao-info">Página {{ pagina }} de {{ totalPaginas }}</span>
+      <button type="button" class="btn btn-sm btn-outline-secondary" data-testid="paginacao-proxima"
+              [disabled]="pagina >= totalPaginas" (click)="irParaPagina(pagina + 1)">Próxima</button>
     </div>
   </div>
 </div>

@@ -56,12 +56,49 @@ export class ApiService {
   }
 
   // Dashboards de funcionário (Fase 2): mesmos endpoints usados pelo admin.html.
-  public getFinancial() {
-    return this.http.get(`${BASE}/api/dashboard/financeiro`, this.authHeaders());
+  // U1 (D74): filtros opcionais; parâmetro vazio não é enviado (sem filtro, a resposta é a de antes).
+  public getFinancial(filtros: { q?: string; status?: string } = {}) {
+    const params = this.parametros(filtros);
+    return this.http.get(`${BASE}/api/dashboard/financeiro`, { ...this.authHeaders(), params });
   }
 
-  public getStudents() {
-    return this.http.get(`${BASE}/api/dashboard/alunos`, this.authHeaders());
+  public getStudents(filtros: { q?: string; page?: number; page_size?: number } = {}) {
+    const params = this.parametros(filtros);
+    return this.http.get(`${BASE}/api/dashboard/alunos`, { ...this.authHeaders(), params });
+  }
+
+  // Exportação CSV (U1, D74): só Gestão e Financeiro. Download autenticado como Blob (o token vai no cabeçalho,
+  // nunca na URL); `observe: 'response'` para ler o nome do arquivo no Content-Disposition.
+  public exportStudentsCsv(filtros: { q?: string } = {}) {
+    return this.baixarCsv(`${BASE}/api/dashboard/alunos.csv`, filtros);
+  }
+
+  public exportFinancialCsv(filtros: { q?: string; status?: string } = {}) {
+    return this.baixarCsv(`${BASE}/api/dashboard/financeiro.csv`, filtros);
+  }
+
+  public exportCourseStudentsCsv(courseId: string, filtros: { status?: string; class_id?: string } = {}) {
+    return this.baixarCsv(`${BASE}/api/dashboard/cursos/${encodeURIComponent(courseId)}/alunos.csv`, filtros);
+  }
+
+  private baixarCsv(url: string, filtros: { [nome: string]: any }) {
+    return this.http.get(url, {
+      headers: this.authHeaders().headers,
+      params: this.parametros(filtros),
+      observe: 'response' as const,
+      responseType: 'blob' as const
+    });
+  }
+
+  private parametros(filtros: { [nome: string]: any }): HttpParams {
+    let params = new HttpParams();
+    for (const nome of Object.keys(filtros)) {
+      const valor = filtros[nome];
+      if (valor !== undefined && valor !== null && String(valor).trim() !== '') {
+        params = params.set(nome, String(valor).trim());
+      }
+    }
+    return params;
   }
 
   // F3/F4 (D73): detalhe do aluno e alunos de um curso. `amount` não vem para o Suporte (D68).
@@ -90,8 +127,10 @@ export class ApiService {
     return this.http.get(`${BASE}/api/dashboard/observabilidade-ia`, this.authHeaders());
   }
 
-  public getAuditLogs() {
-    return this.http.get(`${BASE}/api/admin/audit-logs`, this.authHeaders());
+  // U1 (D74): `q` (descrição ou e-mail do responsável), `date_from`/`date_to` (AAAA-MM-DD, dias de São Paulo).
+  public getAuditLogs(filtros: { q?: string; date_from?: string; date_to?: string } = {}) {
+    const params = this.parametros(filtros);
+    return this.http.get(`${BASE}/api/admin/audit-logs`, { ...this.authHeaders(), params });
   }
 
   // Turmas (L1, D53). Escrita e leitura de matrículas são da Gestão; o responsável sempre vem do token.

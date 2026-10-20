@@ -50,7 +50,25 @@
 
 <div class="card">
   <div class="card-body">
-    <h5>Transações</h5>
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+      <h5 class="mb-0">Transações</h5>
+      <button type="button" class="btn btn-sm btn-outline-primary" data-testid="exportar-csv"
+              [disabled]="exportando" (click)="exportarCsv()">Exportar CSV</button>
+    </div>
+    <div class="row g-2 mb-3">
+      <div class="col-12 col-md-6">
+        <input type="text" class="form-control form-control-sm" data-testid="financeiro-busca"
+               placeholder="Buscar por e-mail, nome ou curso" aria-label="Buscar por e-mail, nome ou curso"
+               [(ngModel)]="busca" (keyup.enter)="buscar()">
+      </div>
+      <div class="col-12 col-md-3">
+        <select class="form-select form-select-sm" data-testid="financeiro-filtro-status" aria-label="Status"
+                [(ngModel)]="filtroStatus" (ngModelChange)="load()">
+          <option value="">Todos</option>
+          <option *ngFor="let st of statusOpcoes" [value]="st">{{ rotuloPagamento(st) }}</option>
+        </select>
+      </div>
+    </div>
     <div class="table-responsive">
       <table class="table table-hover align-middle">
         <thead>
