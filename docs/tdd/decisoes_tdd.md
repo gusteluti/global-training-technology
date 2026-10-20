@@ -1162,3 +1162,29 @@ Contrato (forma, orquestrador; textos visíveis marcados para revisão):
 - Ajuste mecânico (autoridade 4.3), guarda original → D76: `test_admin_angular.py` ("sem login: /admin volta para a
   tela de login") e `test_e3_painel_angular.py` (P7) passam a esperar `/login?next=<rota>` (`7a816d1`); intenção
   preservada (sem login não entra e cai no login).
+
+## D77 — F6: handoff para o WhatsApp (20/10/2026, modo autônomo D69)
+Política da D68: número do PM via `WHATSAPP_HANDOFF_NUMBER` (nunca versionado); texto com curso e tema, sem dado
+pessoal; limiares 80% do orçamento, 2 falhas seguidas do LLM, 3 "não entendi" seguidos. Contrato (forma):
+- Configuração: `WHATSAPP_HANDOFF_NUMBER` (só dígitos depois de limpar espaços, `+`, `-`, parênteses; 10 a 15 dígitos;
+  senão o handoff fica **desligado** e nenhuma ação é gerada). `CHAT_TOKEN_BUDGET` (inteiro, padrão 20000).
+- Gatilhos, avaliados por conversa (anônimo: sessão; aluno: o aluno no dia de São Paulo), a partir do que a E7 já grava
+  (`ai_usage`, `ai_interactions`):
+  - `token_budget`: soma de `total_tokens` da conversa ≥ 80% de `CHAT_TOKEN_BUDGET`;
+  - `llm_failures`: as 2 últimas interações da conversa são `llm_error` (a resposta de erro também leva a ação);
+  - `unresolved`: as 3 últimas interações da conversa são `unresolved`;
+  - `user_request`: a mensagem pede atendimento humano ("atendente", "humano", "pessoa", "falar com alguém",
+    "whatsapp", "suporte", sem caixa/acento) — dispara na hora, sem chamar o LLM para isso? **Não**: a mensagem segue o
+    fluxo normal e a ação é acrescentada.
+  Prioridade quando vários valem: `user_request`, `llm_failures`, `token_budget`, `unresolved` (uma ação só).
+- Ação, acrescentada a `actions` (D76) pelo servidor: `{type: "handoff", reason, url, label}` com label
+  `Falar com um atendente no WhatsApp` e `url` = `https://wa.me/<número>?text=<texto codificado>`; texto:
+  `Olá! Vim do assistente virtual da Global Training e gostaria de falar com um atendente sobre <alvo>.`, onde `<alvo>`
+  é `o curso <nome do curso roteado>` ou `os cursos`. Nunca inclui texto do usuário, nome, e-mail nem id.
+- Erros do LLM: `/api/chat` responde como hoje (`status: error`, `LLM_UNAVAILABLE`) com `actions` quando o gatilho vale;
+  `/api/student/chat` continua 502 com o mesmo `detail` e ganha `actions` no corpo quando o gatilho vale.
+- Observabilidade: cada ação de handoff emitida grava `ai_handoffs` (canal, user_id/session_hash como na E7, motivo,
+  curso). `GET /api/dashboard/observabilidade-ia` ganha `handoff {total, by_reason {...}, rate}` (rate = conversas com
+  handoff / conversas), visível para todos os perfis (não é custo). Tela: cartão "Encaminhamentos ao WhatsApp".
+- Telas: no chat do aluno e na landing, a ação vira o link `chat-acao-whatsapp` (`target=_blank`, `rel=noopener
+  noreferrer`) com o label.

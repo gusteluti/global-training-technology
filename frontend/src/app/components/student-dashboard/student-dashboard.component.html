@@ -133,9 +133,11 @@
            [attr.data-role]="msg.role"
            class="chat-bolha text-break"
            [ngClass]="msg.role === 'user' ? 'chat-bolha-aluno' : 'chat-bolha-bot'">{{ msg.content }}</div>
-      <div *ngIf="chatAcoes.length" class="chat-acoes">
+      <div *ngIf="chatAcoes.length || chatWhatsapp" class="chat-acoes">
         <button *ngFor="let acao of chatAcoes" type="button" class="btn btn-sm btn-outline-primary"
                 data-testid="chat-acao-matricular" (click)="abrirMatricula(acao)">{{ acao.label }}</button>
+        <a *ngIf="chatWhatsapp" class="btn btn-sm btn-success" data-testid="chat-acao-whatsapp"
+           [href]="chatWhatsapp.url" target="_blank" rel="noopener noreferrer">{{ chatWhatsapp.label }}</a>
       </div>
     </div>
     <form class="input-group chat-form" (ngSubmit)="enviarChat()">

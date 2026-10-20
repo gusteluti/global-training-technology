@@ -2,7 +2,7 @@ import json
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from core.fuso import MODIFICADOR_SQLITE_SP, dia_sao_paulo
 
@@ -181,6 +181,21 @@ class Database:
             )
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_interactions_user ON ai_interactions (user_id, id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_interactions_session ON ai_interactions (session_hash, id)")
+        # F6 (D77): uma linha por ação de handoff para o WhatsApp emitida. Mesma identidade da E7 (user_id do JWT
+        # ou session_hash); nunca o número, texto de mensagem nem o id cru da sessão.
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ai_handoffs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                channel TEXT NOT NULL CHECK (channel IN ('anonymous', 'student')),
+                user_id INTEGER,
+                session_hash TEXT,
+                reason TEXT NOT NULL
+                    CHECK (reason IN ('user_request', 'llm_failures', 'token_budget', 'unresolved')),
+                course_id TEXT
+            )
+        """)
 
         conn.commit()
         conn.close()
@@ -1527,6 +1542,93 @@ class Database:
             requests, cost = por_dia.get(dia, (0, 0))
             serie.append({"date": dia, "requests": requests, "cost_usd": round(cost, 6)})
         return serie
+
+    # --- Handoff para o WhatsApp (F6, D77) -----------------------------------------------------
+
+    HANDOFF_REASONS = ("user_request", "llm_failures", "token_budget", "unresolved")
+
+    @staticmethod
+    def _filtro_conversa(channel: str, user_id: Optional[int], session_hash: Optional[str]) -> Tuple[str, tuple]:
+        """WHERE da conversa (D77): anônimo pela sessão (hash); aluno pelo user_id no dia de São Paulo."""
+        if channel == "student":
+            return (
+                "channel = 'student' AND user_id = ? AND date(created_at, ?) = date('now', ?)",
+                (user_id, MODIFICADOR_SQLITE_SP, MODIFICADOR_SQLITE_SP),
+            )
+        return "channel = 'anonymous' AND session_hash = ?", (session_hash,)
+
+    @staticmethod
+    def get_conversation_outcomes(channel: str, user_id: Optional[int], session_hash: Optional[str],
+                                  limit: int) -> List[str]:
+        """Outcomes das últimas `limit` interações da conversa, da mais recente para a mais antiga."""
+        where, params = Database._filtro_conversa(channel, user_id, session_hash)
+        conn = sqlite3.connect(Database.DB_PATH)
+        try:
+            rows = conn.execute(
+                f"SELECT outcome FROM ai_interactions WHERE {where} ORDER BY created_at DESC, id DESC LIMIT ?",
+                (*params, limit),
+            ).fetchall()
+            return [row[0] for row in rows]
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_conversation_tokens(channel: str, user_id: Optional[int], session_hash: Optional[str]) -> int:
+        """Soma de total_tokens (ai_usage) da conversa."""
+        where, params = Database._filtro_conversa(channel, user_id, session_hash)
+        conn = sqlite3.connect(Database.DB_PATH)
+        try:
+            return conn.execute(
+                f"SELECT COALESCE(SUM(total_tokens), 0) FROM ai_usage WHERE {where}", params
+            ).fetchone()[0]
+        finally:
+            conn.close()
+
+    @staticmethod
+    def add_ai_handoff(*, channel: str, user_id: Optional[int], session_hash: Optional[str], reason: str,
+                       course_id: Optional[str]) -> int:
+        conn = sqlite3.connect(Database.DB_PATH)
+        try:
+            cursor = conn.execute(
+                "INSERT INTO ai_handoffs (channel, user_id, session_hash, reason, course_id) VALUES (?, ?, ?, ?, ?)",
+                (channel, user_id, session_hash, reason, course_id),
+            )
+            conn.commit()
+            return cursor.lastrowid
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_ai_handoff_stats() -> Dict:
+        """`handoff {total, by_reason, rate}` do painel (D77). Conversa: anônimo = session_hash distinto;
+        aluno = (user_id, dia de São Paulo) distinto, contadas a partir de ai_interactions. rate em fração 0..1."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        try:
+            por_motivo = {motivo: 0 for motivo in Database.HANDOFF_REASONS}
+            for motivo, total in conn.execute("SELECT reason, COUNT(*) FROM ai_handoffs GROUP BY reason"):
+                if motivo in por_motivo:
+                    por_motivo[motivo] = total
+            chave = (
+                "CASE WHEN channel = 'anonymous' THEN 'a:' || session_hash "
+                "ELSE 's:' || user_id || ':' || date(created_at, ?) END"
+            )
+            filtro = (
+                "(channel = 'anonymous' AND session_hash IS NOT NULL) "
+                "OR (channel = 'student' AND user_id IS NOT NULL)"
+            )
+            conversas = conn.execute(
+                f"SELECT COUNT(DISTINCT {chave}) FROM ai_interactions WHERE {filtro}", (MODIFICADOR_SQLITE_SP,)
+            ).fetchone()[0]
+            com_handoff = conn.execute(
+                f"SELECT COUNT(DISTINCT {chave}) FROM ai_handoffs WHERE {filtro}", (MODIFICADOR_SQLITE_SP,)
+            ).fetchone()[0]
+            return {
+                "total": sum(por_motivo.values()),
+                "by_reason": por_motivo,
+                "rate": round(min(com_handoff / conversas, 1), 4) if conversas else 0,
+            }
+        finally:
+            conn.close()
 
     @staticmethod
     def get_ai_conversion() -> Dict:

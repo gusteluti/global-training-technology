@@ -580,6 +580,26 @@ function addEnrollActions(actions) {
   msgs.appendChild(box);
   msgs.scrollTop = msgs.scrollHeight;
 }
+// Link de atendimento (D77): vem só de `actions` do servidor e só se apontar para https://wa.me/.
+function addHandoffAction(actions) {
+  if (!Array.isArray(actions)) return;
+  const acao = actions.find(a => a && a.type === 'handoff' && typeof a.url === 'string'
+    && a.url.startsWith('https://wa.me/') && typeof a.label === 'string');
+  if (!acao) return;
+  const msgs = document.getElementById('chat-messages');
+  const box = document.createElement('div');
+  box.className = 'chat-acoes';
+  const link = document.createElement('a');
+  link.className = 'quick-btn';
+  link.setAttribute('data-testid', 'chat-acao-whatsapp');
+  link.href = acao.url;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.textContent = acao.label;
+  box.appendChild(link);
+  msgs.appendChild(box);
+  msgs.scrollTop = msgs.scrollHeight;
+}
 function setChatStatus(text) {
   const status = document.querySelector('.chat-header-info span');
   if (status) status.textContent = text;
@@ -619,6 +639,7 @@ async function sendMsg() {
       addMsg(botMsg, 'bot');
     }
     if (data.status === 'success') addEnrollActions(data.actions);
+    if (data) addHandoffAction(data.actions);
     setChatStatus('Online agora');
   } catch (error) {
     const msgs = document.getElementById('chat-messages');

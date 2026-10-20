@@ -79,6 +79,32 @@
   </div>
 </div>
 
+<div class="card mb-3" *ngIf="metrics">
+  <div class="card-body">
+    <h5>Encaminhamentos ao WhatsApp</h5>
+    <div class="row g-3">
+      <div class="col-md-3">
+        <div class="text-muted small">Total</div>
+        <div class="fs-3" data-testid="ia-handoff-total">{{ handoff.total || 0 }}</div>
+      </div>
+      <div class="col-md-3">
+        <div class="text-muted small">Taxa</div>
+        <div class="fs-3">{{ handoffRateText }}</div>
+      </div>
+      <div class="col-md-6">
+        <table class="table table-sm mb-0">
+          <tbody>
+            <tr *ngFor="let m of handoffReasons">
+              <td>{{ m.label }}</td>
+              <td class="text-end">{{ m.count }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="card mb-3">
   <div class="card-body">
     <h5>Mensagens por curso</h5>
