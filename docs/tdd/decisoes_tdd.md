@@ -1099,3 +1099,21 @@ Política da D68: Suporte vê status, **nunca valores**. Contrato (forma, orques
 - Aluno: cada item de `/api/student/enrollments` ganha `class_name` e `class_starts_on` (null sem turma); sem IDOR.
 - Telas: no dashboard de alunos, o nome abre o detalhe (`aluno-detalhe`); no de cursos, o curso abre a lista de alunos
   (`curso-alunos`) com filtros de status e turma; o cartão do curso do aluno mostra `Turma: <nome>` e o início.
+
+## D74 — U1/U2: busca, paginação e exportação CSV (19/10/2026, modo autônomo D69)
+Contrato (forma, orquestrador; política marcada para revisão):
+- **Busca e paginação** (compatível: sem parâmetros, a resposta é a de hoje, com a chave nova `pagination`):
+  `GET /api/dashboard/alunos?q=&page=&page_size=` (q em nome ou e-mail, sem caixa; `metrics` continuam globais) e a
+  lista de pagamentos de `GET /api/dashboard/financeiro?q=&status=&page=&page_size=` (q em e-mail, nome ou curso).
+  `pagination {page, page_size, total}`; `page` a partir de 1; `page_size` padrão 50, máximo 200 (acima vale 200);
+  valores inválidos → 422. Sem `page`, devolve tudo (como hoje) com `page` 1 e `page_size` = total.
+  `GET /api/admin/audit-logs` ganha `q` (descrição ou e-mail do responsável), `date_from` e `date_to` (`AAAA-MM-DD`,
+  dias de São Paulo, inclusivos) e `offset`; formato da resposta igual.
+- **CSV** (política: **só Gestão e Financeiro**; Suporte 403 — exportação em massa de dado pessoal):
+  `GET /api/dashboard/alunos.csv`, `GET /api/dashboard/cursos/{id}/alunos.csv`, `GET /api/dashboard/financeiro.csv`.
+  Formato Excel pt-BR: UTF-8 com BOM, separador `;`, decimal com vírgula, datas `dd/mm/aaaa HH:MM` em São Paulo,
+  status em português, `Content-Disposition: attachment; filename=...csv`. Célula que começa com `=`, `+`, `-`, `@`,
+  tab ou CR recebe `'` na frente (injeção de fórmula). Cada exportação grava o evento de auditoria `export.csv` com o
+  relatório em `entity_id`. Aceitam os mesmos filtros da lista correspondente.
+- Telas: campo de busca e paginação em alunos, financeiro e auditoria (com datas); botão "Exportar CSV" só para Gestão e
+  Financeiro.
