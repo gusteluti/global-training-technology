@@ -46,6 +46,19 @@
     <div class="alert alert-danger" *ngIf="error" data-testid="curso-error">{{ error }}</div>
     <div class="alert alert-success" *ngIf="success" data-testid="curso-success">{{ success }}</div>
 
+    <div class="mb-3">
+      <label class="form-label" for="curso-anexo-input">Criar a partir de arquivo (JSON ou PDF)</label>
+      <input id="curso-anexo-input" type="file" class="form-control" data-testid="curso-anexo-input"
+             accept=".json,.pdf,application/json,application/pdf" [disabled]="draftLoading" (change)="onDraftFile($event)">
+      <div class="small text-muted mt-1" *ngIf="draftLoading">Lendo arquivo...</div>
+      <div class="alert alert-danger mt-2 mb-0" *ngIf="draftError" data-testid="curso-anexo-erro">{{ draftError }}</div>
+      <div class="alert alert-warning mt-2 mb-0" *ngIf="draftWarnings.length" data-testid="curso-anexo-avisos">
+        <ul class="mb-0">
+          <li *ngFor="let aviso of draftWarnings">{{ aviso }}</li>
+        </ul>
+      </div>
+    </div>
+
     <form data-testid="curso-form" (ngSubmit)="save()" novalidate>
       <div class="row g-3">
         <div class="col-md-6">

@@ -49,6 +49,11 @@ export class CourseAdminComponent implements OnInit {
   success = '';
   busy = false;
 
+  // F7 (D78): anexo que vira rascunho de novo curso.
+  draftLoading = false;
+  draftWarnings: string[] = [];
+  draftError = '';
+
   // Materiais carregados na edição: se o campo não foi tocado, é exatamente isso que volta no PUT.
   private loadedMaterials: any[] = [];
   private loadedMaterialsText = '';
@@ -108,6 +113,7 @@ export class CourseAdminComponent implements OnInit {
   edit(course: any): void {
     this.clearMessages();
     this.deletingId = null;
+    this.clearDraftMessages();
     this.api.getAdminCourse(course.id).subscribe({
       next: (r: any) => this.fillForm(r.course),
       error: err => this.error = this.errorText(err)
@@ -121,7 +127,7 @@ export class CourseAdminComponent implements OnInit {
     this.loadedMaterialsText = materialsText;
     this.editingId = c.id;
     this.form = {
-      id: c.id,
+      id: c.id || '',
       name: c.name || '',
       description: c.description || '',
       price: c.price ?? null,
@@ -137,6 +143,37 @@ export class CourseAdminComponent implements OnInit {
     };
   }
 
+  // Escolher o arquivo já envia. No sucesso, o rascunho abre o formulário de NOVO curso (id editável);
+  // nada é gravado até a Gestão salvar. O input é limpo para permitir reenviar o mesmo arquivo.
+  onDraftFile(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const arquivo = input.files && input.files.length ? input.files[0] : null;
+    if (!arquivo || this.draftLoading) {
+      input.value = '';
+      return;
+    }
+    this.clearMessages();
+    this.clearDraftMessages();
+    this.draftLoading = true;
+    this.api.createCourseDraft(arquivo).subscribe({
+      next: (r: any) => {
+        this.draftLoading = false;
+        input.value = '';
+        this.deletingId = null;
+        this.fillForm(r?.draft || {});
+        this.editingId = null;
+        this.loadedMaterials = [];
+        this.loadedMaterialsText = '';
+        this.draftWarnings = Array.isArray(r?.warnings) ? r.warnings.filter((w: any) => typeof w === 'string') : [];
+      },
+      error: err => {
+        this.draftLoading = false;
+        input.value = '';
+        this.draftError = this.errorText(err);
+      }
+    });
+  }
+
   cancelEdit(): void {
     this.resetForm();
     this.clearMessages();
@@ -147,6 +184,12 @@ export class CourseAdminComponent implements OnInit {
     this.editingId = null;
     this.loadedMaterials = [];
     this.loadedMaterialsText = '';
+    this.clearDraftMessages();
+  }
+
+  private clearDraftMessages(): void {
+    this.draftWarnings = [];
+    this.draftError = '';
   }
 
   private clearMessages(): void {
