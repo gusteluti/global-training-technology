@@ -1156,3 +1156,6 @@ Contrato (forma, orquestrador; textos visíveis marcados para revisão):
 - Login e guarda (parte do U9): o `AuthGuard` manda quem não está logado para `/login?next=<rota pedida>`; o login de
   **aluno** segue o `next` só se for caminho interno (começa com `/`, não com `//`, sem esquema), senão vai para
   `/student` (sem redirecionamento aberto). Funcionário continua indo para `/admin`.
+- Complemento (forma): curso com turmas abertas **todas lotadas** → nenhuma ação (não vende); curso cujas turmas já
+  começaram todas (nenhuma aberta) → tratado como sem turmas (ação com `class_id` nulo, coerente com o checkout sem
+  turma da D75). Turma lotada aparece no prompt marcada como lotada, sem ação.
