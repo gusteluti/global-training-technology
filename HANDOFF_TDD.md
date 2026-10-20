@@ -317,3 +317,4 @@ Fila e respostas do PM em `docs/tdd/PLANO_FEEDBACK_PROF.md`; modo autônomo D69;
 | F7 — curso a partir de anexo | `feature/fase2-tdd-f7-curso-anexo` | `5acc911` | `89c22e8`, `e7651db` | ver `git log` | backend 67/67; regressão 1591 passed; 4 e2e verdes |
 | S2/S9/S10 — limites e id de curso | `feature/fase2-tdd-s2-limites-seguranca` | `31b131b`, `03e998b`, `f5b425a` | `8b9e222` | ver `git log` | backend 65/65; regressão verde; 12 e2e verdes |
 | S4/S5/U3/U9 — conta do aluno | `feature/fase2-tdd-s4-conta-aluno` | `ea05128` | `facd5ad`, `cac20ce` | ver `git log` | backend 69/69; regressão 1725 passed; 14 e2e verdes |
+| U4/S6 — matrícula manual e expiração | `feature/fase2-tdd-u4-matricula-manual` | `0b0c89b`, `6845c02` | `370387f`, `58acc06` | ver `git log` | backend 96/96; regressão verde; 6 e2e verdes |

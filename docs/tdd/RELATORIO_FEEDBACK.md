@@ -18,6 +18,7 @@ Início: 19/10/2026. Fila: `docs/tdd/PLANO_FEEDBACK_PROF.md`. Atualizado ao fim 
 | F7 — curso a partir de anexo (JSON e PDF) | entregue | red `5acc911`; backend `89c22e8`; front `e7651db` | regressão 1591 passed; 4 e2e verdes |
 | S2/S9/S10 — limite de tentativas, limite de taxa, id de curso | entregue | red `31b131b`; backend `8b9e222`; ajustes `03e998b`, `f5b425a` | regressão verde; 12 e2e verdes |
 | S4/S5/U3/U9 — conta do aluno | entregue | red `ea05128`; backend `facd5ad`; front `cac20ce` | regressão 1725 passed; 14 e2e verdes |
+| U4/S6 — matrícula manual e expiração de pendente | entregue | red `0b0c89b`; backend `370387f`; front `58acc06`; datas relativas `6845c02` | regressão verde; 6 e2e verdes |
 
 ## Decisões de política tomadas sem o PM (para revisão)
 
@@ -34,6 +35,7 @@ Início: 19/10/2026. Fila: `docs/tdd/PLANO_FEEDBACK_PROF.md`. Atualizado ao fim 
 - **F7 (D78):** dependência nova `pypdf` (rodar `pip install -r backend/requirements.txt`). Do PDF não vêm as instruções do assistente (injeção). Avisos de tipo inválido e de material descartado escritos pelo dev. A chamada ao LLM do rascunho não entra na observabilidade (E7).
 - **S2/S9 (D79):** limites 5 por e-mail / 20 por IP em 15 min, chat 30/min, checkout 10/min; textos dos 429 do orquestrador. IP atrás de proxy reverso precisa de configuração (dívida). O PUT de curso ainda grava o `id` do corpo sem validar (não monta caminho).
 - **S4 (D80):** aluno desativado vê `Sua conta está desativada. Fale com o suporte.` só com a senha certa; telefone 10–15 dígitos; textos do perfil escolhidos pelo dev ("Dados atualizados.", "Senha alterada." etc.).
+- **U4/S6 (D81):** pendente expira em 7 dias; matrícula manual exige motivo (5–300) e vira pagamento aprovado `manual` (entra na receita). Dívida: o CSV do financeiro não expira pendentes antes de exportar; mensagem do 422 da tela cita só o motivo.
 
 ## Paradas e itens pulados
 
