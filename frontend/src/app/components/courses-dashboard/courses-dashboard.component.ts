@@ -2,6 +2,7 @@ import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/co
 import { ApiService } from '../../services/api.service';
 import { AuthService } from '../../services/auth.service';
 import { Chart } from '../../charts';
+import { salvarArquivo } from '../../services/salvar-arquivo';
 
 const STATUS_LABELS: { [status: string]: string } = {
   active: 'Ativa',
@@ -38,10 +39,15 @@ export class CoursesDashboardComponent implements OnInit, OnDestroy {
   filtroTurma = '';
   readonly statusOpcoes = ['active', 'pending', 'cancelled', 'refunded'];
 
+  // Exportação CSV dos alunos do curso só para Gestão e Financeiro (U1, D74); Suporte não vê o botão.
+  podeExportar = false;
+  exportando = false;
+
   constructor(private api: ApiService, private auth: AuthService) { }
 
   ngOnInit(): void {
     this.canManage = this.auth.getRole() === 'admin';
+    this.podeExportar = ['admin', 'financial'].includes(this.auth.getRole() || '');
     this.loadCourses();
   }
 
@@ -91,6 +97,24 @@ export class CoursesDashboardComponent implements OnInit, OnDestroy {
         }
       },
       error: err => this.alunosErro = this.errorText(err)
+    });
+  }
+
+  exportarAlunosCurso(): void {
+    const curso = this.alunosCurso;
+    if (!curso || !this.podeExportar || this.exportando) {
+      return;
+    }
+    this.exportando = true;
+    this.api.exportCourseStudentsCsv(curso.id, { status: this.filtroStatus, class_id: this.filtroTurma }).subscribe({
+      next: resposta => {
+        this.exportando = false;
+        salvarArquivo(resposta, 'alunos-curso.csv');
+      },
+      error: () => {
+        this.exportando = false;
+        this.alunosErro = 'Não foi possível exportar o CSV.';
+      }
     });
   }
 

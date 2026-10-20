@@ -1,6 +1,18 @@
 import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { ApiService } from '../../services/api.service';
 import { Chart } from '../../charts';
+import { salvarArquivo } from '../../services/salvar-arquivo';
+
+// Rótulos de status de pagamento em português (mesmos do detalhe do aluno, F3).
+const ROTULOS_PAGAMENTO: { [status: string]: string } = {
+  approved: 'Aprovado',
+  pending: 'Pendente',
+  in_process: 'Em análise',
+  rejected: 'Recusado',
+  cancelled: 'Cancelado',
+  refunded: 'Reembolsado',
+  charged_back: 'Contestado'
+};
 
 @Component({
   selector: 'app-financial-dashboard',
@@ -15,16 +27,55 @@ export class FinancialDashboardComponent implements OnInit, OnDestroy {
   refundingId: number | null = null;
   private chart?: Chart;
 
+  // Busca e filtro de status da lista de transações (U1, D74); totais e gráfico continuam globais.
+  busca = '';
+  filtroStatus = '';
+  readonly statusOpcoes = Object.keys(ROTULOS_PAGAMENTO);
+  private buscaAplicada = '';
+  private requisicao = 0;
+  // A aba Financeiro só existe para Gestão e Financeiro, os mesmos perfis que podem exportar (D74).
+  exportando = false;
+
   constructor(private api: ApiService) { }
 
   ngOnInit(): void {
     this.load();
   }
 
+  buscar(): void {
+    this.buscaAplicada = this.busca.trim();
+    this.load();
+  }
+
+  rotuloPagamento(status: string): string {
+    return ROTULOS_PAGAMENTO[status] || status;
+  }
+
+  exportarCsv(): void {
+    if (this.exportando) {
+      return;
+    }
+    this.exportando = true;
+    this.api.exportFinancialCsv({ q: this.buscaAplicada, status: this.filtroStatus }).subscribe({
+      next: resposta => {
+        this.exportando = false;
+        salvarArquivo(resposta, 'financeiro.csv');
+      },
+      error: () => {
+        this.exportando = false;
+        this.error = 'Não foi possível exportar o CSV.';
+      }
+    });
+  }
+
   load(): void {
+    const id = ++this.requisicao;
     this.error = '';
-    this.api.getFinancial().subscribe({
+    this.api.getFinancial({ q: this.buscaAplicada, status: this.filtroStatus }).subscribe({
       next: (r: any) => {
+        if (id !== this.requisicao) {
+          return;
+        }
         this.totals = r.totals;
         this.payments = r.payments || [];
         this.renderRevenueChart(r.monthly_revenue || []);

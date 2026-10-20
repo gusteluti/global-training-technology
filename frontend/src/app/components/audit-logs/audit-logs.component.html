@@ -7,6 +7,24 @@
       Eventos críticos da área do funcionário: alterações cadastrais, mudança de preço de cursos e reembolsos,
       com o responsável (pessoa e perfil), o que mudou (antes e depois) e a data/hora de cada ação.
     </p>
+    <div class="row g-2 mb-3">
+      <div class="col-12 col-md-6">
+        <label class="form-label small mb-1" for="auditoria-busca">Buscar</label>
+        <input id="auditoria-busca" type="text" class="form-control form-control-sm" data-testid="auditoria-busca"
+               placeholder="Descrição ou e-mail do responsável"
+               [(ngModel)]="busca" (keyup.enter)="carregar()" (change)="carregar()">
+      </div>
+      <div class="col-6 col-md-3">
+        <label class="form-label small mb-1" for="auditoria-data-inicio">De</label>
+        <input id="auditoria-data-inicio" type="date" class="form-control form-control-sm"
+               data-testid="auditoria-data-inicio" [(ngModel)]="dataInicio" (change)="carregar()">
+      </div>
+      <div class="col-6 col-md-3">
+        <label class="form-label small mb-1" for="auditoria-data-fim">Até</label>
+        <input id="auditoria-data-fim" type="date" class="form-control form-control-sm"
+               data-testid="auditoria-data-fim" [(ngModel)]="dataFim" (change)="carregar()">
+      </div>
+    </div>
     <div class="table-responsive">
       <table class="table table-hover align-middle">
         <thead>
