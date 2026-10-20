@@ -1188,3 +1188,27 @@ pessoal; limiares 80% do orçamento, 2 falhas seguidas do LLM, 3 "não entendi" 
   handoff / conversas), visível para todos os perfis (não é custo). Tela: cartão "Encaminhamentos ao WhatsApp".
 - Telas: no chat do aluno e na landing, a ação vira o link `chat-acao-whatsapp` (`target=_blank`, `rel=noopener
   noreferrer`) com o label.
+
+## D78 — F7: criar curso a partir de anexo (20/10/2026, modo autônomo D69)
+Política da D68: primeira versão aceita JSON e PDF; o anexo só preenche o formulário como **rascunho**. Contrato (forma):
+- `POST /api/admin/course-draft` (só Gestão; 403/401 como as demais rotas de admin), multipart com o campo `file`.
+  Nada é gravado em `backend/courses`: a resposta é `{status: "success", format: "json"|"pdf", draft: {...},
+  warnings: [...]}` e o curso só nasce quando a Gestão salva o formulário (rota de criação existente).
+- Limites: mais de 5 MB → 413 `Arquivo maior que 5 MB.`; tipo decidido pelo **conteúdo** (PDF começa com `%PDF-`;
+  JSON é um objeto JSON em UTF-8), não pela extensão; outro conteúdo → 415 `Formato não suportado. Envie um arquivo
+  JSON ou PDF.`
+- JSON: `draft` com os campos do schema de curso (`CourseInput`); desconhecidos descartados; ausentes com padrão vazio e
+  um aviso `Campo "<campo>" não encontrado no arquivo.` por campo obrigatório ausente; tipos inválidos viram aviso e
+  padrão vazio; `materials` validados como na L2 (inválidos descartados com aviso); `archived` nunca vem do anexo.
+- PDF: texto extraído com `pypdf` (nova dependência), até 20 000 caracteres; sem texto → 422 `Não foi possível ler
+  texto do PDF.` O texto vai ao LLM como **dado não confiável delimitado** (padrão E6) com o pedido de devolver só um
+  JSON com os campos do curso; a saída é validada pelo mesmo caminho do JSON. Do PDF **não** vêm `system_prompt` (fica
+  vazio, aviso `Escreva as instruções do assistente do curso.` — instrução de bot vinda de documento externo seria
+  injeção), nem `materials`, nem `archived`. `id` sugerido a partir do nome (minúsculas, sem acento, `_`). LLM
+  indisponível ou JSON inválido → 502 `Não foi possível gerar o rascunho agora. Tente novamente ou preencha o
+  formulário.`
+- Strings do rascunho com limites de tamanho; nenhum conteúdo do anexo é executado nem gravado.
+- Auditoria: evento `course.draft_from_file` com formato e nome do arquivo sanitizado, sem conteúdo.
+- Tela "Cadastro de cursos": controle `curso-anexo-input` (arquivo) que, ao enviar, abre o formulário de **novo curso**
+  preenchido com o rascunho, mostra os avisos em `curso-anexo-avisos` e erros em `curso-anexo-erro`; salvar usa a
+  criação existente.
