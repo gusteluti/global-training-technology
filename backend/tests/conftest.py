@@ -85,3 +85,20 @@ def catalogo_bot(tmp_path, monkeypatch):
 
     monkeypatch.setattr(ManagerAgent, "__init__", construtor)
     return destino
+
+
+@pytest.fixture(autouse=True)
+def _redefinir_limites_de_taxa():
+    """S2/S9 (D79): zera o estado em memoria dos limites de taxa (chat e checkout) antes de cada teste.
+
+    Varias suites usam TestClient sem `with` (sem startup); sem este reset, as chamadas de um teste contariam
+    no limite do seguinte. Dentro de um teste, o reinicio continua sendo pelo startup do app (S2 f4/g6).
+    Import protegido: antes da implementacao o modulo core.rate_limit nao existe.
+    """
+    try:
+        from core.rate_limit import redefinir_limites
+    except ImportError:
+        redefinir_limites = None
+    if redefinir_limites is not None:
+        redefinir_limites()
+    yield
