@@ -83,6 +83,12 @@ async def startup_event():
     """Load courses and initialize manager agent on startup"""
     # S9 (D79): estado em memória dos limites de taxa (chat e checkout) nasce zerado a cada startup.
     rate_limit.redefinir_limites()
+    # S6 (D81): pagamentos pendentes vencidos (mais de 7 dias) expiram no startup. Uma falha aqui não impede a
+    # subida: as leituras de dashboard, do aluno e o checkout repetem a expiração.
+    try:
+        Database.expirar_pendentes()
+    except Exception as exc:  # noqa: BLE001
+        print(f"[ERRO] Falha ao expirar pagamentos pendentes no startup: {type(exc).__name__}")
     try:
         manager_agent = ManagerAgent()
         manager_agent.load_courses()

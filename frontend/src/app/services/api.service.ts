@@ -167,6 +167,12 @@ export class ApiService {
     return this.http.get(`${BASE}/api/admin/enrollments`, { ...this.authHeaders(), params });
   }
 
+  // Matrícula manual (U4, D81): só a Gestão; cria a conta se preciso e grava pagamento `manual` aprovado.
+  public createManualEnrollment(dados: { email: string; name?: string; course_id: string; class_id?: number;
+                                          reason: string; amount?: number }) {
+    return this.http.post(`${BASE}/api/admin/enrollments`, dados, this.authHeaders());
+  }
+
   // classId: número JSON estrito, ou null para "Sem turma".
   public setEnrollmentClass(enrollmentId: number, classId: number | null) {
     return this.http.put(`${BASE}/api/admin/enrollments/${enrollmentId}/class`, { class_id: classId }, this.authHeaders());

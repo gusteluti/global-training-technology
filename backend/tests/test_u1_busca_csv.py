@@ -33,6 +33,12 @@ Escolhas conservadoras (forma, ver relatorio do agente-testes):
   - Pedido de CSV recusado (403/401) nao grava evento `export.csv`.
   - Busca da auditoria testada com a caixa do texto gravado (D74 so diz "sem caixa" para as listas).
   - Compatibilidade do financeiro sem `page` testada com menos de 50 pagamentos (hoje a lista corta em 50).
+
+Ajuste mecanico D74 (U1) -> D81 (S6, autoridade 4.3): o cenario gravava o pagamento `pending` do Pedro com data fixa
+(2026-09-02), que a S6 (pendente com mais de 7 dias vira `cancelled` nas leituras de dashboard) expira. Pedro, Rita,
+Bruno e Carla passam a ter datas relativas a hoje (UTC, 4 a 1 dia atras, ao meio-dia, mesma ordem relativa entre eles).
+Joana continua no instante fixo DATA_UTC_VIRADA (aprovado, sem expiracao): ele e a base dos testes de fuso (F2) do CSV.
+Intencao dos testes preservada.
 """
 
 import csv
@@ -41,6 +47,7 @@ import json
 import re
 import sqlite3
 import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -68,6 +75,11 @@ VALOR_CARLA = 250.40
 
 # 2026-10-08 01:30 UTC = 2026-10-07 22:30 em Sao Paulo (-3 h).
 DATA_UTC_VIRADA = "2026-10-08 01:30:00"
+
+
+def _ha(dias):
+    """D81: data relativa a hoje (UTC), ao meio-dia; 1 a 4 dias -> pendente com menos de 7 dias (S6)."""
+    return (datetime.now(timezone.utc) - timedelta(days=dias)).strftime("%Y-%m-%d 12:00:00")
 DATA_SP_VIRADA = "07/10/2026 22:30"
 
 HASH_SECRETO = "$2b$12$HASHSECRETOU1nao.pode.sair.no.csv"
@@ -167,19 +179,19 @@ def cenario(contas):
     7 alunos (joana, pedro, rita, bruno, carla, davi, elisa) e 3 funcionarios.
       joana  python    active    pagamento approved 987,65  2026-10-08 01:30 UTC (07/10 22:30 SP); conta tambem
                                                              criada nesse instante
-      pedro  planilha  pending   pagamento pending  432,17  2026-09-02 12:00
-      rita   python    cancelled pagamento rejected 618,29  2026-09-03 12:00
-      bruno  python    pending   sem pagamento               2026-09-04 12:00
-      carla  planilha  active    pagamento approved 250,40  2026-09-05 12:00
+      pedro  planilha  pending   pagamento pending  432,17  ha 4 dias 12:00 UTC (D81: relativo, < 7 dias)
+      rita   python    cancelled pagamento rejected 618,29  ha 3 dias 12:00 UTC
+      bruno  python    pending   sem pagamento               ha 2 dias 12:00 UTC
+      carla  planilha  active    pagamento approved 250,40  ha 1 dia 12:00 UTC
       davi, elisa sem matricula.
     """
     _executar("UPDATE users SET created_at = ? WHERE id = ?", (DATA_UTC_VIRADA, contas.joana.id))
     return SimpleNamespace(
         joana=_matricula(contas.joana.id, CURSO_PY, "active", DATA_UTC_VIRADA, VALOR_JOANA, "approved"),
-        pedro=_matricula(contas.pedro.id, CURSO_XL, "pending", "2026-09-02 12:00:00", VALOR_PEDRO, "pending"),
-        rita=_matricula(contas.rita.id, CURSO_PY, "cancelled", "2026-09-03 12:00:00", VALOR_RITA, "rejected"),
-        bruno=_matricula(contas.bruno.id, CURSO_PY, "pending", "2026-09-04 12:00:00"),
-        carla=_matricula(contas.carla.id, CURSO_XL, "active", "2026-09-05 12:00:00", VALOR_CARLA, "approved"),
+        pedro=_matricula(contas.pedro.id, CURSO_XL, "pending", _ha(4), VALOR_PEDRO, "pending"),
+        rita=_matricula(contas.rita.id, CURSO_PY, "cancelled", _ha(3), VALOR_RITA, "rejected"),
+        bruno=_matricula(contas.bruno.id, CURSO_PY, "pending", _ha(2)),
+        carla=_matricula(contas.carla.id, CURSO_XL, "active", _ha(1), VALOR_CARLA, "approved"),
     )
 
 

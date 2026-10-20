@@ -50,12 +50,52 @@
     <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
       <h5 class="mb-0">Alunos de {{ alunosCurso.name || alunosCurso.id }}</h5>
       <div class="d-flex gap-2">
+        <button type="button" class="btn btn-sm btn-primary" data-testid="matricula-manual-abrir" *ngIf="canManage"
+                (click)="abrirMatriculaManual()">Matrícula manual</button>
         <button type="button" class="btn btn-sm btn-outline-primary" data-testid="exportar-csv" *ngIf="podeExportar"
                 [disabled]="exportando" (click)="exportarAlunosCurso()">Exportar CSV</button>
         <button type="button" class="btn btn-sm btn-outline-secondary" (click)="fecharAlunosCurso()">Fechar</button>
       </div>
     </div>
     <div class="alert alert-danger" *ngIf="alunosErro">{{ alunosErro }}</div>
+    <div class="border rounded p-3 mb-3" *ngIf="canManage && manualAberto">
+      <h6>Matrícula manual</h6>
+      <div class="alert alert-success py-2" data-testid="matricula-manual-ok" *ngIf="manualOk">{{ manualOk }}</div>
+      <div class="alert alert-danger py-2" data-testid="matricula-manual-erro" *ngIf="manualErro">{{ manualErro }}</div>
+      <div class="row g-2 align-items-end">
+        <div class="col-12 col-md-4">
+          <label class="form-label small mb-1">E-mail</label>
+          <input class="form-control form-control-sm" type="email" data-testid="matricula-manual-email"
+                 [(ngModel)]="manualEmail">
+        </div>
+        <div class="col-12 col-md-4">
+          <label class="form-label small mb-1">Nome</label>
+          <input class="form-control form-control-sm" type="text" data-testid="matricula-manual-nome"
+                 [(ngModel)]="manualNome">
+        </div>
+        <div class="col-12 col-md-4">
+          <label class="form-label small mb-1">Turma</label>
+          <select class="form-select form-select-sm" data-testid="matricula-manual-turma" [(ngModel)]="manualTurma">
+            <option value="">Sem turma</option>
+            <option *ngFor="let t of alunosCurso.classes || []" [value]="'' + t.id">{{ t.name }}</option>
+          </select>
+        </div>
+        <div class="col-12 col-md-3">
+          <label class="form-label small mb-1">Valor (R$)</label>
+          <input class="form-control form-control-sm" type="number" min="0" step="0.01"
+                 data-testid="matricula-manual-valor" [(ngModel)]="manualValor">
+        </div>
+        <div class="col-12 col-md-7">
+          <label class="form-label small mb-1">Motivo</label>
+          <input class="form-control form-control-sm" type="text" maxlength="300" data-testid="matricula-manual-motivo"
+                 [(ngModel)]="manualMotivo">
+        </div>
+        <div class="col-12 col-md-2">
+          <button type="button" class="btn btn-sm btn-primary w-100" data-testid="matricula-manual-salvar"
+                  [disabled]="salvandoManual || !manualEmail.trim()" (click)="salvarMatriculaManual()">Salvar</button>
+        </div>
+      </div>
+    </div>
     <div class="row g-2 mb-3">
       <div class="col-12 col-md-4">
         <label class="form-label small mb-1">Status</label>

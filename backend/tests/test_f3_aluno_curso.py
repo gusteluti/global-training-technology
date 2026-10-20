@@ -44,11 +44,18 @@ Escolhas conservadoras (ver relatorio do agente-testes):
   - Matricula sem pagamento na lista do curso: `payment_status` e `amount` nulos (chave presente para Gestao).
   - Suporte: alem da chave `amount`, o corpo nao pode conter o valor numerico do pagamento em nenhum campo.
   - Os campos exigidos sao um minimo (superconjunto aceito), exceto a ausencia de `amount` para Suporte.
+
+Ajuste mecanico D73 (F3) -> D81 (S6, autoridade 4.3): o cenario gravava pagamentos `pending` com datas fixas de
+setembro/2026, que a S6 (pendente com mais de 7 dias vira `cancelled` nas leituras) expirava. As datas passam a ser
+relativas ao instante da execucao (UTC): matriculas/pagamentos entre 5 e 1 dia atras (menos de 7 dias, mesma ordem
+relativa de antes) e a turma Alfa com inicio em hoje + 30 dias. Os esperados de data sao derivados das mesmas
+constantes. Intencao dos testes preservada.
 """
 
 import json
 import sqlite3
 import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -73,6 +80,23 @@ URL_A = "https://materiais.test/f3/apostila-a.pdf"
 VALOR_A = 987.65
 VALOR_B = 432.17
 VALOR_C = 618.29
+
+# Datas relativas ao instante da execucao (UTC), D81: pendentes com menos de 7 dias; turma Alfa no futuro.
+_AGORA = datetime.now(timezone.utc).replace(microsecond=0)
+
+
+def _ha(dias):
+    """Dia de hoje menos `dias`, ao meio-dia UTC (como o cenario original): 1 a 5 dias -> idade < 6 dias."""
+    return (_AGORA - timedelta(days=dias)).strftime("%Y-%m-%d 12:00:00")
+
+
+DATA_JOANA_A = _ha(5)
+DATA_PEDRO_A = _ha(4)
+DATA_RITA_CANCELADA = _ha(3)
+DATA_RITA_PENDENTE = _ha(2)
+DATA_JOANA_B = _ha(1)
+DATA_CURSO_REMOVIDO = _ha(1)
+INICIO_ALFA = (_AGORA + timedelta(days=30)).strftime("%Y-%m-%d")
 
 ERR_ALUNO = "Aluno não encontrado"
 ERR_CURSO = "Course not found"
@@ -195,23 +219,24 @@ def _matricula(user_id, course_id, status, enrolled_at, class_id=None, valor=Non
 @pytest.fixture
 def cenario(contas):
     """
-    Curso A: turmas Alfa (inicio 2026-11-01) e Beta (sem inicio).
-      joana  A active    Alfa  pagamento approved VALOR_A   2026-09-01 12:00
-      pedro  A pending   Beta  pagamento pending  VALOR_C   2026-09-02 12:00
-      rita   A cancelled -     pagamento rejected VALOR_C   2026-09-03 12:00
-      rita   A pending   -     sem pagamento              2026-09-04 12:00  (compatibilidade)
-    Curso B: joana B pending sem turma, pagamento pending VALOR_B, 2026-09-05 12:00.
+    Curso A: turmas Alfa (inicio INICIO_ALFA = hoje + 30 dias) e Beta (sem inicio).
+      joana  A active    Alfa  pagamento approved VALOR_A   ha 5 dias
+      pedro  A pending   Beta  pagamento pending  VALOR_C   ha 4 dias
+      rita   A cancelled -     pagamento rejected VALOR_C   ha 3 dias
+      rita   A pending   -     sem pagamento              ha 2 dias  (compatibilidade)
+    Curso B: joana B pending sem turma, pagamento pending VALOR_B, ha 1 dia.
+    (Datas relativas, D81: nenhum pendente passa dos 7 dias da S6.)
     Chat: joana com 2 trocas (2 mensagens do aluno + 2 do bot).
     """
-    alfa = _turma(CURSO_A, "Turma Alfa", "2026-11-01", 30)
+    alfa = _turma(CURSO_A, "Turma Alfa", INICIO_ALFA, 30)
     beta = _turma(CURSO_A, "Turma Beta")
     m = SimpleNamespace(
-        joana_a=_matricula(contas.joana.id, CURSO_A, "active", "2026-09-01 12:00:00", alfa, VALOR_A, "approved"),
-        pedro_a=_matricula(contas.pedro.id, CURSO_A, "pending", "2026-09-02 12:00:00", beta, VALOR_C, "pending"),
-        rita_a_cancelada=_matricula(contas.rita.id, CURSO_A, "cancelled", "2026-09-03 12:00:00", None, VALOR_C,
+        joana_a=_matricula(contas.joana.id, CURSO_A, "active", DATA_JOANA_A, alfa, VALOR_A, "approved"),
+        pedro_a=_matricula(contas.pedro.id, CURSO_A, "pending", DATA_PEDRO_A, beta, VALOR_C, "pending"),
+        rita_a_cancelada=_matricula(contas.rita.id, CURSO_A, "cancelled", DATA_RITA_CANCELADA, None, VALOR_C,
                                     "rejected"),
-        rita_a_pendente=_matricula(contas.rita.id, CURSO_A, "pending", "2026-09-04 12:00:00"),
-        joana_b=_matricula(contas.joana.id, CURSO_B, "pending", "2026-09-05 12:00:00", None, VALOR_B, "pending"),
+        rita_a_pendente=_matricula(contas.rita.id, CURSO_A, "pending", DATA_RITA_PENDENTE),
+        joana_b=_matricula(contas.joana.id, CURSO_B, "pending", DATA_JOANA_B, None, VALOR_B, "pending"),
     )
     Database.add_chat_exchange(contas.joana.id, "Quando começa a turma?", "Em novembro.")
     Database.add_chat_exchange(contas.joana.id, "E o material?", "Está na área do aluno.")
@@ -289,8 +314,8 @@ def test_a2_detalhe_matriculas_com_curso_turma_status_e_data(client, contas, cen
         f"o detalhe deve trazer exatamente as matriculas da Joana: {sorted(por_id)}"
     a = por_id[cenario.m.joana_a.id]
     assert (a["course_id"], a["course_name"], a["status"]) == (CURSO_A, NOME_A, "active")
-    assert (a["class_id"], a["class_name"], a["class_starts_on"]) == (cenario.alfa, "Turma Alfa", "2026-11-01")
-    assert str(a["enrolled_at"]).startswith("2026-09-01")
+    assert (a["class_id"], a["class_name"], a["class_starts_on"]) == (cenario.alfa, "Turma Alfa", INICIO_ALFA)
+    assert str(a["enrolled_at"]).startswith(DATA_JOANA_A[:10])
     b = por_id[cenario.m.joana_b.id]
     assert (b["course_id"], b["course_name"], b["status"]) == (CURSO_B, NOME_B, "pending")
     assert (b["class_id"], b["class_name"], b["class_starts_on"]) == (None, None, None), \
@@ -314,7 +339,7 @@ def test_a4_pagamentos_com_valor_para_gestao_e_financeiro(client, contas, cenari
     pa = por_id[cenario.m.joana_a.payment_id]
     assert (pa["enrollment_id"], pa["course_id"], pa["status"]) == (cenario.m.joana_a.id, CURSO_A, "approved")
     assert pa["amount"] == pytest.approx(VALOR_A)
-    assert str(pa["created_at"]).startswith("2026-09-01")
+    assert str(pa["created_at"]).startswith(DATA_JOANA_A[:10])
     pb = por_id[cenario.m.joana_b.payment_id]
     assert (pb["enrollment_id"], pb["course_id"], pb["status"]) == (cenario.m.joana_b.id, CURSO_B, "pending")
     assert pb["amount"] == pytest.approx(VALOR_B)
@@ -428,7 +453,7 @@ def test_d1_alunos_do_curso_com_todos_os_campos(client, contas, cenario, perfil)
     assert (j["class_id"], j["class_name"]) == (cenario.alfa, "Turma Alfa")
     assert j["payment_status"] == "approved"
     assert j["amount"] == pytest.approx(VALOR_A)
-    assert str(j["enrolled_at"]).startswith("2026-09-01")
+    assert str(j["enrolled_at"]).startswith(DATA_JOANA_A[:10])
     p = por_id[cenario.m.pedro_a.id]
     assert (p["user_id"], p["status"], p["class_id"], p["class_name"], p["payment_status"]) == (
         contas.pedro.id, "pending", cenario.beta, "Turma Beta", "pending")
@@ -531,7 +556,7 @@ def test_f1_curso_fora_do_catalogo_devolve_404(client, contas, cenario):
 
 def test_f2_curso_fora_do_catalogo_com_matricula_antiga_devolve_404(client, contas, cenario):
     """Matricula de um curso cujo JSON nao existe mais (dado antigo): o curso nao esta no catalogo."""
-    _matricula(contas.vazio.id, "curso_removido_f3", "active", "2026-09-06 12:00:00")
+    _matricula(contas.vazio.id, "curso_removido_f3", "active", DATA_CURSO_REMOVIDO)
     r = _alunos_curso(client, contas.gestao.token, "curso_removido_f3")
     assert r.status_code == 404
     assert r.json() == {"detail": ERR_CURSO}
@@ -579,7 +604,7 @@ def test_g1_aluno_ve_nome_e_inicio_da_turma(client, contas, cenario):
     por_id = {item["id"]: item for item in corpo["enrollments"]}
     a = por_id[cenario.m.joana_a.id]
     assert a["class_name"] == "Turma Alfa"
-    assert a["class_starts_on"] == "2026-11-01"
+    assert a["class_starts_on"] == INICIO_ALFA
 
 
 def test_g2_sem_turma_campos_nulos(client, contas, cenario):

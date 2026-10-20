@@ -43,6 +43,17 @@ export class CoursesDashboardComponent implements OnInit, OnDestroy {
   podeExportar = false;
   exportando = false;
 
+  // Matrícula manual (U4, D81): só a Gestão (canManage) vê o botão e o formulário.
+  manualAberto = false;
+  manualEmail = '';
+  manualNome = '';
+  manualTurma = '';
+  manualValor: number | null = 0;
+  manualMotivo = '';
+  manualOk = '';
+  manualErro = '';
+  salvandoManual = false;
+
   constructor(private api: ApiService, private auth: AuthService) { }
 
   ngOnInit(): void {
@@ -72,6 +83,7 @@ export class CoursesDashboardComponent implements OnInit, OnDestroy {
 
   abrirAlunosCurso(curso: any): void {
     this.alunosCurso = curso;
+    this.manualAberto = false;
     this.filtroStatus = '';
     this.filtroTurma = '';
     this.carregarAlunosCurso();
@@ -79,6 +91,7 @@ export class CoursesDashboardComponent implements OnInit, OnDestroy {
 
   fecharAlunosCurso(): void {
     this.alunosCurso = null;
+    this.manualAberto = false;
     this.alunos = [];
     this.alunosErro = '';
   }
@@ -97,6 +110,59 @@ export class CoursesDashboardComponent implements OnInit, OnDestroy {
         }
       },
       error: err => this.alunosErro = this.errorText(err)
+    });
+  }
+
+  abrirMatriculaManual(): void {
+    this.manualAberto = true;
+    this.manualEmail = '';
+    this.manualNome = '';
+    this.manualTurma = '';
+    this.manualValor = 0;
+    this.manualMotivo = '';
+    this.manualOk = '';
+    this.manualErro = '';
+  }
+
+  salvarMatriculaManual(): void {
+    const curso = this.alunosCurso;
+    if (!curso || !this.canManage || this.salvandoManual) {
+      return;
+    }
+    this.manualOk = '';
+    this.manualErro = '';
+    const body: { email: string; name?: string; course_id: string; class_id?: number; reason: string; amount?: number } = {
+      email: this.manualEmail.trim(),
+      course_id: curso.id,
+      reason: this.manualMotivo
+    };
+    if (this.manualNome.trim()) {
+      body.name = this.manualNome.trim();
+    }
+    if (this.manualTurma !== '') {
+      body.class_id = Number(this.manualTurma);
+    }
+    const valor = this.manualValor as any;
+    body.amount = valor === null || valor === undefined || valor === '' ? 0 : Number(valor);
+    this.salvandoManual = true;
+    this.api.createManualEnrollment(body).subscribe({
+      next: () => {
+        this.salvandoManual = false;
+        this.manualOk = 'Matrícula manual registrada.';
+        this.carregarAlunosCurso();
+        this.loadCourses();
+      },
+      error: err => {
+        this.salvandoManual = false;
+        const detail = err?.error?.detail;
+        if (typeof detail === 'string' && detail) {
+          this.manualErro = detail;
+        } else if (Array.isArray(detail)) {
+          this.manualErro = 'Confira os campos: o motivo precisa ter de 5 a 300 caracteres.';
+        } else {
+          this.manualErro = 'Não foi possível concluir a operação.';
+        }
+      }
     });
   }
 

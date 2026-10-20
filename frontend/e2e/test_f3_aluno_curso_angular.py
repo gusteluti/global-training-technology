@@ -25,9 +25,10 @@ a data da matrícula no detalhe pode ter a hora ao lado; o texto "sem turma" da 
 rota própria ou painel na aba. Cada cenário reabre /admin para começar sem filtro aplicado.
 
 Seed (harness D58, SQLite temporário):
-  - Curso A (preço 321,45) com turmas "Alfa F3" (início 2026-11-01) e "Beta F3" (início 2026-12-05); curso B (150,00).
-  - Joana: A ativa na Alfa (pagamento aprovado 321,45, matrícula 2026-09-15 15:00 UTC); B pendente sem turma
-    (pagamento pendente 150,00, 2026-09-20 15:00 UTC). Login com senha (área do aluno).
+  - Curso A (preço 321,45) com turmas "Alfa F3" (início hoje + 30 dias) e "Beta F3" (início hoje + 65 dias); curso B
+    (150,00).
+  - Joana: A ativa na Alfa (pagamento aprovado 321,45, matrícula há 6 dias, 15:00 UTC); B pendente sem turma
+    (pagamento pendente 150,00, há 2 dias, 15:00 UTC). Login com senha (área do aluno).
   - Pedro: A pendente na Beta (pagamento pendente 321,45). Rita: A cancelada, sem turma.
   As turmas são criadas e atribuídas pela API de Gestão (L1); status e datas são montados na camada de banco.
 
@@ -41,12 +42,18 @@ Cenários:
   C2 filtro de status: Ativa -> só Joana; Pendente -> só Pedro
   C3 filtro de turma: Alfa F3 -> só Joana; Sem turma -> só Rita
   C4 Suporte abre a lista de alunos do curso sem nenhum valor em R$
-  A1 área do aluno: o cartão do curso A mostra curso-turma "Turma: Alfa F3" e 01/11/2026 (não 31/10/2026)
+  A1 área do aluno: o cartão do curso A mostra curso-turma "Turma: Alfa F3" e o dia de início (não o dia anterior)
   A2 área do aluno: o cartão do curso B (sem turma) não tem curso-turma
   K1 sem erros de console de /api (4xx/5xx) nem exceções de página
 
 Os navegadores rodam em 'America/Sao_Paulo' com locale 'en-US': uma data só de dia lida como UTC apareceria no dia
 anterior, e a tela não pode depender do idioma da máquina.
+
+Ajuste mecânico D73 (F3) -> D81 (S6, autoridade 4.3): o seed gravava pagamentos `pending` com datas fixas de
+setembro/2026, que a S6 (pendente com mais de 7 dias vira `cancelled` nas leituras) expira; as turmas tinham início fixo
+que viraria passado. Datas passam a ser relativas a hoje (UTC): matrículas há 6, 5, 4 e 2 dias (mesma ordem relativa;
+pendentes com menos de 7 dias), turmas em hoje + 30 e + 65 dias. Os textos esperados na tela (dd/mm/aaaa) e o dia
+deslocado são derivados das mesmas datas. Intenção dos testes preservada.
 
 Execução (da raiz do repo, um por vez): py -3 -m pytest frontend/e2e/test_f3_aluno_curso_angular.py -s
 """
@@ -61,6 +68,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -88,14 +96,28 @@ PRECO_B = 150.0
 VALORES_TELA = ("321,45", "150,00")
 TURMA_ALFA = "Alfa F3"
 TURMA_BETA = "Beta F3"
-INICIO_ALFA = "2026-11-01"
-INICIO_ALFA_TELA = "01/11/2026"
-INICIO_ALFA_DESLOCADO = "31/10/2026"
-INICIO_BETA = "2026-12-05"
-DATA_JOANA_A = "2026-09-15 15:00:00"
-DATA_JOANA_B = "2026-09-20 15:00:00"
-DATA_JOANA_A_TELA = "15/09/2026"
-DATA_JOANA_B_TELA = "20/09/2026"
+# D81: datas relativas a hoje (UTC); 15:00 UTC = 12:00 em São Paulo, mesmo dia (a tela mostra o dia de SP).
+_HOJE = datetime.now(timezone.utc).date()
+
+
+def _dia(delta):
+    return _HOJE + timedelta(days=delta)
+
+
+def _tela(dia):
+    return dia.strftime("%d/%m/%Y")
+
+
+INICIO_ALFA = _dia(30).isoformat()
+INICIO_ALFA_TELA = _tela(_dia(30))
+INICIO_ALFA_DESLOCADO = _tela(_dia(29))
+INICIO_BETA = _dia(65).isoformat()
+DATA_JOANA_A = f"{_dia(-6).isoformat()} 15:00:00"
+DATA_PEDRO_A = f"{_dia(-5).isoformat()} 15:00:00"
+DATA_RITA_A = f"{_dia(-4).isoformat()} 15:00:00"
+DATA_JOANA_B = f"{_dia(-2).isoformat()} 15:00:00"
+DATA_JOANA_A_TELA = _tela(_dia(-6))
+DATA_JOANA_B_TELA = _tela(_dia(-2))
 
 SEL_ABA = "ul.nav-tabs button.nav-link"
 SEL_DETALHE = '[data-testid="aluno-detalhe"]'
@@ -220,8 +242,8 @@ def semear():
 
     joana_a = matricular(Database, joana, curso_a["id"], "active", DATA_JOANA_A, PRECO_A, "approved")
     matricular(Database, joana, curso_b["id"], "pending", DATA_JOANA_B, PRECO_B, "pending")
-    pedro_a = matricular(Database, pedro, curso_a["id"], "pending", "2026-09-16 15:00:00", PRECO_A, "pending")
-    matricular(Database, rita, curso_a["id"], "cancelled", "2026-09-17 15:00:00")
+    pedro_a = matricular(Database, pedro, curso_a["id"], "pending", DATA_PEDRO_A, PRECO_A, "pending")
+    matricular(Database, rita, curso_a["id"], "cancelled", DATA_RITA_A)
     atribuir_turma(token, joana_a, alfa)
     atribuir_turma(token, pedro_a, beta)
     return {"token": token, "a": curso_a, "b": curso_b, "alfa": alfa, "beta": beta,
@@ -460,7 +482,7 @@ def test_f3_aluno_curso_angular_e2e(servidores, browser):
                 raise Falha(f"D1: a matrícula do curso B não mostra {texto!r}: {linha_b!r}")
         if TURMA_ALFA in linha_b or TURMA_BETA in linha_b:
             raise Falha(f"D1: a matrícula sem turma mostra uma turma: {linha_b!r}")
-        for cru in ("2026-09-15", "active", "pending"):
+        for cru in (DATA_JOANA_A[:10], "active", "pending"):
             if cru in linha_a + linha_b:
                 raise Falha(f"D1: o detalhe mostra o valor cru {cru!r}")
 
@@ -572,7 +594,7 @@ def test_f3_aluno_curso_angular_e2e(servidores, browser):
     cenario("C2", "filtro de status na lista de alunos do curso", c2)
     cenario("C3", "filtro de turma (inclui 'Sem turma') na lista de alunos do curso", c3)
     cenario("C4", "Suporte vê a lista de alunos do curso sem valor em R$", c4)
-    cenario("A1", "área do aluno: 'Turma: <nome>' e início 01/11/2026 sem deslocar o dia", a1)
+    cenario("A1", f"área do aluno: 'Turma: <nome>' e início {INICIO_ALFA_TELA} sem deslocar o dia", a1)
     cenario("A2", "área do aluno: curso sem turma não mostra curso-turma", a2)
     cenario("K1", "sem erros de console de /api nem exceções de página", k1)
 

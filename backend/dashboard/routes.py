@@ -146,6 +146,7 @@ async def dashboard_alunos(
     já que o Suporte precisa acompanhar dados acadêmicos dos alunos.
     U1 (D74): `q` (nome ou e-mail, sem caixa) e paginação; `metrics` continuam globais.
     """
+    Database.expirar_pendentes()  # S6 (D81)
     students = Database.get_students_overview()
     total_students = len(students)
     active_students = sum(1 for student in students if (student.get("active_enrollments") or 0) > 0)
@@ -171,6 +172,7 @@ async def dashboard_aluno_detalhe(user_id: int, current_user: AuthContext = Depe
     Detalhe de um aluno (F3, D73): matrículas com turma, pagamentos e resumo do chat. Id que não é de
     aluno (inexistente, funcionário, fora do intervalo) responde o mesmo 404. Suporte não recebe `amount`.
     """
+    Database.expirar_pendentes()  # S6 (D81)
     detalhe = Database.get_student_detail(user_id)
     if detalhe is None:
         raise HTTPException(status_code=404, detail=ERRO_ALUNO_NAO_ENCONTRADO)
@@ -238,6 +240,7 @@ async def dashboard_curso_alunos(
     Alunos de um curso do catálogo (F4, D73), inclusive arquivado. Filtros opcionais `status` e `class_id`
     (`none` = sem turma). Matrícula mais recente primeiro. Suporte não recebe `amount`.
     """
+    Database.expirar_pendentes()  # S6 (D81)
     curso, students = _alunos_do_curso(course_id, status, class_id)
     if curso is None:
         raise HTTPException(status_code=404, detail=ERRO_CURSO_NAO_ENCONTRADO)
@@ -262,6 +265,7 @@ async def dashboard_cursos(current_user: AuthContext = Depends(require_staff)):
     """
     Performance do catálogo: inscritos por turma e taxa de conversão (RF23).
     """
+    Database.expirar_pendentes()  # S6 (D81)
     catalog = {course["id"]: course for course in list_course_summaries(include_archived=True)}
     overview_by_course = {row["course_id"]: row for row in Database.get_courses_overview()}
     classes_by_course = {}
@@ -338,6 +342,7 @@ async def dashboard_financeiro(
     U1 (D74): a lista `payments` aceita `q` (e-mail, nome ou curso), `status` e paginação; sem `page` vem
     inteira (sem o antigo corte de 50). Totais, `by_status` e `monthly_revenue` continuam globais.
     """
+    Database.expirar_pendentes()  # S6 (D81)
     summary = Database.get_financial_summary()
     payments = _filtrar_pagamentos(Database.get_payments_overview(limit=None), q, status, _nomes_dos_cursos())
     pagina, pagination = _paginar(payments, page, page_size)

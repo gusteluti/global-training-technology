@@ -1174,6 +1174,12 @@ class Database:
                 )
             if status_matricula == "active":
                 resultado["class_overflow"] = Database._tirar_da_turma_se_lotada(conn, pagamento["enrollment_id"])
+            if novo_status == "approved":
+                # S6 (D81): aprovação de um pagamento que a expiração tinha cancelado (evento gravado pela rota).
+                resultado["approved_after_expiry"] = conn.execute(
+                    "SELECT 1 FROM audit_logs WHERE action = ? AND entity_type = 'payment' AND entity_id = ? LIMIT 1",
+                    (Database.EVENTO_PAGAMENTO_EXPIRADO, str(pagamento["id"])),
+                ).fetchone() is not None
             conn.execute("COMMIT")
             return {"outcome": "applied", **resultado}
         except sqlite3.IntegrityError:
@@ -1257,6 +1263,177 @@ class Database:
             )
             conn.execute("COMMIT")
             return {"outcome": "refunded", **base}
+        except Exception:
+            if conn.in_transaction:
+                conn.execute("ROLLBACK")
+            raise
+        finally:
+            conn.close()
+
+    # --- S6 (D81): expiração de pagamento pendente ---------------------------------------------------------------
+    PRAZO_PENDENTE = timedelta(days=7)
+    EVENTO_PAGAMENTO_EXPIRADO = "payment.expired"
+
+    _SQL_PENDENTES_VENCIDOS = """
+        SELECT p.id, p.enrollment_id FROM payments p
+        WHERE p.status = 'pending' AND p.created_at IS NOT NULL
+          AND datetime(p.created_at) < datetime(?)
+        ORDER BY p.id"""
+
+    @staticmethod
+    def expirar_pendentes() -> int:
+        """S6 (D81): pagamento `pending` criado há mais de 7 dias (payments.created_at, UTC) passa a `cancelled`,
+        com a matrícula `pending` dele, liberando a vaga. Grava `payment.expired` por pagamento expirado, na mesma
+        transação. Idempotente (o que já expirou não é `pending`). Leitura prévia sem lock: sem vencidos, não
+        abre transação de escrita. Devolve quantos pagamentos expiraram."""
+        limite = Database._utc_texto(datetime.now(timezone.utc) - Database.PRAZO_PENDENTE)
+        conn = sqlite3.connect(Database.DB_PATH)
+        try:
+            if conn.execute(Database._SQL_PENDENTES_VENCIDOS + " LIMIT 1", (limite,)).fetchone() is None:
+                return 0
+        finally:
+            conn.close()
+
+        conn = Database._abrir_transacao_imediata()
+        try:
+            expirados = 0
+            for pagamento in conn.execute(Database._SQL_PENDENTES_VENCIDOS, (limite,)).fetchall():
+                atualizado = conn.execute(
+                    "UPDATE payments SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP "
+                    "WHERE id = ? AND status = 'pending'",
+                    (pagamento["id"],),
+                ).rowcount
+                if atualizado != 1:
+                    continue
+                matricula = conn.execute(
+                    "UPDATE enrollments SET status = 'cancelled' WHERE id = ? AND status = 'pending'",
+                    (pagamento["enrollment_id"],),
+                ).rowcount
+                mudancas = [{"field": "payment.status", "before": "pending", "after": "cancelled"}]
+                if matricula == 1:
+                    mudancas.append({"field": "enrollment.status", "before": "pending", "after": "cancelled"})
+                conn.execute(
+                    """INSERT INTO audit_logs (user_id, role, action, detail, entity_type, entity_id, changes)
+                       VALUES (NULL, 'system', ?, ?, 'payment', ?, ?)""",
+                    (
+                        Database.EVENTO_PAGAMENTO_EXPIRADO,
+                        f"Pagamento #{pagamento['id']}: pendente há mais de 7 dias, expirado "
+                        f"(matrícula #{pagamento['enrollment_id']} cancelada)",
+                        str(pagamento["id"]),
+                        json.dumps(mudancas, ensure_ascii=False),
+                    ),
+                )
+                expirados += 1
+            conn.execute("COMMIT")
+            return expirados
+        except Exception:
+            if conn.in_transaction:
+                conn.execute("ROLLBACK")
+            raise
+        finally:
+            conn.close()
+
+    # --- U4 (D81): matrícula manual pela Gestão ------------------------------------------------------------------
+
+    @staticmethod
+    def matricular_manualmente(
+        email: str,
+        nome: str,
+        course_id: str,
+        class_id: Optional[int],
+        amount: float,
+        external_reference: str,
+    ) -> Dict:
+        """Matrícula manual numa transação (BEGIN IMMEDIATE): conta (criada sem senha, se não existir), matrícula
+        `active` e pagamento `approved` `manual`. Uma `pending` do mesmo curso é reaproveitada (vira `active`; os
+        pagamentos pendentes dela viram `cancelled` e o pagamento manual é acrescentado).
+
+        `outcome`: ok | staff | already_active | class_not_found | class_full. Só `ok` grava.
+        Em `ok`: user_id, user_created, enrollment_id, payment_id, reused (bool), class_id, class_name."""
+        agora = datetime.now(timezone.utc)
+        conn = Database._abrir_transacao_imediata()
+        try:
+            def recusar(outcome: str) -> Dict:
+                conn.execute("ROLLBACK")
+                return {"outcome": outcome}
+
+            conta = conn.execute("SELECT id, role FROM users WHERE email = ?", (email,)).fetchone()
+            if conta is not None and (conta["role"] or "student") != "student":
+                return recusar("staff")
+
+            pendente = None
+            if conta is not None:
+                ativa = conn.execute(
+                    "SELECT 1 FROM enrollments WHERE user_id = ? AND course_id = ? AND status = 'active' LIMIT 1",
+                    (conta["id"], course_id),
+                ).fetchone()
+                if ativa is not None:
+                    return recusar("already_active")
+                pendente = conn.execute(
+                    """SELECT id, class_id FROM enrollments
+                       WHERE user_id = ? AND course_id = ? AND status = 'pending'
+                       ORDER BY id DESC LIMIT 1""",
+                    (conta["id"], course_id),
+                ).fetchone()
+
+            if class_id is not None:
+                turma = Database._conferir_turma_para_venda(
+                    conn, course_id, class_id, pendente["id"] if pendente is not None else None, agora
+                )
+                if turma == "not_found":
+                    return recusar("class_not_found")
+                if turma == "full":
+                    return recusar("class_full")
+
+            user_created = conta is None
+            if user_created:
+                user_id = conn.execute(
+                    "INSERT INTO users (email, name, password_hash, role) VALUES (?, ?, NULL, 'student')",
+                    (email, nome),
+                ).lastrowid
+            else:
+                user_id = conta["id"]
+
+            if pendente is not None:
+                enrollment_id = pendente["id"]
+                turma_final = class_id if class_id is not None else pendente["class_id"]
+                conn.execute(
+                    "UPDATE enrollments SET status = 'active', class_id = ? WHERE id = ?",
+                    (turma_final, enrollment_id),
+                )
+                conn.execute(
+                    "UPDATE payments SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP "
+                    "WHERE enrollment_id = ? AND status = 'pending'",
+                    (enrollment_id,),
+                )
+            else:
+                turma_final = class_id
+                enrollment_id = conn.execute(
+                    """INSERT INTO enrollments (user_id, course_id, status, external_reference, class_id)
+                       VALUES (?, ?, 'active', ?, ?)""",
+                    (user_id, course_id, external_reference, class_id),
+                ).lastrowid
+            payment_id = conn.execute(
+                "INSERT INTO payments (enrollment_id, amount, payment_method, status) "
+                "VALUES (?, ?, 'manual', 'approved')",
+                (enrollment_id, amount),
+            ).lastrowid
+
+            nome_turma = None
+            if turma_final is not None:
+                linha = conn.execute("SELECT name FROM classes WHERE id = ?", (turma_final,)).fetchone()
+                nome_turma = linha["name"] if linha else None
+            conn.execute("COMMIT")
+            return {
+                "outcome": "ok",
+                "user_id": user_id,
+                "user_created": user_created,
+                "enrollment_id": enrollment_id,
+                "payment_id": payment_id,
+                "reused": pendente is not None,
+                "class_id": turma_final,
+                "class_name": nome_turma,
+            }
         except Exception:
             if conn.in_transaction:
                 conn.execute("ROLLBACK")

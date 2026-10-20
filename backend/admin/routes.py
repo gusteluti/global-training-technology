@@ -2,9 +2,11 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Upl
 from pydantic import BaseModel, Field, field_validator
 from typing import Annotated, Any, List, Dict, Optional
 from dotenv import load_dotenv
-from datetime import date
+from datetime import date, datetime, timezone
 import json
+import os
 import re
+import uuid
 from pathlib import Path
 
 from core.security import (
@@ -18,6 +20,8 @@ from core.security import (
 )
 from core.audit import change, legacy_actor, record_audit
 from core import login_limit
+from core.notifications import send_password_setup_link
+from core.password_setup import emitir_token_definicao
 from admin import course_draft
 from db import Database
 
@@ -795,3 +799,113 @@ async def deactivate_student(user_id: int, current_user: AuthContext = Depends(r
 @router.post("/students/{user_id}/reactivate")
 async def reactivate_student(user_id: int, current_user: AuthContext = Depends(require_roles(Role.ADMIN))):
     return _alterar_conta_do_aluno(user_id, True, current_user)
+
+
+# --- Matrícula manual pela Gestão (U4, D81) -----------------------------------------------------------------------
+
+MOTIVO_MIN, MOTIVO_MAX = 5, 300
+EMAIL_MAX = 254
+_PADRAO_EMAIL = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
+ERR_JA_MATRICULADO = "O aluno já está matriculado neste curso."
+ERR_EMAIL_FUNCIONARIO = "Este e-mail pertence a um funcionário."
+ERR_TURMA_NAO_ENCONTRADA = "Turma não encontrada"
+ERR_TURMA_LOTADA = "Esta turma está lotada. Escolha outra turma."
+NOME_ALUNO_MAX = 120
+
+
+class ManualEnrollmentInput(BaseModel):
+    """Corpo da matrícula manual. Campos extras (user_id etc.) são ignorados: o aluno é o do e-mail e o
+    responsável vem do token."""
+    email: str
+    name: Optional[str] = None
+    course_id: str
+    class_id: Optional[int] = None
+    reason: str
+    amount: float = Field(0, ge=0, allow_inf_nan=False)
+
+    @field_validator("email")
+    @classmethod
+    def _email_valido(cls, valor: str) -> str:
+        valor = (valor or "").strip()
+        if len(valor) > EMAIL_MAX or not _PADRAO_EMAIL.fullmatch(valor):
+            raise ValueError("Informe um e-mail válido.")
+        return valor
+
+    @field_validator("name")
+    @classmethod
+    def _nome_valido(cls, valor: Optional[str]) -> Optional[str]:
+        if valor is None:
+            return None
+        valor = valor.strip()
+        if len(valor) > NOME_ALUNO_MAX:
+            raise ValueError(f"O nome deve ter no máximo {NOME_ALUNO_MAX} caracteres.")
+        return valor or None
+
+    @field_validator("reason")
+    @classmethod
+    def _motivo_valido(cls, valor: str) -> str:
+        valor = (valor or "").strip()
+        if not MOTIVO_MIN <= len(valor) <= MOTIVO_MAX:
+            raise ValueError(f"O motivo deve ter de {MOTIVO_MIN} a {MOTIVO_MAX} caracteres.")
+        return valor
+
+
+@router.post("/enrollments")
+async def create_manual_enrollment(
+    body: ManualEnrollmentInput,
+    current_user: AuthContext = Depends(require_roles(Role.ADMIN)),
+):
+    """Matrícula manual (U4, D81): matrícula `active` e pagamento `approved` `manual` com o valor informado (padrão 0,
+    cortesia), numa transação. Conta inexistente é criada sem senha e recebe o link de definição da E2 (depois do
+    commit). Curso inexistente/arquivado 404; turma pelas regras da D75; aluno já ativo e e-mail de funcionário 409."""
+    course = load_course_data(body.course_id)
+    if curso_arquivado(course):
+        raise HTTPException(status_code=404, detail="Course not found")
+    course_id = course.get("id") or body.course_id
+    amount = round(float(body.amount), 2)
+    nome = body.name or body.email.split("@", 1)[0]
+    referencia = f"{course_id}:{int(datetime.now(timezone.utc).timestamp())}:{uuid.uuid4().hex[:8]}"
+
+    resultado = Database.matricular_manualmente(body.email, nome, course_id, body.class_id, amount, referencia)
+    outcome = resultado["outcome"]
+    if outcome == "staff":
+        raise HTTPException(status_code=409, detail=ERR_EMAIL_FUNCIONARIO)
+    if outcome == "already_active":
+        raise HTTPException(status_code=409, detail=ERR_JA_MATRICULADO)
+    if outcome == "class_not_found":
+        raise HTTPException(status_code=404, detail=ERR_TURMA_NAO_ENCONTRADA)
+    if outcome == "class_full":
+        raise HTTPException(status_code=409, detail=ERR_TURMA_LOTADA)
+
+    # Depois do commit: link de definição de senha para a conta criada agora (mesmo mecanismo da E2).
+    if resultado["user_created"]:
+        token = emitir_token_definicao(resultado["user_id"])
+        base = os.getenv("FRONTEND_BASE_URL", "http://localhost:8000").rstrip("/")
+        send_password_setup_link(body.email, f"{base}/definir-senha?token={token}")
+
+    turma = (f"turma '{resultado['class_name']}' (#{resultado['class_id']})"
+             if resultado["class_id"] is not None else "sem turma")
+    record_audit(
+        "enrollment.manual",
+        f"Matrícula manual de {body.email} no curso {course_id}, {turma}, valor R$ {amount:.2f}. "
+        f"Motivo: {body.reason}",
+        user=current_user,
+        entity_type="enrollment",
+        entity_id=resultado["enrollment_id"],
+        changes=[
+            change("enrollment.status", "pending" if resultado["reused"] else None, "active"),
+            change("enrollment.course_id", None, course_id),
+            change("enrollment.class_id", None, resultado["class_id"]),
+            change("payment.amount", None, amount),
+            change("payment.payment_method", None, "manual"),
+            change("reason", None, body.reason),
+        ],
+    )
+    return {
+        "status": "success",
+        "enrollment_id": resultado["enrollment_id"],
+        "payment_id": resultado["payment_id"],
+        "user_id": resultado["user_id"],
+        "account_created": resultado["user_created"],
+        "class_id": resultado["class_id"],
+    }
