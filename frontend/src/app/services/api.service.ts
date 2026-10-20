@@ -225,6 +225,28 @@ export class ApiService {
     return this.http.post(`${BASE}/api/admin/students/${encodeURIComponent(String(userId))}/reactivate`, {}, this.authHeaders());
   }
 
+  // Pedido de cancelamento em 7 dias (U5, D82). O aluno só pede da própria matrícula (dono pelo JWT).
+  public requestCancellation(enrollmentId: number, reason: string) {
+    return this.http.post(`${BASE}/api/student/enrollments/${encodeURIComponent(String(enrollmentId))}/cancel-request`,
+      { reason }, this.authHeaders());
+  }
+
+  // Solicitações de cancelamento (U5, D82): Financeiro e Gestão; a API devolve 403 aos demais.
+  public getCancellationRequests(status = 'open') {
+    const params = new HttpParams().set('status', status);
+    return this.http.get(`${BASE}/api/admin/cancellation-requests`, { ...this.authHeaders(), params });
+  }
+
+  public approveCancellationRequest(requestId: number) {
+    return this.http.post(`${BASE}/api/admin/cancellation-requests/${encodeURIComponent(String(requestId))}/approve`,
+      {}, this.authHeaders());
+  }
+
+  public rejectCancellationRequest(requestId: number, reason: string) {
+    return this.http.post(`${BASE}/api/admin/cancellation-requests/${encodeURIComponent(String(requestId))}/reject`,
+      { reason }, this.authHeaders());
+  }
+
   public refundPayment(paymentId: number) {
     return this.http.post(`${BASE}/api/payments/refund/${paymentId}`, {}, this.authHeaders());
   }

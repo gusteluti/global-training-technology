@@ -48,6 +48,53 @@
   </div>
 </div>
 
+<div class="card mb-3">
+  <div class="card-body">
+    <h5>Solicitações de cancelamento</h5>
+    <div class="alert alert-danger" *ngIf="erroCancelamentos">{{ erroCancelamentos }}</div>
+    <div class="table-responsive">
+      <table class="table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Aluno</th>
+            <th>Curso</th>
+            <th>Valor</th>
+            <th>Data</th>
+            <th>Motivo</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let c of cancelamentos" data-testid="cancelamento-row">
+            <td>
+              {{ c.student_name }}<br>
+              <small class="text-muted">{{ c.student_email }}</small>
+            </td>
+            <td class="text-break">{{ c.course_name || c.course_id }}</td>
+            <td class="text-nowrap">{{ c.amount | currency:'BRL':'symbol':'1.2-2' }}</td>
+            <td class="text-nowrap">{{ c.requested_at | dataSP }}</td>
+            <td class="text-break">{{ c.reason || '-' }}</td>
+            <td style="min-width: 240px;">
+              <div class="d-flex flex-column gap-2">
+                <button type="button" class="btn btn-sm btn-outline-success" data-testid="cancelamento-aprovar"
+                        [disabled]="decidindoId !== null" (click)="aprovarCancelamento(c)">Aprovar e reembolsar</button>
+                <input type="text" class="form-control form-control-sm" data-testid="cancelamento-motivo"
+                       maxlength="300" placeholder="Motivo da recusa" aria-label="Motivo da recusa"
+                       [(ngModel)]="motivosRecusa[c.id]">
+                <button type="button" class="btn btn-sm btn-outline-danger" data-testid="cancelamento-recusar"
+                        [disabled]="!podeRecusar(c)" (click)="recusarCancelamento(c)">Recusar</button>
+              </div>
+            </td>
+          </tr>
+          <tr *ngIf="cancelamentos.length === 0">
+            <td colspan="6" class="text-center text-muted">Nenhuma solicitação em análise.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <div class="card">
   <div class="card-body">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">

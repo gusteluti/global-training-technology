@@ -629,6 +629,25 @@ async def mercado_pago_webhook(request: Request):
     }
 
 
+def registrar_trilha_reembolso(resultado: dict, current_user: AuthContext) -> None:
+    """Evento `payment.refund` (E9) de um reembolso que alterou o banco agora (`outcome == "refunded"`).
+    Usado pela rota de reembolso e pela aprovação do pedido de cancelamento (U5, D82). Responsável do token."""
+    if resultado.get("outcome") != "refunded":
+        return
+    payment_id = resultado["payment_id"]
+    record_audit(
+        "payment.refund",
+        f"Pagamento #{payment_id} (R$ {float(resultado.get('amount') or 0):.2f}) marcado como reembolsado",
+        user=current_user,
+        entity_type="payment",
+        entity_id=payment_id,
+        changes=[
+            change("payment.status", resultado["payment_status_before"], "refunded"),
+            change("enrollment.status", resultado["enrollment_status_before"], "refunded"),
+        ],
+    )
+
+
 @router.post("/refund/{payment_id}")
 async def refund_payment(
     payment_id: int,
@@ -650,18 +669,7 @@ async def refund_payment(
         raise HTTPException(status_code=409, detail=DETAIL_REEMBOLSO_NAO_APROVADO)
 
     # A trilha é gravada depois da alteração; se falhar, a rota termina em 500 genérico.
-    if outcome == "refunded":
-        record_audit(
-            "payment.refund",
-            f"Pagamento #{payment_id} (R$ {float(resultado.get('amount') or 0):.2f}) marcado como reembolsado",
-            user=current_user,
-            entity_type="payment",
-            entity_id=payment_id,
-            changes=[
-                change("payment.status", resultado["payment_status_before"], "refunded"),
-                change("enrollment.status", resultado["enrollment_status_before"], "refunded"),
-            ],
-        )
+    registrar_trilha_reembolso(resultado, current_user)
 
     return {
         "status": "success",

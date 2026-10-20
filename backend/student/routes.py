@@ -30,7 +30,7 @@ from agents.llm_guard import (
 )
 from core import rate_limit
 from core.receipt_pdf import gerar_recibo_pdf
-from core.audit import record_audit
+from core.audit import change, record_audit
 from core.password_setup import senha_aceitavel
 from core.security import (
     ERRO_SESSAO_EXPIRADA,
@@ -84,8 +84,9 @@ def _materiais(curso: Optional[Dict]) -> List[Dict[str, str]]:
     ]
 
 
-def _montar_item(matricula: Dict) -> Dict:
+def _montar_item(matricula: Dict, cancelamento: Optional[Dict] = None) -> Dict:
     curso = _carregar_curso(matricula["course_id"])
+    cancelamento = cancelamento or {}
     item = {
         "id": matricula["id"],
         "course_id": matricula["course_id"],
@@ -95,6 +96,9 @@ def _montar_item(matricula: Dict) -> Dict:
         # F3 (D73): turma do próprio aluno; null quando a matrícula não tem turma.
         "class_name": matricula.get("class_name"),
         "class_starts_on": matricula.get("class_starts_on"),
+        # U5 (D82): pedido de cancelamento mais recente (ou null) e se o aluno pode pedir agora.
+        "cancellation": cancelamento.get("cancellation"),
+        "can_request_cancellation": bool(cancelamento.get("can_request_cancellation")),
     }
     # Só a matrícula ativa recebe materiais. Nos demais status o campo nem existe na resposta.
     if matricula["status"] == STATUS_COM_MATERIAIS:
@@ -126,7 +130,8 @@ async def listar_minhas_matriculas(current_user: AuthContext = Depends(require_r
     """Matrículas do próprio aluno (o user_id do token define o filtro)."""
     Database.expirar_pendentes()  # S6 (D81)
     matriculas = Database.list_enrollments_for_user(current_user.id)
-    itens = [_montar_item(m) for m in matriculas]
+    cancelamentos = Database.cancelamento_das_matriculas(current_user.id)
+    itens = [_montar_item(m, cancelamentos.get(m["id"])) for m in matriculas]
     return {"status": "success", "total": len(itens), "enrollments": itens}
 
 
@@ -136,7 +141,63 @@ async def obter_minha_matricula(enrollment_id: int, current_user: AuthContext = 
     matricula = Database.get_enrollment_for_user(enrollment_id, current_user.id)
     if matricula is None:
         raise HTTPException(status_code=404, detail=ERRO_MATRICULA_NAO_ENCONTRADA)
-    return {"status": "success", "enrollment": _montar_item(matricula)}
+    cancelamento = Database.cancelamento_das_matriculas(current_user.id).get(matricula["id"])
+    return {"status": "success", "enrollment": _montar_item(matricula, cancelamento)}
+
+
+# --- Pedido de cancelamento em 7 dias (U5, D82) --------------------------------------------------------------------
+
+MOTIVO_CANCELAMENTO_MAX = 500
+ERRO_CANCELAMENTO = {
+    "not_active": "Só é possível pedir o cancelamento de uma matrícula ativa.",
+    "already_open": "Já existe uma solicitação de cancelamento em análise para esta matrícula.",
+    "no_refundable_payment": "Esta matrícula não tem pagamento a reembolsar. Fale com o suporte.",
+    "expired": "O prazo de 7 dias para cancelamento terminou. Fale com o suporte.",
+}
+
+
+class PedidoCancelamentoInput(BaseModel):
+    """Corpo do pedido. Só o motivo (opcional); user_id e outros campos são ignorados (o aluno vem do JWT)."""
+
+    model_config = ConfigDict(extra="ignore")
+    reason: Optional[str] = None
+
+    @field_validator("reason")
+    @classmethod
+    def _motivo_valido(cls, valor: Optional[str]) -> Optional[str]:
+        if valor is None:
+            return None
+        valor = valor.strip()
+        if len(valor) > MOTIVO_CANCELAMENTO_MAX:
+            raise ValueError(f"O motivo deve ter no máximo {MOTIVO_CANCELAMENTO_MAX} caracteres.")
+        return valor or None
+
+
+@router.post("/enrollments/{enrollment_id}/cancel-request")
+async def pedir_cancelamento(
+    enrollment_id: int,
+    corpo: Optional[PedidoCancelamentoInput] = None,
+    current_user: AuthContext = Depends(require_roles(Role.STUDENT)),
+):
+    """Pedido de cancelamento da própria matrícula (D82). Alheia ou inexistente: o mesmo 404 da E3.
+    Condições na ordem da D82 (409); senão cria o pedido `open` e grava `enrollment.cancel_request`."""
+    motivo = corpo.reason if corpo is not None else None
+    resultado = Database.criar_pedido_cancelamento(enrollment_id, current_user.id, motivo)
+    outcome = resultado["outcome"]
+    if outcome == "not_found":
+        raise HTTPException(status_code=404, detail=ERRO_MATRICULA_NAO_ENCONTRADA)
+    if outcome in ERRO_CANCELAMENTO:
+        raise HTTPException(status_code=409, detail=ERRO_CANCELAMENTO[outcome])
+    record_audit(
+        "enrollment.cancel_request",
+        f"Pedido de cancelamento da matrícula #{enrollment_id} (pagamento #{resultado['payment_id']})",
+        user=current_user,
+        entity_type="enrollment",
+        entity_id=enrollment_id,
+        changes=[change("cancellation.status", None, "open"), change("reason", None, motivo)],
+    )
+    cancelamento = Database.cancelamento_das_matriculas(current_user.id).get(enrollment_id) or {}
+    return {"status": "success", "cancellation": cancelamento.get("cancellation")}
 
 
 class CheckoutCursoInput(BaseModel):

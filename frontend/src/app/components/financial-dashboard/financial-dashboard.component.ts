@@ -38,8 +38,62 @@ export class FinancialDashboardComponent implements OnInit, OnDestroy {
 
   constructor(private api: ApiService) { }
 
+  // Solicitações de cancelamento em aberto (U5, D82). A aba Financeiro só existe para Gestão e Financeiro.
+  cancelamentos: any[] = [];
+  erroCancelamentos = '';
+  motivosRecusa: { [id: number]: string } = {};
+  decidindoId: number | null = null;
+
   ngOnInit(): void {
     this.load();
+    this.carregarCancelamentos();
+  }
+
+  carregarCancelamentos(): void {
+    this.api.getCancellationRequests('open').subscribe({
+      next: (r: any) => this.cancelamentos = r.requests || [],
+      error: err => this.erroCancelamentos = err?.error?.detail || 'Não foi possível carregar as solicitações de cancelamento.'
+    });
+  }
+
+  podeRecusar(pedido: any): boolean {
+    const motivo = (this.motivosRecusa[pedido.id] || '').trim();
+    return this.decidindoId === null && motivo.length >= 5 && motivo.length <= 300;
+  }
+
+  aprovarCancelamento(pedido: any): void {
+    if (this.decidindoId !== null) {
+      return;
+    }
+    if (!confirm(`Aprovar o cancelamento de ${pedido.course_name} e reembolsar ${pedido.student_name}? A ação fica registrada na auditoria.`)) {
+      return;
+    }
+    this.decidir(pedido, this.api.approveCancellationRequest(pedido.id));
+  }
+
+  recusarCancelamento(pedido: any): void {
+    if (!this.podeRecusar(pedido)) {
+      return;
+    }
+    this.decidir(pedido, this.api.rejectCancellationRequest(pedido.id, this.motivosRecusa[pedido.id].trim()));
+  }
+
+  private decidir(pedido: any, chamada: any): void {
+    this.decidindoId = pedido.id;
+    this.erroCancelamentos = '';
+    chamada.subscribe({
+      next: () => {
+        this.decidindoId = null;
+        delete this.motivosRecusa[pedido.id];
+        this.carregarCancelamentos();
+        this.load();
+      },
+      error: (err: any) => {
+        this.decidindoId = null;
+        this.erroCancelamentos = err?.error?.detail || 'Não foi possível registrar a decisão.';
+        this.carregarCancelamentos();
+      }
+    });
   }
 
   buscar(): void {
@@ -93,6 +147,7 @@ export class FinancialDashboardComponent implements OnInit, OnDestroy {
       next: () => {
         this.refundingId = null;
         this.load();
+        this.carregarCancelamentos();
       },
       error: err => {
         this.refundingId = null;

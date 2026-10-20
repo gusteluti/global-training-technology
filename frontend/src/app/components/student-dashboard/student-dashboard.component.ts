@@ -97,6 +97,12 @@ export class StudentDashboardComponent implements OnInit {
   // Primeiro nome do próprio aluno (GET /api/student/me, D80); vazio mantém a saudação genérica.
   primeiroNome = '';
 
+  // Pedido de cancelamento em 7 dias (U5, D82): cartão com o formulário aberto, motivo, envio e erro.
+  cancelarAbertoId: number | null = null;
+  motivoCancelamento = '';
+  enviandoCancelamento = false;
+  erroCancelamento: { [enrollmentId: number]: string } = {};
+
   constructor(private route: ActivatedRoute, private router: Router, private api: ApiService, auth: AuthService) {
     // E-mail do próprio token (nunca de outro aluno): mostrado só no cabeçalho.
     this.email = auth.decodeToken()?.email || '';
@@ -176,6 +182,64 @@ export class StudentDashboardComponent implements OnInit {
 
   mensagemSemAcesso(status: string): string {
     return MENSAGENS_SEM_ACESSO[status] || 'Os materiais não estão disponíveis para esta matrícula.';
+  }
+
+  // ---- Cancelamento em 7 dias (U5, D82) ------------------------------------------------------------
+  textoCancelamento(c: any): string {
+    if (!c) {
+      return '';
+    }
+    if (c.status === 'open') {
+      return 'Cancelamento em análise';
+    }
+    if (c.status === 'approved') {
+      return 'Cancelamento aprovado';
+    }
+    if (c.status === 'rejected') {
+      return `Cancelamento recusado: ${c.decision_reason || ''}`.trim();
+    }
+    return '';
+  }
+
+  abrirCancelamento(m: any): void {
+    this.cancelarAbertoId = m.id;
+    this.motivoCancelamento = '';
+    delete this.erroCancelamento[m.id];
+  }
+
+  enviarCancelamento(m: any): void {
+    if (this.enviandoCancelamento) {
+      return;
+    }
+    if (!confirm(`Pedir o cancelamento de ${m.course_name}? O reembolso é analisado pelo financeiro.`)) {
+      return;
+    }
+    this.enviandoCancelamento = true;
+    delete this.erroCancelamento[m.id];
+    this.api.requestCancellation(m.id, this.motivoCancelamento.trim()).subscribe({
+      next: () => {
+        this.enviandoCancelamento = false;
+        this.cancelarAbertoId = null;
+        this.motivoCancelamento = '';
+        this.recarregarMatriculas();
+      },
+      error: (err: any) => {
+        this.enviandoCancelamento = false;
+        const detalhe = err?.error?.detail;
+        this.erroCancelamento[m.id] = typeof detalhe === 'string' ? detalhe : 'Não foi possível pedir o cancelamento.';
+        this.recarregarMatriculas();
+      }
+    });
+  }
+
+  private recarregarMatriculas(): void {
+    this.api.getMyEnrollments().subscribe({
+      next: (res: any) => {
+        this.enrollments = res.enrollments || [];
+        this.erro = '';
+      },
+      error: () => this.erro = 'Não foi possível carregar suas matrículas.'
+    });
   }
 
   verRecibo(paymentId: number): void {

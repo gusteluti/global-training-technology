@@ -1288,3 +1288,29 @@ Política decidida pelo orquestrador (revisão do PM). Contrato:
   com datas fixas de setembro/2026, que pela S6 expiram nas leituras. Os testes passam a usar datas **relativas a
   hoje** (pendentes com menos de 7 dias; turmas futuras relativas), preservando a intenção. A mesma correção vale para
   qualquer teste com data fixa que a passagem do tempo tornaria inválida (varredura feita na mesma revisão).
+
+## D82 — U5: pedido de cancelamento em 7 dias (20/10/2026, modo autônomo D69)
+Política decidida pelo orquestrador com base no CDC art. 49 (direito de arrependimento em compra fora do
+estabelecimento, 7 dias). **Revisão do PM.** Contrato:
+- `POST /api/student/enrollments/{id}/cancel-request` (só aluno; dono pelo JWT; matrícula alheia ou inexistente →
+  o mesmo 404 da E3) `{reason?}` (até 500 caracteres, opcional). Condições, nesta ordem:
+  matrícula não `active` → 409 `Só é possível pedir o cancelamento de uma matrícula ativa.`; já existe pedido `open`
+  → 409 `Já existe uma solicitação de cancelamento em análise para esta matrícula.`; último pagamento aprovado da
+  matrícula com valor 0 ou forma `manual` → 409 `Esta matrícula não tem pagamento a reembolsar. Fale com o suporte.`;
+  aprovado há mais de 7 dias (a partir do momento da aprovação: `payments.updated_at`, ou `created_at` sem ele) → 409
+  `O prazo de 7 dias para cancelamento terminou. Fale com o suporte.` Senão cria pedido `open` (tabela
+  `cancellation_requests`) e grava `enrollment.cancel_request`. Pedido recusado antes não impede um novo dentro do prazo.
+- Itens de `/api/student/enrollments` ganham `cancellation` (`null` ou `{status, requested_at, decided_at,
+  decision_reason}`) e `can_request_cancellation` (bool, mesmas regras).
+- Financeiro e Gestão: `GET /api/admin/cancellation-requests?status=` (padrão `open`) com `{id, enrollment_id,
+  payment_id, student_name, student_email, course_id, course_name, amount, requested_at, reason, status}`; Suporte e
+  aluno 403. `POST /api/admin/cancellation-requests/{id}/approve` executa o reembolso existente (mesma regra e trilha
+  da E9) e marca `approved`; `POST .../reject` `{reason}` (5 a 300) marca `rejected`. Pedido não `open` → 409
+  `Esta solicitação já foi decidida.`; inexistente → 404 `Solicitação não encontrada.` Reembolso feito direto pela tela
+  do financeiro também marca como `approved` o pedido `open` daquela matrícula. Eventos `cancellation.approve` /
+  `cancellation.reject`.
+- Telas: cartão do curso do aluno com `curso-cancelar` (só quando `can_request_cancellation`), que abre
+  `curso-cancelar-motivo` + `curso-cancelar-enviar` (com `window.confirm`); status em `curso-cancelamento-status`
+  (`Cancelamento em análise`, `Cancelamento aprovado`, `Cancelamento recusado: <motivo>`). Dashboard financeiro: seção
+  "Solicitações de cancelamento" com `cancelamento-row`, `cancelamento-aprovar` (confirm), `cancelamento-motivo` +
+  `cancelamento-recusar`.

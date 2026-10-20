@@ -224,6 +224,32 @@ class Database:
             "CREATE INDEX IF NOT EXISTS idx_login_attempts_key ON login_attempts (scope, key, kind, created_at)"
         )
 
+        # U5 (D82): pedido de cancelamento em 7 dias. Um pedido `open` por matrícula (índice único parcial);
+        # recusados e aprovados ficam como histórico. Datas em UTC no formato de CURRENT_TIMESTAMP.
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS cancellation_requests (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                enrollment_id INTEGER NOT NULL,
+                payment_id INTEGER,
+                user_id INTEGER NOT NULL,
+                reason TEXT,
+                status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'approved', 'rejected')),
+                requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                decided_at TIMESTAMP,
+                decision_reason TEXT,
+                FOREIGN KEY (enrollment_id) REFERENCES enrollments(id),
+                FOREIGN KEY (payment_id) REFERENCES payments(id),
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_cancellation_requests_enrollment ON cancellation_requests (enrollment_id, id)"
+        )
+        cursor.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_cancellation_requests_open "
+            "ON cancellation_requests (enrollment_id) WHERE status = 'open'"
+        )
+
         conn.commit()
         conn.close()
         print("[OK] Database initialized")
@@ -1219,50 +1245,274 @@ class Database:
         return {"enrollment_id": enrollment_id, "class_id": linha["class_id"], "class_name": linha["name"]}
 
     @staticmethod
+    def _reembolsar_na_transacao(conn: sqlite3.Connection, payment_id: int) -> Dict:
+        """Regra do reembolso da E9 dentro de uma transação já aberta (não faz COMMIT nem ROLLBACK).
+
+        `outcome`: not_found | refunded (alterou agora) | already_refunded | not_approved. Quando reembolsa,
+        o pedido de cancelamento `open` da matrícula (U5, D82) passa a `approved` na mesma transação.
+        """
+        pagamento = conn.execute(
+            "SELECT id, enrollment_id, amount, status FROM payments WHERE id = ?", (payment_id,)
+        ).fetchone()
+        if pagamento is None:
+            return {"outcome": "not_found"}
+        base = {
+            "payment_id": pagamento["id"],
+            "amount": pagamento["amount"],
+            "payment_status_before": pagamento["status"],
+            "enrollment_status_before": None,
+        }
+        if pagamento["status"] == "refunded":
+            return {"outcome": "already_refunded", **base}
+        if pagamento["status"] != "approved":
+            return {"outcome": "not_approved", **base}
+
+        matricula = conn.execute(
+            "SELECT status FROM enrollments WHERE id = ?", (pagamento["enrollment_id"],)
+        ).fetchone()
+        base["enrollment_status_before"] = matricula["status"] if matricula else None
+        atualizadas = conn.execute(
+            "UPDATE payments SET status = 'refunded', updated_at = CURRENT_TIMESTAMP "
+            "WHERE id = ? AND status = 'approved'",
+            (payment_id,),
+        ).rowcount
+        if atualizadas != 1:
+            return {"outcome": "already_refunded", **base}
+        conn.execute(
+            "UPDATE enrollments SET status = 'refunded' WHERE id = ?", (pagamento["enrollment_id"],)
+        )
+        conn.execute(
+            "UPDATE cancellation_requests SET status = 'approved', decided_at = CURRENT_TIMESTAMP "
+            "WHERE enrollment_id = ? AND status = 'open'",
+            (pagamento["enrollment_id"],),
+        )
+        return {"outcome": "refunded", **base}
+
+    @staticmethod
     def reembolsar_pagamento_se_aprovado(payment_id: int) -> Dict:
         """Reembolso atômico: só `approved` vira `refunded` (pagamento e matrícula, mesma transação).
 
         `outcome`: not_found | refunded (alterou agora) | already_refunded | not_approved.
         Dois reembolsos simultâneos: um devolve `refunded`, os outros `already_refunded`.
+        U5 (D82): o pedido de cancelamento `open` da matrícula reembolsada passa a `approved`, na mesma transação.
         """
         conn = Database._abrir_transacao_imediata()
         try:
-            pagamento = conn.execute(
-                "SELECT id, enrollment_id, amount, status FROM payments WHERE id = ?", (payment_id,)
+            resultado = Database._reembolsar_na_transacao(conn, payment_id)
+            conn.execute("COMMIT" if resultado["outcome"] == "refunded" else "ROLLBACK")
+            return resultado
+        except Exception:
+            if conn.in_transaction:
+                conn.execute("ROLLBACK")
+            raise
+        finally:
+            conn.close()
+
+    # --- U5 (D82): pedido de cancelamento em 7 dias ------------------------------------------------------------
+    PRAZO_CANCELAMENTO = timedelta(days=7)
+    CANCELAMENTO_STATUS = ("open", "approved", "rejected")
+
+    _SQL_ULTIMO_APROVADO = """
+        SELECT id, amount, payment_method, created_at, updated_at FROM payments
+        WHERE enrollment_id = ? AND status = 'approved' ORDER BY id DESC LIMIT 1"""
+
+    @staticmethod
+    def _instante_utc(valor) -> Optional[datetime]:
+        """Data do SQLite (UTC, 'AAAA-MM-DD HH:MM:SS' ou ISO) como datetime com fuso; None se ilegível."""
+        if not valor:
+            return None
+        try:
+            instante = datetime.fromisoformat(str(valor).strip().replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        return instante if instante.tzinfo else instante.replace(tzinfo=timezone.utc)
+
+    @staticmethod
+    def _impedimento_cancelamento(status_matricula: str, tem_aberto: bool, pagamento: Optional[Dict],
+                                  agora: Optional[datetime] = None) -> Optional[str]:
+        """Primeira condição da D82 que impede o pedido, na ordem do contrato; None quando pode pedir.
+
+        not_active | already_open | no_refundable_payment | expired. `pagamento` é o último aprovado da matrícula
+        (sem ele não há o que reembolsar). Data de aprovação ilegível conta como prazo vencido."""
+        if status_matricula != "active":
+            return "not_active"
+        if tem_aberto:
+            return "already_open"
+        if pagamento is None or not float(pagamento["amount"] or 0) or pagamento["payment_method"] == "manual":
+            return "no_refundable_payment"
+        aprovado_em = Database._instante_utc(pagamento["updated_at"] or pagamento["created_at"])
+        agora = agora or datetime.now(timezone.utc)
+        if aprovado_em is None or agora - aprovado_em > Database.PRAZO_CANCELAMENTO:
+            return "expired"
+        return None
+
+    @staticmethod
+    def _tem_pedido_aberto(conn: sqlite3.Connection, enrollment_id: int) -> bool:
+        return conn.execute(
+            "SELECT 1 FROM cancellation_requests WHERE enrollment_id = ? AND status = 'open' LIMIT 1",
+            (enrollment_id,),
+        ).fetchone() is not None
+
+    @staticmethod
+    def cancelamento_das_matriculas(user_id: int) -> Dict[int, Dict]:
+        """Por matrícula do aluno: {"cancellation": pedido mais recente ou None, "can_request_cancellation": bool}."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            agora = datetime.now(timezone.utc)
+            situacao = {}
+            for matricula in conn.execute("SELECT id, status FROM enrollments WHERE user_id = ?", (user_id,)).fetchall():
+                ultimo = conn.execute(
+                    """SELECT status, requested_at, decided_at, decision_reason FROM cancellation_requests
+                       WHERE enrollment_id = ? ORDER BY id DESC LIMIT 1""",
+                    (matricula["id"],),
+                ).fetchone()
+                pagamento = conn.execute(Database._SQL_ULTIMO_APROVADO, (matricula["id"],)).fetchone()
+                impedimento = Database._impedimento_cancelamento(
+                    matricula["status"], Database._tem_pedido_aberto(conn, matricula["id"]),
+                    dict(pagamento) if pagamento else None, agora,
+                )
+                situacao[matricula["id"]] = {
+                    "cancellation": dict(ultimo) if ultimo else None,
+                    "can_request_cancellation": impedimento is None,
+                }
+            return situacao
+        finally:
+            conn.close()
+
+    @staticmethod
+    def criar_pedido_cancelamento(enrollment_id: int, user_id: int, reason: Optional[str]) -> Dict:
+        """Pedido de cancelamento do aluno (D82), atômico: confere as condições e grava na mesma transação.
+
+        `outcome`: not_found (inexistente ou alheia) | not_active | already_open | no_refundable_payment |
+        expired | created (com request_id, payment_id e amount)."""
+        if not Database._id_sqlite_valido(enrollment_id):
+            return {"outcome": "not_found"}
+        conn = Database._abrir_transacao_imediata()
+        try:
+            matricula = conn.execute(
+                "SELECT id, status FROM enrollments WHERE id = ? AND user_id = ?", (enrollment_id, user_id)
             ).fetchone()
-            if pagamento is None:
+            if matricula is None:
                 conn.execute("ROLLBACK")
                 return {"outcome": "not_found"}
-            base = {
-                "payment_id": pagamento["id"],
-                "amount": pagamento["amount"],
-                "payment_status_before": pagamento["status"],
-                "enrollment_status_before": None,
-            }
-            if pagamento["status"] == "refunded":
+            pagamento = conn.execute(Database._SQL_ULTIMO_APROVADO, (enrollment_id,)).fetchone()
+            pagamento = dict(pagamento) if pagamento else None
+            impedimento = Database._impedimento_cancelamento(
+                matricula["status"], Database._tem_pedido_aberto(conn, enrollment_id), pagamento
+            )
+            if impedimento is not None:
                 conn.execute("ROLLBACK")
-                return {"outcome": "already_refunded", **base}
-            if pagamento["status"] != "approved":
+                return {"outcome": impedimento}
+            request_id = conn.execute(
+                "INSERT INTO cancellation_requests (enrollment_id, payment_id, user_id, reason) VALUES (?, ?, ?, ?)",
+                (enrollment_id, pagamento["id"], user_id, reason),
+            ).lastrowid
+            conn.execute("COMMIT")
+            return {"outcome": "created", "request_id": request_id, "payment_id": pagamento["id"],
+                    "amount": pagamento["amount"]}
+        except sqlite3.IntegrityError:
+            # Índice único parcial: outro pedido `open` da mesma matrícula entrou primeiro.
+            if conn.in_transaction:
                 conn.execute("ROLLBACK")
-                return {"outcome": "not_approved", **base}
+            return {"outcome": "already_open"}
+        except Exception:
+            if conn.in_transaction:
+                conn.execute("ROLLBACK")
+            raise
+        finally:
+            conn.close()
 
-            matricula = conn.execute(
-                "SELECT status FROM enrollments WHERE id = ?", (pagamento["enrollment_id"],)
+    @staticmethod
+    def listar_pedidos_cancelamento(status: str = "open") -> List[Dict]:
+        """Pedidos de cancelamento de um status, com aluno, curso e valor do pagamento (Financeiro e Gestão)."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            rows = conn.execute(
+                """SELECT r.id, r.enrollment_id, r.payment_id, u.name AS student_name, u.email AS student_email,
+                          e.course_id, p.amount, r.requested_at, r.reason, r.status,
+                          r.decided_at, r.decision_reason
+                   FROM cancellation_requests r
+                   JOIN enrollments e ON e.id = r.enrollment_id
+                   JOIN users u ON u.id = e.user_id
+                   LEFT JOIN payments p ON p.id = r.payment_id
+                   WHERE r.status = ?
+                   ORDER BY r.id""",
+                (status,),
+            ).fetchall()
+            return [dict(row) for row in rows]
+        finally:
+            conn.close()
+
+    @staticmethod
+    def aprovar_pedido_cancelamento(request_id: int) -> Dict:
+        """Aprovação atômica (D82): na mesma transação (BEGIN IMMEDIATE), confere o pedido `open`, aplica o
+        reembolso da E9 e marca `approved` (condição no UPDATE). Aprovações simultâneas: uma passa, as demais
+        `already_decided`.
+
+        `outcome`: not_found | already_decided | not_approved (pagamento não está aprovado; nada muda) |
+        approved (com `refund`: resultado do reembolso, `refunded` ou `already_refunded`)."""
+        if not Database._id_sqlite_valido(request_id):
+            return {"outcome": "not_found"}
+        conn = Database._abrir_transacao_imediata()
+        try:
+            pedido = conn.execute(
+                "SELECT id, enrollment_id, payment_id, status FROM cancellation_requests WHERE id = ?", (request_id,)
             ).fetchone()
-            base["enrollment_status_before"] = matricula["status"] if matricula else None
+            if pedido is None:
+                conn.execute("ROLLBACK")
+                return {"outcome": "not_found"}
+            if pedido["status"] != "open":
+                conn.execute("ROLLBACK")
+                return {"outcome": "already_decided"}
+            reembolso = Database._reembolsar_na_transacao(conn, pedido["payment_id"])
+            if reembolso["outcome"] not in ("refunded", "already_refunded"):
+                conn.execute("ROLLBACK")
+                return {"outcome": "not_approved", "refund": reembolso}
+            # O reembolso feito agora já marcou o pedido; se o pagamento já estava reembolsado, marca aqui.
+            conn.execute(
+                "UPDATE cancellation_requests SET status = 'approved', decided_at = CURRENT_TIMESTAMP "
+                "WHERE id = ? AND status = 'open'",
+                (request_id,),
+            )
+            status = conn.execute("SELECT status FROM cancellation_requests WHERE id = ?", (request_id,)).fetchone()
+            if status["status"] != "approved":
+                conn.execute("ROLLBACK")
+                return {"outcome": "already_decided"}
+            conn.execute("COMMIT")
+            return {"outcome": "approved", "enrollment_id": pedido["enrollment_id"], "refund": reembolso}
+        except Exception:
+            if conn.in_transaction:
+                conn.execute("ROLLBACK")
+            raise
+        finally:
+            conn.close()
+
+    @staticmethod
+    def recusar_pedido_cancelamento(request_id: int, decision_reason: str) -> Dict:
+        """Recusa atômica (D82): só `open` vira `rejected` (condição no UPDATE).
+        `outcome`: not_found | already_decided | rejected."""
+        if not Database._id_sqlite_valido(request_id):
+            return {"outcome": "not_found"}
+        conn = Database._abrir_transacao_imediata()
+        try:
+            pedido = conn.execute(
+                "SELECT id, enrollment_id FROM cancellation_requests WHERE id = ?", (request_id,)
+            ).fetchone()
+            if pedido is None:
+                conn.execute("ROLLBACK")
+                return {"outcome": "not_found"}
             atualizadas = conn.execute(
-                "UPDATE payments SET status = 'refunded', updated_at = CURRENT_TIMESTAMP "
-                "WHERE id = ? AND status = 'approved'",
-                (payment_id,),
+                "UPDATE cancellation_requests SET status = 'rejected', decided_at = CURRENT_TIMESTAMP, "
+                "decision_reason = ? WHERE id = ? AND status = 'open'",
+                (decision_reason, request_id),
             ).rowcount
             if atualizadas != 1:
                 conn.execute("ROLLBACK")
-                return {"outcome": "already_refunded", **base}
-            conn.execute(
-                "UPDATE enrollments SET status = 'refunded' WHERE id = ?", (pagamento["enrollment_id"],)
-            )
+                return {"outcome": "already_decided"}
             conn.execute("COMMIT")
-            return {"outcome": "refunded", **base}
+            return {"outcome": "rejected", "enrollment_id": pedido["enrollment_id"]}
         except Exception:
             if conn.in_transaction:
                 conn.execute("ROLLBACK")
