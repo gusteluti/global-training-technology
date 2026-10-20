@@ -19,6 +19,7 @@ Início: 19/10/2026. Fila: `docs/tdd/PLANO_FEEDBACK_PROF.md`. Atualizado ao fim 
 | S2/S9/S10 — limite de tentativas, limite de taxa, id de curso | entregue | red `31b131b`; backend `8b9e222`; ajustes `03e998b`, `f5b425a` | regressão verde; 12 e2e verdes |
 | S4/S5/U3/U9 — conta do aluno | entregue | red `ea05128`; backend `facd5ad`; front `cac20ce` | regressão 1725 passed; 14 e2e verdes |
 | U4/S6 — matrícula manual e expiração de pendente | entregue | red `0b0c89b`; backend `370387f`; front `58acc06`; datas relativas `6845c02` | regressão verde; 6 e2e verdes |
+| U5 — pedido de cancelamento em 7 dias | entregue | red `8df5c09`; backend `578b224`; front `d61d386` | regressão 1871 passed; 8 e2e verdes |
 
 ## Decisões de política tomadas sem o PM (para revisão)
 
@@ -36,6 +37,7 @@ Início: 19/10/2026. Fila: `docs/tdd/PLANO_FEEDBACK_PROF.md`. Atualizado ao fim 
 - **S2/S9 (D79):** limites 5 por e-mail / 20 por IP em 15 min, chat 30/min, checkout 10/min; textos dos 429 do orquestrador. IP atrás de proxy reverso precisa de configuração (dívida). O PUT de curso ainda grava o `id` do corpo sem validar (não monta caminho).
 - **S4 (D80):** aluno desativado vê `Sua conta está desativada. Fale com o suporte.` só com a senha certa; telefone 10–15 dígitos; textos do perfil escolhidos pelo dev ("Dados atualizados.", "Senha alterada." etc.).
 - **U4/S6 (D81):** pendente expira em 7 dias; matrícula manual exige motivo (5–300) e vira pagamento aprovado `manual` (entra na receita). Dívida: o CSV do financeiro não expira pendentes antes de exportar; mensagem do 422 da tela cita só o motivo.
+- **U5 (D82):** prazo de 7 dias contado da aprovação do pagamento (CDC art. 49); matrícula manual/cortesia não entra; aprovar = reembolso local (MVP, sem estorno real no gateway, como na E9). Textos dos botões e confirms escolhidos pelo dev.
 
 ## Paradas e itens pulados
 
