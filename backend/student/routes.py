@@ -124,6 +124,7 @@ def _montar_pagamento(pagamento: Dict) -> Dict:
 @router.get("/enrollments")
 async def listar_minhas_matriculas(current_user: AuthContext = Depends(require_roles(Role.STUDENT))):
     """Matrículas do próprio aluno (o user_id do token define o filtro)."""
+    Database.expirar_pendentes()  # S6 (D81)
     matriculas = Database.list_enrollments_for_user(current_user.id)
     itens = [_montar_item(m) for m in matriculas]
     return {"status": "success", "total": len(itens), "enrollments": itens}
@@ -187,6 +188,7 @@ async def comprar_curso(
 @router.get("/payments")
 async def listar_meus_pagamentos(current_user: AuthContext = Depends(require_roles(Role.STUDENT))):
     """Histórico de pagamentos ligados às matrículas do dono do JWT (E4)."""
+    Database.expirar_pendentes()  # S6 (D81)
     pagamentos = [_montar_pagamento(p) for p in Database.list_payments_for_user(current_user.id)]
     return {"status": "success", "total": len(pagamentos), "payments": pagamentos}
 

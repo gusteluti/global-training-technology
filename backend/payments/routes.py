@@ -102,6 +102,20 @@ def registrar_lotacao_de_turma(resultado: dict) -> None:
     )
 
 
+def registrar_aprovacao_apos_expiracao(resultado: dict) -> None:
+    """S6 (D81): o webhook aprovou um pagamento que a expiração tinha cancelado; a matrícula voltou a `active`."""
+    if not resultado.get("approved_after_expiry"):
+        return
+    record_audit(
+        "payment.approved_after_expiry",
+        f"Pagamento #{resultado['payment_id']}: aprovado pelo Mercado Pago depois de expirado; matrícula reativada",
+        actor={"role": "system"},
+        entity_type="payment",
+        entity_id=resultado["payment_id"],
+        changes=[change("payment.status", resultado["status_before"], "approved")],
+    )
+
+
 def _access_token_gateway() -> str:
     """Token do Mercado Pago ('' quando não configurado ou em branco)."""
     return (os.getenv("MERCADO_PAGO_ACCESS_TOKEN") or "").strip()
@@ -162,6 +176,8 @@ def iniciar_checkout_curso(
     atomicamente, na gravação, que reserva a vaga por 30 min. O lock não é segurado durante a chamada HTTP.
     """
     course = load_course_data(course_id)
+    # S6 (D81): pendente vencida expira antes da decisão; a expirada não é retomada (compra nova).
+    Database.expirar_pendentes()
     # F1 (D68): curso arquivado não vende, nem no modo simulado nem pelo gateway (nada é criado).
     if curso_arquivado(course):
         raise HTTPException(status_code=409, detail=ERR_CURSO_INDISPONIVEL)
@@ -595,6 +611,10 @@ async def mercado_pago_webhook(request: Request):
     if status == "approved":
         try:
             registrar_lotacao_de_turma(resultado)
+        except HTTPException as exc:
+            erro_de_trilha = erro_de_trilha or exc
+        try:
+            registrar_aprovacao_apos_expiracao(resultado)
         except HTTPException as exc:
             erro_de_trilha = erro_de_trilha or exc
         _entregar_definicao_de_senha(external_reference)

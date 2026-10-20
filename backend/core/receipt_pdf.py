@@ -9,6 +9,8 @@ from typing import Dict, List, Optional, Tuple
 from core.fuso import formatar_utc_em_sao_paulo
 
 MAX_LINHA = 90  # limite de caracteres por linha para não estourar a largura da página
+# Rótulo da forma de pagamento no PDF (D81); as demais saem como gravadas. O JSON continua com o valor bruto.
+ROTULO_FORMA_PAGAMENTO = {"manual": "Matrícula manual"}
 
 
 def formatar_valor(valor) -> str:
@@ -34,7 +36,7 @@ def _linhas_do_recibo(recibo: Dict, nome_aluno: str) -> List[Tuple[str, str]]:
         ("F1", f"Curso: {recibo['course_name']}"),
         ("F1", f"Valor: {formatar_valor(recibo['amount'])}"),
         ("F1", f"Status: {recibo['status']}"),
-        ("F1", f"Forma de pagamento: {recibo['payment_method']}"),
+        ("F1", f"Forma de pagamento: {ROTULO_FORMA_PAGAMENTO.get(recibo['payment_method'], recibo['payment_method'])}"),
     ]
     if recibo.get("transaction_id"):
         linhas.append(("F1", f"Transação: {recibo['transaction_id']}"))
