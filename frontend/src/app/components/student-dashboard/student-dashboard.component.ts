@@ -58,7 +58,7 @@ const ROTULOS_PAGAMENTO: { [status: string]: string } = {
 const CLASSES_PAGAMENTO: { [status: string]: string } = {
   approved: 'bg-success',
   pending: 'bg-warning text-dark',
-  in_process: 'bg-info text-dark',
+  in_process: 'bg-primary',
   rejected: 'bg-danger',
   cancelled: 'bg-secondary',
   refunded: 'bg-secondary',
@@ -236,12 +236,34 @@ export class StudentDashboardComponent implements OnInit {
   notaAvaliacao: { [id: number]: number } = {};
   comentarioAvaliacao: { [id: number]: string } = {};
 
+  avaliacaoOk: { [id: number]: string } = {};
+  avaliacaoErro: { [id: number]: string } = {};
+  avaliandoId: number | null = null;
+
+  // D93: o seletor mostra a nota que será enviada (a já dada ou 5), nunca fica em branco.
+  notaDe(matricula: any): number {
+    return this.notaAvaliacao[matricula.id] ?? matricula.review?.rating ?? 5;
+  }
+
+  comentarioDe(matricula: any): string {
+    return this.comentarioAvaliacao[matricula.id] ?? matricula.review?.comment ?? '';
+  }
+
   avaliar(matricula: any): void {
-    const nota = this.notaAvaliacao[matricula.id] || matricula.review?.rating || 5;
-    const comentario = this.comentarioAvaliacao[matricula.id] ?? matricula.review?.comment ?? '';
-    this.api.reviewCourse(matricula.id, nota, comentario).subscribe({
-      next: (r: any) => matricula.review = r.review,
-      error: () => this.recarregarMatriculas()
+    const id = matricula.id;
+    this.avaliacaoOk[id] = '';
+    this.avaliacaoErro[id] = '';
+    this.avaliandoId = id;
+    this.api.reviewCourse(id, this.notaDe(matricula), this.comentarioDe(matricula)).subscribe({
+      next: (r: any) => {
+        matricula.review = r.review;
+        this.avaliandoId = null;
+        this.avaliacaoOk[id] = 'Avaliação enviada. Obrigado!';
+      },
+      error: () => {
+        this.avaliandoId = null;
+        this.avaliacaoErro[id] = 'Não foi possível enviar a avaliação. Tente novamente.';
+      }
     });
   }
 

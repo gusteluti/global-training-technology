@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- D93: endereço da aplicação (SPA Angular). Vazio: http://localhost:4200 em desenvolvimento local e a própria
+     origem da página em qualquer outro host. Preencha só se a SPA ficar em outro endereço. -->
+<meta name="gtt-app-url" content="">
 <title>Global Training Technology</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;900&family=Barlow+Condensed:wght@700;900&display=swap" rel="stylesheet">
 <style>
@@ -463,7 +466,7 @@ function renderCourses(courses) {
         ${c.tags.map(t => `<span class="badge">${escapeHTML(t)}</span>`).join('')}
       </div>
       <div class="course-price">${escapeHTML(c.price)} <span>/ curso</span></div>
-      <button class="btn-enroll" onclick="goToStudentArea(event)">Matricular agora</button>
+      <button class="btn-enroll" onclick="goToStudentArea(event, decodeURIComponent('${encodeURIComponent(c.id || '')}'))">Matricular agora</button>
       <button class="btn-contact" onclick="chatAbout(decodeURIComponent('${encodeURIComponent(c.name)}'))">Tirar dúvidas com IA</button>
     </div>
   `).join('');
@@ -477,11 +480,22 @@ let chatOpen = false;
 const BACKEND_URL = 'http://localhost:8000';
 // A landing é só vitrine (Parte 1): comprar/entrar leva à aplicação Angular (login).
 // O login roteia por perfil: aluno -> /student, funcionário -> /admin.
-const APP_URL = 'http://localhost:4200';
-function goToStudentArea(event) {
+const APP_URL = (function () {
+  const meta = document.querySelector('meta[name="gtt-app-url"]');
+  const configurada = meta && meta.content.trim();
+  if (configurada) return configurada.replace(/\/+$/, '');
+  const local = window.location.protocol === 'file:' || ['localhost', '127.0.0.1', ''].includes(window.location.hostname);
+  return local ? 'http://localhost:4200' : window.location.origin;
+})();
+// "Matricular agora" de um curso (D93) volta ao catálogo com o curso já escolhido depois do login.
+function goToStudentArea(event, courseId) {
   if (event) event.preventDefault();
   // Dica de contexto só visual; o destino real é decidido pelo perfil após o login.
-  window.location.href = `${APP_URL}/login?area=aluno`;
+  let destino = `${APP_URL}/login?area=aluno`;
+  if (typeof courseId === 'string' && courseId) {
+    destino += `&next=${encodeURIComponent('/catalogo?curso=' + encodeURIComponent(courseId))}`;
+  }
+  window.location.href = destino;
 }
 function goToStaffArea(event) {
   if (event) event.preventDefault();

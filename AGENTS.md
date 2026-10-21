@@ -173,6 +173,8 @@ py -3 -m pytest frontend/e2e/test_b1_recuperacao_senha_angular.py -s # 10 checks
 py -3 -m pytest frontend/e2e/test_b2_recibo_pdf_angular.py -s      # 8 checks
 py -3 -m pytest frontend/e2e/test_d1_design_landing_angular.py -s  # 10 checks (design da landing, D66)
 py -3 -m pytest frontend/e2e/test_d2_area_aluno_angular.py -s      # 10 checks (área do aluno, D67)
+py -3 -m pytest frontend/e2e/test_d3_ajustes_design_angular.py -s  # 10 checks (ajustes de design, D93)
+py -3 -m pytest frontend/e2e/test_d3_landing_vitrine.py -s         # 5 testes (landing: APP_URL e curso no login, D93)
 py -3 -m pytest frontend/e2e/test_x5_atualizacao_paineis_angular.py -s # 10 checks (atualização automática dos painéis, D87)
 py -3 -m pytest frontend/e2e/test_o0_catalogo_angular.py -s  # 7 checks (catálogo do aluno, O0)
 py -3 -m pytest frontend/e2e/test_f1_trava_exclusao_angular.py -s  # 11 checks (arquivar curso, F1)

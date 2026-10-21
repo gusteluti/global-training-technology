@@ -1438,3 +1438,57 @@ Ajuste mecânico (4.3), D18/D57 → D89: os e2e de cadastro (`test_e2_conta_alun
 - NPS e a lista de comentários para a Gestão ficaram de fora (os comentários já estão gravados).
 - Ajuste mecânico (4.3), D80 → D89: `test_s4_conta_aluno.py::test_g2_*` passa a ignorar também `terms_accepted_at` e
   `terms_version` ao comparar as linhas migradas de `users` (intenção preservada: nada se perde na migração).
+
+## D93 — D3: ajustes de design das telas novas (21/10/2026, pedido do PM; processo enxuto D84)
+Origem: revisão de 21/10 das entregas de 19 a 21/10 contra o design da landing (D66/D67). Itens 1 a 10 do relatório.
+- **Logo (1):** volta a ser link, mas leva à área de quem está logado (`/student` ou `/admin`); sem sessão, a `/`.
+  Antes, logado, levava à tela de login com o "Sair" ainda na barra. **Ajuste mecânico (4.3), D66 → D93:** o helper
+  `link_para_login_visivel` do e2e da B1 procura o link dentro de `main` (o conteúdo da tela), porque o logo também
+  aponta para `/` sem sessão e satisfaria o cenário sozinho (risco registrado na D66). Intenção preservada.
+- **Atalhos (2):** "Comprar cursos" e "Meu perfil" (links) com a mesma aparência dos atalhos de rolagem (botões).
+- **Avaliação (3):** o seletor mostra a nota que será enviada (a já dada ou 5); confirmação
+  `curso-avaliacao-ok` "Avaliação enviada. Obrigado!" e erro `curso-avaliacao-erro`; comentário em linha própria.
+- **Aviso do chat (4):** margem lateral igual à das mensagens.
+- **Catálogo (5):** rótulo de seção "Catálogo", ícone com as iniciais (`catalogo-icone`), preço em Barlow Condensed
+  teal, "Você já está matriculado" no azul suave da paleta, link de volta à área do aluno. Textos e `data-testid`
+  anteriores mantidos (O0, S1, F5a).
+- **Paleta (6):** barra de progresso e "Baixar certificado" em teal; WhatsApp no verde do botão de chat da landing
+  (`#40c351`, classe `btn-whatsapp`); status "Em análise" sem o azul padrão do Bootstrap.
+- **Observabilidade (7):** vírgula decimal no custo e nos percentuais (o e2e da E7 já aceitava as duas); custo numa
+  linha só (cartão mais largo, `text-nowrap`).
+- **Financeiro (8):** `GET /api/dashboard/financeiro` ganha `course_name` em cada item de `payments` (catálogo,
+  inclusive curso arquivado; fora do catálogo cai no `course_id`, como no detalhe do aluno da F3); a tabela mostra o
+  nome. `course_id` continua na resposta.
+- **Landing (9):** `APP_URL` vem de `<meta name="gtt-app-url">`; vazia, `http://localhost:4200` em host local
+  (`localhost`, `127.0.0.1`, `file://`) e a própria origem nos demais. "Matricular agora" leva a
+  `/login?area=aluno&next=/catalogo?curso=<id>` (o catálogo já pré-seleciona o curso, F5b). `BACKEND_URL` inalterado.
+- **Celular (10):** as abas do painel ficam numa linha, com rolagem lateral, em vez de quebrar em três.
+Ciclo: branch `feature/fase2-ajustes-design` a partir da `main` (`aab0f5f`); testes vermelhos `1efdbd9` (backend 6 de 9
+falham por `KeyError: 'course_name'`; e2e das telas 9 de 10 falham pelo motivo certo; landing 3 de 5); implementação
+`5f5f36c`, `f276898`, `8992247`. Resultados: backend D3 9/9; e2e D3 10/10; landing 5/5; build limpo.
+**Para revisão do PM:** os textos "Avaliação enviada. Obrigado!", "Não foi possível enviar a avaliação. Tente novamente."
+e "Voltar para a área do aluno" no catálogo; a cor do WhatsApp (verde da landing).
+
+## D94 — guardrails do chatbot entram no escopo (21/10/2026, decisão do PM)
+O PM incluiu **guardrails do chatbot** no escopo do projeto. A E6 (D38/D39) já entrega a base: filtro de entrada
+heurístico (injeção direta em PT/EN), dados não confiáveis delimitados no prompt (nome do aluno, base do curso, turmas),
+filtro de saída (desconto indevido, valor fora do catálogo, vazamento do prompt), limite de 2000 caracteres, falha do LLM
+sem texto de exceção; a S9 limita o chat a 30 mensagens/min por IP; a F6 encaminha ao WhatsApp por orçamento de tokens,
+falhas seguidas e "não entendi". A entrega **GR — Guardrails do chatbot** cobre o que falta (nada implementado ainda):
+1. **Assunto:** recusar perguntas fora do domínio (cursos, matrícula, pagamento, plataforma) com texto fixo.
+2. **Dados pessoais (LGPD):** mascarar CPF, cartão, telefone e e-mail digitados antes de enviar ao LLM e de gravar
+   no histórico; a saída nunca devolve dado pessoal de terceiros.
+3. **Conteúdo impróprio:** moderação de entrada e saída (ofensa, assédio, conteúdo ilegal), com classificador e
+   texto fixo.
+4. **Fidelidade ao catálogo:** a saída só cita cursos, turmas, datas e preços que existem; o resto é descartado
+   (estende o filtro de saída da E6).
+5. **Links e promessas:** saída só com links de domínios permitidos (materiais do catálogo, WhatsApp da F6); nada de
+   promessa fora da política (garantia de emprego, prazo de cancelamento diferente de 7 dias, certificado sem conclusão).
+6. **Injeção robusta:** classificador além da heurística (paráfrase, outros idiomas), inclusive para a injeção indireta
+   do curso criado por anexo (F7).
+7. **Avaliação adversarial:** conjunto versionado de ataques e de perguntas legítimas, com taxa de bloqueio e de falso
+   positivo medida (resolve a dívida do parcelamento "12x de R$ 19,33" bloqueado).
+8. **Observabilidade:** bloqueios por tipo no painel de IA (E7).
+**Decisões que sobem ao PM antes de implementar:** os textos fixos de cada bloqueio; se a moderação usa um modelo
+dedicado (custo e chave) ou só heurística; quanto falso positivo é aceitável; se o bloqueio por assunto vale também
+para o chat do aluno logado.

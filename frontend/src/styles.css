@@ -162,7 +162,23 @@ a:hover { color: var(--gt-teal-dark); }
   letter-spacing: 3px; font-variant-caps: all-small-caps; margin-bottom: 6px;
 }
 
+/* D93: botão do WhatsApp com o verde do botão de chat da landing (#40c351), não o verde padrão do Bootstrap. */
+.btn-whatsapp {
+  --bs-btn-bg: #40c351; --bs-btn-border-color: #40c351; --bs-btn-color: #ffffff;
+  --bs-btn-hover-bg: #34a845; --bs-btn-hover-border-color: #34a845; --bs-btn-hover-color: #ffffff;
+  --bs-btn-active-bg: #34a845; --bs-btn-active-border-color: #34a845; --bs-btn-active-color: #ffffff;
+}
+.progress { background-color: var(--gt-soft-blue); }
+.progress-bar { background-color: var(--gt-teal); }
+
+/* D93: o logo é link (leva à área de quem está logado) sem cara de link. */
+.gt-logo-link, .gt-logo-link:hover { text-decoration: none; cursor: pointer; }
+
 @media (max-width: 768px) {
+  /* D93: no celular as abas do painel ficam numa linha só, com rolagem lateral, em vez de quebrar em três. */
+  .nav-tabs { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+  .nav-tabs .nav-item { flex: 0 0 auto; }
+  .nav-tabs .nav-link { white-space: nowrap; }
   .gt-nav { padding: 0 16px; height: 68px; }
   .gt-logo-text span:last-child { display: none; }
   .gt-main { padding: 24px 0 40px; }

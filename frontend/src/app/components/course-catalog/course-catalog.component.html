@@ -1,15 +1,17 @@
 <!-- Catálogo de cursos do aluno logado (Parte 1). Mesmo conjunto de cursos da landing. -->
-<section class="card mb-4">
+<section class="card catalogo-hero">
   <div class="card-body">
-    <h1 class="h3 mb-1">Catálogo de cursos</h1>
-    <p class="text-muted mb-0">Escolha um curso para comprar. O acesso aos materiais é liberado após a confirmação do pagamento.</p>
+    <div class="gt-tag">Catálogo</div>
+    <h1 class="catalogo-titulo">Catálogo de cursos</h1>
+    <p class="text-muted mb-3">Escolha um curso para comprar. O acesso aos materiais é liberado após a confirmação do pagamento.</p>
+    <a routerLink="/student" class="catalogo-voltar">Voltar para a área do aluno</a>
   </div>
 </section>
 
 <div *ngIf="mensagem" class="alert alert-info" role="status" data-testid="catalogo-mensagem">{{ mensagem }}</div>
 <div *ngIf="erro" class="alert alert-danger" role="alert" data-testid="catalogo-erro">{{ erro }}</div>
 
-<div *ngIf="carregando" class="text-muted" data-testid="catalogo-carregando">Carregando cursos...</div>
+<div *ngIf="carregando" class="text-muted mb-3" data-testid="catalogo-carregando">Carregando cursos...</div>
 
 <div *ngIf="!carregando && cursos.length === 0 && !erro" class="text-muted">
   Nenhum curso disponível no momento.
@@ -17,14 +19,15 @@
 
 <div class="row g-3" *ngIf="!carregando && cursos.length > 0">
   <div class="col-12 col-md-6 col-lg-4" *ngFor="let curso of cursos">
-    <div class="card h-100" data-testid="catalogo-card">
+    <div class="card h-100 mb-0 catalogo-card" data-testid="catalogo-card">
       <div class="card-body d-flex flex-column">
-        <h2 class="h5 mb-1" data-testid="catalogo-nome">{{ curso.name }}</h2>
-        <div class="text-muted small mb-3">{{ curso.level || 'Curso disponível' }}</div>
-        <div class="h4 text-primary mt-auto mb-3" data-testid="catalogo-preco">{{ precoBr(curso.price) }}</div>
+        <div class="catalogo-icone mb-3" data-testid="catalogo-icone" aria-hidden="true">{{ iniciais(curso.name) }}</div>
+        <h2 class="catalogo-nome text-break" data-testid="catalogo-nome">{{ curso.name }}</h2>
+        <div class="catalogo-nivel mb-3">{{ curso.level || 'Curso disponível' }}</div>
+        <div class="catalogo-preco mt-auto mb-3" data-testid="catalogo-preco">{{ precoBr(curso.price) }}</div>
         <div
           *ngIf="situacao[curso.id] === 'active'; else botaoCompra"
-          class="alert alert-success mb-0 text-center"
+          class="catalogo-matriculado"
           data-testid="catalogo-ja-matriculado">Você já está matriculado</div>
         <ng-template #botaoCompra>
           <select

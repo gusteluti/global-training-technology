@@ -136,7 +136,7 @@
               {{ p.student_name }}<br>
               <small class="text-muted">{{ p.student_email }}</small>
             </td>
-            <td>{{ p.course_id }}</td>
+            <td class="text-break">{{ p.course_name || p.course_id }}</td>
             <td>{{ p.amount | currency:'BRL':'symbol':'1.2-2' }}</td>
             <td><span class="badge" [ngClass]="p.status === 'approved' ? 'bg-success' : (p.status === 'refunded' ? 'bg-danger' : 'bg-warning text-dark')">{{ rotuloPagamento(p.status) }}</span></td>
             <td>{{ p.created_at | dataSP }}</td>

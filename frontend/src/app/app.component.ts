@@ -9,7 +9,7 @@ import { AuthService } from './services/auth.service';
   selector: 'app-root',
   template: `
     <nav class="gt-nav" data-testid="app-nav">
-      <a class="gt-logo gt-logo-link" data-testid="app-logo" routerLink="/" aria-label="Voltar para a página inicial" style="cursor:pointer; text-decoration:none;">
+      <a class="gt-logo gt-logo-link" data-testid="app-logo" [routerLink]="inicio()" aria-label="Ir para a página inicial">
         <div class="gt-logo-circle" aria-hidden="true">GT</div>
         <div class="gt-logo-text">
           <span data-testid="app-logo-nome">Global Training</span>
@@ -33,6 +33,14 @@ import { AuthService } from './services/auth.service';
 })
 export class AppComponent {
   constructor(public auth: AuthService, private router: Router) { }
+
+  // D93: o logo leva à área de quem está logado (funcionário -> /admin, aluno -> /student); sem sessão, ao login.
+  inicio(): string {
+    if (!this.auth.isAuthenticated()) {
+      return '/';
+    }
+    return ['admin', 'financial', 'support'].includes(this.auth.getRole() || '') ? '/admin' : '/student';
+  }
 
   logout(): void {
     this.auth.logout();

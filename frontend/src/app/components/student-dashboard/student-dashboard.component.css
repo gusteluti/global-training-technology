@@ -3,11 +3,12 @@
 .aluno-titulo { font-size: 42px; line-height: 1.05; margin-bottom: 8px; }
 .aluno-atalhos { display: flex; flex-wrap: wrap; gap: 10px; }
 .aluno-atalho {
+  display: inline-flex; align-items: center; text-decoration: none; font-family: inherit; line-height: 1.5;
   background: #ffffff; border: 1.5px solid #d8e0e8; color: #17212b;
   padding: 7px 18px; border-radius: 20px; font-weight: 600; font-size: 14px;
   cursor: pointer; transition: all .2s;
 }
-.aluno-atalho:hover { border-color: #0096c7; color: #0096c7; }
+.aluno-atalho:hover { border-color: #0096c7; color: #0096c7; text-decoration: none; }
 
 .aluno-resumo-rotulo { font-size: 13px; font-weight: 600; color: #66707c; }
 .aluno-resumo-valor {
@@ -43,6 +44,7 @@
 }
 .chat-bolha-bot { background: #f0f4f7; color: #17212b; align-self: flex-start; border-bottom-left-radius: 4px; }
 .chat-bolha-aluno { background: #0096c7; color: #ffffff; align-self: flex-end; border-bottom-right-radius: 4px; font-weight: 600; }
+.chat-aviso { margin: 0; padding: 10px 16px 0; }
 .chat-acoes { display: flex; flex-wrap: wrap; gap: 8px; align-self: flex-start; }
 .chat-form { padding: 12px 16px; border-top: 1px solid #d8e0e8; background: #ffffff; }
 
@@ -73,3 +75,8 @@
   .pg-data { color: #66707c; font-size: 13px; }
   .pg-acoes { grid-column: 1 / -1; text-align: left !important; white-space: normal !important; margin-top: 4px; }
 }
+
+/* D93: progresso e avaliação na paleta e no tamanho da landing. */
+.curso-progresso { height: 6px; background: #eaf8fc; }
+.curso-progresso .progress-bar { background-color: #0096c7; }
+.avaliacao-nota { max-width: 96px; }

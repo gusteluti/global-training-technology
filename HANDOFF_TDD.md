@@ -235,6 +235,8 @@ Notas de escopo lidas no PDF, para quem for pegar as próximas:
 
 | **D1** | Design da landing aplicado à SPA Angular | pedido do PM (07/10/2026), seção 3 do escopo (SPA) | **Entregue em 07/10/2026, aguardando validação do PM (D66).** e2e `34d846a`; frontend `b1ecf40`, `6702f56`, `07ba7e7`. D1 10/10; regressão e2e completa verde; build limpo. |
 | **D2** | Nova Área do Aluno no design da landing | item 1.1, RF21, RF22 (pedido do PM, 07/10/2026) | **Entregue em 07/10/2026, aguardando validação do PM (D67).** e2e `0b4b45e`; frontend `e5a2de5`. D2 10/10; E2, E3, E5 chat, B2 verdes; build limpo. |
+| **D3** | Ajustes de design das telas novas | pedido do PM (21/10/2026) | **Entregue em 21/10/2026, aguardando validação do PM (D93).** Branch `feature/fase2-ajustes-design`. |
+| **GR** | Guardrails do chatbot | escopo incluído pelo PM (21/10/2026, D94) | **A fazer.** Decisões do PM pendentes (D94). |
 
 ### Backlog (fora das nove entregas)
 - Recuperação de senha do aluno. Fora do escopo, mas login em produção vai precisar.
