@@ -1,0 +1,66 @@
+<div class="card mb-3">
+  <div class="card-body">
+    <h5>Convidar pessoa para a equipe</h5>
+    <p class="small text-muted mb-2">A pessoa recebe um link para definir a senha.</p>
+    <div class="alert alert-success py-2" data-testid="equipe-ok" *ngIf="ok">{{ ok }}</div>
+    <div class="alert alert-danger py-2" data-testid="equipe-erro" *ngIf="erro">{{ erro }}</div>
+    <div class="row g-2 align-items-end">
+      <div class="col-12 col-md-4">
+        <label class="form-label small mb-1">E-mail</label>
+        <input class="form-control" type="email" maxlength="254" data-testid="equipe-email" [(ngModel)]="email">
+      </div>
+      <div class="col-12 col-md-3">
+        <label class="form-label small mb-1">Nome</label>
+        <input class="form-control" maxlength="120" data-testid="equipe-nome" [(ngModel)]="nome">
+      </div>
+      <div class="col-6 col-md-3">
+        <label class="form-label small mb-1">Perfil</label>
+        <select class="form-select" data-testid="equipe-perfil" [(ngModel)]="perfil">
+          <option *ngFor="let p of perfis" [value]="p.value">{{ p.label }}</option>
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <button type="button" class="btn btn-primary w-100" data-testid="equipe-convidar"
+                [disabled]="!email.trim() || !nome.trim()" (click)="convidar()">Convidar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <h5>Equipe</h5>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Situação</th><th></th></tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let p of equipe" data-testid="equipe-row">
+            <td>{{ p.name }}<span class="badge bg-secondary ms-1" *ngIf="p.id === meuId">você</span></td>
+            <td>{{ p.email }}</td>
+            <td>
+              <select class="form-select form-select-sm" data-testid="equipe-perfil-select"
+                      [disabled]="p.id === meuId" (change)="trocarPerfil(p, $event)">
+                <option *ngFor="let opcao of perfis" [value]="opcao.value" [selected]="opcao.value === p.role">{{ opcao.label }}</option>
+              </select>
+            </td>
+            <td>
+              <span class="badge bg-success" *ngIf="p.is_active">Ativa</span>
+              <span class="badge bg-secondary" data-testid="equipe-desativada" *ngIf="!p.is_active">Desativada</span>
+            </td>
+            <td class="text-nowrap">
+              <button type="button" class="btn btn-sm btn-outline-danger" data-testid="equipe-desativar"
+                      *ngIf="p.is_active && p.id !== meuId" (click)="alterarAtivo(p, false)">Desativar</button>
+              <button type="button" class="btn btn-sm btn-outline-success" data-testid="equipe-reativar"
+                      *ngIf="!p.is_active" (click)="alterarAtivo(p, true)">Reativar</button>
+            </td>
+          </tr>
+          <tr *ngIf="equipe.length === 0">
+            <td colspan="5" class="text-center text-muted">Nenhuma pessoa na equipe.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

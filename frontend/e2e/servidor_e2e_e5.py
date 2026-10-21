@@ -43,7 +43,13 @@ PREFIXO_RESPOSTA = "Resposta simulada do assistente a: "
 
 
 def _ambiente(outbox: str) -> None:
+    # Isolamento do backend/.env de quem roda (D84): o pagamento simulado (O0) e o handoff (F6) ficam desligados,
+    # a não ser que o servidor do teste defina o número antes (servidor_e2e_f6). O load_dotenv não sobrescreve
+    # variáveis já presentes no ambiente.
+    os.environ.setdefault("WHATSAPP_HANDOFF_NUMBER", "")
     os.environ.update({
+        "PAYMENTS_MOCK": "0",
+        "APP_ENV": "test",
         "GROQ_API_KEY": "chave-falsa-de-teste-e5",
         "GROQ_MODEL": "modelo-falso",
         "ADMIN_PASSWORD": ADMIN_PASSWORD,

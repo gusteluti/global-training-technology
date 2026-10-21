@@ -15,6 +15,7 @@
 <app-course-admin *ngIf="activeTab === 'cadastro-cursos'"></app-course-admin>
 <app-ai-observability *ngIf="activeTab === 'ia'"></app-ai-observability>
 <app-audit-logs *ngIf="activeTab === 'auditoria'"></app-audit-logs>
+<app-staff-admin *ngIf="activeTab === 'equipe'"></app-staff-admin>
 
 <div class="alert alert-warning" *ngIf="visibleTabs.length === 0">
   Seu perfil não tem acesso a nenhum painel administrativo.
