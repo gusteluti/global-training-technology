@@ -11,7 +11,7 @@
 </div>
 
 <div class="row g-3 mb-3" *ngIf="metrics">
-  <div class="col-md-3">
+  <div class="col-6 col-md-2">
     <div class="card h-100">
       <div class="card-body">
         <div class="text-muted small">Requisições à IA</div>
@@ -19,7 +19,7 @@
       </div>
     </div>
   </div>
-  <div class="col-md-3">
+  <div class="col-6 col-md-3">
     <div class="card h-100">
       <div class="card-body">
         <div class="text-muted small">Tokens</div>
@@ -27,15 +27,15 @@
       </div>
     </div>
   </div>
-  <div class="col-md-2" *ngIf="hasCost">
+  <div class="col-12 col-md-3" *ngIf="hasCost">
     <div class="card h-100">
       <div class="card-body">
         <div class="text-muted small">Custo</div>
-        <div class="fs-3" data-testid="obs-cost">{{ costText }}</div>
+        <div class="fs-3 text-nowrap" data-testid="obs-cost">{{ costText }}</div>
       </div>
     </div>
   </div>
-  <div class="col-md-2">
+  <div class="col-6 col-md-2">
     <div class="card h-100">
       <div class="card-body">
         <div class="text-muted small">Taxa de resolução</div>
@@ -43,7 +43,7 @@
       </div>
     </div>
   </div>
-  <div class="col-md-2">
+  <div class="col-6 col-md-2">
     <div class="card h-100">
       <div class="card-body">
         <div class="text-muted small">Conversão</div>

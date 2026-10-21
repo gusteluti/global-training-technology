@@ -79,8 +79,8 @@
                 <strong>Seu progresso</strong>
                 <span data-testid="curso-progresso">{{ m.progress.done }} de {{ m.progress.total }} concluídos</span>
               </div>
-              <div class="progress mb-2" style="height: 6px">
-                <div class="progress-bar bg-success" [style.width.%]="m.progress.percent"></div>
+              <div class="progress curso-progresso mb-2">
+                <div class="progress-bar" [style.width.%]="m.progress.percent"></div>
               </div>
               <div class="form-check small" *ngFor="let mat of m.materials">
                 <input class="form-check-input" type="checkbox" data-testid="material-concluido"
@@ -88,24 +88,30 @@
                        (change)="marcarMaterial(m, mat.url, $any($event.target).checked)">
                 <label class="form-check-label" [for]="'mat-' + m.id + '-' + mat.url">{{ mat.title }}</label>
               </div>
-              <button type="button" class="btn btn-success btn-sm mt-2" data-testid="curso-certificado"
+              <button type="button" class="btn btn-primary btn-sm mt-2" data-testid="curso-certificado"
                       *ngIf="m.progress.certificate_available" (click)="baixarCertificado(m)">Baixar certificado</button>
             </div>
             <div class="mt-3 border-top pt-2">
               <div class="small mb-1"><strong>Avalie o curso</strong>
                 <span class="text-muted" data-testid="curso-avaliacao-atual" *ngIf="m.review"> · sua nota: {{ m.review.rating }} ★</span>
               </div>
-              <div class="d-flex gap-2 align-items-start">
-                <select class="form-select form-select-sm" style="max-width: 90px" data-testid="curso-avaliacao-nota"
-                        [(ngModel)]="notaAvaliacao[m.id]" [ngModelOptions]="{standalone: true}">
+              <input class="form-control form-control-sm mb-2" maxlength="500" placeholder="Comentário (opcional)"
+                     aria-label="Comentário da avaliação" data-testid="curso-avaliacao-comentario"
+                     [ngModel]="comentarioDe(m)" (ngModelChange)="comentarioAvaliacao[m.id] = $event"
+                     [ngModelOptions]="{standalone: true}">
+              <div class="d-flex gap-2 align-items-center">
+                <select class="form-select form-select-sm avaliacao-nota" data-testid="curso-avaliacao-nota"
+                        aria-label="Nota do curso" [ngModel]="notaDe(m)" (ngModelChange)="notaAvaliacao[m.id] = $event"
+                        [ngModelOptions]="{standalone: true}">
                   <option *ngFor="let n of [5,4,3,2,1]" [ngValue]="n">{{ n }} ★</option>
                 </select>
-                <input class="form-control form-control-sm" maxlength="500" placeholder="Comentário (opcional)"
-                       data-testid="curso-avaliacao-comentario" [(ngModel)]="comentarioAvaliacao[m.id]"
-                       [ngModelOptions]="{standalone: true}">
                 <button type="button" class="btn btn-outline-primary btn-sm" data-testid="curso-avaliacao-enviar"
-                        (click)="avaliar(m)">Enviar</button>
+                        [disabled]="avaliandoId === m.id" (click)="avaliar(m)">Enviar</button>
               </div>
+              <p class="small text-success mt-2 mb-0" data-testid="curso-avaliacao-ok" role="status"
+                 *ngIf="avaliacaoOk[m.id]">{{ avaliacaoOk[m.id] }}</p>
+              <p class="small text-danger mt-2 mb-0" data-testid="curso-avaliacao-erro" role="alert"
+                 *ngIf="avaliacaoErro[m.id]">{{ avaliacaoErro[m.id] }}</p>
             </div>
           </ng-container>
 
@@ -192,11 +198,11 @@
       <div *ngIf="chatAcoes.length || chatWhatsapp" class="chat-acoes">
         <button *ngFor="let acao of chatAcoes" type="button" class="btn btn-sm btn-outline-primary"
                 data-testid="chat-acao-matricular" (click)="abrirMatricula(acao)">{{ acao.label }}</button>
-        <a *ngIf="chatWhatsapp" class="btn btn-sm btn-success" data-testid="chat-acao-whatsapp"
+        <a *ngIf="chatWhatsapp" class="btn btn-sm btn-whatsapp" data-testid="chat-acao-whatsapp"
            [href]="chatWhatsapp.url" target="_blank" rel="noopener noreferrer">{{ chatWhatsapp.label }}</a>
       </div>
     </div>
-    <p class="small text-muted mb-2" data-testid="chat-aviso-gravacao">As conversas com o assistente são gravadas
+    <p class="small text-muted chat-aviso" data-testid="chat-aviso-gravacao">As conversas com o assistente são gravadas
       para melhorar o atendimento. Não envie dados sensíveis (documentos, cartões, senhas).</p>
     <form class="input-group chat-form" (ngSubmit)="enviarChat()">
       <input type="text" class="form-control" name="chatInput" data-testid="chat-input"

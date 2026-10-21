@@ -1,0 +1,29 @@
+/* Catálogo no estilo da landing e da área do aluno (D93). */
+.catalogo-hero { background: linear-gradient(120deg, #ffffff 55%, #eaf8fc 100%); margin-bottom: 1.5rem; }
+.catalogo-hero .card-body { padding: 2rem; }
+.catalogo-titulo { font-size: 42px; line-height: 1.05; margin-bottom: 8px; }
+.catalogo-voltar { font-weight: 600; text-decoration: none; }
+
+.catalogo-card { transition: all .25s; }
+.catalogo-card:hover { border-color: #9fd3e4; transform: translateY(-3px); box-shadow: 0 12px 32px rgba(20, 35, 50, 0.10); }
+.catalogo-icone {
+  width: 48px; height: 48px; border-radius: 12px;
+  background: #eaf8fc; border: 1.5px solid #b8e7f1; color: #0096c7;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-weight: 900; font-size: 20px;
+}
+.catalogo-nome { font-family: 'Barlow', sans-serif; font-size: 20px; font-weight: 800; margin-bottom: 4px; letter-spacing: 0; }
+.catalogo-nivel { font-size: 12px; color: #66707c; text-transform: none; letter-spacing: 0.5px; }
+.catalogo-preco {
+  font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-weight: 900;
+  font-size: 30px; color: #0096c7; line-height: 1.1;
+}
+.catalogo-matriculado {
+  text-align: center; padding: 10px 12px; border-radius: 8px; font-weight: 700; font-size: 14px;
+  background: #eaf8fc; color: #0077a3; border: 1.5px solid #b8e7f1;
+}
+
+@media (max-width: 576px) {
+  .catalogo-hero .card-body { padding: 1.25rem; }
+  .catalogo-titulo { font-size: 30px; }
+}

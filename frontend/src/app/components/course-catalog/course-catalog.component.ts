@@ -25,7 +25,8 @@ interface TurmaCatalogo {
 
 @Component({
   selector: 'app-course-catalog',
-  templateUrl: './course-catalog.component.html'
+  templateUrl: './course-catalog.component.html',
+  styleUrls: ['./course-catalog.component.css']
 })
 export class CourseCatalogComponent implements OnInit {
   cursos: CursoCatalogo[] = [];
@@ -140,6 +141,12 @@ export class CourseCatalogComponent implements OnInit {
       }
     }
     return situacao;
+  }
+
+  // Iniciais do curso no ícone do cartão (D93), como na área do aluno.
+  iniciais(nome: string): string {
+    const palavras = (nome || '').split(/\s+/).filter(p => /[A-Za-zÀ-ÿ0-9]/.test(p));
+    return palavras.slice(0, 2).map(p => p[0].toUpperCase()).join('') || 'GT';
   }
 
   precoBr(valor: number | null): string {

@@ -81,7 +81,8 @@ export class AiObservabilityComponent implements OnInit, OnDestroy {
   }
 
   get costText(): string {
-    return 'US$ ' + Number(this.usage.cost_usd).toFixed(4);
+    // D93: vírgula decimal (pt-BR), como o resto do sistema.
+    return 'US$ ' + Number(this.usage.cost_usd || 0).toFixed(4).replace('.', ',');
   }
 
   get resolutionRateText(): string {
@@ -106,7 +107,7 @@ export class AiObservabilityComponent implements OnInit, OnDestroy {
   }
 
   private percent(fraction: number | undefined | null): string {
-    return (Number(fraction || 0) * 100).toFixed(1) + '%';
+    return (Number(fraction || 0) * 100).toFixed(1).replace('.', ',') + '%';
   }
 
   get perCourse(): { label: string; value: number }[] {
