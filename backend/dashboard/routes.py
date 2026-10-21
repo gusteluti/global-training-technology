@@ -347,8 +347,11 @@ async def dashboard_financeiro(
     """
     Database.expirar_pendentes()  # S6 (D81)
     summary = Database.get_financial_summary()
-    payments = _filtrar_pagamentos(Database.get_payments_overview(limit=None), q, status, _nomes_dos_cursos())
+    nomes = _nomes_dos_cursos()
+    payments = _filtrar_pagamentos(Database.get_payments_overview(limit=None), q, status, nomes)
     pagina, pagination = _paginar(payments, page, page_size)
+    # D93: a tela mostra o nome do curso; curso fora do catálogo cai no id (mesmo padrão do detalhe do aluno, F3).
+    pagina = [{**item, "course_name": nomes.get(item["course_id"]) or item["course_id"]} for item in pagina]
 
     by_status = {row["status"]: row for row in summary["by_status"]}
     approved = by_status.get("approved", {"total": 0, "amount": 0})
