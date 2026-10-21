@@ -58,7 +58,7 @@ E4: regressão integral de backend registrada depois do fechamento — **88 pass
 
 ## 2. Em andamento
 
-Modo autônomo (D40): ver `docs/tdd/RELATORIO_NOITE.md`. E5 (D37), E6 (D41), E7 (D44), E8 (D47) e E9 (D50) entregues, aguardando validação do PM. Dívidas de segurança resolvidas (D52); turmas entregues (D55). Cadastro de cursos no Angular e interceptor entregues (D57). Dívidas de harness resolvidas (D59); recuperação de senha entregue (D62); recibo em PDF entregue (D65). **Fila da noite (D40) concluída.** Design da landing aplicado à SPA (D66) e nova Área do Aluno (D67), 07/10/2026. **Plano do feedback da professora em modo autônomo (D69):** fila em `docs/tdd/PLANO_FEEDBACK_PROF.md`, relatório em `docs/tdd/RELATORIO_FEEDBACK.md`.
+Modo autônomo (D40): ver `docs/tdd/RELATORIO_NOITE.md`. E5 (D37), E6 (D41), E7 (D44), E8 (D47) e E9 (D50) entregues, aguardando validação do PM. Dívidas de segurança resolvidas (D52); turmas entregues (D55). Cadastro de cursos no Angular e interceptor entregues (D57). Dívidas de harness resolvidas (D59); recuperação de senha entregue (D62); recibo em PDF entregue (D65). **Fila da noite (D40) concluída.** Design da landing aplicado à SPA (D66) e nova Área do Aluno (D67), 07/10/2026. **Plano do feedback da professora em modo autônomo (D69):** fila em `docs/tdd/PLANO_FEEDBACK_PROF.md`, relatório em `docs/tdd/RELATORIO_FEEDBACK.md`. **Todas as ondas fechadas em 21/10/2026** (até X1–X5, U6, U7); verificação final: backend 1.981 passed, 37 e2e verdes.
 
 ---
 

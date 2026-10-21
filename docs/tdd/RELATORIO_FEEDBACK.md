@@ -63,3 +63,14 @@ Início: 19/10/2026. Fila: `docs/tdd/PLANO_FEEDBACK_PROF.md`. Atualizado ao fim 
 - Outra sessão do Claude trabalhou ao mesmo tempo na `feature/fase2-tdd` (D86, status do financeiro em português). O merge da S3 conflitou em `decisoes_tdd.md` e `test_admin_angular.py`; resolvido mantendo D85 e D86 e a versão da D86 do teste, mais a aba Equipe. e2e admin 34/34 depois do merge.
 - **X5 (D87), pedido do PM fora do plano:** painéis de /admin atualizam a cada 30 s; feita em worktree separado enquanto a S3 rodava, mergeada depois dela (conflito só no `app.module.ts`, resolvido mantendo os dois componentes).
 - O `backend/.env` local com pagamento simulado derrubava 9 testes da suíte de backend (E2/B1); o `conftest` agora neutraliza as variáveis de máquina.
+
+## Verificação final (21/10/2026)
+
+- Backend: suíte completa em blocos, **1.981 passed, 0 failed** (um ajuste mecânico na S4 G2, D80 → D89).
+- E2E: os **37** arquivos de `frontend/e2e/test_*.py`, um por vez, **todos verdes** (~25 min).
+- Build Angular limpo (só os avisos antigos de CSS do Bootstrap e do target ES2022).
+- Entregas da noite: U6 (e-mail SMTP), U7 (LGPD), X3/X4 (backup e saúde), X1 (progresso e certificado),
+  X2 (avaliação). Todas as ondas do plano estão fechadas; o envio real de e-mail depende só de o PM preencher
+  `SMTP_*` no `backend/.env`.
+- PR para a `main`: o GitHub CLI (`gh`) não está instalado nesta máquina e não há sessão autenticada; a PR fica para o PM
+  abrir pelo link de comparação (descrição pronta no relatório da sessão).
