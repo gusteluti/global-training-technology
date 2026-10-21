@@ -25,6 +25,7 @@ Início: 19/10/2026. Fila: `docs/tdd/PLANO_FEEDBACK_PROF.md`. Atualizado ao fim 
 | X5 — atualização automática dos painéis | entregue | front `4bcafdb` | e2e 10/10 + 8 e2e relacionados verdes |
 | U6 — e-mail real por SMTP | entregue | `c4666fd` | 7 testes + 312 relacionados verdes |
 | U7 — LGPD | entregue | `c73d717` | 9 testes + 7 e2e verdes |
+| X3/X4 — backup e saúde do sistema | entregue | `d854dc9` | 6 testes + 2 e2e verdes |
 
 ## Decisões de política tomadas sem o PM (para revisão)
 
@@ -47,6 +48,7 @@ Início: 19/10/2026. Fila: `docs/tdd/PLANO_FEEDBACK_PROF.md`. Atualizado ao fim 
 - **S3 (D85):** convite por link de senha (sem SMTP vai para o outbox); ninguém mexe no próprio perfil; sempre ao menos uma Gestão ativa.
 - **U6 (D88):** para ligar, preencher as variáveis `SMTP_*` no `backend/.env` (Gmail com senha de app). Textos dos e-mails do orquestrador.
 - **U7 (D89):** exclusão = anonimização (matrículas e pagamentos ficam sem identificação; auditoria fica). Textos dos termos e da política são de projeto acadêmico, sem revisão jurídica.
+- **X3/X4 (D90):** backup só liga com `BACKUP_DIR` no `.env`; alerta ativo quando um serviço cai ficou de fora.
 
 ## Paradas e itens pulados
 

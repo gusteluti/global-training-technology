@@ -324,3 +324,4 @@ Fila e respostas do PM em `docs/tdd/PLANO_FEEDBACK_PROF.md`; modo autônomo D69;
 | X5 — atualização dos painéis | `feature/fase2-tdd-x5-atualizacao-paineis` | `384902a` | `4bcafdb` | `c37a1b5` | e2e X5 10/10; admin 34/34, S3, E7 11/11, E8 17/17, U1 13/13, U8 10/10, U4 7/7, U5 8/8, F3 11/11 |
 | U6 — e-mail SMTP | `feature/fase2-tdd-u6-email` | (enxuto, D84) | `c4666fd` | ver `git log` | U6 7/7; suítes afetadas 312 passed |
 | U7 — LGPD | `feature/fase2-tdd-u7-lgpd` | (enxuto, D84) | `c73d717` | ver `git log` | U7 9/9; 7 e2e verdes |
+| X3/X4 — operação | `feature/fase2-tdd-x3-x4-operacao` | (enxuto, D84) | `d854dc9` | ver `git log` | 6 testes; 2 e2e verdes |
