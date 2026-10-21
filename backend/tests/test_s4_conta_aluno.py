@@ -881,7 +881,9 @@ def test_g2_migracao_de_banco_antigo_preserva_os_dados_e_e_idempotente(db_path):
     primeira = _sql("SELECT * FROM users ORDER BY id")
     for linha in primeira:
         assert linha.get("is_active") == 1 and linha.get("token_version") == 0, linha
-    assert [{k: v for k, v in l.items() if k not in ("is_active", "token_version")} for l in primeira] == antes
+    # D80 -> D89 (ajuste mecânico, 4.3): a U7 acrescentou terms_accepted_at/terms_version (nulos em conta antiga).
+    novas = ("is_active", "token_version", "terms_accepted_at", "terms_version")
+    assert [{k: v for k, v in l.items() if k not in novas} for l in primeira] == antes
 
     Database.init_db()
     Database.init_db()

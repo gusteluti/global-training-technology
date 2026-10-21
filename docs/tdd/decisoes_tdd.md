@@ -1436,3 +1436,5 @@ Ajuste mecânico (4.3), D18/D57 → D89: os e2e de cadastro (`test_e2_conta_alun
 - Matrícula ativa ganha `review` (ou null). Dashboard de cursos ganha `rating {average, count}` por curso, para todos
   os perfis internos (não identifica o aluno). Telas: "Avalie o curso" no cartão do aluno; coluna "Avaliação" no painel.
 - NPS e a lista de comentários para a Gestão ficaram de fora (os comentários já estão gravados).
+- Ajuste mecânico (4.3), D80 → D89: `test_s4_conta_aluno.py::test_g2_*` passa a ignorar também `terms_accepted_at` e
+  `terms_version` ao comparar as linhas migradas de `users` (intenção preservada: nada se perde na migração).
