@@ -21,6 +21,7 @@ Início: 19/10/2026. Fila: `docs/tdd/PLANO_FEEDBACK_PROF.md`. Atualizado ao fim 
 | U4/S6 — matrícula manual e expiração de pendente | entregue | red `0b0c89b`; backend `370387f`; front `58acc06`; datas relativas `6845c02` | regressão verde; 6 e2e verdes |
 | U5 — pedido de cancelamento em 7 dias | entregue | red `8df5c09`; backend `578b224`; front `d61d386` | regressão 1871 passed; 8 e2e verdes |
 | U8 — edição de turma, término e horário | entregue | red `d0d9241`; backend `f318c9c`; front | relacionados verdes; 2 e2e verdes (regressão completa fica para o fim, D84) |
+| S3 — gestão da equipe | entregue | backend `6849ec2`; front `34d11db` | 15 testes + 2 e2e verdes |
 
 ## Decisões de política tomadas sem o PM (para revisão)
 
@@ -40,6 +41,7 @@ Início: 19/10/2026. Fila: `docs/tdd/PLANO_FEEDBACK_PROF.md`. Atualizado ao fim 
 - **U4/S6 (D81):** pendente expira em 7 dias; matrícula manual exige motivo (5–300) e vira pagamento aprovado `manual` (entra na receita). Dívida: o CSV do financeiro não expira pendentes antes de exportar; mensagem do 422 da tela cita só o motivo.
 - **U5 (D82):** prazo de 7 dias contado da aprovação do pagamento (CDC art. 49); matrícula manual/cortesia não entra; aprovar = reembolso local (MVP, sem estorno real no gateway, como na E9). Textos dos botões e confirms escolhidos pelo dev.
 - **D84:** processo enxuto a pedido do PM; regressão completa só no fim.
+- **S3 (D85):** convite por link de senha (sem SMTP vai para o outbox); ninguém mexe no próprio perfil; sempre ao menos uma Gestão ativa.
 
 ## Paradas e itens pulados
 
@@ -47,3 +49,4 @@ Início: 19/10/2026. Fila: `docs/tdd/PLANO_FEEDBACK_PROF.md`. Atualizado ao fim 
 - O harness e2e (`servidor_e2e_e5/e7/h1`) ainda lê o catálogo real do bot (`c_e_c`, `python_profissional`); não quebra hoje.
 - **Achado de segurança (F7):** `POST /api/admin/create-course` aceita `id` vindo do cliente sem validação; um `id` com `../` pode gravar o JSON fora de `backend/courses` (só Gestão). Tratado na entrega S10 da onda 6.
 - Queda de internet interrompeu o dev-backend da U8; o trabalho parcial foi conferido e aproveitado.
+- Outra sessão do Claude trabalhou ao mesmo tempo na `feature/fase2-tdd` (D86, status do financeiro em português). O merge da S3 conflitou em `decisoes_tdd.md` e `test_admin_angular.py`; resolvido mantendo D85 e D86 e a versão da D86 do teste, mais a aba Equipe. e2e admin 34/34 depois do merge.
