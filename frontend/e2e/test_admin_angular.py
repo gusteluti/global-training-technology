@@ -172,14 +172,14 @@ def test_admin_angular_e2e(servidores, browser, pagamentos_aprovados_para_reembo
             page.locator("ul.nav-tabs button.nav-link", has_text="Financeiro").click()
             time.sleep(1.5)
             # E9 (D48): só pagamento aprovado pode ser reembolsado (os demais respondem 409); clica numa linha 'approved'.
-            refund_btns = page.locator("tr", has=page.locator("span.badge", has_text="approved")) \
+            refund_btns = page.locator("tr", has=page.locator("span.badge", has_text=re.compile(r"^\s*(approved|Aprovado)\s*$"))) \
                               .locator("button", has_text="Reembolsar")
             n_before = refund_btns.count()
             if n_before:
-                refunded_antes = page.locator("span.badge", has_text="refunded").count()
+                refunded_antes = page.locator("span.badge", has_text=re.compile(r"^\s*(refunded|Reembolsado)\s*$")).count()
                 refund_btns.first.click()
                 time.sleep(2.0)
-                refunded_badges = page.locator("span.badge", has_text="refunded").count()
+                refunded_badges = page.locator("span.badge", has_text=re.compile(r"^\s*(refunded|Reembolsado)\s*$")).count()
                 check(f"{role}: reembolso pela tela muda status para refunded",
                       refunded_badges > refunded_antes and dialogs,
                       f"badges refunded antes={refunded_antes}, depois={refunded_badges}, dialogs={dialogs}")
