@@ -1334,3 +1334,11 @@ Contrato (forma; textos marcados para revisão):
   `test_l1_turmas.py` (`CAMPOS_TURMA`, campos permitidos em `changes`) e `test_f5a_turma_checkout.py`
   (`CAMPOS_TURMA_PUBLICA`, esperado da t1) passam a incluir `ends_on` e `schedule` (`d0d9241`); intenção preservada
   (campos exatos e "só o que mudou").
+
+## D84 — processo enxuto (20/10/2026, decisão do PM)
+O PM avaliou que o processo (três agentes, 50–90 testes por entrega, regressão completa a cada entrega) era pesado
+demais para um TCC e pediu entregas de ~30 min. Daqui em diante: o orquestrador implementa direto, com 10–15 testes
+por entrega (caminho principal + segurança essencial: IDOR, 403/401); roda só a suíte da entrega e as relacionadas, um
+e2e por tela nova e o build; a regressão completa e todos os e2e rodam uma vez, no fim (ou à noite). Os testes
+existentes continuam. Valem ainda: D30 (sem `main`, sem force-push, auditoria antes do push) e não versionar segredos.
+U8 fechada nesse modo: o backend parcial do dev-backend (interrompido por queda de internet) foi conferido e aproveitado.
