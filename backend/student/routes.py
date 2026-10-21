@@ -96,6 +96,9 @@ def _montar_item(matricula: Dict, cancelamento: Optional[Dict] = None) -> Dict:
         # F3 (D73): turma do próprio aluno; null quando a matrícula não tem turma.
         "class_name": matricula.get("class_name"),
         "class_starts_on": matricula.get("class_starts_on"),
+        # U8 (D83): término e horário da turma (null sem turma ou sem o dado).
+        "class_ends_on": matricula.get("class_ends_on"),
+        "class_schedule": matricula.get("class_schedule"),
         # U5 (D82): pedido de cancelamento mais recente (ou null) e se o aluno pode pedir agora.
         "cancellation": cancelamento.get("cancellation"),
         "can_request_cancellation": bool(cancelamento.get("can_request_cancellation")),
