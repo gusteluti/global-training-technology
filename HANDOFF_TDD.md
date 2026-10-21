@@ -321,3 +321,4 @@ Fila e respostas do PM em `docs/tdd/PLANO_FEEDBACK_PROF.md`; modo autônomo D69;
 | U5 — cancelamento em 7 dias | `feature/fase2-tdd-u5-cancelamento` | `8df5c09` | `578b224`, `d61d386` | ver `git log` | backend 50/50; regressão 1871 passed; 8 e2e verdes |
 | U8 — turmas | `feature/fase2-tdd-u8-turmas` | `d0d9241` | `f318c9c` + front | ver `git log` | U8 60/60; relacionados 338 passed; e2e U8 10/10, L1 16/16 |
 | S3 — equipe | `feature/fase2-tdd-s3-equipe` | (enxuto, D84) | `6849ec2`, `34d11db` | `5d2e7ee` | S3 15/15; e2e S3 e admin 34/34 |
+| X5 — atualização dos painéis | `feature/fase2-tdd-x5-atualizacao-paineis` | `384902a` | `4bcafdb` | `c37a1b5` | e2e X5 10/10; admin 34/34, S3, E7 11/11, E8 17/17, U1 13/13, U8 10/10, U4 7/7, U5 8/8, F3 11/11 |
