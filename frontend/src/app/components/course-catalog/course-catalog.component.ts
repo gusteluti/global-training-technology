@@ -18,6 +18,7 @@ interface TurmaCatalogo {
   id: number;
   name: string;
   starts_on: string | null;
+  schedule?: string | null;
   capacity: number | null;
   seats_left: number | null;
 }
@@ -100,6 +101,9 @@ export class CourseCatalogComponent implements OnInit {
 
   rotuloTurma(turma: TurmaCatalogo): string {
     const partes = [turma.name, turma.starts_on ? `início ${this.dataBr(turma.starts_on)}` : 'sem data definida'];
+    if (turma.schedule) {
+      partes.push(turma.schedule);
+    }
     if (this.lotada(turma)) {
       partes.push('(lotada)');
     } else if (turma.seats_left !== null && turma.seats_left !== undefined) {

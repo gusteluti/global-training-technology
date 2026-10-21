@@ -27,6 +27,12 @@ export class CoursesDashboardComponent implements OnInit, OnDestroy {
   manageCourseId = '';
   newName = '';
   newStart = '';
+  newEnd = '';
+  newSchedule = '';
+  // U8 (D83): edição de turma na linha.
+  turmaEditando: any = null;
+  edicao: any = {};
+  turmaErro = '';
   newCapacity: number | null = null;
   enrollments: any[] = [];
   turmaError = '';
@@ -219,12 +225,19 @@ export class CoursesDashboardComponent implements OnInit, OnDestroy {
       return;
     }
     this.turmaError = '';
-    const body: { course_id: string; name: string; starts_on?: string; capacity?: number } = {
+    const body: { course_id: string; name: string; starts_on?: string; ends_on?: string; schedule?: string;
+                  capacity?: number } = {
       course_id: this.manageCourseId,
       name: this.newName
     };
     if (this.newStart) {
       body.starts_on = this.newStart;
+    }
+    if (this.newEnd) {
+      body.ends_on = this.newEnd;
+    }
+    if (this.newSchedule.trim()) {
+      body.schedule = this.newSchedule.trim();
     }
     if (this.newCapacity !== null && this.newCapacity !== undefined && (this.newCapacity as any) !== '') {
       body.capacity = Number(this.newCapacity);
@@ -233,10 +246,64 @@ export class CoursesDashboardComponent implements OnInit, OnDestroy {
       next: () => {
         this.newName = '';
         this.newStart = '';
+        this.newEnd = '';
+        this.newSchedule = '';
         this.newCapacity = null;
         this.refresh();
       },
       error: err => this.turmaError = this.errorText(err)
+    });
+  }
+
+  editarTurma(turma: any): void {
+    this.turmaErro = '';
+    this.turmaEditando = turma;
+    this.edicao = {
+      name: turma.name,
+      starts_on: turma.starts_on || '',
+      ends_on: turma.ends_on || '',
+      schedule: turma.schedule || '',
+      capacity: turma.capacity ?? ''
+    };
+  }
+
+  salvarTurma(): void {
+    const turma = this.turmaEditando;
+    if (!turma || !this.canManage) {
+      return;
+    }
+    this.turmaErro = '';
+    const e = this.edicao;
+    const capacidade = e.capacity === '' || e.capacity === null || e.capacity === undefined ? null : Number(e.capacity);
+    const body = {
+      name: (e.name || '').trim(),
+      starts_on: e.starts_on || null,
+      ends_on: e.ends_on || null,
+      schedule: (e.schedule || '').trim() || null,
+      capacity: capacidade
+    };
+    this.api.updateClass(turma.id, body).subscribe({
+      next: () => {
+        this.turmaEditando = null;
+        this.refresh();
+      },
+      error: err => this.turmaErro = this.errorText(err)
+    });
+  }
+
+  excluirTurma(turma: any): void {
+    if (!this.canManage || !confirm(`Excluir a turma "${turma.name}"?`)) {
+      return;
+    }
+    this.turmaErro = '';
+    this.api.deleteClass(turma.id).subscribe({
+      next: () => {
+        if (this.turmaEditando?.id === turma.id) {
+          this.turmaEditando = null;
+        }
+        this.refresh();
+      },
+      error: err => this.turmaErro = this.errorText(err)
     });
   }
 
