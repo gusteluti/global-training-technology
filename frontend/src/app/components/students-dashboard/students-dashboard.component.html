@@ -1,3 +1,5 @@
+<app-atualizacao-automatica [pausado]="alterandoConta" (atualizar)="atualizar()"></app-atualizacao-automatica>
+
 <div class="alert alert-danger" *ngIf="error">{{ error }}</div>
 
 <div class="row g-3 mb-3" *ngIf="metrics">

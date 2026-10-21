@@ -26,6 +26,11 @@ export class AiObservabilityComponent implements OnInit, OnDestroy {
   constructor(private api: ApiService) { }
 
   ngOnInit(): void {
+    this.carregar();
+  }
+
+  // Também chamado pela atualização automática (X5, D87).
+  carregar(): void {
     this.api.getAiObservability().subscribe({
       next: (r: any) => {
         this.metrics = r.metrics || {};
@@ -87,7 +92,13 @@ export class AiObservabilityComponent implements OnInit, OnDestroy {
   }
 
   private renderMessagesChart(): void {
-    this.chart?.destroy();
+    if (this.chart) {
+      // Atualização automática (X5): troca os dados no lugar, sem redesenhar o gráfico do zero.
+      this.chart.data.labels = this.perCourse.map(c => c.label);
+      this.chart.data.datasets[0].data = this.perCourse.map(c => c.value);
+      this.chart.update();
+      return;
+    }
     this.chart = new Chart(this.messagesChart.nativeElement, {
       type: 'bar',
       data: {
@@ -108,7 +119,6 @@ export class AiObservabilityComponent implements OnInit, OnDestroy {
   }
 
   private renderPerDayChart(): void {
-    this.dayChart?.destroy();
     const perDay: any[] = (this.metrics && this.metrics.per_day) || [];
     const datasets: any[] = [{
       label: 'Requisições',
@@ -125,6 +135,14 @@ export class AiObservabilityComponent implements OnInit, OnDestroy {
         yAxisID: 'y1'
       });
       scales.y1 = { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false } };
+    }
+    if (this.dayChart) {
+      // Atualização automática (X5): a série de custo pode aparecer ou sumir, então troca dados e escalas.
+      this.dayChart.data = { labels: perDay.map(d => d.date), datasets };
+      this.dayChart.options.scales = scales;
+      this.dayChart.options.plugins = { legend: { display: datasets.length > 1 } };
+      this.dayChart.update();
+      return;
     }
     this.dayChart = new Chart(this.perDayChart.nativeElement, {
       type: 'bar',

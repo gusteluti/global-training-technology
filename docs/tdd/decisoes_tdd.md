@@ -1368,3 +1368,15 @@ filtro de status (`Aprovado`, `Cancelado`, `Reembolsado`...); as cores do badge 
 código. Ajuste mecânico (autoridade 4.3), D48 (E9) → D86: em `test_admin_angular.py` o check de reembolso pela tela
 localiza a linha por `span.badge` "Aprovado" e conta badges "Reembolsado" (antes "approved"/"refunded"); intenção
 preservada. Alteração feita pelo agente-testes; e2e do admin 33/33.
+
+## D87 — X5: atualização automática dos painéis (20/10/2026, decisão do PM; processo enxuto D84)
+As abas de painel de `/admin` buscavam os dados uma vez, ao abrir. Decisão do PM: atualizam sozinhas **a cada 30 s,
+sempre ligado** (sem botão de liga/desliga), **só nas cinco abas de painel**: Financeiro, Alunos, Cursos,
+Observabilidade de IA e Auditoria. Cadastro de cursos e Equipe (formulários) ficam de fora.
+- Componente compartilhado no topo de cada painel: `atualizacao-botao` ("Atualizar", busca na hora) e
+  `atualizacao-hora` ("Atualizado às HH:MM", horário de São Paulo, D71).
+- A atualização refaz as mesmas buscas da aba mantendo busca, filtro e página; trocar de aba encerra o timer.
+- Não atualiza (pula o ciclo) quando: a aba do navegador está escondida; há campo de texto/seleção em foco dentro do
+  painel; há formulário aberto ou ação em andamento (Financeiro: reembolso ou decisão de cancelamento; Alunos:
+  ativar/desativar conta; Cursos: turma em edição, matrícula manual aberta). Escolha de forma do orquestrador.
+- Código de entrega X5 (U9 já está reservado no plano do feedback). E2e `test_x5_atualizacao_paineis_angular.py`.
