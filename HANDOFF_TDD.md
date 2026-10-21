@@ -325,3 +325,4 @@ Fila e respostas do PM em `docs/tdd/PLANO_FEEDBACK_PROF.md`; modo autônomo D69;
 | U6 — e-mail SMTP | `feature/fase2-tdd-u6-email` | (enxuto, D84) | `c4666fd` | ver `git log` | U6 7/7; suítes afetadas 312 passed |
 | U7 — LGPD | `feature/fase2-tdd-u7-lgpd` | (enxuto, D84) | `c73d717` | ver `git log` | U7 9/9; 7 e2e verdes |
 | X3/X4 — operação | `feature/fase2-tdd-x3-x4-operacao` | (enxuto, D84) | `d854dc9` | ver `git log` | 6 testes; 2 e2e verdes |
+| X1 — progresso e certificado | `feature/fase2-tdd-x1-progresso-certificado` | (enxuto, D84) | ver `git log` | ver `git log` | 6 testes; 3 e2e verdes |
