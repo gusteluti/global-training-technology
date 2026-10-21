@@ -1380,3 +1380,13 @@ Observabilidade de IA e Auditoria. Cadastro de cursos e Equipe (formulários) fi
   painel; há formulário aberto ou ação em andamento (Financeiro: reembolso ou decisão de cancelamento; Alunos:
   ativar/desativar conta; Cursos: turma em edição, matrícula manual aberta). Escolha de forma do orquestrador.
 - Código de entrega X5 (U9 já está reservado no plano do feedback). E2e `test_x5_atualizacao_paineis_angular.py`.
+
+## D88 — U6: e-mail real por SMTP (20/10/2026, decisão do PM; processo enxuto D84)
+Com `SMTP_HOST` no ambiente, cada mensagem de `core/notifications.py` também sai por SMTP (`SMTP_PORT` 587 com
+STARTTLS ou 465 com SSL, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`), em texto e HTML com botão para o link. Sem
+`SMTP_HOST`, nada muda (outbox/log). Falha de envio só vai para o log (tipo do erro, sem senha nem token) e não muda a
+resposta da rota. O link de definição de senha ganhou assunto e texto (`Defina sua senha na Global Training`). As
+credenciais ficam só no `.env` do PM (Gmail com senha de app ou Brevo). Isolamento: a suíte de backend (`conftest`) e
+os servidores de e2e neutralizam `SMTP_HOST`, `PAYMENTS_MOCK`, `APP_ENV`, `WHATSAPP_HANDOFF_NUMBER`,
+`CORS_ALLOWED_ORIGINS`, as contas de funcionário semeadas e o outbox vindos do `backend/.env` de quem roda (o `.env`
+local do PM com pagamento simulado derrubava 9 testes da E2/B1).

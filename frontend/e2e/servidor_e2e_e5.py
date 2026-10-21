@@ -49,6 +49,7 @@ def _ambiente(outbox: str) -> None:
     os.environ.setdefault("WHATSAPP_HANDOFF_NUMBER", "")
     os.environ.update({
         "PAYMENTS_MOCK": "0",
+        "SMTP_HOST": "",
         "APP_ENV": "test",
         "GROQ_API_KEY": "chave-falsa-de-teste-e5",
         "GROQ_MODEL": "modelo-falso",
