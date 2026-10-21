@@ -69,6 +69,23 @@ export class StudentsDashboardComponent implements OnInit {
     this.carregar();
   }
 
+  // Atualização automática (X5, D87): mesma busca e página; o detalhe aberto é recarregado sem fechar.
+  atualizar(): void {
+    this.carregar();
+    const id = this.detalheId;
+    if (id === null || !this.detalhe) {
+      return;
+    }
+    this.api.getStudentDetail(id).subscribe({
+      next: (r: any) => {
+        if (this.detalheId === id && this.detalhe) {
+          this.detalhe = r;
+        }
+      },
+      error: () => { }
+    });
+  }
+
   irParaPagina(pagina: number): void {
     if (pagina < 1 || pagina > this.totalPaginas || pagina === this.pagina) {
       return;

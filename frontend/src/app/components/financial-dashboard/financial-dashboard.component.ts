@@ -101,6 +101,16 @@ export class FinancialDashboardComponent implements OnInit, OnDestroy {
     this.load();
   }
 
+  // Atualização automática (X5, D87): mesma busca e filtro aplicados; pausa durante reembolso ou decisão.
+  get atualizacaoPausada(): boolean {
+    return this.refundingId !== null || this.decidindoId !== null;
+  }
+
+  atualizar(): void {
+    this.load();
+    this.carregarCancelamentos();
+  }
+
   rotuloPagamento(status: string): string {
     return ROTULOS_PAGAMENTO[status] || status;
   }
@@ -161,7 +171,13 @@ export class FinancialDashboardComponent implements OnInit, OnDestroy {
   }
 
   private renderRevenueChart(monthly: any[]): void {
-    this.chart?.destroy();
+    if (this.chart) {
+      // Atualização automática (X5): troca os dados no lugar, sem redesenhar o gráfico do zero.
+      this.chart.data.labels = monthly.map(m => m.month);
+      this.chart.data.datasets[0].data = monthly.map(m => m.revenue);
+      this.chart.update();
+      return;
+    }
     this.chart = new Chart(this.revenueChart.nativeElement, {
       type: 'bar',
       data: {

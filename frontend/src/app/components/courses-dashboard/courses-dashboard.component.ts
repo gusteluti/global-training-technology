@@ -82,6 +82,17 @@ export class CoursesDashboardComponent implements OnInit, OnDestroy {
     });
   }
 
+  // Atualização automática (X5, D87): pausa com turma em edição ou matrícula manual aberta; mantém os filtros.
+  get atualizacaoPausada(): boolean {
+    return !!this.turmaEditando || this.manualAberto || this.salvandoManual;
+  }
+
+  atualizar(): void {
+    this.loadCourses();
+    this.carregarAlunosCurso();
+    this.loadEnrollments();
+  }
+
   get manageClasses(): any[] {
     const course = this.courses.find(c => c.id === this.manageCourseId);
     return course?.classes || [];
@@ -337,7 +348,13 @@ export class CoursesDashboardComponent implements OnInit, OnDestroy {
   }
 
   private renderEnrollmentChart(): void {
-    this.chart?.destroy();
+    if (this.chart) {
+      // Atualização automática (X5): troca os dados no lugar, sem redesenhar o gráfico do zero.
+      this.chart.data.labels = this.courses.map(c => c.name || c.id);
+      this.chart.data.datasets[0].data = this.courses.map(c => c.total_enrollments);
+      this.chart.update();
+      return;
+    }
     this.chart = new Chart(this.enrollmentChart.nativeElement, {
       type: 'bar',
       data: {
