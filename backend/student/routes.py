@@ -28,7 +28,7 @@ from agents.llm_guard import (
     LLMUnavailableError,
     bloco_dados_aluno,
 )
-from core import rate_limit
+from core import privacidade, rate_limit
 from core.receipt_pdf import gerar_recibo_pdf
 from core.audit import change, record_audit
 from core.password_setup import senha_aceitavel
@@ -485,3 +485,38 @@ async def trocar_minha_senha(corpo: TrocaSenhaInput,
                  entity_type="student", entity_id=str(current_user.id))
     token = create_account_token(current_user.id, current_user.email, Role.STUDENT.value, versao)
     return {"status": "success", "token": token}
+
+
+# --- LGPD: exportar e excluir os próprios dados (U7, D89) ---------------------------------------------------------
+
+ERRO_SENHA_EXCLUSAO = "Senha incorreta."
+
+
+class ExclusaoInput(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    password: str
+
+
+@router.get("/me/export")
+async def exportar_meus_dados(current_user: AuthContext = Depends(require_roles(Role.STUDENT))):
+    """Todos os dados pessoais do dono do JWT em JSON (portabilidade, LGPD art. 18, V)."""
+    dados = privacidade.exportar(current_user.id)
+    if dados is None:
+        raise HTTPException(status_code=404, detail="Conta não encontrada.")
+    record_audit("student.data_export", "Aluno exportou os próprios dados", user=current_user,
+                 entity_type="student", entity_id=str(current_user.id))
+    return JSONResponse(dados, headers={"Content-Disposition": 'attachment; filename="meus-dados.json"'})
+
+
+@router.post("/me/delete")
+async def excluir_minha_conta(corpo: ExclusaoInput,
+                              current_user: AuthContext = Depends(require_roles(Role.STUDENT))):
+    """Exclusão a pedido do titular (LGPD art. 18, VI): anonimiza a conta; pede a senha atual."""
+    conta = Database.get_password_hash_and_version(current_user.id)
+    if conta is None or not verify_password(corpo.password, conta["password_hash"]):
+        raise HTTPException(status_code=400, detail=ERRO_SENHA_EXCLUSAO)
+    if privacidade.anonimizar(current_user.id) is None:
+        raise HTTPException(status_code=404, detail="Conta não encontrada.")
+    record_audit("student.data_delete", "Aluno excluiu a própria conta (dados anonimizados)",
+                 actor={"role": "system"}, entity_type="student", entity_id=str(current_user.id))
+    return {"status": "success", "message": "Sua conta foi excluída."}

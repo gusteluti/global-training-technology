@@ -168,6 +168,15 @@ export class ApiService {
     return this.http.put(`${BASE}/api/admin/classes/${classId}`, dados, this.authHeaders());
   }
 
+  // LGPD (U7, D89): exportar e excluir os próprios dados.
+  public exportMyData() {
+    return this.http.get(`${BASE}/api/student/me/export`, { ...this.authHeaders(), observe: 'response', responseType: 'blob' });
+  }
+
+  public deleteMyAccount(password: string) {
+    return this.http.post(`${BASE}/api/student/me/delete`, { password }, this.authHeaders());
+  }
+
   // Equipe (S3, D85): só a Gestão.
   public getStaff() {
     return this.http.get(`${BASE}/api/admin/staff`, this.authHeaders());
@@ -280,7 +289,7 @@ export class ApiService {
   }
 
   // Endpoints públicos da conta do aluno: sem cabeçalho de autenticação.
-  public registerStudent(dados: { name: string; email: string; password: string }) {
+  public registerStudent(dados: { name: string; email: string; password: string; accept_terms?: boolean }) {
     return this.http.post(`${BASE}/api/auth/register`, dados, this.publicHeaders());
   }
 

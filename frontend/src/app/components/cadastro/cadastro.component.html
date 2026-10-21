@@ -24,7 +24,15 @@
             <label class="form-label">Senha (mínimo 8 caracteres)</label>
             <input type="password" class="form-control" [(ngModel)]="password" name="password" required />
           </div>
-          <button class="btn btn-primary" type="submit" [disabled]="enviando">Criar conta</button>
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" id="aceite" name="aceite" data-testid="cadastro-aceite"
+                   [(ngModel)]="aceite">
+            <label class="form-check-label small" for="aceite">
+              Li e aceito os <a routerLink="/termos" target="_blank">Termos de Uso</a> e a
+              <a routerLink="/privacidade" target="_blank">Política de Privacidade</a>.
+            </label>
+          </div>
+          <button class="btn btn-primary" type="submit" [disabled]="enviando || !aceite">Criar conta</button>
           <a routerLink="/" class="btn btn-link">Já tenho conta</a>
         </form>
       </div>

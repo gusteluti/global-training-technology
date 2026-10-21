@@ -48,6 +48,9 @@ class Database:
         # S4/S5 (D80): conta ativa e versão do token. Bancos antigos ganham as colunas com os padrões (idempotente).
         Database._ensure_column(cursor, "users", "is_active", "INTEGER NOT NULL DEFAULT 1")
         Database._ensure_column(cursor, "users", "token_version", "INTEGER NOT NULL DEFAULT 0")
+        # U7 (D89): aceite dos termos de uso e da política de privacidade (nulo em contas antigas).
+        Database._ensure_column(cursor, "users", "terms_accepted_at", "TEXT")
+        Database._ensure_column(cursor, "users", "terms_version", "TEXT")
         # U3 (D80): telefone do perfil do aluno, fora de `users` (a tabela de contas só ganha as colunas da D80).
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS user_profiles (

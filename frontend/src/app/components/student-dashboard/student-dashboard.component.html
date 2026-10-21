@@ -163,6 +163,8 @@
            [href]="chatWhatsapp.url" target="_blank" rel="noopener noreferrer">{{ chatWhatsapp.label }}</a>
       </div>
     </div>
+    <p class="small text-muted mb-2" data-testid="chat-aviso-gravacao">As conversas com o assistente são gravadas
+      para melhorar o atendimento. Não envie dados sensíveis (documentos, cartões, senhas).</p>
     <form class="input-group chat-form" (ngSubmit)="enviarChat()">
       <input type="text" class="form-control" name="chatInput" data-testid="chat-input"
              placeholder="Digite sua mensagem" autocomplete="off"

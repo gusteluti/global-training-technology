@@ -14,6 +14,7 @@ from core.password_setup import (
     redefinir_senha_pelo_token,
     senha_aceitavel,
 )
+from core import privacidade
 from core.notifications import (
     send_account_created_notice,
     send_account_exists_notice,
@@ -57,6 +58,8 @@ class RegisterInput(BaseModel):
     name: str
     email: str
     password: str
+    # U7 (D89): a tela exige o aceite; o backend grava a data quando vem verdadeiro (compatível sem o campo).
+    accept_terms: bool = False
 
 
 class PasswordSetupInput(BaseModel):
@@ -101,6 +104,8 @@ async def register(dados: RegisterInput):
         send_account_exists_notice(email, login_url)
         return RESPOSTA_CADASTRO
 
+    if dados.accept_terms:
+        privacidade.registrar_aceite(user_id)
     # Confirmação sem link de definição de senha e sem token (D23).
     send_account_created_notice(email, login_url)
     return RESPOSTA_CADASTRO

@@ -1390,3 +1390,21 @@ credenciais ficam só no `.env` do PM (Gmail com senha de app ou Brevo). Isolame
 os servidores de e2e neutralizam `SMTP_HOST`, `PAYMENTS_MOCK`, `APP_ENV`, `WHATSAPP_HANDOFF_NUMBER`,
 `CORS_ALLOWED_ORIGINS`, as contas de funcionário semeadas e o outbox vindos do `backend/.env` de quem roda (o `.env`
 local do PM com pagamento simulado derrubava 9 testes da E2/B1).
+
+## D89 — U7: LGPD (20/10/2026, modo autônomo do PM; processo enxuto D84)
+Política decidida pelo orquestrador (revisão do PM):
+- **Aceite:** o cadastro só envia com a caixa "Li e aceito os Termos de Uso e a Política de Privacidade" marcada
+  (`cadastro-aceite`); o backend grava `users.terms_accepted_at` e `terms_version` (`2026-10`) quando
+  `accept_terms` vem verdadeiro. O campo é opcional na API para não quebrar clientes e testes antigos. Páginas
+  `/termos` e `/privacidade` com texto de projeto acadêmico (revisão jurídica fica para a operação real).
+- **Aviso de gravação** no chat do aluno e da landing (`chat-aviso-gravacao`).
+- **Portabilidade (art. 18, V):** `GET /api/student/me/export` devolve em JSON (anexo `meus-dados.json`) conta,
+  telefone, matrículas, pagamentos, conversas e pedidos de cancelamento do dono do JWT; evento `student.data_export`.
+- **Exclusão (art. 18, VI):** `POST /api/student/me/delete {password}` (senha errada → 400 `Senha incorreta.`)
+  anonimiza a conta: nome `Conta excluída`, e-mail `excluido-<id>@anonimo.invalid`, sem senha, inativa, token
+  revogado; apaga telefone, conversas, tokens de senha, falhas de login e o motivo dos pedidos de cancelamento.
+  Matrículas e pagamentos ficam sem identificação (registro financeiro é obrigação legal, art. 16, I) e a trilha de
+  auditoria (append-only, E8) fica; o evento `student.data_delete` é gravado sem o e-mail. O e-mail fica livre para um
+  cadastro novo. Tela: "Privacidade e dados" em Meu perfil.
+Ajuste mecânico (4.3), D18/D57 → D89: os e2e de cadastro (`test_e2_conta_aluno_angular.py`,
+`test_l2_cadastro_cursos_angular.py`) marcam o aceite antes de enviar.

@@ -4,6 +4,7 @@ import { LoginComponent } from './components/login/login.component';
 import { StudentDashboardComponent } from './components/student-dashboard/student-dashboard.component';
 import { AdminDashboardComponent } from './components/admin-dashboard/admin-dashboard.component';
 import { CadastroComponent } from './components/cadastro/cadastro.component';
+import { TermosComponent } from './components/termos/termos.component';
 import { DefinirSenhaComponent } from './components/definir-senha/definir-senha.component';
 import { EsqueciSenhaComponent } from './components/esqueci-senha/esqueci-senha.component';
 import { RedefinirSenhaComponent } from './components/redefinir-senha/redefinir-senha.component';
@@ -28,6 +29,8 @@ const routes: Routes = [
   { path: 'admin', component: AdminDashboardComponent, canActivate: [AuthGuard, RoleGuard], data: { roles: STAFF_ROLES } },
   // Rotas públicas da conta do aluno (sem AuthGuard). Devem vir antes do curinga.
   { path: 'cadastro', component: CadastroComponent },
+  { path: 'termos', component: TermosComponent, data: { doc: 'termos' } },
+  { path: 'privacidade', component: TermosComponent, data: { doc: 'privacidade' } },
   { path: 'definir-senha', component: DefinirSenhaComponent },
   { path: 'esqueci-senha', component: EsqueciSenhaComponent },
   { path: 'redefinir-senha', component: RedefinirSenhaComponent },

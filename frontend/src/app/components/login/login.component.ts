@@ -26,7 +26,8 @@ export class LoginComponent {
 
   constructor(private auth: AuthService, private router: Router, private route: ActivatedRoute) {
     this.route.queryParamMap.subscribe(params => {
-      this.aviso = params.get('sessao') === 'expirada' ? MSG_SESSAO_EXPIRADA : '';
+      this.aviso = params.get('sessao') === 'expirada' ? MSG_SESSAO_EXPIRADA
+        : (params.get('conta') === 'excluida' ? 'Sua conta foi excluída.' : '');
     });
   }
 
