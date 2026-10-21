@@ -320,8 +320,10 @@ def esperar_student(page, rotulo):
 
 
 def link_para_login_visivel(page):
+    # D93 (ajuste mecânico, intenção preservada): o logo da barra também aponta para "/" quando não há sessão; o link
+    # que este cenário exige é o da própria tela, por isso a busca fica dentro do conteúdo (fora da barra superior).
     for href in ("/", "/login"):
-        loc = page.locator(f'a[href="{href}"]')
+        loc = page.locator(f'main a[href="{href}"]')
         if loc.count() > 0 and any(loc.nth(i).is_visible() for i in range(loc.count())):
             return True
     return False
