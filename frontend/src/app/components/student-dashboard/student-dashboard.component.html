@@ -74,6 +74,23 @@
             <ng-template #semMateriais>
               <p class="text-muted small mb-0">Este curso ainda não tem materiais.</p>
             </ng-template>
+            <div class="mt-3" *ngIf="m.progress?.total">
+              <div class="d-flex justify-content-between small mb-1">
+                <strong>Seu progresso</strong>
+                <span data-testid="curso-progresso">{{ m.progress.done }} de {{ m.progress.total }} concluídos</span>
+              </div>
+              <div class="progress mb-2" style="height: 6px">
+                <div class="progress-bar bg-success" [style.width.%]="m.progress.percent"></div>
+              </div>
+              <div class="form-check small" *ngFor="let mat of m.materials">
+                <input class="form-check-input" type="checkbox" data-testid="material-concluido"
+                       [id]="'mat-' + m.id + '-' + mat.url" [checked]="m.progress.completed.includes(mat.url)"
+                       (change)="marcarMaterial(m, mat.url, $any($event.target).checked)">
+                <label class="form-check-label" [for]="'mat-' + m.id + '-' + mat.url">{{ mat.title }}</label>
+              </div>
+              <button type="button" class="btn btn-success btn-sm mt-2" data-testid="curso-certificado"
+                      *ngIf="m.progress.certificate_available" (click)="baixarCertificado(m)">Baixar certificado</button>
+            </div>
           </ng-container>
 
           <ng-template #semAcesso>
