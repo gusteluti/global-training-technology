@@ -59,7 +59,7 @@
           <h5 class="curso-nome text-break">{{ m.course_name }}</h5>
           <p class="small text-muted mb-3" data-testid="curso-data">Matrícula em {{ dataBr(m.enrolled_at) }}</p>
           <p class="small mb-3" data-testid="curso-turma" *ngIf="m.class_name">
-            Turma: {{ m.class_name }}<ng-container *ngIf="m.class_starts_on"> · início em {{ m.class_starts_on | dataSP:'dia' }}</ng-container>
+            Turma: {{ m.class_name }}<ng-container *ngIf="m.class_starts_on"> · início em {{ m.class_starts_on | dataSP:'dia' }}</ng-container><ng-container *ngIf="m.class_schedule"> · {{ m.class_schedule }}</ng-container><ng-container *ngIf="m.class_ends_on"> · término em {{ m.class_ends_on | dataSP:'dia' }}</ng-container>
           </p>
 
           <ng-container *ngIf="m.status === 'active'; else semAcesso">

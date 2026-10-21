@@ -144,6 +144,7 @@
 <div class="card mt-3">
   <div class="card-body">
     <h5>Turmas por curso</h5>
+    <div class="alert alert-danger" data-testid="turma-erro" *ngIf="turmaErro">{{ turmaErro }}</div>
     <div *ngFor="let c of courses" class="mb-3">
       <h6 class="mb-1">{{ c.name || c.id }}</h6>
       <div class="table-responsive">
@@ -154,17 +155,62 @@
               <th>Ativas</th>
               <th>Pendentes</th>
               <th>Capacidade</th>
+              <th>Período e horário</th>
+              <th *ngIf="canManage"></th>
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let t of c.classes" data-testid="turma-row">
+            <ng-container *ngFor="let t of c.classes">
+            <tr data-testid="turma-row">
               <td data-testid="turma-name">{{ t.name }}</td>
               <td data-testid="turma-enrolled">{{ t.enrolled }}</td>
               <td data-testid="turma-pending">{{ t.pending }}</td>
               <td data-testid="turma-capacity">{{ t.capacity != null ? t.capacity : '—' }}</td>
+              <td class="small">
+                <span *ngIf="t.starts_on">{{ t.starts_on | dataSP:'dia' }}</span><span *ngIf="t.ends_on"> a {{ t.ends_on | dataSP:'dia' }}</span>
+                <span *ngIf="!t.starts_on && !t.ends_on">—</span>
+                <div class="text-muted" *ngIf="t.schedule">{{ t.schedule }}</div>
+              </td>
+              <td *ngIf="canManage" class="text-nowrap">
+                <button type="button" class="btn btn-sm btn-outline-secondary me-1" data-testid="turma-editar"
+                        (click)="editarTurma(t)">Editar</button>
+                <button type="button" class="btn btn-sm btn-outline-danger" data-testid="turma-excluir"
+                        (click)="excluirTurma(t)">Excluir</button>
+              </td>
             </tr>
+            <tr *ngIf="canManage && turmaEditando?.id === t.id">
+              <td colspan="6">
+                <div class="row g-2 align-items-end">
+                  <div class="col-12 col-md-3">
+                    <label class="form-label small mb-1">Nome</label>
+                    <input class="form-control form-control-sm" maxlength="80" data-testid="turma-edit-nome" [(ngModel)]="edicao.name">
+                  </div>
+                  <div class="col-6 col-md-2">
+                    <label class="form-label small mb-1">Início</label>
+                    <input class="form-control form-control-sm" type="date" data-testid="turma-edit-inicio" [(ngModel)]="edicao.starts_on">
+                  </div>
+                  <div class="col-6 col-md-2">
+                    <label class="form-label small mb-1">Término</label>
+                    <input class="form-control form-control-sm" type="date" data-testid="turma-edit-fim" [(ngModel)]="edicao.ends_on">
+                  </div>
+                  <div class="col-12 col-md-2">
+                    <label class="form-label small mb-1">Horário</label>
+                    <input class="form-control form-control-sm" maxlength="120" data-testid="turma-edit-horario" [(ngModel)]="edicao.schedule">
+                  </div>
+                  <div class="col-6 col-md-1">
+                    <label class="form-label small mb-1">Vagas</label>
+                    <input class="form-control form-control-sm" type="number" min="1" data-testid="turma-edit-capacidade" [(ngModel)]="edicao.capacity">
+                  </div>
+                  <div class="col-6 col-md-2 d-flex gap-1">
+                    <button type="button" class="btn btn-sm btn-primary" data-testid="turma-edit-salvar" (click)="salvarTurma()">Salvar</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-testid="turma-edit-cancelar" (click)="turmaEditando = null">Cancelar</button>
+                  </div>
+                </div>
+              </td>
+            </tr>
+            </ng-container>
             <tr *ngIf="!c.classes || c.classes.length === 0">
-              <td colspan="4" class="text-muted">Nenhuma turma neste curso.</td>
+              <td colspan="6" class="text-muted">Nenhuma turma neste curso.</td>
             </tr>
           </tbody>
         </table>
@@ -199,6 +245,14 @@
       <div class="col-6 col-md-2">
         <label class="form-label small mb-1">Início</label>
         <input class="form-control" type="date" data-testid="turma-new-start" [(ngModel)]="newStart">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label small mb-1">Término</label>
+        <input class="form-control" type="date" data-testid="turma-new-end" [(ngModel)]="newEnd">
+      </div>
+      <div class="col-6 col-md-3">
+        <label class="form-label small mb-1">Horário (ex.: Seg e Qua, 19h às 22h)</label>
+        <input class="form-control" type="text" maxlength="120" data-testid="turma-new-schedule" [(ngModel)]="newSchedule">
       </div>
       <div class="col-6 col-md-2">
         <label class="form-label small mb-1">Capacidade</label>

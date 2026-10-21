@@ -80,6 +80,10 @@ ERR_TURMA_COM_MATRICULAS = "A turma tem matrículas e não pode ser removida."
 ERR_TURMA_OUTRO_CURSO = "A turma pertence a outro curso."
 ERR_MATRICULA_STATUS = "Só matrículas pendentes ou ativas podem ser atribuídas a uma turma."
 ERR_TURMA_CHEIA = "A turma está cheia."
+# U8 (D83): término e horário da turma.
+CLASS_SCHEDULE_MAX = 120
+ERR_TERMINO_ANTES_INICIO = "A data de término não pode ser anterior ao início."
+ERR_HORARIO_LONGO = "O horário pode ter no máximo 120 caracteres."
 
 ClassCapacity = Annotated[int, Field(strict=True, ge=1, le=CLASS_CAPACITY_MAX)]
 
@@ -105,24 +109,43 @@ def _validar_data_turma(valor: Optional[str]) -> Optional[str]:
     return valor
 
 
+def _aparar_horario(valor: Optional[str]) -> Optional[str]:
+    """Horário livre aparado; vazio vira nulo. O limite (120) é conferido na rota, com 422 de texto fixo."""
+    if valor is None:
+        return None
+    horario = valor.strip()
+    return horario or None
+
+
 class ClassCreateInput(BaseModel):
     course_id: str
     name: str
     starts_on: Optional[str] = None
+    ends_on: Optional[str] = None
+    schedule: Optional[str] = None
     capacity: Optional[ClassCapacity] = None
 
     nome_valido = field_validator("name")(_validar_nome_turma)
-    data_valida = field_validator("starts_on")(_validar_data_turma)
+    data_valida = field_validator("starts_on", "ends_on")(_validar_data_turma)
+    horario_aparado = field_validator("schedule")(_aparar_horario)
 
 
 class ClassUpdateInput(BaseModel):
-    """Só os campos enviados mudam; null limpa starts_on e capacity (o nome não pode ser nulo)."""
+    """Só os campos enviados mudam; null limpa starts_on, ends_on, schedule e capacity (o nome não pode ser nulo)."""
     name: Optional[str] = None
     starts_on: Optional[str] = None
+    ends_on: Optional[str] = None
+    schedule: Optional[str] = None
     capacity: Optional[ClassCapacity] = None
 
     nome_valido = field_validator("name")(_validar_nome_turma)
-    data_valida = field_validator("starts_on")(_validar_data_turma)
+    data_valida = field_validator("starts_on", "ends_on")(_validar_data_turma)
+    horario_aparado = field_validator("schedule")(_aparar_horario)
+
+
+def _conferir_horario(schedule: Optional[str]) -> None:
+    if schedule is not None and len(schedule) > CLASS_SCHEDULE_MAX:
+        raise HTTPException(status_code=422, detail=ERR_HORARIO_LONGO)
 
 
 class EnrollmentClassInput(BaseModel):
@@ -617,7 +640,8 @@ def list_course_summaries(include_archived: bool = False) -> List[Dict]:
 
 # --- Turmas: rotas (L1, D53) --------------------------------------------------------------
 
-TURMA_CAMPOS = ("name", "starts_on", "capacity")
+TURMA_CAMPOS = ("name", "starts_on", "ends_on", "schedule", "capacity")
+TURMA_CAMPOS_OPCIONAIS = ("starts_on", "ends_on", "schedule", "capacity")
 
 
 def _curso_existe(course_id: str) -> bool:
@@ -640,6 +664,8 @@ def _descrever_turma(valores: Dict) -> str:
     partes = [f"'{valores.get('name')}'"]
     if valores.get("starts_on"):
         partes.append(f"início {valores['starts_on']}")
+    if valores.get("ends_on"):
+        partes.append(f"término {valores['ends_on']}")
     if valores.get("capacity") is not None:
         partes.append(f"capacidade {valores['capacity']}")
     return ", ".join(partes)
@@ -656,12 +682,16 @@ async def list_classes(
 
 @router.post("/classes")
 async def create_class(body: ClassCreateInput, current_user: AuthContext = Depends(require_roles(Role.ADMIN))):
+    _conferir_horario(body.schedule)
+    if body.starts_on is not None and body.ends_on is not None and body.ends_on < body.starts_on:
+        raise HTTPException(status_code=422, detail=ERR_TERMINO_ANTES_INICIO)
     if not _curso_existe(body.course_id):
         raise HTTPException(status_code=404, detail="Course not found")
-    class_id = Database.create_class(body.course_id, body.name, body.starts_on, body.capacity)
+    class_id = Database.create_class(body.course_id, body.name, body.starts_on, body.capacity,
+                                     ends_on=body.ends_on, schedule=body.schedule)
     if class_id is None:
         raise HTTPException(status_code=409, detail=ERR_TURMA_DUPLICADA)
-    novos = {"name": body.name, "starts_on": body.starts_on, "capacity": body.capacity}
+    novos = {campo: getattr(body, campo) for campo in TURMA_CAMPOS}
     record_audit(
         "class.create",
         f"Turma {_descrever_turma(novos)} criada no curso {body.course_id}",
@@ -669,7 +699,7 @@ async def create_class(body: ClassCreateInput, current_user: AuthContext = Depen
         entity_type="class",
         entity_id=class_id,
         changes=[change("name", None, body.name)] + [
-            change(campo, None, novos[campo]) for campo in ("starts_on", "capacity") if novos[campo] is not None
+            change(campo, None, novos[campo]) for campo in TURMA_CAMPOS_OPCIONAIS if novos[campo] is not None
         ],
     )
     return {"status": "success", "class": Database.get_class(class_id)}
@@ -682,9 +712,12 @@ async def update_class(
     current_user: AuthContext = Depends(require_roles(Role.ADMIN)),
 ):
     enviados = {campo: getattr(body, campo) for campo in TURMA_CAMPOS if campo in body.model_fields_set}
+    _conferir_horario(enviados.get("schedule"))
     resultado = Database.update_class(class_id, enviados)
     if resultado["outcome"] == "not_found":
         raise HTTPException(status_code=404, detail="Class not found")
+    if resultado["outcome"] == "ends_before_start":
+        raise HTTPException(status_code=422, detail=ERR_TERMINO_ANTES_INICIO)
     if resultado["outcome"] == "duplicate_name":
         raise HTTPException(status_code=409, detail=ERR_TURMA_DUPLICADA)
     if resultado["outcome"] == "capacity_below_total":
@@ -717,7 +750,7 @@ async def delete_class(class_id: int, current_user: AuthContext = Depends(requir
         entity_type="class",
         entity_id=class_id,
         changes=[change("name", antes["name"], None)] + [
-            change(campo, antes[campo], None) for campo in ("starts_on", "capacity") if antes[campo] is not None
+            change(campo, antes[campo], None) for campo in TURMA_CAMPOS_OPCIONAIS if antes[campo] is not None
         ],
     )
     return {"status": "success", "message": "Turma removida."}

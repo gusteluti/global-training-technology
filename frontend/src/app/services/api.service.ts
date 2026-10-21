@@ -158,8 +158,18 @@ export class ApiService {
   }
 
   // Turmas (L1, D53). Escrita e leitura de matrículas são da Gestão; o responsável sempre vem do token.
-  public createClass(dados: { course_id: string; name: string; starts_on?: string; capacity?: number }) {
+  public createClass(dados: { course_id: string; name: string; starts_on?: string; ends_on?: string;
+                               schedule?: string; capacity?: number }) {
     return this.http.post(`${BASE}/api/admin/classes`, dados, this.authHeaders());
+  }
+
+  // U8 (D83): só os campos enviados mudam; null limpa.
+  public updateClass(classId: number, dados: { [campo: string]: any }) {
+    return this.http.put(`${BASE}/api/admin/classes/${classId}`, dados, this.authHeaders());
+  }
+
+  public deleteClass(classId: number) {
+    return this.http.delete(`${BASE}/api/admin/classes/${classId}`, this.authHeaders());
   }
 
   public getEnrollments(courseId: string) {

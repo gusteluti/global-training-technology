@@ -42,6 +42,9 @@ class Database:
             )
         """)
         Database._ensure_column(cursor, "enrollments", "class_id", "INTEGER")
+        # U8 (D83): término e horário da turma. Bancos antigos ganham as colunas nulas (idempotente).
+        Database._ensure_column(cursor, "classes", "ends_on", "TEXT")
+        Database._ensure_column(cursor, "classes", "schedule", "TEXT")
         # S4/S5 (D80): conta ativa e versão do token. Bancos antigos ganham as colunas com os padrões (idempotente).
         Database._ensure_column(cursor, "users", "is_active", "INTEGER NOT NULL DEFAULT 1")
         Database._ensure_column(cursor, "users", "token_version", "INTEGER NOT NULL DEFAULT 0")
@@ -1002,7 +1005,7 @@ class Database:
         conn.row_factory = sqlite3.Row
         try:
             turmas = conn.execute(
-                """SELECT id, name, starts_on, capacity FROM classes
+                """SELECT id, name, starts_on, ends_on, schedule, capacity FROM classes
                    WHERE course_id = ? AND (starts_on IS NULL OR starts_on >= ?)
                    ORDER BY (starts_on IS NULL), starts_on, name, id""",
                 (course_id, dia_sao_paulo(agora).isoformat()),
@@ -1019,6 +1022,8 @@ class Database:
                     "id": turma["id"],
                     "name": turma["name"],
                     "starts_on": turma["starts_on"],
+                    "ends_on": turma["ends_on"],
+                    "schedule": turma["schedule"],
                     "capacity": turma["capacity"],
                     "seats_left": seats_left,
                 })
@@ -1699,7 +1704,8 @@ class Database:
         try:
             rows = conn.execute(
                 """SELECT e.id, e.course_id, e.status, e.enrolled_at,
-                          c.name AS class_name, c.starts_on AS class_starts_on
+                          c.name AS class_name, c.starts_on AS class_starts_on,
+                          c.ends_on AS class_ends_on, c.schedule AS class_schedule
                    FROM enrollments e LEFT JOIN classes c ON c.id = e.class_id
                    WHERE e.user_id = ? ORDER BY e.id DESC""",
                 (user_id,),
@@ -1716,7 +1722,8 @@ class Database:
         try:
             row = conn.execute(
                 """SELECT e.id, e.course_id, e.status, e.enrolled_at,
-                          c.name AS class_name, c.starts_on AS class_starts_on
+                          c.name AS class_name, c.starts_on AS class_starts_on,
+                          c.ends_on AS class_ends_on, c.schedule AS class_schedule
                    FROM enrollments e LEFT JOIN classes c ON c.id = e.class_id
                    WHERE e.id = ? AND e.user_id = ?""",
                 (enrollment_id, user_id),
@@ -2361,7 +2368,7 @@ class Database:
     # (histórico) mas não contam.
 
     _SQL_TURMAS = """
-        SELECT c.id, c.course_id, c.name, c.starts_on, c.capacity,
+        SELECT c.id, c.course_id, c.name, c.starts_on, c.ends_on, c.schedule, c.capacity,
                COALESCE(SUM(CASE WHEN e.status = 'active' THEN 1 ELSE 0 END), 0) AS enrolled,
                COALESCE(SUM(CASE WHEN e.status = 'pending' THEN 1 ELSE 0 END), 0) AS pending,
                COUNT(e.id) AS total
@@ -2371,6 +2378,8 @@ class Database:
         GROUP BY c.id
         ORDER BY c.course_id, (c.starts_on IS NULL), c.starts_on, c.name, c.id
     """
+
+    _CAMPOS_TURMA = ("name", "starts_on", "ends_on", "schedule", "capacity")
 
     @staticmethod
     def _id_sqlite_valido(valor) -> bool:
@@ -2429,13 +2438,15 @@ class Database:
             conn.close()
 
     @staticmethod
-    def create_class(course_id: str, name: str, starts_on: Optional[str], capacity: Optional[int]) -> Optional[int]:
-        """Cria a turma. None se o par (curso, nome) já existe."""
+    def create_class(course_id: str, name: str, starts_on: Optional[str], capacity: Optional[int],
+                     ends_on: Optional[str] = None, schedule: Optional[str] = None) -> Optional[int]:
+        """Cria a turma. None se o par (curso, nome) já existe. `ends_on` e `schedule` (U8, D83) são opcionais."""
         conn = sqlite3.connect(Database.DB_PATH)
         try:
             cursor = conn.execute(
-                "INSERT INTO classes (course_id, name, starts_on, capacity) VALUES (?, ?, ?, ?)",
-                (course_id, name, starts_on, capacity),
+                "INSERT INTO classes (course_id, name, starts_on, ends_on, schedule, capacity) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (course_id, name, starts_on, ends_on, schedule, capacity),
             )
             conn.commit()
             return cursor.lastrowid
@@ -2447,23 +2458,30 @@ class Database:
     @staticmethod
     def update_class(class_id: int, changes: Dict) -> Dict:
         """Atualização parcial atômica (BEGIN IMMEDIATE). `changes` tem só os campos enviados
-        (name, starts_on, capacity; None limpa starts_on e capacity).
+        (name, starts_on, ends_on, schedule, capacity; None limpa todos menos name).
 
-        `outcome`: not_found | duplicate_name | capacity_below_total | updated. Em `updated` devolve
-        `before` e `after` (name, starts_on, capacity); nada é gravado nos demais casos.
+        `outcome`: not_found | duplicate_name | ends_before_start | capacity_below_total | updated. Em `updated`
+        devolve `before` e `after` (name, starts_on, ends_on, schedule, capacity); nada é gravado nos demais casos.
+        Término e início são comparados com o par final (enviado ou o do banco), U8 (D83).
         """
         if not Database._id_sqlite_valido(class_id):
             return {"outcome": "not_found"}
         conn = Database._abrir_transacao_imediata()
         try:
             atual = conn.execute(
-                "SELECT id, course_id, name, starts_on, capacity FROM classes WHERE id = ?", (class_id,)
+                "SELECT id, course_id, name, starts_on, ends_on, schedule, capacity FROM classes WHERE id = ?",
+                (class_id,),
             ).fetchone()
             if atual is None:
                 conn.execute("ROLLBACK")
                 return {"outcome": "not_found"}
-            before = {campo: atual[campo] for campo in ("name", "starts_on", "capacity")}
+            before = {campo: atual[campo] for campo in Database._CAMPOS_TURMA}
             after = {**before, **changes}
+
+            if (after["starts_on"] is not None and after["ends_on"] is not None
+                    and after["ends_on"] < after["starts_on"]):
+                conn.execute("ROLLBACK")
+                return {"outcome": "ends_before_start"}
 
             if after["name"] != before["name"]:
                 repetido = conn.execute(
@@ -2483,8 +2501,8 @@ class Database:
                     return {"outcome": "capacity_below_total"}
 
             conn.execute(
-                "UPDATE classes SET name = ?, starts_on = ?, capacity = ? WHERE id = ?",
-                (after["name"], after["starts_on"], after["capacity"], class_id),
+                "UPDATE classes SET name = ?, starts_on = ?, ends_on = ?, schedule = ?, capacity = ? WHERE id = ?",
+                (after["name"], after["starts_on"], after["ends_on"], after["schedule"], after["capacity"], class_id),
             )
             conn.execute("COMMIT")
             return {"outcome": "updated", "course_id": atual["course_id"], "before": before, "after": after}
@@ -2502,13 +2520,13 @@ class Database:
     @staticmethod
     def delete_class(class_id: int) -> Dict:
         """Remove a turma, atômico. `outcome`: not_found | has_enrollments (qualquer status, histórico) | deleted.
-        Em `deleted` devolve `before` (name, starts_on, capacity)."""
+        Em `deleted` devolve `before` (name, starts_on, ends_on, schedule, capacity)."""
         if not Database._id_sqlite_valido(class_id):
             return {"outcome": "not_found"}
         conn = Database._abrir_transacao_imediata()
         try:
             atual = conn.execute(
-                "SELECT course_id, name, starts_on, capacity FROM classes WHERE id = ?", (class_id,)
+                "SELECT course_id, name, starts_on, ends_on, schedule, capacity FROM classes WHERE id = ?", (class_id,)
             ).fetchone()
             if atual is None:
                 conn.execute("ROLLBACK")
@@ -2519,7 +2537,7 @@ class Database:
             conn.execute("DELETE FROM classes WHERE id = ?", (class_id,))
             conn.execute("COMMIT")
             return {"outcome": "deleted", "course_id": atual["course_id"],
-                    "before": {campo: atual[campo] for campo in ("name", "starts_on", "capacity")}}
+                    "before": {campo: atual[campo] for campo in Database._CAMPOS_TURMA}}
         except Exception:
             if conn.in_transaction:
                 conn.execute("ROLLBACK")
@@ -2604,7 +2622,8 @@ class Database:
                 return None
             matriculas = conn.execute(
                 """SELECT e.id AS enrollment_id, e.course_id, e.class_id, c.name AS class_name,
-                          c.starts_on AS class_starts_on, e.status, e.enrolled_at
+                          c.starts_on AS class_starts_on, c.ends_on AS class_ends_on,
+                          c.schedule AS class_schedule, e.status, e.enrolled_at
                    FROM enrollments e LEFT JOIN classes c ON c.id = e.class_id
                    WHERE e.user_id = ?
                    ORDER BY e.enrolled_at DESC, e.id DESC""",

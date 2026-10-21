@@ -29,6 +29,7 @@ TOO_LONG = "Mensagem muito longa. Use até 2000 caracteres."
 MAX_MESSAGE_CHARS = 2000
 MAX_NAME_CHARS = 80
 MAX_CLASS_NAME_CHARS = 120
+MAX_CLASS_SCHEDULE_CHARS = 120
 
 # --- Política e marcadores --------------------------------------------------------------
 
@@ -108,6 +109,9 @@ def bloco_base_conhecimento(base: str) -> str:
 def _linha_turma(turma: dict) -> str:
     nome = sanitizar_nome(turma.get("name"), MAX_CLASS_NAME_CHARS) or "turma sem nome"
     inicio = sanitizar_nome(turma.get("starts_on"), 20) or "a definir"
+    # U8 (D83): término e horário passam pelo mesmo saneamento do nome (sem colchetes, uma linha só).
+    termino = sanitizar_nome(turma.get("ends_on"), 20)
+    horario = sanitizar_nome(turma.get("schedule"), MAX_CLASS_SCHEDULE_CHARS)
     vagas = turma.get("seats_left")
     if turma.get("capacity") is None or vagas is None:
         situacao = "vagas: sem limite"
@@ -115,11 +119,18 @@ def _linha_turma(turma: dict) -> str:
         situacao = "LOTADA (sem vagas)"
     else:
         situacao = f"vagas: {int(vagas)}"
-    return f"- {nome} | início: {inicio} | {situacao}"
+    partes = [f"- {nome}", f"início: {inicio}"]
+    if termino:
+        partes.append(f"término: {termino}")
+    if horario:
+        partes.append(f"horário: {horario}")
+    partes.append(situacao)
+    return " | ".join(partes)
 
 
 def bloco_turmas_abertas(turmas: Iterable[dict]) -> str:
-    """Turmas abertas do curso (F5b, D76) como dado delimitado: nome sanitizado, início e vagas. Nenhum dado
+    """Turmas abertas do curso (F5b, D76; U8, D83) como dado delimitado: nome, início, término e horário
+    sanitizados, e vagas. Nenhum dado
     de aluno entra aqui; o nome perde os colchetes, para nunca fechar o bloco."""
     linhas = [_linha_turma(t) for t in turmas]
     corpo = "\n".join(linhas) if linhas else "Nenhuma turma aberta no momento."

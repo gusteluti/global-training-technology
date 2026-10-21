@@ -1314,3 +1314,31 @@ estabelecimento, 7 dias). **Revisão do PM.** Contrato:
   (`Cancelamento em análise`, `Cancelamento aprovado`, `Cancelamento recusado: <motivo>`). Dashboard financeiro: seção
   "Solicitações de cancelamento" com `cancelamento-row`, `cancelamento-aprovar` (confirm), `cancelamento-motivo` +
   `cancelamento-recusar`.
+
+## D83 — U8: edição de turma, término e horário (20/10/2026, modo autônomo D69)
+Contrato (forma; textos marcados para revisão):
+- Turma ganha `ends_on` (`AAAA-MM-DD`, opcional) e `schedule` (texto livre aparado, até 120 caracteres, opcional, ex.
+  `Seg e Qua, 19h às 22h`), colunas novas com migração idempotente; turma antiga devolve `null`. Aceitos em
+  `POST /api/admin/classes` e `PUT /api/admin/classes/{id}` (PUT sem o campo preserva). `ends_on` anterior a
+  `starts_on` → 422 `A data de término não pode ser anterior ao início.`; `schedule` acima de 120 → 422
+  `O horário pode ter no máximo 120 caracteres.` Auditoria da L1 passa a registrar as mudanças desses campos.
+- Leitura: `/api/admin/classes`, dashboard de cursos, `GET /api/courses/{id}/turmas` (D75), detalhe do aluno (F3),
+  `/api/student/enrollments` (`class_ends_on`, `class_schedule`) e o bloco de turmas do chat (F5b) passam a incluir
+  término e horário. Nenhuma regra de venda muda (abertas continuam pelo início, D75).
+- Tela de turmas (dashboard de cursos, só Gestão): cada turma ganha `turma-editar` (formulário na linha:
+  `turma-edit-nome`, `-inicio`, `-fim`, `-horario`, `-capacidade`, `turma-edit-salvar`, `turma-edit-cancelar`) e
+  `turma-excluir` (confirm com o nome; o 409 da L1 aparece em `turma-erro`). A criação ganha `turma-new-end` e
+  `turma-new-schedule`. Catálogo: rótulo da turma inclui o horário quando houver. Área do aluno: `curso-turma`
+  acrescenta ` · <horário>` e ` · término em dd/mm/aaaa` quando houver.
+- Ajuste mecânico (autoridade 4.3), D53 (L1) / D75 (F5a) → D83: as listas de campos exatos da turma em
+  `test_l1_turmas.py` (`CAMPOS_TURMA`, campos permitidos em `changes`) e `test_f5a_turma_checkout.py`
+  (`CAMPOS_TURMA_PUBLICA`, esperado da t1) passam a incluir `ends_on` e `schedule` (`d0d9241`); intenção preservada
+  (campos exatos e "só o que mudou").
+
+## D84 — processo enxuto (20/10/2026, decisão do PM)
+O PM avaliou que o processo (três agentes, 50–90 testes por entrega, regressão completa a cada entrega) era pesado
+demais para um TCC e pediu entregas de ~30 min. Daqui em diante: o orquestrador implementa direto, com 10–15 testes
+por entrega (caminho principal + segurança essencial: IDOR, 403/401); roda só a suíte da entrega e as relacionadas, um
+e2e por tela nova e o build; a regressão completa e todos os e2e rodam uma vez, no fim (ou à noite). Os testes
+existentes continuam. Valem ainda: D30 (sem `main`, sem force-push, auditoria antes do push) e não versionar segredos.
+U8 fechada nesse modo: o backend parcial do dev-backend (interrompido por queda de internet) foi conferido e aproveitado.
