@@ -6,7 +6,11 @@ Formato: PDF 1.4, Helvetica com WinAnsiEncoding (cp1252; o que não cabe vira '?
 
 from typing import Dict, List, Optional, Tuple
 
+from core.fuso import formatar_utc_em_sao_paulo
+
 MAX_LINHA = 90  # limite de caracteres por linha para não estourar a largura da página
+# Rótulo da forma de pagamento no PDF (D81); as demais saem como gravadas. O JSON continua com o valor bruto.
+ROTULO_FORMA_PAGAMENTO = {"manual": "Matrícula manual"}
 
 
 def formatar_valor(valor) -> str:
@@ -32,11 +36,11 @@ def _linhas_do_recibo(recibo: Dict, nome_aluno: str) -> List[Tuple[str, str]]:
         ("F1", f"Curso: {recibo['course_name']}"),
         ("F1", f"Valor: {formatar_valor(recibo['amount'])}"),
         ("F1", f"Status: {recibo['status']}"),
-        ("F1", f"Forma de pagamento: {recibo['payment_method']}"),
+        ("F1", f"Forma de pagamento: {ROTULO_FORMA_PAGAMENTO.get(recibo['payment_method'], recibo['payment_method'])}"),
     ]
     if recibo.get("transaction_id"):
         linhas.append(("F1", f"Transação: {recibo['transaction_id']}"))
-    linhas.append(("F1", f"Data de emissão: {recibo['issued_at']}"))
+    linhas.append(("F1", f"Data de emissão: {formatar_utc_em_sao_paulo(recibo['issued_at'])}"))
     if recibo["status"] == "refunded":
         linhas.append(("F1", ""))
         linhas.append(("F1", "Pagamento reembolsado."))
@@ -59,7 +63,12 @@ def _conteudo(linhas: List[Tuple[str, str]]) -> bytes:
 
 def gerar_recibo_pdf(recibo: Dict, nome_aluno: Optional[str]) -> bytes:
     """Monta o PDF do recibo (dict no formato do recibo JSON) e devolve os bytes."""
-    conteudo = _conteudo(_linhas_do_recibo(recibo, nome_aluno or ""))
+    return gerar_pdf_de_linhas(_linhas_do_recibo(recibo, nome_aluno or ""))
+
+
+def gerar_pdf_de_linhas(linhas: List[Tuple[str, str]]) -> bytes:
+    """PDF de uma página a partir de (fonte, texto); F2 = título em negrito. Usado pelo recibo e pelo certificado."""
+    conteudo = _conteudo(linhas)
     objetos = [
         b"<< /Type /Catalog /Pages 2 0 R >>",
         b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",

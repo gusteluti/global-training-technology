@@ -8,6 +8,10 @@ Login por perfil, abas visíveis por papel (a Gestão ganhou a aba "Cadastro de 
 esperada e o clique por texto exato foram atualizados, sem mudar a intenção), carregamento e gráficos das abas,
 reembolso pela tela, erros de console e guard de rota sem login.
 
+Guarda sem login (autoridade permanente 4.3, encadeamento guarda original -> D76): o AuthGuard agora leva o não
+logado a `/login?next=<rota pedida>` em vez de `/`. O check passou a exigir `/login` com `next=/admin` e o
+formulário de login visível; a intenção (sem login não entra e cai no login) é a mesma, e a contagem segue 33.
+
 Harness isolado (D58, H1): o teste sobe e derruba os próprios servidores; nada precisa estar de pé antes.
   - Backend: frontend/e2e/servidor_e2e_h1.py em processo próprio, porta livre, SQLite temporário (DB_PATH
     isolado), diretório de cursos temporário, segredo de webhook e CORS de teste, Groq e Mercado Pago falsos.
@@ -32,6 +36,7 @@ import re
 import sys
 import tempfile
 import time
+import urllib.parse
 import uuid
 from pathlib import Path
 
@@ -48,7 +53,7 @@ from servidor_e2e_h1 import (  # noqa: E402
 )
 
 EXPECTED = {
-    GESTAO_EMAIL: (GESTAO_SENHA, ["Financeiro", "Alunos", "Cursos", "Cadastro de cursos", "Observabilidade de IA", "Auditoria"]),
+    GESTAO_EMAIL: (GESTAO_SENHA, ["Financeiro", "Alunos", "Cursos", "Cadastro de cursos", "Observabilidade de IA", "Auditoria", "Equipe"]),
     FINANCEIRO_EMAIL: (FINANCEIRO_SENHA, ["Financeiro", "Alunos", "Cursos", "Observabilidade de IA"]),
     SUPORTE_EMAIL: (SUPORTE_SENHA, ["Alunos", "Cursos", "Observabilidade de IA"]),
 }
@@ -167,22 +172,23 @@ def test_admin_angular_e2e(servidores, browser, pagamentos_aprovados_para_reembo
             page.locator("ul.nav-tabs button.nav-link", has_text="Financeiro").click()
             time.sleep(1.5)
             # E9 (D48): só pagamento aprovado pode ser reembolsado (os demais respondem 409); clica numa linha 'approved'.
-            refund_btns = page.locator("tr", has=page.locator("span.badge", has_text="approved")) \
+            # O badge de status mostra o rótulo em português: 'approved' -> 'Aprovado', 'refunded' -> 'Reembolsado'.
+            refund_btns = page.locator("tr", has=page.locator("span.badge", has_text="Aprovado")) \
                               .locator("button", has_text="Reembolsar")
             n_before = refund_btns.count()
             if n_before:
-                refunded_antes = page.locator("span.badge", has_text="refunded").count()
+                refunded_antes = page.locator("span.badge", has_text="Reembolsado").count()
                 refund_btns.first.click()
                 time.sleep(2.0)
-                refunded_badges = page.locator("span.badge", has_text="refunded").count()
+                refunded_badges = page.locator("span.badge", has_text="Reembolsado").count()
                 check(f"{role}: reembolso pela tela muda status para refunded",
                       refunded_badges > refunded_antes and dialogs,
-                      f"badges refunded antes={refunded_antes}, depois={refunded_badges}, dialogs={dialogs}")
+                      f"badges Reembolsado antes={refunded_antes}, depois={refunded_badges}, dialogs={dialogs}")
                 page.screenshot(path=str(OUT / f"{role}_financeiro_apos_reembolso.png"), full_page=True)
             else:
                 # D4: com o banco isolado sempre há pagamento aprovado; sem botão, o check de reembolso não pode sumir.
                 check(f"{role}: reembolso pela tela muda status para refunded", False,
-                      "nenhum pagamento 'approved' com botão Reembolsar na aba Financeiro (o seed deveria tê-lo criado)")
+                      "nenhum pagamento 'Aprovado' com botão Reembolsar na aba Financeiro (o seed deveria tê-lo criado)")
 
         check(f"{role}: sem erros de console", not console_errors, "; ".join(console_errors[:3]))
         ctx.close()
@@ -192,8 +198,14 @@ def test_admin_angular_e2e(servidores, browser, pagamentos_aprovados_para_reembo
     page = ctx.new_page()
     page.goto(BASE + "/admin", wait_until="networkidle")
     time.sleep(1.0)
-    check("sem login: /admin volta para a tela de login", page.url.rstrip("/") == BASE.rstrip("/") or page.url.endswith("/"),
-          page.url)
+    # D76 (guarda original -> D76): o AuthGuard leva o não logado a /login?next=<rota pedida> (antes ia para "/").
+    # A intenção fica: sem login não entra em /admin e cai na tela de login, com o formulário.
+    _url = urllib.parse.urlparse(page.url)
+    _next = urllib.parse.parse_qs(_url.query).get("next")
+    _no_login = (_url.path.rstrip("/") == "/login" and _next == ["/admin"]
+                 and page.locator("input[name=email]").count() > 0
+                 and page.locator("input[name=password]").count() > 0)
+    check("sem login: /admin volta para a tela de login", _no_login, page.url)
     ctx.close()
 
     passed = sum(1 for _, ok, _ in results if ok)

@@ -67,8 +67,9 @@ Testes:
   F2  init_db cria as tabelas em banco antigo (IF NOT EXISTS), com as colunas da D42, sem perder linhas.
 
 Convencoes (padrao de test_e5/test_e6): banco temporario via conftest, rotas HTTP reais, token real por
-POST /api/token, cursos do aluno em diretorio temporario (admin.routes.COURSES_DIR). O catalogo do bot e o
-real (backend/courses: c_e_c, excel_profissional, lua, python_profissional), so lido.
+POST /api/token, cursos do aluno em diretorio temporario (admin.routes.COURSES_DIR). O catalogo do bot
+(ManagerAgent.courses_dir) tambem fica em diretorio temporario (fixture `catalogo_bot` do conftest, D70), copiado de
+tests/fixtures/catalogo_bot (c_e_c, excel_profissional, lua, python_profissional); backend/courses nao e lido.
 """
 
 import hashlib
@@ -206,8 +207,8 @@ def precos(monkeypatch):
 
 
 @pytest.fixture
-def cursos(tmp_path, monkeypatch):
-    """Um curso em diretorio temporario (fonte dos nomes de curso do contexto do aluno)."""
+def cursos(tmp_path, monkeypatch, catalogo_bot):
+    """Um curso em diretorio temporario (fonte dos nomes de curso do contexto do aluno) + catalogo do bot (D70)."""
     diretorio = tmp_path / "courses"
     diretorio.mkdir()
     (diretorio / "curso_e7.json").write_text(json.dumps({

@@ -212,6 +212,8 @@
     font-size: 12px; cursor: pointer; transition: all .2s;
   }
   .quick-btn:hover { border-color: var(--teal); color: var(--teal); }
+  .chat-acoes { display: flex; flex-wrap: wrap; gap: 8px; align-self: flex-start; }
+  .chat-acoes .quick-btn { text-decoration: none; }
   .chat-input-row { padding: 12px 16px; display: flex; gap: 8px; border-top: 1px solid var(--card-border); }
   .chat-input {
     flex: 1; background: #ffffff; border: 1px solid var(--card-border);
@@ -413,6 +415,7 @@
     <button class="quick-btn" onclick="quickReply('Como funciona o EAD?')">Como funciona o EAD?</button>
     <button class="quick-btn" onclick="quickReply('Tem curso de Excel?')">Tem curso de Excel?</button>
   </div>
+  <div data-testid="chat-aviso-gravacao" style="font-size:11px;color:#6b7785;padding:6px 16px 0">As conversas são gravadas para melhorar o atendimento. Não envie dados sensíveis.</div>
   <div class="chat-input-row">
     <input type="text" class="chat-input" id="chat-input" placeholder="Digite sua dúvida..." onkeydown="if(event.key==='Enter') sendMsg()">
     <button class="chat-send" onclick="sendMsg()">➤</button>
@@ -557,6 +560,47 @@ function addMsg(text, type) {
   msgs.appendChild(div);
   msgs.scrollTop = msgs.scrollHeight;
 }
+// Botões de matrícula (D76): vêm só de `actions` do servidor, nunca do texto do bot. O aluno entra e volta ao catálogo.
+function addEnrollActions(actions) {
+  if (!Array.isArray(actions)) return;
+  const validas = actions.filter(a => a && a.type === 'enroll' && a.course_id && typeof a.label === 'string');
+  if (!validas.length) return;
+  const msgs = document.getElementById('chat-messages');
+  const box = document.createElement('div');
+  box.className = 'chat-acoes';
+  validas.forEach(acao => {
+    let caminho = `/catalogo?curso=${encodeURIComponent(acao.course_id)}`;
+    if (acao.class_id !== null && acao.class_id !== undefined) caminho += `&turma=${encodeURIComponent(acao.class_id)}`;
+    const link = document.createElement('a');
+    link.className = 'quick-btn';
+    link.setAttribute('data-testid', 'chat-acao-matricular');
+    link.href = `${APP_URL}/login?area=aluno&next=${encodeURIComponent(caminho)}`;
+    link.textContent = acao.label;
+    box.appendChild(link);
+  });
+  msgs.appendChild(box);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+// Link de atendimento (D77): vem só de `actions` do servidor e só se apontar para https://wa.me/.
+function addHandoffAction(actions) {
+  if (!Array.isArray(actions)) return;
+  const acao = actions.find(a => a && a.type === 'handoff' && typeof a.url === 'string'
+    && a.url.startsWith('https://wa.me/') && typeof a.label === 'string');
+  if (!acao) return;
+  const msgs = document.getElementById('chat-messages');
+  const box = document.createElement('div');
+  box.className = 'chat-acoes';
+  const link = document.createElement('a');
+  link.className = 'quick-btn';
+  link.setAttribute('data-testid', 'chat-acao-whatsapp');
+  link.href = acao.url;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.textContent = acao.label;
+  box.appendChild(link);
+  msgs.appendChild(box);
+  msgs.scrollTop = msgs.scrollHeight;
+}
 function setChatStatus(text) {
   const status = document.querySelector('.chat-header-info span');
   if (status) status.textContent = text;
@@ -595,6 +639,8 @@ async function sendMsg() {
     } else {
       addMsg(botMsg, 'bot');
     }
+    if (data.status === 'success') addEnrollActions(data.actions);
+    if (data) addHandoffAction(data.actions);
     setChatStatus('Online agora');
   } catch (error) {
     const msgs = document.getElementById('chat-messages');

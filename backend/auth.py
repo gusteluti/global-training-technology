@@ -1,18 +1,20 @@
 import logging
 import os
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from datetime import timedelta
 from pydantic import BaseModel, ConfigDict
 
 from core.audit import record_audit
-from core.security import create_access_token, verify_password, get_password_hash
+from core import login_limit
+from core.security import create_account_token, verify_password, get_password_hash
 from core.password_setup import (
     definir_senha_pelo_token,
     emitir_token_com_limite,
     redefinir_senha_pelo_token,
     senha_aceitavel,
 )
+from core import privacidade
 from core.notifications import (
     send_account_created_notice,
     send_account_exists_notice,
@@ -42,6 +44,8 @@ RESPOSTA_PEDIDO_REDEFINICAO = {
     "message": "Se o e-mail estiver cadastrado, enviaremos um link para redefinir a senha.",
 }
 RESPOSTA_REDEFINICAO = {"status": "success", "message": "Senha redefinida. Faça login para entrar."}
+# Login de aluno desativado com a senha certa (S4, D80).
+ERRO_CONTA_DESATIVADA = "Sua conta está desativada. Fale com o suporte."
 
 
 def _frontend_base() -> str:
@@ -54,6 +58,8 @@ class RegisterInput(BaseModel):
     name: str
     email: str
     password: str
+    # U7 (D89): a tela exige o aceite; o backend grava a data quando vem verdadeiro (compatível sem o campo).
+    accept_terms: bool = False
 
 
 class PasswordSetupInput(BaseModel):
@@ -98,6 +104,8 @@ async def register(dados: RegisterInput):
         send_account_exists_notice(email, login_url)
         return RESPOSTA_CADASTRO
 
+    if dados.accept_terms:
+        privacidade.registrar_aceite(user_id)
     # Confirmação sem link de definição de senha e sem token (D23).
     send_account_created_notice(email, login_url)
     return RESPOSTA_CADASTRO
@@ -150,11 +158,19 @@ async def password_reset(dados: PasswordResetInput):
 
 
 @router.post("/api/token")
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
-    """Standard OAuth2 password flow: returns JWT access token."""
+async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
+    """Standard OAuth2 password flow: returns JWT access token.
+
+    S2 (D79): e-mail ou IP bloqueado -> 429 antes de conferir a senha; cada falha conta para o e-mail
+    normalizado e para o IP (e-mail inexistente conta igual); sucesso zera as falhas do e-mail."""
+    email_normalizado = login_limit.normalizar_email(form_data.username)
+    ip = login_limit.ip_do_cliente(request)
+    login_limit.exigir_nao_bloqueado(email_normalizado, ip)
+
     user = Database.get_user_by_email(form_data.username)
     if not user:
         # E-mail inexistente nunca vai para a trilha (E8, D45).
+        login_limit.registrar_falha(email_normalizado, ip)
         raise HTTPException(status_code=400, detail="Usuário ou senha inválidos")
 
     # Só contas de funcionário são auditadas; login de aluno (certo ou errado) não gera evento.
@@ -170,11 +186,19 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         if is_staff:
             # Conta existente: grava a conta alvo, nunca a senha digitada.
             record_audit("staff.login_failed", "Login recusado (senha inválida) em conta de funcionário", actor=actor)
+        login_limit.registrar_falha(email_normalizado, ip)
         raise HTTPException(status_code=400, detail="Usuário ou senha inválidos")
 
+    if not user.get("is_active", 1):
+        # D80: só com a senha certa a conta desativada é revelada (senha errada segue a resposta genérica acima).
+        # Não é falha de senha (não conta no limite) nem login concluído (não zera as falhas).
+        raise HTTPException(status_code=403, detail=ERRO_CONTA_DESATIVADA)
+
+    login_limit.registrar_sucesso(email_normalizado)
     if is_staff:
         record_audit("staff.login", "Login de funcionário", actor=actor)
 
     access_token_expires = timedelta(minutes=60*8)
-    token = create_access_token({"user_id": user["id"], "email": user["email"], "role": user.get("role", "student")}, expires_delta=access_token_expires)
+    token = create_account_token(user["id"], user["email"], user.get("role") or "student",
+                                 user.get("token_version") or 0, expires_delta=access_token_expires)
     return {"access_token": token, "token_type": "bearer"}

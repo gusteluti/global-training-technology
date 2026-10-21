@@ -808,6 +808,13 @@ def test_f10_a_redefinicao_invalida_os_outros_tokens_abertos_da_conta(client, ou
 
 @pytest.mark.parametrize("rodada", [1, 2, 3])
 def test_f11_requisicoes_simultaneas_com_o_mesmo_token_so_uma_vence(client, outbox, rodada):
+    """Só uma das redefinições simultâneas vence; só a senha vencedora autentica.
+
+    Encadeamento D62 (B1, corrida do token) -> D79 (limite de tentativas de login): a conferência faz 8 logins
+    errados no mesmo e-mail, e pela D79 o 6º viraria 429. Antes de cada login de conferência de senha perdedora
+    (e da senha antiga), as falhas registradas em `login_attempts` são apagadas direto no banco temporário
+    (sqlite3, sem função de produção), mantendo a exigência estrita de 400 e a de 200 para o vencedor.
+    """
     from app import app as fastapi_app
 
     email = f"f11.{rodada}@teste.com"
@@ -827,7 +834,9 @@ def test_f11_requisicoes_simultaneas_com_o_mesmo_token_so_uma_vence(client, outb
     assert _login(client, email, senhas[vencedor]).status_code == 200, "a conta fica com a senha do vencedor"
     for i, senha in enumerate(senhas):
         if i != vencedor:
+            _executar("DELETE FROM login_attempts")                  # D79: só limpa o contador, não a conferência
             assert _login(client, email, senha).status_code == 400, f"a senha do perdedor {i} não pode logar"
+    _executar("DELETE FROM login_attempts")
     assert _login(client, email, SENHA_ANTIGA).status_code == 400
     assert all(l["used_at"] is not None for l in _tokens(user_id))
     for _, c, texto in resultados:

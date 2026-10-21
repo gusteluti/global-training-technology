@@ -21,7 +21,12 @@ import { DefinirSenhaComponent } from './components/definir-senha/definir-senha.
 import { EsqueciSenhaComponent } from './components/esqueci-senha/esqueci-senha.component';
 import { RedefinirSenhaComponent } from './components/redefinir-senha/redefinir-senha.component';
 import { CourseCatalogComponent } from './components/course-catalog/course-catalog.component';
+import { StudentProfileComponent } from './components/student-profile/student-profile.component';
+import { StaffAdminComponent } from './components/staff-admin/staff-admin.component';
+import { TermosComponent } from './components/termos/termos.component';
+import { AtualizacaoAutomaticaComponent } from './components/atualizacao-automatica/atualizacao-automatica.component';
 import { AuthInterceptor } from './interceptors/auth.interceptor';
+import { DataSpPipe } from './pipes/data-sp.pipe';
 
 // Valores em reais e datas no formato brasileiro (R$ 1.234,56).
 registerLocaleData(localePt);
@@ -42,7 +47,12 @@ registerLocaleData(localePt);
     DefinirSenhaComponent,
     EsqueciSenhaComponent,
     RedefinirSenhaComponent,
-    CourseCatalogComponent
+    CourseCatalogComponent,
+    StudentProfileComponent,
+    StaffAdminComponent,
+    TermosComponent,
+    AtualizacaoAutomaticaComponent,
+    DataSpPipe
   ],
   imports: [
     BrowserModule,

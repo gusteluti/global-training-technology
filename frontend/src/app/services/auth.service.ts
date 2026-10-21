@@ -36,6 +36,11 @@ export class AuthService {
     );
   }
 
+  // Troca de senha (S5, D80): a API devolve um token novo; o antigo deixa de valer.
+  setToken(token: string) {
+    localStorage.setItem(this.tokenKey, token);
+  }
+
   logout() {
     localStorage.removeItem(this.tokenKey);
   }

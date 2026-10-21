@@ -175,6 +175,10 @@ def preencher(page, seletor, valor, rotulo):
 
 
 def enviar(page, rotulo):
+    # U7 (D89): o cadastro exige marcar o aceite dos termos antes de enviar (ajuste mecânico).
+    aceite = page.locator('[data-testid="cadastro-aceite"]')
+    if aceite.count():
+        aceite.first.check()
     try:
         page.locator("button[type=submit]").first.click(timeout=TIMEOUT)
     except sync_api.TimeoutError:

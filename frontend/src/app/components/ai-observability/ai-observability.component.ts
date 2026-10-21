@@ -2,6 +2,13 @@ import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/co
 import { ApiService } from '../../services/api.service';
 import { Chart } from '../../charts';
 
+const MOTIVOS_HANDOFF: { key: string; label: string }[] = [
+  { key: 'user_request', label: 'Pedido do usuário' },
+  { key: 'llm_failures', label: 'Falhas da IA' },
+  { key: 'token_budget', label: 'Limite de tokens' },
+  { key: 'unresolved', label: 'Dúvidas não resolvidas' }
+];
+
 @Component({
   selector: 'app-ai-observability',
   templateUrl: './ai-observability.component.html'
@@ -11,16 +18,47 @@ export class AiObservabilityComponent implements OnInit, OnDestroy {
   @ViewChild('perDayChart', { static: true }) perDayChart!: ElementRef<HTMLCanvasElement>;
 
   metrics: any = null;
+  handoffReasons: { label: string; count: number }[] = [];
   error = '';
   private chart?: Chart;
   private dayChart?: Chart;
 
   constructor(private api: ApiService) { }
 
+  saude: any = null;
+  servicos: { rotulo: string; valor: string; texto: string }[] = [];
+
+  private carregarSaude(): void {
+    const rotulos: { [k: string]: string } = {
+      database: 'Banco de dados', llm: 'IA (Groq)', payment_gateway: 'Pagamentos', email: 'E-mail', backup: 'Último backup'
+    };
+    const textos: { [k: string]: string } = {
+      ok: 'ok', erro: 'erro', configurado: 'configurado', nao_configurado: 'não configurado',
+      desligado: 'desligado', nenhum: 'nenhum'
+    };
+    this.api.getHealth().subscribe({
+      next: (r: any) => {
+        this.saude = r;
+        this.servicos = Object.keys(rotulos).filter(k => r?.services && k in r.services).map(k => ({
+          rotulo: rotulos[k], valor: r.services[k], texto: textos[r.services[k]] || r.services[k]
+        }));
+      },
+      error: () => this.saude = { status: 'erro' }
+    });
+  }
+
   ngOnInit(): void {
+    this.carregarSaude();
+    this.carregar();
+  }
+
+  // Também chamado pela atualização automática (X5, D87).
+  carregar(): void {
     this.api.getAiObservability().subscribe({
       next: (r: any) => {
         this.metrics = r.metrics || {};
+        const porMotivo = (this.metrics.handoff && this.metrics.handoff.by_reason) || {};
+        this.handoffReasons = MOTIVOS_HANDOFF.map(m => ({ label: m.label, count: Number(porMotivo[m.key] || 0) }));
         this.renderMessagesChart();
         this.renderPerDayChart();
       },
@@ -58,6 +96,15 @@ export class AiObservabilityComponent implements OnInit, OnDestroy {
     return (this.metrics && this.metrics.unresolved_topics) || [];
   }
 
+  // Encaminhamentos ao WhatsApp (D77): total, taxa e motivos com rótulo em português.
+  get handoff(): any {
+    return (this.metrics && this.metrics.handoff) || {};
+  }
+
+  get handoffRateText(): string {
+    return this.percent(this.handoff.rate);
+  }
+
   private percent(fraction: number | undefined | null): string {
     return (Number(fraction || 0) * 100).toFixed(1) + '%';
   }
@@ -68,7 +115,13 @@ export class AiObservabilityComponent implements OnInit, OnDestroy {
   }
 
   private renderMessagesChart(): void {
-    this.chart?.destroy();
+    if (this.chart) {
+      // Atualização automática (X5): troca os dados no lugar, sem redesenhar o gráfico do zero.
+      this.chart.data.labels = this.perCourse.map(c => c.label);
+      this.chart.data.datasets[0].data = this.perCourse.map(c => c.value);
+      this.chart.update();
+      return;
+    }
     this.chart = new Chart(this.messagesChart.nativeElement, {
       type: 'bar',
       data: {
@@ -89,7 +142,6 @@ export class AiObservabilityComponent implements OnInit, OnDestroy {
   }
 
   private renderPerDayChart(): void {
-    this.dayChart?.destroy();
     const perDay: any[] = (this.metrics && this.metrics.per_day) || [];
     const datasets: any[] = [{
       label: 'Requisições',
@@ -106,6 +158,14 @@ export class AiObservabilityComponent implements OnInit, OnDestroy {
         yAxisID: 'y1'
       });
       scales.y1 = { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false } };
+    }
+    if (this.dayChart) {
+      // Atualização automática (X5): a série de custo pode aparecer ou sumir, então troca dados e escalas.
+      this.dayChart.data = { labels: perDay.map(d => d.date), datasets };
+      this.dayChart.options.scales = scales;
+      this.dayChart.options.plugins = { legend: { display: datasets.length > 1 } };
+      this.dayChart.update();
+      return;
     }
     this.dayChart = new Chart(this.perDayChart.nativeElement, {
       type: 'bar',

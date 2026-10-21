@@ -34,6 +34,10 @@ turma com matricula cancelada/reembolsada ainda atribuida e 409 (a matricula man
 sem `starts_on` no dashboard nao e testada (D53 so fixa starts_on e depois name); remover a turma de uma matricula
 cancelada/reembolsada e atribuicao `null` sobre matricula sem turma nao sao testados (D53 e omisso); em `changes`,
 campo nao alterado pode estar ausente ou ter before == after, mas nunca before != after.
+
+Ajuste mecanico D53 (L1) -> D83 (U8, autoridade 4.3): a turma ganhou `ends_on` e `schedule` (GET /classes e dashboard
+devolvem os dois; a auditoria pode registra-los). CAMPOS_TURMA e o conjunto aceito em `changes` passam a inclui-los.
+Intencao preservada: campos exatos e "so o que mudou" continuam exigidos.
 """
 
 import json
@@ -64,7 +68,9 @@ ERR_OUTRO = "A turma pertence a outro curso."
 ERR_STATUS = "Só matrículas pendentes ou ativas podem ser atribuídas a uma turma."
 ERR_CHEIA = "A turma está cheia."
 
-CAMPOS_TURMA = {"id", "course_id", "name", "starts_on", "capacity", "enrolled", "pending", "total"}
+# Ajuste mecanico D53 (L1) -> D83 (U8, autoridade 4.3): a turma ganhou `ends_on` e `schedule` nas leituras.
+CAMPOS_TURMA = {"id", "course_id", "name", "starts_on", "ends_on", "schedule", "capacity", "enrolled", "pending",
+                "total"}
 CAMPOS_MATRICULA = {"id", "student_name", "student_email", "status", "class_id", "enrolled_at"}
 CAMPOS_DASH_ANTIGOS = {
     "id", "name", "price", "level", "total_enrollments", "approved_enrollments",
@@ -352,10 +358,11 @@ def _checar_changes_turma(evento, esperado):
     """`esperado`: {campo: (antes, depois)} para name/starts_on/capacity.
 
     Campo esperado: valores exatos. Campo de turma nao esperado: ausente, ou com before == after.
-    Nenhum campo fora de name/starts_on/capacity.
+    Nenhum campo fora de name/starts_on/capacity e, desde a D83 (ajuste mecanico, autoridade 4.3), ends_on/schedule.
     """
     mud = _mudancas(evento)
-    assert set(mud) <= {"name", "starts_on", "capacity"}, f"campos inesperados em changes: {sorted(mud)}"
+    permitidos = {"name", "starts_on", "capacity", "ends_on", "schedule"}
+    assert set(mud) <= permitidos, f"campos inesperados em changes: {sorted(mud)}"
     for campo, (antes, depois) in esperado.items():
         assert campo in mud, f"campo {campo!r} ausente em changes: {sorted(mud)}"
         assert _igual(mud[campo]["before"], antes), f"{campo}.before = {mud[campo]['before']!r}, esperado {antes!r}"

@@ -1,7 +1,7 @@
 import os
-from typing import Dict, List
+from typing import Dict, List, Optional
 from agents.groq_client import GroqChatClient
-from agents.llm_guard import POLICY_BLOCK, LLMUnavailableError, bloco_base_conhecimento
+from agents.llm_guard import POLICY_BLOCK, LLMUnavailableError, bloco_base_conhecimento, bloco_turmas_abertas
 
 try:
     from dotenv import load_dotenv
@@ -72,15 +72,30 @@ class CourseAgent:
             formatted += f"     R: {item.get('answer')}\n"
         return formatted
     
-    def get_system_prompt(self) -> str:
+    def _secao_turmas(self, turmas: Optional[List[Dict]]) -> str:
+        """Turmas abertas (F5b, D76): dado delimitado mais a instrução, que fica fora do bloco de dados."""
+        if turmas is None:
+            return ""
+        return f"""
+TURMAS ABERTAS DESTE CURSO (lista fornecida pela plataforma):
+{bloco_turmas_abertas(turmas)}
+
+Sobre as turmas: apresente as turmas abertas listadas acima (nome, início e vagas) e pergunte qual turma faz
+mais sentido para o usuário (data de início, disponibilidade). Turma marcada como lotada não está disponível.
+Se não houver turma aberta, diga que a matrícula é feita direto no curso. Não invente turma, data, preço nem
+link: a matrícula é feita pelo botão que a plataforma exibe junto da resposta.
+"""
+
+    def get_system_prompt(self, turmas: Optional[List[Dict]] = None) -> str:
         """Get the system prompt for this course agent"""
         knowledge = self.build_knowledge_base()
         system_prompt = self.course_data.get('system_prompt', '')
-        
+
         return f"""{POLICY_BLOCK}
 {system_prompt}
 
 {bloco_base_conhecimento(knowledge)}
+{self._secao_turmas(turmas)}
 
 ═══════════════════════════════════════════════════════════════════
 INSTRUÇÕES OPERACIONAIS
@@ -109,6 +124,7 @@ Responda em português (pt-BR)."""
         conversation_history: List = None,
         student_context: str = None,
         history_limit: int = 10,
+        turmas: Optional[List[Dict]] = None,
     ) -> str:
         """
         Answer a question about the course
@@ -127,7 +143,7 @@ Responda em português (pt-BR)."""
                 conversation_history = []
             
             # Build messages for Groq chat
-            messages = [{"role": "system", "content": self.get_system_prompt()}]
+            messages = [{"role": "system", "content": self.get_system_prompt(turmas)}]
             if student_context:
                 messages.append({"role": "system", "content": student_context})
 

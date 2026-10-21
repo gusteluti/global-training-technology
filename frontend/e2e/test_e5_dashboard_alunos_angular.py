@@ -5,7 +5,11 @@ Decisão D35.4 P5 do PM: o dashboard mostra, por aluno, a contagem de mensagens 
 Contrato de tela (decidido pelo orquestrador): na tabela "Alunos matriculados" (aba "Alunos" de /admin)
 entram duas colunas novas, com cabeçalhos exatos "Mensagens no chat" e "Última conversa". Em cada linha:
   data-testid="aluno-chat-count"  -> o número (0 se nunca conversou)
-  data-testid="aluno-last-chat"   -> o valor de last_chat_at como veio da API, ou "—" quando for null
+  data-testid="aluno-last-chat"   -> o last_chat_at da API (UTC) convertido para America/Sao_Paulo no
+                                     formato dd/MM/aaaa HH:mm, ou "—" quando for null
+                                     (D37 -> D71: antes era o valor cru da API; a D71 passou as datas das
+                                     telas para o horário de São Paulo. Intenção preservada: a célula reflete
+                                     a última conversa do aluno certo, e "—" quando não há)
 O colspan da linha "Nenhum aluno matriculado ainda." acompanha as 7 colunas (não coberto aqui: o
 cenário sempre tem alunos; fica para revisão de código).
 
@@ -14,7 +18,8 @@ Cenários (checks numerados):
      tabela "Alunos matriculados" mostra as linhas dos três alunos semeados
   S2 pré-condição: o mesmo para o perfil Suporte (conta própria do servidor deste teste)
   D1/D3 (admin / suporte) a tabela tem os cabeçalhos "Mensagens no chat" e "Última conversa"
-  D2/D4 (admin / suporte) aluno A mostra 2 e B mostra 1 (data exibida e igual a last_chat_at da API),
+  D2/D4 (admin / suporte) aluno A mostra 2 e B mostra 1 (data exibida igual a last_chat_at da API
+        convertido para São Paulo, dd/MM/aaaa HH:mm, D71),
         C mostra 0 e "—"
   P1 privacidade: o texto das mensagens do aluno e as respostas do bot não aparecem em lugar nenhum da
      página (texto visível e HTML), em nenhum dos dois perfis, nem na resposta da API do dashboard
@@ -194,6 +199,13 @@ def validar_cabecalhos(page, rotulo):
         raise Falha(f"{rotulo}: 'Mensagens no chat' deve vir antes de 'Última conversa' ({heads})")
 
 
+def _utc_para_sao_paulo(valor):
+    """last_chat_at da API (UTC, 'AAAA-MM-DD HH:MM:SS') -> 'dd/MM/aaaa HH:mm' em São Paulo (UTC-3, D71)."""
+    from datetime import datetime, timedelta
+    instante = datetime.strptime(str(valor).replace("T", " ")[:19], "%Y-%m-%d %H:%M:%S")
+    return (instante - timedelta(hours=3)).strftime("%d/%m/%Y %H:%M")
+
+
 def validar_contagens(page, rotulo, alunos, esperado_api):
     """alunos: {tag: email}. esperado_api: {email: item da API}. Contagens fixas: A=2, B=1, C=0."""
     esperado = {"a": 2, "b": 1, "c": 0}
@@ -214,8 +226,10 @@ def validar_contagens(page, rotulo, alunos, esperado_api):
                 raise Falha(f"{rotulo}: a API não devolveu last_chat_at do aluno {tag.upper()}")
             if data == SEM_CONVERSA or not data:
                 raise Falha(f"{rotulo}: aluno {tag.upper()} conversou, mas a data não é exibida ('{data}')")
-            if data != last:
-                raise Falha(f"{rotulo}: aluno {tag.upper()} mostra '{data}', last_chat_at da API é '{last}'")
+            esperado_tela = _utc_para_sao_paulo(last)
+            if data != esperado_tela:
+                raise Falha(f"{rotulo}: aluno {tag.upper()} mostra '{data}', last_chat_at da API é '{last}' "
+                            f"(esperado '{esperado_tela}' em São Paulo, D71)")
 
 
 def test_e5_dashboard_alunos_angular_e2e(servidores, browser):

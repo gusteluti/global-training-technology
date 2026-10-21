@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel, Field, field_validator
 from typing import Annotated, Any, List, Dict, Optional
 from dotenv import load_dotenv
-from datetime import date
+from datetime import date, datetime, timezone
 import json
+import os
 import re
+import uuid
 from pathlib import Path
 
 from core.security import (
@@ -17,11 +19,24 @@ from core.security import (
     TOKEN_TTL_SECONDS,
 )
 from core.audit import change, legacy_actor, record_audit
+from core import login_limit
+from core.notifications import send_password_setup_link
+from core.password_setup import emitir_token_definicao
+from admin import course_draft
 from db import Database
 
 load_dotenv()
 router = APIRouter()
 COURSES_DIR = Path(__file__).parent.parent / "courses"
+
+# S10 (D79): id de curso. Só ids neste padrão (string inteira) são criados ou procurados; qualquer outro vale como
+# curso inexistente e nunca monta caminho de arquivo.
+PADRAO_ID_CURSO = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}")
+ERRO_ID_CURSO = "Id do curso inválido: use letras minúsculas, números, _ ou -."
+
+
+def id_curso_valido(course_id: Any) -> bool:
+    return isinstance(course_id, str) and PADRAO_ID_CURSO.fullmatch(course_id) is not None
 
 class MaterialInput(BaseModel):
     """Material didático. Só aparece para o aluno com matrícula ativa (E3, D28)."""
@@ -45,6 +60,8 @@ class CourseInput(BaseModel):
     system_prompt: str
     # Opcional: cursos antigos continuam aceitos sem o campo (E3, D28).
     materials: List[MaterialInput] = []
+    # F1 (D68): curso arquivado sai do catálogo, do chat e das vendas. Opcional; no PUT, omitido preserva.
+    archived: bool = False
 
 class AdminLoginInput(BaseModel):
     password: str
@@ -63,6 +80,10 @@ ERR_TURMA_COM_MATRICULAS = "A turma tem matrículas e não pode ser removida."
 ERR_TURMA_OUTRO_CURSO = "A turma pertence a outro curso."
 ERR_MATRICULA_STATUS = "Só matrículas pendentes ou ativas podem ser atribuídas a uma turma."
 ERR_TURMA_CHEIA = "A turma está cheia."
+# U8 (D83): término e horário da turma.
+CLASS_SCHEDULE_MAX = 120
+ERR_TERMINO_ANTES_INICIO = "A data de término não pode ser anterior ao início."
+ERR_HORARIO_LONGO = "O horário pode ter no máximo 120 caracteres."
 
 ClassCapacity = Annotated[int, Field(strict=True, ge=1, le=CLASS_CAPACITY_MAX)]
 
@@ -88,33 +109,63 @@ def _validar_data_turma(valor: Optional[str]) -> Optional[str]:
     return valor
 
 
+def _aparar_horario(valor: Optional[str]) -> Optional[str]:
+    """Horário livre aparado; vazio vira nulo. O limite (120) é conferido na rota, com 422 de texto fixo."""
+    if valor is None:
+        return None
+    horario = valor.strip()
+    return horario or None
+
+
 class ClassCreateInput(BaseModel):
     course_id: str
     name: str
     starts_on: Optional[str] = None
+    ends_on: Optional[str] = None
+    schedule: Optional[str] = None
     capacity: Optional[ClassCapacity] = None
 
     nome_valido = field_validator("name")(_validar_nome_turma)
-    data_valida = field_validator("starts_on")(_validar_data_turma)
+    data_valida = field_validator("starts_on", "ends_on")(_validar_data_turma)
+    horario_aparado = field_validator("schedule")(_aparar_horario)
 
 
 class ClassUpdateInput(BaseModel):
-    """Só os campos enviados mudam; null limpa starts_on e capacity (o nome não pode ser nulo)."""
+    """Só os campos enviados mudam; null limpa starts_on, ends_on, schedule e capacity (o nome não pode ser nulo)."""
     name: Optional[str] = None
     starts_on: Optional[str] = None
+    ends_on: Optional[str] = None
+    schedule: Optional[str] = None
     capacity: Optional[ClassCapacity] = None
 
     nome_valido = field_validator("name")(_validar_nome_turma)
-    data_valida = field_validator("starts_on")(_validar_data_turma)
+    data_valida = field_validator("starts_on", "ends_on")(_validar_data_turma)
+    horario_aparado = field_validator("schedule")(_aparar_horario)
+
+
+def _conferir_horario(schedule: Optional[str]) -> None:
+    if schedule is not None and len(schedule) > CLASS_SCHEDULE_MAX:
+        raise HTTPException(status_code=422, detail=ERR_HORARIO_LONGO)
 
 
 class EnrollmentClassInput(BaseModel):
     class_id: Optional[Annotated[int, Field(strict=True)]]
 
+# Curso: trava de exclusão e arquivamento (F1, D68).
+ERR_CURSO_COM_MATRICULAS = ("Não é possível excluir: o curso tem alunos matriculados. "
+                            "Arquive o curso para tirá-lo do catálogo.")
+ERR_CURSO_INDISPONIVEL = "Este curso não está disponível para novas matrículas."
+
+
+def curso_arquivado(course_data: Optional[Dict]) -> bool:
+    """Só `archived: true` arquiva; curso antigo sem a chave vale como não arquivado."""
+    return bool(course_data) and course_data.get("archived") is True
+
+
 # Campos do curso auditados na edição (D45). Os de lista ausentes no arquivo valem [].
 COURSE_AUDIT_FIELDS = [
     "price", "name", "description", "duration_hours", "level", "target_audience",
-    "objectives", "topics", "benefits", "faq", "system_prompt", "materials",
+    "objectives", "topics", "benefits", "faq", "system_prompt", "materials", "archived",
 ]
 COURSE_LIST_FIELDS = {"objectives", "topics", "benefits", "faq", "materials"}
 
@@ -137,16 +188,22 @@ def _course_changes(before_data: Dict, after_data: Dict) -> List[Dict]:
         if field in COURSE_LIST_FIELDS:
             before = [] if before is None else before
             after = [] if after is None else after
+        if field == "archived":
+            before, after = curso_arquivado(before_data), curso_arquivado(after_data)
         if not _same_value(before, after):
             changes.append(change(field, before, after))
     return changes
 
 @router.post("/login")
-async def admin_login(credentials: AdminLoginInput):
+async def admin_login(credentials: AdminLoginInput, request: Request):
+    # S2 (D79): o login legado (só senha) é limitado por IP.
+    ip = login_limit.ip_do_cliente(request)
+    login_limit.exigir_nao_bloqueado(None, ip)
     try:
         role = resolve_role_from_password(credentials.password)
     except HTTPException as exc:
         if exc.status_code == 401:
+            login_limit.registrar_falha(None, ip)
             # Senha inválida: nunca grava a senha digitada nem diz de quem foi a tentativa.
             record_audit(
                 "staff.login_failed",
@@ -173,17 +230,46 @@ async def get_audit_logs(
     action: Optional[str] = None,
     user_id: Optional[int] = None,
     limit: int = Database.AUDIT_LIST_DEFAULT_LIMIT,
+    q: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    offset: int = Query(0, ge=0),
     current_user: AuthContext = Depends(require_roles(Role.ADMIN)),
 ):
     """Trilhas de auditoria dos eventos críticos da área do funcionário (Fase 2 - Governança).
 
     Somente leitura (E8): não há rota para alterar ou apagar eventos. `user_id` aqui é filtro de consulta.
-    Padrão de 100 itens; acima de 500 vale 500.
+    Padrão de 100 itens; acima de 500 vale 500. U1 (D74): `q` na descrição ou no e-mail do responsável,
+    `date_from`/`date_to` (AAAA-MM-DD, dias de São Paulo, inclusivos; inválida -> 422) e `offset`.
     """
     return {
         "status": "success",
-        "logs": Database.list_audit_logs(limit=limit, action=action, user_id=user_id),
+        "logs": Database.list_audit_logs(
+            limit=limit,
+            action=action,
+            user_id=user_id,
+            q=q.strip() if q and q.strip() else None,
+            date_from=_data_iso_ou_422(date_from, "date_from"),
+            date_to=_data_iso_ou_422(date_to, "date_to"),
+            offset=offset,
+        ),
     }
+
+
+_DATA_ISO = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _data_iso_ou_422(valor: Optional[str], campo: str) -> Optional[str]:
+    """'AAAA-MM-DD' de calendário válida ou 422 (U1, D74). Vazio = sem filtro."""
+    if valor is None or not valor.strip():
+        return None
+    valor = valor.strip()
+    try:
+        if not _DATA_ISO.match(valor):
+            raise ValueError
+        return date.fromisoformat(valor).isoformat()
+    except ValueError:
+        raise HTTPException(status_code=422, detail=f"{campo} inválida: use AAAA-MM-DD.")
 
 @router.post("/create-course")
 async def create_course(course: CourseInput, request: Request, current_user: AuthContext = Depends(require_roles(Role.ADMIN))):
@@ -191,6 +277,8 @@ async def create_course(course: CourseInput, request: Request, current_user: Aut
     Create a new course from form data
     Saves as JSON file in courses directory
     """
+    if not id_curso_valido(course.id):
+        raise HTTPException(status_code=422, detail=ERRO_ID_CURSO)
     try:
         courses_dir = Path(__file__).parent.parent / "courses"
         courses_dir.mkdir(exist_ok=True)
@@ -207,6 +295,9 @@ async def create_course(course: CourseInput, request: Request, current_user: Aut
             **course.dict(),
             "created_at": __import__('datetime').datetime.now().isoformat()
         }
+        # `archived` só é gravado quando verdadeiro: curso novo fica com as chaves de antes (compatibilidade, F1).
+        if course_data.get("archived") is not True:
+            course_data.pop("archived", None)
 
         # Save to JSON
         with open(course_file, 'w', encoding='utf-8') as f:
@@ -235,11 +326,40 @@ async def create_course(course: CourseInput, request: Request, current_user: Aut
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error creating course: {str(e)}")
 
+@router.post("/course-draft")
+def course_draft_from_file(file: UploadFile = File(...),
+                           current_user: AuthContext = Depends(require_roles(Role.ADMIN))):
+    """Rascunho de curso a partir de anexo JSON ou PDF (F7, D78). Nada é gravado: o curso só nasce quando a
+    Gestão salva o formulário pela rota de criação. O responsável vem só do token."""
+    conteudo = file.file.read(course_draft.MAX_BYTES + 1)
+    if len(conteudo) > course_draft.MAX_BYTES:
+        raise HTTPException(status_code=413, detail=course_draft.MSG_413)
+    try:
+        formato, dados = course_draft.detectar_formato(conteudo)
+        if formato == "json":
+            draft, warnings = course_draft.montar_rascunho(dados, "json")
+        else:
+            draft, warnings = course_draft.rascunho_do_pdf(conteudo)
+    except course_draft.DraftError as erro:
+        raise HTTPException(status_code=erro.status_code, detail=erro.detail)
+
+    nome = course_draft.sanitizar_nome_arquivo(file.filename)
+    record_audit(
+        "course.draft_from_file",
+        f"Rascunho de curso gerado a partir de arquivo {formato.upper()} ({nome})",
+        user=current_user,
+        entity_type="course",
+    )
+    return {"status": "success", "format": formato, "draft": draft, "warnings": warnings}
+
 @router.get("/courses")
 async def list_courses(current_user: AuthContext = Depends(require_staff)):
     """List all available courses"""
     try:
-        courses = list_course_summaries()
+        courses = list_course_summaries(include_archived=True)
+        contagens = Database.count_enrollments_by_course()
+        for course in courses:
+            course["enrollments_count"] = contagens.get(course["id"], 0)
         return {
             "status": "success",
             "total": len(courses),
@@ -253,10 +373,7 @@ async def list_courses(current_user: AuthContext = Depends(require_staff)):
 async def get_course(course_id: str, current_user: AuthContext = Depends(require_staff)):
     """Get full details of a specific course"""
     try:
-        courses_dir = Path(__file__).parent.parent / "courses"
-        course_file = courses_dir / f"{course_id}.json"
-        if not course_file.exists():
-            course_file = _find_course_file_by_id(courses_dir, course_id)
+        course_file = _arquivo_do_curso(Path(__file__).parent.parent / "courses", course_id)
 
         if not course_file:
             raise HTTPException(status_code=404, detail="Course not found")
@@ -278,10 +395,7 @@ async def get_course(course_id: str, current_user: AuthContext = Depends(require
 async def update_course(course_id: str, course: CourseInput, request: Request, current_user: AuthContext = Depends(require_roles(Role.ADMIN))):
     """Update an existing course"""
     try:
-        courses_dir = Path(__file__).parent.parent / "courses"
-        course_file = courses_dir / f"{course_id}.json"
-        if not course_file.exists():
-            course_file = _find_course_file_by_id(courses_dir, course_id)
+        course_file = _arquivo_do_curso(Path(__file__).parent.parent / "courses", course_id)
 
         if not course_file:
             raise HTTPException(status_code=404, detail="Course not found")
@@ -295,6 +409,12 @@ async def update_course(course_id: str, course: CourseInput, request: Request, c
         new_data = course.dict()
         if "materials" not in course.model_fields_set:
             new_data["materials"] = existing_data.get("materials", [])
+        # `archived` omitido preserva o valor atual (F1); curso antigo sem a chave continua sem a chave.
+        if "archived" not in course.model_fields_set:
+            if "archived" in existing_data:
+                new_data["archived"] = curso_arquivado(existing_data)
+            else:
+                new_data.pop("archived", None)
 
         # Update with new data
         course_data = {
@@ -346,10 +466,7 @@ async def update_course(course_id: str, course: CourseInput, request: Request, c
 async def delete_course(course_id: str, request: Request, current_user: AuthContext = Depends(require_roles(Role.ADMIN))):
     """Delete a course"""
     try:
-        courses_dir = Path(__file__).parent.parent / "courses"
-        course_file = courses_dir / f"{course_id}.json"
-        if not course_file.exists():
-            course_file = _find_course_file_by_id(courses_dir, course_id)
+        course_file = _arquivo_do_curso(Path(__file__).parent.parent / "courses", course_id)
 
         if not course_file:
             raise HTTPException(status_code=404, detail="Course not found")
@@ -360,8 +477,17 @@ async def delete_course(course_id: str, request: Request, current_user: AuthCont
             course_name = course_data.get('name')
             course_price = course_data.get('price')
 
-        # Delete file
-        course_file.unlink()
+        # F1 (D68): matrícula em qualquer status trava a exclusão; sem matrícula, as turmas saem junto.
+        resultado = Database.excluir_curso_sem_matriculas(course_id, course_file.unlink)
+        if resultado["outcome"] == "has_enrollments":
+            record_audit(
+                "course.delete_blocked",
+                f"Exclusão do curso '{course_name}' ({course_id}) bloqueada: o curso tem matrículas",
+                user=current_user,
+                entity_type="course",
+                entity_id=course_id,
+            )
+            raise HTTPException(status_code=409, detail=ERR_CURSO_COM_MATRICULAS)
 
         loaded_courses = reload_manager_agent_courses(request, f"course deletion: {course_id}")
         record_audit(
@@ -385,6 +511,50 @@ async def delete_course(course_id: str, request: Request, current_user: AuthCont
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error deleting course: {str(e)}")
 
+def _definir_arquivamento(course_id: str, arquivar: bool, request: Request, current_user: AuthContext) -> Dict:
+    """Grava `archived` no JSON do curso (F1). Idempotente: sem mudança, não reescreve nem grava evento."""
+    course_file = _arquivo_do_curso(Path(__file__).parent.parent / "courses", course_id)
+    if not course_file:
+        raise HTTPException(status_code=404, detail="Course not found")
+
+    with open(course_file, 'r', encoding='utf-8') as f:
+        course_data = json.load(f)
+    antes = curso_arquivado(course_data)
+    if antes == arquivar:
+        return {"status": "success", "course_id": course_id, "archived": arquivar}
+
+    course_data["archived"] = arquivar
+    course_data["updated_at"] = __import__('datetime').datetime.now().isoformat()
+    with open(course_file, 'w', encoding='utf-8') as f:
+        json.dump(course_data, f, ensure_ascii=False, indent=2)
+
+    reload_manager_agent_courses(request, f"course {'archive' if arquivar else 'unarchive'}: {course_id}")
+    nome = course_data.get("name")
+    record_audit(
+        "course.archive" if arquivar else "course.unarchive",
+        f"Curso '{nome}' ({course_id}) {'arquivado' if arquivar else 'desarquivado'}",
+        user=current_user,
+        entity_type="course",
+        entity_id=course_id,
+        changes=[change("archived", antes, arquivar)],
+    )
+    return {"status": "success", "course_id": course_id, "archived": arquivar}
+
+
+@router.post("/course/{course_id}/archive")
+async def archive_course(course_id: str, request: Request,
+                         current_user: AuthContext = Depends(require_roles(Role.ADMIN))):
+    """Arquiva o curso (F1, D68): sai do catálogo, do chat e das vendas; o aluno ativo mantém o acesso."""
+    return _definir_arquivamento(course_id, True, request, current_user)
+
+
+@router.post("/course/{course_id}/unarchive")
+async def unarchive_course(course_id: str, request: Request,
+                           current_user: AuthContext = Depends(require_roles(Role.ADMIN))):
+    """Desarquiva o curso (F1): volta ao catálogo, ao chat e às vendas."""
+    return _definir_arquivamento(course_id, False, request, current_user)
+
+
 def reload_manager_agent_courses(request: Request, reason: str):
     """Reload in-memory course agents so chat can see admin changes immediately."""
     manager_agent = getattr(request.app.state, "manager_agent", None)
@@ -402,6 +572,9 @@ def reload_manager_agent_courses(request: Request, reason: str):
     return loaded_courses
 
 def load_course_data(course_id: str) -> Dict:
+    """Dados do curso pelo id; id fora do padrão (S10) ou curso ausente -> 404 `Course not found`."""
+    if not id_curso_valido(course_id):
+        raise HTTPException(status_code=404, detail="Course not found")
     course_file = COURSES_DIR / f"{course_id}.json"
     if course_file.exists():
         with open(course_file, 'r', encoding='utf-8') as f:
@@ -411,50 +584,69 @@ def load_course_data(course_id: str) -> Dict:
         for candidate in COURSES_DIR.glob("*.json"):
             with open(candidate, 'r', encoding='utf-8') as f:
                 course_data = json.load(f)
-            if course_data.get("id") == course_id:
+            if id_curso_valido(course_data.get("id")) and course_data.get("id") == course_id:
                 return course_data
 
     raise HTTPException(status_code=404, detail="Course not found")
 
+def _arquivo_do_curso(courses_dir: Path, course_id: str) -> Optional[Path]:
+    """Arquivo JSON do curso (nome `<id>.json` ou id interno igual). Id fora do padrão (S10): None, sem montar
+    caminho."""
+    if not id_curso_valido(course_id):
+        return None
+    course_file = courses_dir / f"{course_id}.json"
+    if course_file.exists():
+        return course_file
+    return _find_course_file_by_id(courses_dir, course_id)
+
 def _find_course_file_by_id(courses_dir: Path, course_id: str):
-    """Find a course JSON file whose internal id matches the requested id."""
-    if not courses_dir.exists():
+    """Find a course JSON file whose internal id matches the requested id (S10: só ids no padrão)."""
+    if not id_curso_valido(course_id) or not courses_dir.exists():
         return None
 
     for candidate in courses_dir.glob("*.json"):
         try:
             with open(candidate, 'r', encoding='utf-8') as f:
                 course_data = json.load(f)
-            if course_data.get("id") == course_id:
+            if id_curso_valido(course_data.get("id")) and course_data.get("id") == course_id:
                 return candidate
         except Exception:
             continue
 
     return None
 
-def list_course_summaries() -> List[Dict]:
+def list_course_summaries(include_archived: bool = False) -> List[Dict]:
+    """Resumo do catálogo. Padrão (público): sem cursos arquivados (F1).
+    Com `include_archived`, traz todos e o campo `archived` (lista da Gestão e dashboard)."""
     courses = []
     if COURSES_DIR.exists():
         for course_file in COURSES_DIR.glob("*.json"):
             with open(course_file, 'r', encoding='utf-8') as f:
                 course_data = json.load(f)
-                courses.append({
-                    "id": course_data.get('id'),
-                    "name": course_data.get('name'),
-                    "price": course_data.get('price'),
-                    "level": course_data.get('level')
-                })
+            arquivado = curso_arquivado(course_data)
+            if arquivado and not include_archived:
+                continue
+            resumo = {
+                "id": course_data.get('id'),
+                "name": course_data.get('name'),
+                "price": course_data.get('price'),
+                "level": course_data.get('level')
+            }
+            if include_archived:
+                resumo["archived"] = arquivado
+            courses.append(resumo)
     return courses
 
 
 # --- Turmas: rotas (L1, D53) --------------------------------------------------------------
 
-TURMA_CAMPOS = ("name", "starts_on", "capacity")
+TURMA_CAMPOS = ("name", "starts_on", "ends_on", "schedule", "capacity")
+TURMA_CAMPOS_OPCIONAIS = ("starts_on", "ends_on", "schedule", "capacity")
 
 
 def _curso_existe(course_id: str) -> bool:
-    """O curso existe no catálogo (arquivo JSON). Id com separador de caminho nunca existe."""
-    if not course_id or course_id in (".", "..") or "/" in course_id or "\\" in course_id:
+    """O curso existe no catálogo (arquivo JSON). Id fora do padrão (S10) nunca existe."""
+    if not id_curso_valido(course_id):
         return False
     try:
         load_course_data(course_id)
@@ -472,6 +664,8 @@ def _descrever_turma(valores: Dict) -> str:
     partes = [f"'{valores.get('name')}'"]
     if valores.get("starts_on"):
         partes.append(f"início {valores['starts_on']}")
+    if valores.get("ends_on"):
+        partes.append(f"término {valores['ends_on']}")
     if valores.get("capacity") is not None:
         partes.append(f"capacidade {valores['capacity']}")
     return ", ".join(partes)
@@ -488,12 +682,16 @@ async def list_classes(
 
 @router.post("/classes")
 async def create_class(body: ClassCreateInput, current_user: AuthContext = Depends(require_roles(Role.ADMIN))):
+    _conferir_horario(body.schedule)
+    if body.starts_on is not None and body.ends_on is not None and body.ends_on < body.starts_on:
+        raise HTTPException(status_code=422, detail=ERR_TERMINO_ANTES_INICIO)
     if not _curso_existe(body.course_id):
         raise HTTPException(status_code=404, detail="Course not found")
-    class_id = Database.create_class(body.course_id, body.name, body.starts_on, body.capacity)
+    class_id = Database.create_class(body.course_id, body.name, body.starts_on, body.capacity,
+                                     ends_on=body.ends_on, schedule=body.schedule)
     if class_id is None:
         raise HTTPException(status_code=409, detail=ERR_TURMA_DUPLICADA)
-    novos = {"name": body.name, "starts_on": body.starts_on, "capacity": body.capacity}
+    novos = {campo: getattr(body, campo) for campo in TURMA_CAMPOS}
     record_audit(
         "class.create",
         f"Turma {_descrever_turma(novos)} criada no curso {body.course_id}",
@@ -501,7 +699,7 @@ async def create_class(body: ClassCreateInput, current_user: AuthContext = Depen
         entity_type="class",
         entity_id=class_id,
         changes=[change("name", None, body.name)] + [
-            change(campo, None, novos[campo]) for campo in ("starts_on", "capacity") if novos[campo] is not None
+            change(campo, None, novos[campo]) for campo in TURMA_CAMPOS_OPCIONAIS if novos[campo] is not None
         ],
     )
     return {"status": "success", "class": Database.get_class(class_id)}
@@ -514,9 +712,12 @@ async def update_class(
     current_user: AuthContext = Depends(require_roles(Role.ADMIN)),
 ):
     enviados = {campo: getattr(body, campo) for campo in TURMA_CAMPOS if campo in body.model_fields_set}
+    _conferir_horario(enviados.get("schedule"))
     resultado = Database.update_class(class_id, enviados)
     if resultado["outcome"] == "not_found":
         raise HTTPException(status_code=404, detail="Class not found")
+    if resultado["outcome"] == "ends_before_start":
+        raise HTTPException(status_code=422, detail=ERR_TERMINO_ANTES_INICIO)
     if resultado["outcome"] == "duplicate_name":
         raise HTTPException(status_code=409, detail=ERR_TURMA_DUPLICADA)
     if resultado["outcome"] == "capacity_below_total":
@@ -549,7 +750,7 @@ async def delete_class(class_id: int, current_user: AuthContext = Depends(requir
         entity_type="class",
         entity_id=class_id,
         changes=[change("name", antes["name"], None)] + [
-            change(campo, antes[campo], None) for campo in ("starts_on", "capacity") if antes[campo] is not None
+            change(campo, antes[campo], None) for campo in TURMA_CAMPOS_OPCIONAIS if antes[campo] is not None
         ],
     )
     return {"status": "success", "message": "Turma removida."}
@@ -598,3 +799,146 @@ async def set_enrollment_class(
             changes=[change("class_id", antes["id"] if antes else None, depois["id"] if depois else None)],
         )
     return {"status": "success", "enrollment_id": enrollment_id, "class_id": body.class_id}
+
+
+# --- Conta do aluno: desativar / reativar (S4, D80) ---------------------------------------------------------------
+
+ERRO_ALUNO_NAO_ENCONTRADO = "Aluno não encontrado"
+
+
+def _alterar_conta_do_aluno(user_id: int, ativo: bool, current_user: AuthContext) -> dict:
+    """Só Gestão. Id que não é de aluno (inexistente, funcionário, fora do INTEGER) -> 404. Idempotente: o evento
+    só é gravado quando o estado muda. O responsável vem do token."""
+    resultado = Database.set_student_active(user_id, ativo)
+    if resultado is None:
+        raise HTTPException(status_code=404, detail=ERRO_ALUNO_NAO_ENCONTRADO)
+    if resultado["changed"]:
+        record_audit(
+            "student.reactivate" if ativo else "student.deactivate",
+            f"Conta do aluno {user_id} {'reativada' if ativo else 'desativada'}",
+            user=current_user,
+            entity_type="student",
+            entity_id=str(user_id),
+            changes=[change("is_active", not ativo, ativo)],
+        )
+    return {"status": "success", "user_id": user_id, "is_active": ativo}
+
+
+@router.post("/students/{user_id}/deactivate")
+async def deactivate_student(user_id: int, current_user: AuthContext = Depends(require_roles(Role.ADMIN))):
+    return _alterar_conta_do_aluno(user_id, False, current_user)
+
+
+@router.post("/students/{user_id}/reactivate")
+async def reactivate_student(user_id: int, current_user: AuthContext = Depends(require_roles(Role.ADMIN))):
+    return _alterar_conta_do_aluno(user_id, True, current_user)
+
+
+# --- Matrícula manual pela Gestão (U4, D81) -----------------------------------------------------------------------
+
+MOTIVO_MIN, MOTIVO_MAX = 5, 300
+EMAIL_MAX = 254
+_PADRAO_EMAIL = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
+ERR_JA_MATRICULADO = "O aluno já está matriculado neste curso."
+ERR_EMAIL_FUNCIONARIO = "Este e-mail pertence a um funcionário."
+ERR_TURMA_NAO_ENCONTRADA = "Turma não encontrada"
+ERR_TURMA_LOTADA = "Esta turma está lotada. Escolha outra turma."
+NOME_ALUNO_MAX = 120
+
+
+class ManualEnrollmentInput(BaseModel):
+    """Corpo da matrícula manual. Campos extras (user_id etc.) são ignorados: o aluno é o do e-mail e o
+    responsável vem do token."""
+    email: str
+    name: Optional[str] = None
+    course_id: str
+    class_id: Optional[int] = None
+    reason: str
+    amount: float = Field(0, ge=0, allow_inf_nan=False)
+
+    @field_validator("email")
+    @classmethod
+    def _email_valido(cls, valor: str) -> str:
+        valor = (valor or "").strip()
+        if len(valor) > EMAIL_MAX or not _PADRAO_EMAIL.fullmatch(valor):
+            raise ValueError("Informe um e-mail válido.")
+        return valor
+
+    @field_validator("name")
+    @classmethod
+    def _nome_valido(cls, valor: Optional[str]) -> Optional[str]:
+        if valor is None:
+            return None
+        valor = valor.strip()
+        if len(valor) > NOME_ALUNO_MAX:
+            raise ValueError(f"O nome deve ter no máximo {NOME_ALUNO_MAX} caracteres.")
+        return valor or None
+
+    @field_validator("reason")
+    @classmethod
+    def _motivo_valido(cls, valor: str) -> str:
+        valor = (valor or "").strip()
+        if not MOTIVO_MIN <= len(valor) <= MOTIVO_MAX:
+            raise ValueError(f"O motivo deve ter de {MOTIVO_MIN} a {MOTIVO_MAX} caracteres.")
+        return valor
+
+
+@router.post("/enrollments")
+async def create_manual_enrollment(
+    body: ManualEnrollmentInput,
+    current_user: AuthContext = Depends(require_roles(Role.ADMIN)),
+):
+    """Matrícula manual (U4, D81): matrícula `active` e pagamento `approved` `manual` com o valor informado (padrão 0,
+    cortesia), numa transação. Conta inexistente é criada sem senha e recebe o link de definição da E2 (depois do
+    commit). Curso inexistente/arquivado 404; turma pelas regras da D75; aluno já ativo e e-mail de funcionário 409."""
+    course = load_course_data(body.course_id)
+    if curso_arquivado(course):
+        raise HTTPException(status_code=404, detail="Course not found")
+    course_id = course.get("id") or body.course_id
+    amount = round(float(body.amount), 2)
+    nome = body.name or body.email.split("@", 1)[0]
+    referencia = f"{course_id}:{int(datetime.now(timezone.utc).timestamp())}:{uuid.uuid4().hex[:8]}"
+
+    resultado = Database.matricular_manualmente(body.email, nome, course_id, body.class_id, amount, referencia)
+    outcome = resultado["outcome"]
+    if outcome == "staff":
+        raise HTTPException(status_code=409, detail=ERR_EMAIL_FUNCIONARIO)
+    if outcome == "already_active":
+        raise HTTPException(status_code=409, detail=ERR_JA_MATRICULADO)
+    if outcome == "class_not_found":
+        raise HTTPException(status_code=404, detail=ERR_TURMA_NAO_ENCONTRADA)
+    if outcome == "class_full":
+        raise HTTPException(status_code=409, detail=ERR_TURMA_LOTADA)
+
+    # Depois do commit: link de definição de senha para a conta criada agora (mesmo mecanismo da E2).
+    if resultado["user_created"]:
+        token = emitir_token_definicao(resultado["user_id"])
+        base = os.getenv("FRONTEND_BASE_URL", "http://localhost:8000").rstrip("/")
+        send_password_setup_link(body.email, f"{base}/definir-senha?token={token}")
+
+    turma = (f"turma '{resultado['class_name']}' (#{resultado['class_id']})"
+             if resultado["class_id"] is not None else "sem turma")
+    record_audit(
+        "enrollment.manual",
+        f"Matrícula manual de {body.email} no curso {course_id}, {turma}, valor R$ {amount:.2f}. "
+        f"Motivo: {body.reason}",
+        user=current_user,
+        entity_type="enrollment",
+        entity_id=resultado["enrollment_id"],
+        changes=[
+            change("enrollment.status", "pending" if resultado["reused"] else None, "active"),
+            change("enrollment.course_id", None, course_id),
+            change("enrollment.class_id", None, resultado["class_id"]),
+            change("payment.amount", None, amount),
+            change("payment.payment_method", None, "manual"),
+            change("reason", None, body.reason),
+        ],
+    )
+    return {
+        "status": "success",
+        "enrollment_id": resultado["enrollment_id"],
+        "payment_id": resultado["payment_id"],
+        "user_id": resultado["user_id"],
+        "account_created": resultado["user_created"],
+        "class_id": resultado["class_id"],
+    }

@@ -3,8 +3,9 @@ import os
 import re
 import unicodedata
 import uuid
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 from agents import ai_observability
 from agents.course_agent import CourseAgent
 from agents.groq_client import GroqChatClient
@@ -16,6 +17,7 @@ from agents.llm_guard import (
     filtrar_saida,
     precos_do_catalogo,
 )
+from db import Database
 
 # Load environment variables if not already loaded
 try:
@@ -25,6 +27,42 @@ except ImportError:
     pass
 
 _SESSION_ID = re.compile(r"[0-9a-f]{32}")
+
+MAX_ENROLL_ACTIONS = 3
+# S9 (D79): teto de sessões anônimas em memória; ao abrir uma nova acima do teto, sai a menos recente.
+MAX_ANON_SESSIONS = 5000
+LABEL_MATRICULAR_CURSO = "Matricular no curso"
+
+
+@dataclass
+class RespostaChat:
+    """Resultado de uma resposta do chat (F5b): o texto já filtrado e os dados que o servidor usa para montar
+    as ações. `turmas` é a lista de turmas abertas (D75) do curso roteado; None quando não se aplica ou não foi
+    possível ler."""
+
+    texto: str
+    curso: Optional[str] = None
+    barrada: bool = False
+    turmas: Optional[List[Dict]] = field(default=None)
+
+
+def montar_acoes(resposta: Optional[RespostaChat], cursos_ativos: Iterable[str] = ()) -> List[Dict]:
+    """Ações de matrícula da resposta (D76), montadas só com dados do servidor, nunca com o texto do LLM.
+
+    Sem ação: resposta geral, saída barrada, turmas ilegíveis ou curso em que o aluno já tem matrícula active.
+    Curso sem turma aberta -> uma ação com class_id nulo. Com turmas: até 3 com vaga, na ordem da D75; todas
+    lotadas -> nenhuma ação."""
+    if resposta is None or not resposta.curso or resposta.barrada or resposta.turmas is None:
+        return []
+    if resposta.curso in set(cursos_ativos or ()):
+        return []
+    if not resposta.turmas:
+        return [{"type": "enroll", "course_id": resposta.curso, "class_id": None, "label": LABEL_MATRICULAR_CURSO}]
+    com_vaga = [t for t in resposta.turmas if t.get("seats_left") is None or t.get("seats_left") > 0]
+    return [
+        {"type": "enroll", "course_id": resposta.curso, "class_id": t["id"], "label": f"Matricular na turma {t['name']}"}
+        for t in com_vaga[:MAX_ENROLL_ACTIONS]
+    ]
 
 
 class ManagerAgent:
@@ -61,6 +99,9 @@ class ManagerAgent:
             try:
                 with open(course_file, 'r', encoding='utf-8') as f:
                     course_data = json.load(f)
+                    # F1 (D68): curso arquivado fica fora do catálogo do bot e não ganha Course Agent.
+                    if course_data.get('archived') is True:
+                        continue
                     course_id = course_data.get('id', course_file.stem)
                     courses[course_id] = course_data
                     
@@ -232,10 +273,16 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
         truncado, sessão extinta) abre uma sessão nova com id novo; o valor do cliente nunca é ecoado.
         """
         if isinstance(session_id, str) and _SESSION_ID.fullmatch(session_id) and session_id in self.sessions:
+            # Uso recente vai para o fim da ordem (a menos recente fica no começo).
+            self.sessions[session_id] = self.sessions.pop(session_id)
             return session_id
         novo = uuid.uuid4().hex
         while novo in self.sessions:
             novo = uuid.uuid4().hex
+        # S9 (D79): respeita o teto descartando as sessões menos recentes antes de abrir a nova.
+        teto = max(1, int(MAX_ANON_SESSIONS))
+        while len(self.sessions) >= teto:
+            self.sessions.pop(next(iter(self.sessions)))
         self.sessions[novo] = []
         return novo
 
@@ -243,7 +290,7 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
         """Filtro de saída (D38.5): descarta desconto, valor fora do catálogo e vazamento de prompt."""
         return filtrar_saida(resposta, precos_do_catalogo(self.courses.values()))
 
-    def process_message(self, user_message: str, session_id: str) -> str:
+    def process_message(self, user_message: str, session_id: str) -> RespostaChat:
         """
         Process user message and route to appropriate agent or respond directly.
 
@@ -268,9 +315,9 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
 
             response = self._responder(user_message, conversation_history)
 
-        # Store in history
+        # Store in history (só o texto; as ações da F5b não entram no histórico)
         self.sessions[session_id].append({"role": "user", "content": user_message})
-        self.sessions[session_id].append({"role": "assistant", "content": response})
+        self.sessions[session_id].append({"role": "assistant", "content": response.texto})
 
         # Keep only last 20 messages in history to avoid context overflow
         if len(self.sessions[session_id]) > 40:
@@ -279,23 +326,28 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
         return response
 
     def _responder(self, user_message: str, conversation_history: List, student_context: str = None,
-                   history_limit: int = 10) -> str:
+                   history_limit: int = 10) -> RespostaChat:
         """Identifica o curso, responde (Course Agent ou resposta geral), aplica o filtro de saída e grava
-        a interação (E7). Levanta LLMUnavailableError, depois de gravar a interação como 'llm_error'."""
+        a interação (E7). Levanta LLMUnavailableError, depois de gravar a interação como 'llm_error'.
+        Devolve o texto filtrado com o curso roteado, se a saída foi barrada e as turmas abertas (F5b)."""
         course_id, is_specific = self.identify_course_intent(user_message)
         curso = course_id if is_specific and course_id in self.course_agents else None
+        turmas = self._turmas_abertas(curso) if curso else None
 
         try:
             if curso:
                 resposta = self.course_agents[curso].answer_question(
-                    user_message, conversation_history, student_context=student_context, history_limit=history_limit
+                    user_message, conversation_history, student_context=student_context, history_limit=history_limit,
+                    turmas=turmas,
                 )
             else:
                 resposta = self._answer_general_question(
                     user_message, conversation_history, student_context=student_context, history_limit=history_limit
                 )
-        except LLMUnavailableError:
+        except LLMUnavailableError as erro:
             ai_observability.registrar_interacao("llm_error", curso)
+            # F6 (D77): o curso roteado acompanha o erro para o texto do handoff (nunca dado do usuário).
+            erro.curso = curso
             raise
 
         filtrada = self._filtrar_saida(resposta)
@@ -306,9 +358,18 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
         else:
             outcome = "unresolved"
         ai_observability.registrar_interacao(outcome, curso, user_message)
-        return filtrada
+        return RespostaChat(texto=filtrada, curso=curso, barrada=filtrada != resposta, turmas=turmas)
 
-    def process_authenticated_message(self, user_message: str, student_context: str, history: List) -> str:
+    @staticmethod
+    def _turmas_abertas(course_id: str) -> Optional[List[Dict]]:
+        """Turmas abertas para venda (D75). None se o banco não puder ser lido: sem turmas no prompt e sem ação."""
+        try:
+            return Database.list_open_classes_for_sale(course_id)
+        except Exception as e:
+            print(f"Error listing open classes: {type(e).__name__}")
+            return None
+
+    def process_authenticated_message(self, user_message: str, student_context: str, history: List) -> RespostaChat:
         """Chat do aluno logado (E5). Não lê nem grava em self.sessions.
 
         `history` são as mensagens persistidas do próprio aluno (anteriores à atual, já limitadas pelo

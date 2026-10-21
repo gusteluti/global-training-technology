@@ -2,6 +2,7 @@ import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/co
 import { ApiService } from '../../services/api.service';
 import { AuthService } from '../../services/auth.service';
 import { Chart } from '../../charts';
+import { salvarArquivo } from '../../services/salvar-arquivo';
 
 const STATUS_LABELS: { [status: string]: string } = {
   active: 'Ativa',
@@ -26,14 +27,44 @@ export class CoursesDashboardComponent implements OnInit, OnDestroy {
   manageCourseId = '';
   newName = '';
   newStart = '';
+  newEnd = '';
+  newSchedule = '';
+  // U8 (D83): edição de turma na linha.
+  turmaEditando: any = null;
+  edicao: any = {};
+  turmaErro = '';
   newCapacity: number | null = null;
   enrollments: any[] = [];
   turmaError = '';
+
+  // Alunos do curso (F4, D73): todos os perfis internos; a tela não mostra valores.
+  alunosCurso: any = null;
+  alunos: any[] = [];
+  alunosErro = '';
+  filtroStatus = '';
+  filtroTurma = '';
+  readonly statusOpcoes = ['active', 'pending', 'cancelled', 'refunded'];
+
+  // Exportação CSV dos alunos do curso só para Gestão e Financeiro (U1, D74); Suporte não vê o botão.
+  podeExportar = false;
+  exportando = false;
+
+  // Matrícula manual (U4, D81): só a Gestão (canManage) vê o botão e o formulário.
+  manualAberto = false;
+  manualEmail = '';
+  manualNome = '';
+  manualTurma = '';
+  manualValor: number | null = 0;
+  manualMotivo = '';
+  manualOk = '';
+  manualErro = '';
+  salvandoManual = false;
 
   constructor(private api: ApiService, private auth: AuthService) { }
 
   ngOnInit(): void {
     this.canManage = this.auth.getRole() === 'admin';
+    this.podeExportar = ['admin', 'financial'].includes(this.auth.getRole() || '');
     this.loadCourses();
   }
 
@@ -51,9 +82,123 @@ export class CoursesDashboardComponent implements OnInit, OnDestroy {
     });
   }
 
+  // Atualização automática (X5, D87): pausa com turma em edição ou matrícula manual aberta; mantém os filtros.
+  get atualizacaoPausada(): boolean {
+    return !!this.turmaEditando || this.manualAberto || this.salvandoManual;
+  }
+
+  atualizar(): void {
+    this.loadCourses();
+    this.carregarAlunosCurso();
+    this.loadEnrollments();
+  }
+
   get manageClasses(): any[] {
     const course = this.courses.find(c => c.id === this.manageCourseId);
     return course?.classes || [];
+  }
+
+  abrirAlunosCurso(curso: any): void {
+    this.alunosCurso = curso;
+    this.manualAberto = false;
+    this.filtroStatus = '';
+    this.filtroTurma = '';
+    this.carregarAlunosCurso();
+  }
+
+  fecharAlunosCurso(): void {
+    this.alunosCurso = null;
+    this.manualAberto = false;
+    this.alunos = [];
+    this.alunosErro = '';
+  }
+
+  carregarAlunosCurso(): void {
+    const curso = this.alunosCurso;
+    if (!curso) {
+      return;
+    }
+    const filtros = { status: this.filtroStatus, class_id: this.filtroTurma };
+    this.alunosErro = '';
+    this.api.getCourseStudents(curso.id, filtros).subscribe({
+      next: (r: any) => {
+        if (curso === this.alunosCurso && filtros.status === this.filtroStatus && filtros.class_id === this.filtroTurma) {
+          this.alunos = r.students || [];
+        }
+      },
+      error: err => this.alunosErro = this.errorText(err)
+    });
+  }
+
+  abrirMatriculaManual(): void {
+    this.manualAberto = true;
+    this.manualEmail = '';
+    this.manualNome = '';
+    this.manualTurma = '';
+    this.manualValor = 0;
+    this.manualMotivo = '';
+    this.manualOk = '';
+    this.manualErro = '';
+  }
+
+  salvarMatriculaManual(): void {
+    const curso = this.alunosCurso;
+    if (!curso || !this.canManage || this.salvandoManual) {
+      return;
+    }
+    this.manualOk = '';
+    this.manualErro = '';
+    const body: { email: string; name?: string; course_id: string; class_id?: number; reason: string; amount?: number } = {
+      email: this.manualEmail.trim(),
+      course_id: curso.id,
+      reason: this.manualMotivo
+    };
+    if (this.manualNome.trim()) {
+      body.name = this.manualNome.trim();
+    }
+    if (this.manualTurma !== '') {
+      body.class_id = Number(this.manualTurma);
+    }
+    const valor = this.manualValor as any;
+    body.amount = valor === null || valor === undefined || valor === '' ? 0 : Number(valor);
+    this.salvandoManual = true;
+    this.api.createManualEnrollment(body).subscribe({
+      next: () => {
+        this.salvandoManual = false;
+        this.manualOk = 'Matrícula manual registrada.';
+        this.carregarAlunosCurso();
+        this.loadCourses();
+      },
+      error: err => {
+        this.salvandoManual = false;
+        const detail = err?.error?.detail;
+        if (typeof detail === 'string' && detail) {
+          this.manualErro = detail;
+        } else if (Array.isArray(detail)) {
+          this.manualErro = 'Confira os campos: o motivo precisa ter de 5 a 300 caracteres.';
+        } else {
+          this.manualErro = 'Não foi possível concluir a operação.';
+        }
+      }
+    });
+  }
+
+  exportarAlunosCurso(): void {
+    const curso = this.alunosCurso;
+    if (!curso || !this.podeExportar || this.exportando) {
+      return;
+    }
+    this.exportando = true;
+    this.api.exportCourseStudentsCsv(curso.id, { status: this.filtroStatus, class_id: this.filtroTurma }).subscribe({
+      next: resposta => {
+        this.exportando = false;
+        salvarArquivo(resposta, 'alunos-curso.csv');
+      },
+      error: () => {
+        this.exportando = false;
+        this.alunosErro = 'Não foi possível exportar o CSV.';
+      }
+    });
   }
 
   statusLabel(status: string): string {
@@ -91,12 +236,19 @@ export class CoursesDashboardComponent implements OnInit, OnDestroy {
       return;
     }
     this.turmaError = '';
-    const body: { course_id: string; name: string; starts_on?: string; capacity?: number } = {
+    const body: { course_id: string; name: string; starts_on?: string; ends_on?: string; schedule?: string;
+                  capacity?: number } = {
       course_id: this.manageCourseId,
       name: this.newName
     };
     if (this.newStart) {
       body.starts_on = this.newStart;
+    }
+    if (this.newEnd) {
+      body.ends_on = this.newEnd;
+    }
+    if (this.newSchedule.trim()) {
+      body.schedule = this.newSchedule.trim();
     }
     if (this.newCapacity !== null && this.newCapacity !== undefined && (this.newCapacity as any) !== '') {
       body.capacity = Number(this.newCapacity);
@@ -105,10 +257,64 @@ export class CoursesDashboardComponent implements OnInit, OnDestroy {
       next: () => {
         this.newName = '';
         this.newStart = '';
+        this.newEnd = '';
+        this.newSchedule = '';
         this.newCapacity = null;
         this.refresh();
       },
       error: err => this.turmaError = this.errorText(err)
+    });
+  }
+
+  editarTurma(turma: any): void {
+    this.turmaErro = '';
+    this.turmaEditando = turma;
+    this.edicao = {
+      name: turma.name,
+      starts_on: turma.starts_on || '',
+      ends_on: turma.ends_on || '',
+      schedule: turma.schedule || '',
+      capacity: turma.capacity ?? ''
+    };
+  }
+
+  salvarTurma(): void {
+    const turma = this.turmaEditando;
+    if (!turma || !this.canManage) {
+      return;
+    }
+    this.turmaErro = '';
+    const e = this.edicao;
+    const capacidade = e.capacity === '' || e.capacity === null || e.capacity === undefined ? null : Number(e.capacity);
+    const body = {
+      name: (e.name || '').trim(),
+      starts_on: e.starts_on || null,
+      ends_on: e.ends_on || null,
+      schedule: (e.schedule || '').trim() || null,
+      capacity: capacidade
+    };
+    this.api.updateClass(turma.id, body).subscribe({
+      next: () => {
+        this.turmaEditando = null;
+        this.refresh();
+      },
+      error: err => this.turmaErro = this.errorText(err)
+    });
+  }
+
+  excluirTurma(turma: any): void {
+    if (!this.canManage || !confirm(`Excluir a turma "${turma.name}"?`)) {
+      return;
+    }
+    this.turmaErro = '';
+    this.api.deleteClass(turma.id).subscribe({
+      next: () => {
+        if (this.turmaEditando?.id === turma.id) {
+          this.turmaEditando = null;
+        }
+        this.refresh();
+      },
+      error: err => this.turmaErro = this.errorText(err)
     });
   }
 
@@ -142,7 +348,13 @@ export class CoursesDashboardComponent implements OnInit, OnDestroy {
   }
 
   private renderEnrollmentChart(): void {
-    this.chart?.destroy();
+    if (this.chart) {
+      // Atualização automática (X5): troca os dados no lugar, sem redesenhar o gráfico do zero.
+      this.chart.data.labels = this.courses.map(c => c.name || c.id);
+      this.chart.data.datasets[0].data = this.courses.map(c => c.total_enrollments);
+      this.chart.update();
+      return;
+    }
     this.chart = new Chart(this.enrollmentChart.nativeElement, {
       type: 'bar',
       data: {

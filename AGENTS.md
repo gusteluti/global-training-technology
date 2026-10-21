@@ -136,7 +136,7 @@ Todos os comandos assumem a raiz do repo como diretório de trabalho e Windows c
 ### 6.1 Variáveis de ambiente
 Nomes lidos pelo backend (valores **nunca** no repo):
 
-`ACCESS_TOKEN_EXPIRE_MINUTES`, `ADMIN_PASSWORD`, `ADMIN_TOKEN_SECRET`, `API_BASE_URL`, `CORS_ALLOWED_ORIGINS`, `FINANCIAL_PASSWORD`, `FRONTEND_BASE_URL`, `GROQ_API_KEY`, `GROQ_MODEL`, `GROQ_PRICE_INPUT_PER_1M_USD`, `GROQ_PRICE_OUTPUT_PER_1M_USD`, `JWT_SECRET_KEY`, `MERCADO_PAGO_ACCESS_TOKEN`, `MERCADO_PAGO_WEBHOOK_SECRET`, `PASSWORD_LINK_OUTBOX`, `SUPPORT_PASSWORD`.
+`ACCESS_TOKEN_EXPIRE_MINUTES`, `ADMIN_PASSWORD`, `ADMIN_TOKEN_SECRET`, `API_BASE_URL`, `APP_ENV`, `BACKUP_DIR`, `BACKUP_KEEP`, `CORS_ALLOWED_ORIGINS`, `FINANCIAL_PASSWORD`, `FRONTEND_BASE_URL`, `GROQ_API_KEY`, `GROQ_MODEL`, `GROQ_PRICE_INPUT_PER_1M_USD`, `GROQ_PRICE_OUTPUT_PER_1M_USD`, `JWT_SECRET_KEY`, `MERCADO_PAGO_ACCESS_TOKEN`, `MERCADO_PAGO_WEBHOOK_SECRET`, `PASSWORD_LINK_OUTBOX`, `PAYMENTS_MOCK`, `SMTP_FROM`, `SMTP_HOST`, `SMTP_PASSWORD`, `SMTP_PORT`, `SMTP_USER`, `SUPPORT_PASSWORD`, `WHATSAPP_HANDOFF_NUMBER`.
 
 Os e2e não precisam de variável nenhuma (D58): os helpers definem valores fabricados no processo do backend de teste.
 
@@ -173,9 +173,32 @@ py -3 -m pytest frontend/e2e/test_b1_recuperacao_senha_angular.py -s # 10 checks
 py -3 -m pytest frontend/e2e/test_b2_recibo_pdf_angular.py -s      # 8 checks
 py -3 -m pytest frontend/e2e/test_d1_design_landing_angular.py -s  # 10 checks (design da landing, D66)
 py -3 -m pytest frontend/e2e/test_d2_area_aluno_angular.py -s      # 10 checks (área do aluno, D67)
+py -3 -m pytest frontend/e2e/test_x5_atualizacao_paineis_angular.py -s # 10 checks (atualização automática dos painéis, D87)
+py -3 -m pytest frontend/e2e/test_o0_catalogo_angular.py -s  # 7 checks (catálogo do aluno, O0)
+py -3 -m pytest frontend/e2e/test_f1_trava_exclusao_angular.py -s  # 11 checks (arquivar curso, F1)
+py -3 -m pytest frontend/e2e/test_f2_fuso_horario_angular.py -s  # 10 checks (horário de SP, F2)
+py -3 -m pytest frontend/e2e/test_s1_compra_duplicada_angular.py -s  # 7 checks (compra duplicada, S1)
+py -3 -m pytest frontend/e2e/test_f3_aluno_curso_angular.py -s  # 11 checks (aluno e curso, F3/F4)
+py -3 -m pytest frontend/e2e/test_u1_busca_csv_angular.py -s  # 13 checks (busca e CSV, U1/U2)
+py -3 -m pytest frontend/e2e/test_f5a_turma_checkout_angular.py -s  # 8 checks (turma no checkout, F5a)
+py -3 -m pytest frontend/e2e/test_f5b_chat_turmas_angular.py -s  # chat com turmas (F5b)
+py -3 -m pytest frontend/e2e/test_f5b_landing_chat_turmas.py -s  # 6 testes (landing, F5b)
+py -3 -m pytest frontend/e2e/test_f6_handoff_angular.py -s  # WhatsApp no chat (F6)
+py -3 -m pytest frontend/e2e/test_f6_landing_handoff.py -s  # 5 testes (landing, F6)
+py -3 -m pytest frontend/e2e/test_f7_curso_anexo_angular.py -s  # 11 checks (curso por anexo, F7)
+py -3 -m pytest frontend/e2e/test_s2_limites_angular.py -s  # 5 checks (limite de login, S2)
+py -3 -m pytest frontend/e2e/test_s4_conta_aluno_angular.py -s  # 12 checks (conta do aluno, S4)
+py -3 -m pytest frontend/e2e/test_u4_matricula_manual_angular.py -s  # 7 checks (matrícula manual, U4)
+py -3 -m pytest frontend/e2e/test_u5_cancelamento_angular.py -s  # 8 checks (cancelamento, U5)
+py -3 -m pytest frontend/e2e/test_u8_turmas_angular.py -s  # 10 checks (turmas, U8)
+py -3 -m pytest frontend/e2e/test_s3_equipe_angular.py -s  # equipe (S3)
+py -3 -m pytest frontend/e2e/test_u7_lgpd_angular.py -s  # LGPD (U7)
+py -3 -m pytest frontend/e2e/test_x1_progresso_angular.py -s  # progresso e certificado (X1)
+py -3 -m pytest frontend/e2e/test_x2_avaliacao_angular.py -s  # avaliação (X2)
+py -3 -m pytest frontend/e2e/test_x4_saude_angular.py -s  # saúde do sistema (X4)
 ```
 Portas e esperas podem ser fixadas com `E2E_BACKEND_PORT`, `E2E_FRONT_PORT` e `E2E_NG_TIMEOUT`. Se houver um `ng serve` seu na
-porta 4200, ele não é usado nem encerrado. Cada e2e leva de 20 a 90 s. Contagens validadas em 06/10/2026.
+porta 4200, ele não é usado nem encerrado. Cada e2e leva de 20 a 90 s. Contagens validadas em 21/10/2026: os 37 e2e passaram, um por vez (~25 min).
 
 ### 6.4 Build do Angular
 ```

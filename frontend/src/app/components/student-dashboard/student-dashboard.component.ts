@@ -1,8 +1,27 @@
 import { Component, OnInit } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { PainelMatriculas } from '../../resolvers/enrollments.resolver';
+import { salvarArquivo } from '../../services/salvar-arquivo';
 import { ApiService } from '../../services/api.service';
 import { AuthService } from '../../services/auth.service';
+import { formatarDataSP } from '../../pipes/data-sp.pipe';
+
+// Ação de matrícula devolvida pelo chat (D76).
+interface AcaoChat {
+  type: string;
+  course_id: string;
+  class_id: number | null;
+  label: string;
+}
+
+// Ação de encaminhamento ao WhatsApp devolvida pelo chat (D77).
+interface AcaoWhatsapp {
+  type: string;
+  url: string;
+  label: string;
+}
+
+const PREFIXO_WHATSAPP = 'https://wa.me/';
 
 // Rótulos e cores dos status de matrícula (conjunto fechado, D28).
 const ROTULOS_STATUS: { [status: string]: string } = {
@@ -50,7 +69,8 @@ const CLASSES_PAGAMENTO: { [status: string]: string } = {
 const PAGAMENTO_EM_ABERTO = ['pending', 'in_process'];
 
 const FORMAS_PAGAMENTO: { [forma: string]: string } = {
-  mercado_pago: 'Mercado Pago'
+  mercado_pago: 'Mercado Pago',
+  manual: 'Matrícula manual'
 };
 
 const MSG_FALHA_PDF = 'Não foi possível baixar o recibo.';
@@ -70,10 +90,21 @@ export class StudentDashboardComponent implements OnInit {
   chatMessages: { role: string; content: string }[] = [];
   chatInput = '';
   chatEnviando = false;
+  // Ações de matrícula da última resposta (F5b, D76). Montadas pelo servidor e não persistidas no histórico.
+  chatAcoes: AcaoChat[] = [];
+  chatWhatsapp: AcaoWhatsapp | null = null;
   erroChat = '';
   email = '';
+  // Primeiro nome do próprio aluno (GET /api/student/me, D80); vazio mantém a saudação genérica.
+  primeiroNome = '';
 
-  constructor(private route: ActivatedRoute, private api: ApiService, auth: AuthService) {
+  // Pedido de cancelamento em 7 dias (U5, D82): cartão com o formulário aberto, motivo, envio e erro.
+  cancelarAbertoId: number | null = null;
+  motivoCancelamento = '';
+  enviandoCancelamento = false;
+  erroCancelamento: { [enrollmentId: number]: string } = {};
+
+  constructor(private route: ActivatedRoute, private router: Router, private api: ApiService, auth: AuthService) {
     // E-mail do próprio token (nunca de outro aluno): mostrado só no cabeçalho.
     this.email = auth.decodeToken()?.email || '';
     // Dados vindos do EnrollmentsResolver (rota /student).
@@ -85,6 +116,10 @@ export class StudentDashboardComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.api.getMyProfile().subscribe({
+      next: (res: any) => this.primeiroNome = String(res?.name || '').trim().split(/\s+/)[0] || '',
+      error: () => this.primeiroNome = ''
+    });
     this.api.getMyPayments().subscribe({
       next: (res: any) => this.payments = res.payments || [],
       error: () => this.erroFinanceiro = 'Não foi possível carregar seu histórico financeiro.'
@@ -117,10 +152,9 @@ export class StudentDashboardComponent implements OnInit {
     return palavras.slice(0, 2).map(p => p[0].toUpperCase()).join('') || 'GT';
   }
 
-  // "2026-10-07 20:10:00" ou ISO -> "07/10/2026", sem depender do parser de datas do navegador.
+  // Texto UTC da API ("2026-10-08 01:30:00" ou ISO) -> dia de São Paulo "07/10/2026" (D71).
   dataBr(valor: string | null | undefined): string {
-    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(valor || '');
-    return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
+    return formatarDataSP(valor, true);
   }
 
   rotuloPagamento(status: string): string {
@@ -149,6 +183,90 @@ export class StudentDashboardComponent implements OnInit {
 
   mensagemSemAcesso(status: string): string {
     return MENSAGENS_SEM_ACESSO[status] || 'Os materiais não estão disponíveis para esta matrícula.';
+  }
+
+  // ---- Cancelamento em 7 dias (U5, D82) ------------------------------------------------------------
+  textoCancelamento(c: any): string {
+    if (!c) {
+      return '';
+    }
+    if (c.status === 'open') {
+      return 'Cancelamento em análise';
+    }
+    if (c.status === 'approved') {
+      return 'Cancelamento aprovado';
+    }
+    if (c.status === 'rejected') {
+      return `Cancelamento recusado: ${c.decision_reason || ''}`.trim();
+    }
+    return '';
+  }
+
+  abrirCancelamento(m: any): void {
+    this.cancelarAbertoId = m.id;
+    this.motivoCancelamento = '';
+    delete this.erroCancelamento[m.id];
+  }
+
+  enviarCancelamento(m: any): void {
+    if (this.enviandoCancelamento) {
+      return;
+    }
+    if (!confirm(`Pedir o cancelamento de ${m.course_name}? O reembolso é analisado pelo financeiro.`)) {
+      return;
+    }
+    this.enviandoCancelamento = true;
+    delete this.erroCancelamento[m.id];
+    this.api.requestCancellation(m.id, this.motivoCancelamento.trim()).subscribe({
+      next: () => {
+        this.enviandoCancelamento = false;
+        this.cancelarAbertoId = null;
+        this.motivoCancelamento = '';
+        this.recarregarMatriculas();
+      },
+      error: (err: any) => {
+        this.enviandoCancelamento = false;
+        const detalhe = err?.error?.detail;
+        this.erroCancelamento[m.id] = typeof detalhe === 'string' ? detalhe : 'Não foi possível pedir o cancelamento.';
+        this.recarregarMatriculas();
+      }
+    });
+  }
+
+  notaAvaliacao: { [id: number]: number } = {};
+  comentarioAvaliacao: { [id: number]: string } = {};
+
+  avaliar(matricula: any): void {
+    const nota = this.notaAvaliacao[matricula.id] || matricula.review?.rating || 5;
+    const comentario = this.comentarioAvaliacao[matricula.id] ?? matricula.review?.comment ?? '';
+    this.api.reviewCourse(matricula.id, nota, comentario).subscribe({
+      next: (r: any) => matricula.review = r.review,
+      error: () => this.recarregarMatriculas()
+    });
+  }
+
+  marcarMaterial(matricula: any, url: string, feito: boolean): void {
+    this.api.markMaterial(matricula.id, url, feito).subscribe({
+      next: (r: any) => matricula.progress = r.progress,
+      error: () => this.recarregarMatriculas()
+    });
+  }
+
+  baixarCertificado(matricula: any): void {
+    this.api.downloadCertificate(matricula.id).subscribe({
+      next: resposta => salvarArquivo(resposta, 'certificado.pdf'),
+      error: () => this.recarregarMatriculas()
+    });
+  }
+
+  private recarregarMatriculas(): void {
+    this.api.getMyEnrollments().subscribe({
+      next: (res: any) => {
+        this.enrollments = res.enrollments || [];
+        this.erro = '';
+      },
+      error: () => this.erro = 'Não foi possível carregar suas matrículas.'
+    });
   }
 
   verRecibo(paymentId: number): void {
@@ -203,6 +321,8 @@ export class StudentDashboardComponent implements OnInit {
     const texto = this.chatInput;
     this.chatEnviando = true;
     this.erroChat = '';
+    this.chatAcoes = [];
+    this.chatWhatsapp = null;
     this.api.sendChatMessage(texto).subscribe({
       next: (res: any) => {
         this.chatMessages = [
@@ -210,13 +330,36 @@ export class StudentDashboardComponent implements OnInit {
           { role: 'user', content: texto },
           { role: 'assistant', content: res.message }
         ];
+        this.chatAcoes = (Array.isArray(res.actions) ? res.actions : [])
+          .filter((a: any) => a && a.type === 'enroll' && a.course_id && a.label);
+        this.chatWhatsapp = this.acaoWhatsapp(res.actions);
         this.chatInput = '';
         this.chatEnviando = false;
       },
-      error: () => {
+      error: (err: any) => {
         this.erroChat = 'Não foi possível enviar a mensagem. Tente novamente.';
+        this.chatWhatsapp = this.acaoWhatsapp(err?.error?.actions);
         this.chatEnviando = false;
       }
     });
+  }
+
+  // Só aceita link que aponte para https://wa.me/ (defesa, D77).
+  private acaoWhatsapp(actions: any): AcaoWhatsapp | null {
+    if (!Array.isArray(actions)) {
+      return null;
+    }
+    const acao = actions.find((a: any) => a && a.type === 'handoff' && typeof a.url === 'string'
+      && a.url.startsWith(PREFIXO_WHATSAPP) && typeof a.label === 'string' && a.label);
+    return acao ? { type: acao.type, url: acao.url, label: acao.label } : null;
+  }
+
+  // Leva ao catálogo com o curso e, se houver, a turma pré-selecionada (D75/D76).
+  abrirMatricula(acao: AcaoChat): void {
+    const queryParams: { [k: string]: string } = { curso: String(acao.course_id) };
+    if (acao.class_id !== null && acao.class_id !== undefined) {
+      queryParams['turma'] = String(acao.class_id);
+    }
+    this.router.navigate(['/catalogo'], { queryParams });
   }
 }

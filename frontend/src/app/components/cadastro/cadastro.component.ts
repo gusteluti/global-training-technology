@@ -9,6 +9,7 @@ export class CadastroComponent {
   name = '';
   email = '';
   password = '';
+  aceite = false;
   error = '';
   success = false;
   enviando = false;
@@ -19,7 +20,7 @@ export class CadastroComponent {
     if (this.enviando) return;
     this.error = '';
     this.enviando = true;
-    this.api.registerStudent({ name: this.name, email: this.email, password: this.password }).subscribe({
+    this.api.registerStudent({ name: this.name, email: this.email, password: this.password, accept_terms: this.aceite }).subscribe({
       next: () => {
         this.enviando = false;
         this.success = true;

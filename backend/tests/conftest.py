@@ -3,6 +3,9 @@
 - Variáveis de ambiente mínimas para importar e subir a aplicação.
 - `db_path`: aponta Database.DB_PATH para um arquivo temporário (tmp_path).
 - `banco`: `db_path` + Database.init_db() (schema atual).
+- `catalogo_bot` (D70): catálogo do bot (ManagerAgent) em diretório temporário, copiado de
+  tests/fixtures/catalogo_bot (c_e_c, excel_profissional, lua, python_profissional). Os testes
+  não leem backend/courses, que é dado de produção e pode mudar.
 
 Observação: importar `db` executa Database.init_db() uma vez, no caminho padrão
 (backend/db.sqlite, ignorado pelo git). Os testes não usam esse arquivo: todo
@@ -10,6 +13,7 @@ teste reaponta DB_PATH para tmp_path antes de qualquer operação.
 """
 
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -26,6 +30,19 @@ if str(TESTS_DIR) not in sys.path:
 from apoio_mercado_pago import SEGREDO_WEBHOOK  # noqa: E402
 
 os.environ.update({
+    # U6 (D88): a suíte nunca envia e-mail real, mesmo com SMTP no backend/.env (load_dotenv não sobrescreve).
+    "SMTP_HOST": "",
+    # Isolamento do backend/.env de quem roda (D88): pagamento simulado, WhatsApp, CORS, contas de funcionário
+    # semeadas no startup e o outbox de desenvolvimento ficam neutros; cada teste que precisa deles define o seu.
+    "PAYMENTS_MOCK": "0",
+    "APP_ENV": "test",
+    "WHATSAPP_HANDOFF_NUMBER": "",
+    "CORS_ALLOWED_ORIGINS": "",
+    "ADMIN_EMAIL": "",
+    "FINANCIAL_EMAIL": "",
+    "SUPPORT_EMAIL": "",
+    "PASSWORD_LINK_OUTBOX": "",
+    "BACKUP_DIR": "",
     "MERCADO_PAGO_WEBHOOK_SECRET": SEGREDO_WEBHOOK,
     "GROQ_API_KEY": "dummy",
     "ADMIN_PASSWORD": "admin123",
@@ -37,6 +54,10 @@ os.environ.update({
     "FRONTEND_BASE_URL": "http://localhost:8000",
     "API_BASE_URL": "http://localhost:8000",
 })
+# F6 (D77): o handoff para o WhatsApp so liga nos testes que definem o numero (fabricado). Um valor vindo do shell
+# de quem roda a suite nao pode mudar o comportamento das outras suites (E7, F5b...).
+for _variavel in ("WHATSAPP_HANDOFF_NUMBER", "CHAT_TOKEN_BUDGET"):
+    os.environ.pop(_variavel, None)
 
 
 @pytest.fixture
@@ -56,3 +77,41 @@ def banco(db_path):
 
     Database.init_db()
     return db_path
+
+
+@pytest.fixture
+def catalogo_bot(tmp_path, monkeypatch):
+    """Catálogo do bot isolado (D70): todo ManagerAgent criado no teste lê um diretório temporário.
+
+    Seam de teste: envolve ManagerAgent.__init__ e troca `courses_dir` logo depois do construtor,
+    antes do load_courses() do startup. Nenhum código de produção é alterado.
+    """
+    from agents.manager_agent import ManagerAgent
+
+    destino = tmp_path / "catalogo_bot"
+    shutil.copytree(TESTS_DIR / "fixtures" / "catalogo_bot", destino)
+    construtor_original = ManagerAgent.__init__
+
+    def construtor(self, *args, **kwargs):
+        construtor_original(self, *args, **kwargs)
+        self.courses_dir = destino
+
+    monkeypatch.setattr(ManagerAgent, "__init__", construtor)
+    return destino
+
+
+@pytest.fixture(autouse=True)
+def _redefinir_limites_de_taxa():
+    """S2/S9 (D79): zera o estado em memoria dos limites de taxa (chat e checkout) antes de cada teste.
+
+    Varias suites usam TestClient sem `with` (sem startup); sem este reset, as chamadas de um teste contariam
+    no limite do seguinte. Dentro de um teste, o reinicio continua sendo pelo startup do app (S2 f4/g6).
+    Import protegido: antes da implementacao o modulo core.rate_limit nao existe.
+    """
+    try:
+        from core.rate_limit import redefinir_limites
+    except ImportError:
+        redefinir_limites = None
+    if redefinir_limites is not None:
+        redefinir_limites()
+    yield

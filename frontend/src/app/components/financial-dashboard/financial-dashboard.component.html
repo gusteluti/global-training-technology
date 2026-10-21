@@ -1,3 +1,5 @@
+<app-atualizacao-automatica [pausado]="atualizacaoPausada" (atualizar)="atualizar()"></app-atualizacao-automatica>
+
 <div class="alert alert-danger" *ngIf="error">{{ error }}</div>
 
 <div class="row g-3 mb-3" *ngIf="totals">
@@ -48,9 +50,74 @@
   </div>
 </div>
 
+<div class="card mb-3">
+  <div class="card-body">
+    <h5>Solicitações de cancelamento</h5>
+    <div class="alert alert-danger" *ngIf="erroCancelamentos">{{ erroCancelamentos }}</div>
+    <div class="table-responsive">
+      <table class="table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Aluno</th>
+            <th>Curso</th>
+            <th>Valor</th>
+            <th>Data</th>
+            <th>Motivo</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let c of cancelamentos" data-testid="cancelamento-row">
+            <td>
+              {{ c.student_name }}<br>
+              <small class="text-muted">{{ c.student_email }}</small>
+            </td>
+            <td class="text-break">{{ c.course_name || c.course_id }}</td>
+            <td class="text-nowrap">{{ c.amount | currency:'BRL':'symbol':'1.2-2' }}</td>
+            <td class="text-nowrap">{{ c.requested_at | dataSP }}</td>
+            <td class="text-break">{{ c.reason || '-' }}</td>
+            <td style="min-width: 240px;">
+              <div class="d-flex flex-column gap-2">
+                <button type="button" class="btn btn-sm btn-outline-success" data-testid="cancelamento-aprovar"
+                        [disabled]="decidindoId !== null" (click)="aprovarCancelamento(c)">Aprovar e reembolsar</button>
+                <input type="text" class="form-control form-control-sm" data-testid="cancelamento-motivo"
+                       maxlength="300" placeholder="Motivo da recusa" aria-label="Motivo da recusa"
+                       [(ngModel)]="motivosRecusa[c.id]">
+                <button type="button" class="btn btn-sm btn-outline-danger" data-testid="cancelamento-recusar"
+                        [disabled]="!podeRecusar(c)" (click)="recusarCancelamento(c)">Recusar</button>
+              </div>
+            </td>
+          </tr>
+          <tr *ngIf="cancelamentos.length === 0">
+            <td colspan="6" class="text-center text-muted">Nenhuma solicitação em análise.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <div class="card">
   <div class="card-body">
-    <h5>Transações</h5>
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+      <h5 class="mb-0">Transações</h5>
+      <button type="button" class="btn btn-sm btn-outline-primary" data-testid="exportar-csv"
+              [disabled]="exportando" (click)="exportarCsv()">Exportar CSV</button>
+    </div>
+    <div class="row g-2 mb-3">
+      <div class="col-12 col-md-6">
+        <input type="text" class="form-control form-control-sm" data-testid="financeiro-busca"
+               placeholder="Buscar por e-mail, nome ou curso" aria-label="Buscar por e-mail, nome ou curso"
+               [(ngModel)]="busca" (keyup.enter)="buscar()">
+      </div>
+      <div class="col-12 col-md-3">
+        <select class="form-select form-select-sm" data-testid="financeiro-filtro-status" aria-label="Status"
+                [(ngModel)]="filtroStatus" (ngModelChange)="load()">
+          <option value="">Todos</option>
+          <option *ngFor="let st of statusOpcoes" [value]="st">{{ rotuloPagamento(st) }}</option>
+        </select>
+      </div>
+    </div>
     <div class="table-responsive">
       <table class="table table-hover align-middle">
         <thead>
@@ -71,8 +138,8 @@
             </td>
             <td>{{ p.course_id }}</td>
             <td>{{ p.amount | currency:'BRL':'symbol':'1.2-2' }}</td>
-            <td><span class="badge" [ngClass]="p.status === 'approved' ? 'bg-success' : (p.status === 'refunded' ? 'bg-danger' : 'bg-warning text-dark')">{{ p.status }}</span></td>
-            <td>{{ p.created_at }}</td>
+            <td><span class="badge" [ngClass]="p.status === 'approved' ? 'bg-success' : (p.status === 'refunded' ? 'bg-danger' : 'bg-warning text-dark')">{{ rotuloPagamento(p.status) }}</span></td>
+            <td>{{ p.created_at | dataSP }}</td>
             <td class="text-end">
               <button class="btn btn-sm btn-outline-danger" type="button"
                       *ngIf="p.status !== 'refunded'"

@@ -19,7 +19,8 @@ export class AdminDashboardComponent implements OnInit {
     { key: 'cursos', label: 'Cursos', roles: ['admin', 'financial', 'support'] },
     { key: 'cadastro-cursos', label: 'Cadastro de cursos', roles: ['admin'] },
     { key: 'ia', label: 'Observabilidade de IA', roles: ['admin', 'financial', 'support'] },
-    { key: 'auditoria', label: 'Auditoria', roles: ['admin'] }
+    { key: 'auditoria', label: 'Auditoria', roles: ['admin'] },
+    { key: 'equipe', label: 'Equipe', roles: ['admin'] }
   ];
 
   visibleTabs: DashboardTab[] = [];

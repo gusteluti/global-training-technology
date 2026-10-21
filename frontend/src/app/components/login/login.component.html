@@ -4,6 +4,7 @@
       <div class="card-body">
         <h4 class="card-title">Acessar Plataforma</h4>
 
+        <div *ngIf="aviso" class="alert alert-warning" data-testid="login-sessao-expirada">{{ aviso }}</div>
         <div *ngIf="error" class="alert alert-danger">{{ error }}</div>
 
         <form (ngSubmit)="submit()">

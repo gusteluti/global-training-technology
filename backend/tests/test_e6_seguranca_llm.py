@@ -38,8 +38,9 @@ Testes:
 
 Convencoes (padrao do test_e5): banco temporario via conftest, rotas HTTP reais, token real por
 POST /api/token, cursos do aluno em diretorio temporario (admin.routes.COURSES_DIR). O catalogo do bot
-(app.state.manager_agent.courses) e o real, so lido; o curso com FAQ injetada e registrado em memoria no
-manager_agent de teste, sem tocar arquivos de backend/courses.
+(app.state.manager_agent.courses) vem de diretorio temporario (fixture `catalogo_bot` do conftest, D70, copia de
+tests/fixtures/catalogo_bot); backend/courses nao e lido. O curso com FAQ injetada e registrado em memoria no
+manager_agent de teste.
 """
 
 import copy
@@ -158,8 +159,8 @@ def llm(monkeypatch):
 
 
 @pytest.fixture
-def cursos(tmp_path, monkeypatch):
-    """Um curso ativo em diretorio temporario (a fonte dos nomes de curso do contexto do aluno)."""
+def cursos(tmp_path, monkeypatch, catalogo_bot):
+    """Um curso ativo em diretorio temporario (a fonte dos nomes de curso do contexto do aluno) + catalogo do bot (D70)."""
     diretorio = tmp_path / "courses"
     diretorio.mkdir()
     (diretorio / "curso_e6_ativo.json").write_text(json.dumps({

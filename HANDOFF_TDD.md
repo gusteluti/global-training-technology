@@ -297,3 +297,33 @@ Resumo para quem for levar o assunto ao grupo:
 - O que vaza: nome de usuário do Windows do Gustavo num caminho de arquivo, um token de device do media router e um hash de cookie do Google.
 - Onde está: `origin/payment-system` (na árvore do tip) e, desde 05/10/2026, também no histórico de `feature/fase2-tdd` e da sub-branch da E3.
 - Custo de limpar: reescrita de histórico nas branches afetadas + force-push + coordenação com todo mundo que tenha clone.
+
+
+## 12. Plano do feedback da professora (D68 em diante)
+
+Fila e respostas do PM em `docs/tdd/PLANO_FEEDBACK_PROF.md`; modo autônomo D69; relatório em `docs/tdd/RELATORIO_FEEDBACK.md`.
+
+| Entrega | Sub-branch | Red | Implementação | Merge | Resultado |
+|---|---|---|---|---|---|
+| O0 — checkout do aluno + trava do mock | `feature/fase2-tdd-o0-checkout-aluno` | `9dbd134`, `622deb5` (D70) | `1deadb0` | ver `git log` | O0 86/86; regressão 1051 passed; e2e O0 7/7 |
+| F1 — trava de exclusão e arquivar | `feature/fase2-tdd-f1-trava-exclusao` | `554d3ea` | `1be517d`, `cb8a1da`, `2168826` | ver `git log` | F1 55/55; regressão verde (292+260+554); e2e F1 11/11, L2 24/24, admin 33/33 |
+| F2 — horário de São Paulo | `feature/fase2-tdd-f2-fuso-horario` | `c657d64`, `af121b1` | `5b702cc`, `07f54aa` | ver `git log` | backend 62/62; regressão verde (5 blocos); e2e F2 10/10 + 6 e2e de telas tocadas verdes |
+| S1 — compra duplicada | `feature/fase2-tdd-s1-compra-duplicada` | `47a7172`, `013949d` (D10→D72) | `1f3dda6`, `a67a700` | ver `git log` | regressão 1153 passed; 8 e2e verdes |
+| F3/F4 — aluno ↔ curso | `feature/fase2-tdd-f3-aluno-curso` | `dbcc791` | `bec2701`, `08d9ecc` | ver `git log` | backend 67/67; regressão verde; 6 e2e verdes |
+| U1/U2 — busca, paginação e CSV | `feature/fase2-tdd-u1-busca-csv` | `ec1388d` | `72a2d8d`, `64eac03` | ver `git log` | backend 99/99; regressão 1220 passed; 6 e2e verdes |
+| F5a — turma no checkout e reserva | `feature/fase2-tdd-f5a-turma-checkout` | `14dcb11` | `4b6901d`, `34cbc01` | ver `git log` | backend 65/65; regressão 1384 passed; 8 e2e verdes |
+| F5b — chat com turmas e ação de matrícula | `feature/fase2-tdd-f5b-chat-turmas` | `df50614`, `7a816d1` (guarda→D76) | `066a925`, `cff3d11` | ver `git log` | backend 47/47; regressão 1431 passed; 13 e2e verdes |
+| F6 — handoff WhatsApp | `feature/fase2-tdd-f6-handoff-whatsapp` | `74eadf7` | `1f93951`, `6c5d50d` | ver `git log` | backend 93/93; regressão 1524 passed; 7 e2e verdes |
+| F7 — curso a partir de anexo | `feature/fase2-tdd-f7-curso-anexo` | `5acc911` | `89c22e8`, `e7651db` | ver `git log` | backend 67/67; regressão 1591 passed; 4 e2e verdes |
+| S2/S9/S10 — limites e id de curso | `feature/fase2-tdd-s2-limites-seguranca` | `31b131b`, `03e998b`, `f5b425a` | `8b9e222` | ver `git log` | backend 65/65; regressão verde; 12 e2e verdes |
+| S4/S5/U3/U9 — conta do aluno | `feature/fase2-tdd-s4-conta-aluno` | `ea05128` | `facd5ad`, `cac20ce` | ver `git log` | backend 69/69; regressão 1725 passed; 14 e2e verdes |
+| U4/S6 — matrícula manual e expiração | `feature/fase2-tdd-u4-matricula-manual` | `0b0c89b`, `6845c02` | `370387f`, `58acc06` | ver `git log` | backend 96/96; regressão verde; 6 e2e verdes |
+| U5 — cancelamento em 7 dias | `feature/fase2-tdd-u5-cancelamento` | `8df5c09` | `578b224`, `d61d386` | ver `git log` | backend 50/50; regressão 1871 passed; 8 e2e verdes |
+| U8 — turmas | `feature/fase2-tdd-u8-turmas` | `d0d9241` | `f318c9c` + front | ver `git log` | U8 60/60; relacionados 338 passed; e2e U8 10/10, L1 16/16 |
+| S3 — equipe | `feature/fase2-tdd-s3-equipe` | (enxuto, D84) | `6849ec2`, `34d11db` | `5d2e7ee` | S3 15/15; e2e S3 e admin 34/34 |
+| X5 — atualização dos painéis | `feature/fase2-tdd-x5-atualizacao-paineis` | `384902a` | `4bcafdb` | `c37a1b5` | e2e X5 10/10; admin 34/34, S3, E7 11/11, E8 17/17, U1 13/13, U8 10/10, U4 7/7, U5 8/8, F3 11/11 |
+| U6 — e-mail SMTP | `feature/fase2-tdd-u6-email` | (enxuto, D84) | `c4666fd` | ver `git log` | U6 7/7; suítes afetadas 312 passed |
+| U7 — LGPD | `feature/fase2-tdd-u7-lgpd` | (enxuto, D84) | `c73d717` | ver `git log` | U7 9/9; 7 e2e verdes |
+| X3/X4 — operação | `feature/fase2-tdd-x3-x4-operacao` | (enxuto, D84) | `d854dc9` | ver `git log` | 6 testes; 2 e2e verdes |
+| X1 — progresso e certificado | `feature/fase2-tdd-x1-progresso-certificado` | (enxuto, D84) | ver `git log` | ver `git log` | 6 testes; 3 e2e verdes |
+| X2 — avaliação | `feature/fase2-tdd-x2-avaliacao` | (enxuto, D84) | ver `git log` | ver `git log` | 7 testes; 4 e2e verdes |

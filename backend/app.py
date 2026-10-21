@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import json
@@ -8,8 +9,11 @@ from typing import Optional
 from pydantic import BaseModel
 
 # Import routers
-from admin.routes import list_course_summaries, router as admin_router
-from payments.routes import router as payments_router
+from fastapi import HTTPException
+from admin.routes import curso_arquivado, list_course_summaries, load_course_data, router as admin_router
+from payments.routes import pagamento_mockado_efetivo, router as payments_router
+from admin.cancellations import router as cancellations_router
+from admin.staff import router as staff_router
 from dashboard.routes import router as dashboard_router
 from agents.llm_guard import (
     INPUT_BLOCKED,
@@ -19,10 +23,12 @@ from agents.llm_guard import (
     InputBlockedError,
     LLMUnavailableError,
 )
-from agents.manager_agent import ManagerAgent
+from agents.handoff import acoes_de_handoff
+from agents.manager_agent import ManagerAgent, montar_acoes
 from auth import router as auth_router
 from student.routes import router as student_router
 from core.security import get_password_hash, senha_excede_limite_bcrypt
+from core import operacao, rate_limit
 from db import Database
 
 # Initialize FastAPI
@@ -77,6 +83,19 @@ class ChatMessage(BaseModel):
 @app.on_event("startup")
 async def startup_event():
     """Load courses and initialize manager agent on startup"""
+    # S9 (D79): estado em memória dos limites de taxa (chat e checkout) nasce zerado a cada startup.
+    rate_limit.redefinir_limites()
+    # X3 (D90): backup diário do banco quando BACKUP_DIR está definida. Falha não impede a subida.
+    try:
+        operacao.fazer_backup()
+    except Exception as erro:
+        print(f"[AVISO] Backup do banco não foi feito: {type(erro).__name__}")
+    # S6 (D81): pagamentos pendentes vencidos (mais de 7 dias) expiram no startup. Uma falha aqui não impede a
+    # subida: as leituras de dashboard, do aluno e o checkout repetem a expiração.
+    try:
+        Database.expirar_pendentes()
+    except Exception as exc:  # noqa: BLE001
+        print(f"[ERRO] Falha ao expirar pagamentos pendentes no startup: {type(exc).__name__}")
     try:
         manager_agent = ManagerAgent()
         manager_agent.load_courses()
@@ -109,6 +128,7 @@ async def startup_event():
                 print(f"[OK] Conta de {role} criada: {email}")
 
 @app.get("/health")
+@app.get("/api/health")
 async def health_check():
     """Health check endpoint"""
     try:
@@ -116,11 +136,15 @@ async def health_check():
         if manager_agent:
             manager_agent.refresh_courses_if_changed()
         courses_count = len(manager_agent.courses) if manager_agent else 0
+        # X4 (D90): estado das dependências; "degraded" quando o banco não responde.
+        servicos = operacao.verificar_servicos()
         return {
-            "status": "ok",
+            "status": "ok" if servicos["database"] == "ok" else "degraded",
+            "services": servicos,
             "courses_loaded": courses_count,
             "llm": "groq",
-            "available_models": ["mixtral-8x7b-32768"]
+            "available_models": ["mixtral-8x7b-32768"],
+            "payments_mock": pagamento_mockado_efetivo(),
         }
     except Exception as e:
         return {
@@ -154,13 +178,22 @@ async def chat_courses_debug(request: Request):
         ]
     }
 
+def _handoff_anonimo(manager_agent, mensagem: str, session_id: str, course_id: Optional[str]) -> list:
+    """Ação de handoff (F6, D77) da sessão anônima; o nome do curso vem do catálogo do servidor."""
+    nome = (manager_agent.courses.get(course_id) or {}).get("name") if course_id else None
+    return acoes_de_handoff(mensagem, session_id=session_id, course_id=course_id, course_name=nome)
+
+
 @app.post("/api/chat")
 async def chat(chat_msg: ChatMessage, request: Request):
     """
     Main chat endpoint (visitante anônimo)
     Expected input: {"message": "user message", "session_id": "optional, emitido pelo servidor"}
     A resposta traz sempre o session_id efetivo; um id desconhecido abre uma sessão nova (E6, D38.1).
+    S9 (D79): 30 mensagens por minuto por IP; acima disso, 429 sem chegar ao LLM.
     """
+    if not rate_limit.permitir_chat(request):
+        return JSONResponse(status_code=429, content={"status": "error", "message": rate_limit.ERRO_CHAT})
     try:
         manager_agent = getattr(request.app.state, "manager_agent", None)
         if not manager_agent:
@@ -184,16 +217,25 @@ async def chat(chat_msg: ChatMessage, request: Request):
 
         # Route message through manager agent
         try:
-            response = manager_agent.process_message(user_message, session_id)
+            resultado = manager_agent.process_message(user_message, session_id)
         except InputBlockedError:
-            response = INPUT_BLOCKED
-        except LLMUnavailableError:
-            return {"status": "error", "message": LLM_UNAVAILABLE, "session_id": session_id}
-        
+            return {"status": "success", "message": INPUT_BLOCKED, "session_id": session_id, "actions": []}
+        except LLMUnavailableError as erro:
+            corpo = {"status": "error", "message": LLM_UNAVAILABLE, "session_id": session_id}
+            # F6 (D77): o erro continua como antes; ganha `actions` só quando o handoff vale.
+            handoff = _handoff_anonimo(manager_agent, user_message, session_id, getattr(erro, "curso", None))
+            if handoff:
+                corpo["actions"] = handoff
+            return corpo
+
         return {
             "status": "success",
-            "message": response,
-            "session_id": session_id
+            "message": resultado.texto,
+            "session_id": session_id,
+            # F5b (D76): ações montadas pelo servidor a partir do curso roteado; visitante não tem matrícula.
+            # F6 (D77): a ação de handoff, quando vale, vem depois das de matrícula.
+            "actions": montar_acoes(resultado)
+            + _handoff_anonimo(manager_agent, user_message, session_id, resultado.curso),
         }
     except Exception as e:
         # Nada do texto da exceção vai ao cliente (E6, D38.6); o log leva só o tipo.
@@ -213,8 +255,20 @@ async def public_courses():
         "courses": courses
     }
 
+@app.get("/api/courses/{course_id}/turmas")
+async def public_course_classes(course_id: str):
+    """Turmas abertas do curso para a compra (F5a, D75): lista pura `[{id, name, starts_on, capacity,
+    seats_left}]`, sem dado de aluno. Curso inexistente ou arquivado -> 404 `Course not found`."""
+    course = load_course_data(course_id)
+    if curso_arquivado(course):
+        raise HTTPException(status_code=404, detail="Course not found")
+    return Database.list_open_classes_for_sale(course_id)
+
 # Include admin routes
 app.include_router(admin_router, prefix="/api/admin", tags=["admin"])
+# Pedidos de cancelamento em 7 dias (U5, D82): /api/admin/cancellation-requests (Financeiro e Gestão).
+app.include_router(cancellations_router, prefix="/api/admin", tags=["admin"])
+app.include_router(staff_router, prefix="/api/admin", tags=["admin"])
 app.include_router(payments_router, prefix="/api/payments", tags=["payments"])
 # Dashboards de funcionário (Fase 2), consumidos pela aplicação Angular e pelo admin.html:
 # /api/dashboard/{alunos,cursos,financeiro,observabilidade-ia}

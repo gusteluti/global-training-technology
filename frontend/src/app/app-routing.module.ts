@@ -4,10 +4,12 @@ import { LoginComponent } from './components/login/login.component';
 import { StudentDashboardComponent } from './components/student-dashboard/student-dashboard.component';
 import { AdminDashboardComponent } from './components/admin-dashboard/admin-dashboard.component';
 import { CadastroComponent } from './components/cadastro/cadastro.component';
+import { TermosComponent } from './components/termos/termos.component';
 import { DefinirSenhaComponent } from './components/definir-senha/definir-senha.component';
 import { EsqueciSenhaComponent } from './components/esqueci-senha/esqueci-senha.component';
 import { RedefinirSenhaComponent } from './components/redefinir-senha/redefinir-senha.component';
 import { CourseCatalogComponent } from './components/course-catalog/course-catalog.component';
+import { StudentProfileComponent } from './components/student-profile/student-profile.component';
 
 import { AuthGuard } from './guards/auth.guard';
 import { RoleGuard } from './guards/role.guard';
@@ -22,10 +24,13 @@ const routes: Routes = [
   // Link do e-mail de conta existente (D26). Rota explícita: sem ela cai no curinga.
   { path: 'login', component: LoginComponent },
   { path: 'student', component: StudentDashboardComponent, canActivate: [AuthGuard, RoleGuard], data: { roles: ['student'] }, resolve: { painel: EnrollmentsResolver } },
+  { path: 'student/perfil', component: StudentProfileComponent, canActivate: [AuthGuard, RoleGuard], data: { roles: ['student'] } },
   { path: 'catalogo', component: CourseCatalogComponent, canActivate: [AuthGuard, RoleGuard], data: { roles: ['student'] } },
   { path: 'admin', component: AdminDashboardComponent, canActivate: [AuthGuard, RoleGuard], data: { roles: STAFF_ROLES } },
   // Rotas públicas da conta do aluno (sem AuthGuard). Devem vir antes do curinga.
   { path: 'cadastro', component: CadastroComponent },
+  { path: 'termos', component: TermosComponent, data: { doc: 'termos' } },
+  { path: 'privacidade', component: TermosComponent, data: { doc: 'privacidade' } },
   { path: 'definir-senha', component: DefinirSenhaComponent },
   { path: 'esqueci-senha', component: EsqueciSenhaComponent },
   { path: 'redefinir-senha', component: RedefinirSenhaComponent },

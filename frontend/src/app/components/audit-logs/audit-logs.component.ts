@@ -9,12 +9,34 @@ export class AuditLogsComponent implements OnInit {
   logs: any[] = [];
   error = '';
 
+  // Filtros (U1, D74): busca na descrição ou no e-mail do responsável e período em dias de São Paulo
+  // (AAAA-MM-DD, inclusivos). Valem ao alterar o campo ou ao Enter.
+  busca = '';
+  dataInicio = '';
+  dataFim = '';
+  private requisicao = 0;
+
   constructor(private api: ApiService) { }
 
   ngOnInit(): void {
-    this.api.getAuditLogs().subscribe({
-      next: (r: any) => this.logs = r.logs || [],
-      error: err => this.error = err?.error?.detail || 'Não foi possível carregar a auditoria.'
+    this.carregar();
+  }
+
+  carregar(): void {
+    const id = ++this.requisicao;
+    this.error = '';
+    const filtros = { q: this.busca.trim(), date_from: this.dataInicio, date_to: this.dataFim };
+    this.api.getAuditLogs(filtros).subscribe({
+      next: (r: any) => {
+        if (id === this.requisicao) {
+          this.logs = r.logs || [];
+        }
+      },
+      error: err => {
+        if (id === this.requisicao) {
+          this.error = err?.error?.detail || 'Não foi possível carregar a auditoria.';
+        }
+      }
     });
   }
 

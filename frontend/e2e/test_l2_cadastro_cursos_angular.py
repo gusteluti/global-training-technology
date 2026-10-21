@@ -1137,6 +1137,7 @@ def test_l2_cadastro_cursos_angular_e2e(servidores, browser):
             page.locator("input[name=name]").first.fill("Aluno Interceptor L2", timeout=TIMEOUT)
             page.locator("input[name=email]").first.fill(f"e2e.l2.{uuid.uuid4().hex[:10]}@teste.com", timeout=TIMEOUT)
             page.locator("input[name=password]").first.fill(SENHA, timeout=TIMEOUT)
+            page.locator('[data-testid="cadastro-aceite"]').first.check(timeout=TIMEOUT)  # U7 (D89)
             with page.expect_response(lambda r: urllib.parse.urlparse(r.url).path == "/api/auth/register",
                                       timeout=TIMEOUT * 2):
                 page.locator("button[type=submit]").first.click(timeout=TIMEOUT)

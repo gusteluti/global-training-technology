@@ -1022,3 +1022,419 @@ reembolsado ausentes do HTML (A4); (5) não se aplica (sem campo novo); (6) não
 (8) e2e, celular (A9) e build; (9) ciclo e docs.
 **Para revisão do PM:** todos os textos novos da tela; o "Total investido" contar só pagamentos aprovados; o tratamento
 de status desconhecido; a ausência do nome do aluno no cabeçalho (exigiria incluir o nome no token ou criar um endpoint `/me`).
+
+## D68 — feedback da professora: respostas do PM ao plano (19/10/2026)
+Origem: `docs/tdd/PLANO_FEEDBACK_PROF.md` (feedback da professora e mensagens do grupo de 19/10/2026).
+- **F1 (exclusão de curso):** bloqueada (409) quando existir matrícula em **qualquer** status (`pending`, `active`,
+  `cancelled`, `refunded`). Entra a ação "arquivar": o curso sai do catálogo e do chat, e o aluno ativo mantém o acesso.
+- **F3/F4 (aluno → cursos e curso → alunos):** o perfil Suporte vê o status da matrícula e do pagamento, **nunca valores**.
+  Valores ficam com Financeiro e Gestão, como no RBAC atual.
+- **F5 (turma no checkout):** a vaga fica reservada por 30 min a partir do checkout e é liberada se o pagamento não for
+  aprovado nesse prazo.
+- **F6 (handoff para WhatsApp):** o número é o do PM por enquanto, lido de `WHATSAPP_HANDOFF_NUMBER` e **não versionado**
+  (repo público). Texto pré-preenchido com curso e tema, sem dado pessoal. Limiares: 80% do orçamento de tokens da sessão,
+  2 falhas seguidas do LLM ou 3 "não entendi" seguidos.
+- **F7 (curso por anexo):** a primeira versão aceita JSON e PDF; DOCX fica para depois. O anexo só preenche o formulário
+  como rascunho.
+- **Pendente:** responsável pela troca dos segredos expostos no `chat1.json` (H1). O arquivo foi removido da
+  `feature/fase2-tdd` (`61422d7`); continua na `main` até o próximo PR e no histórico.
+
+## D69 — modo autônomo do plano do feedback (19/10/2026, decisão do PM)
+O PM vai ficar fora e autorizou: "pode começar a onda; não pare; faça e continue para a próxima fase, a não ser que
+tenha que perguntar algo de importância crítica". Valem as mesmas regras da D40, agora sobre a fila do
+`docs/tdd/PLANO_FEEDBACK_PROF.md` (ondas 0 a 7, na ordem): o orquestrador fecha cada entrega (checklist, merge `--no-ff`
+em `feature/fase2-tdd`, docs, push da branch de projeto) e segue para a próxima, sem parar para perguntar. Política
+decidida sem o PM segue a recomendação do plano, fica registrada aqui com o motivo e marcada em
+`docs/tdd/RELATORIO_FEEDBACK.md` para revisão. Continuam valendo sem exceção: D30 (sem `main`, sem force-push, auditoria
+antes do push), D32, um agente por vez, árvore limpa, ciclo TDD. Fora do alcance (sem tentativa): SMTP real, qualquer
+segredo real, número do WhatsApp no repo (só `WHATSAPP_HANDOFF_NUMBER`).
+
+## D70 — testes de chat dependiam do catálogo real (19/10/2026, modo autônomo D69)
+A regressão da O0 deu 34 falhas em `test_e7_observabilidade_ia.py`, já presentes antes da O0 (verificado sobre `9dbd134`).
+Causa: o docstring da E7 declara que "o catálogo do bot é o real (backend/courses: ..., lua, ...)", e o commit `15104c7`
+(fora do TDD) apagou `backend/courses/lua.json`. O curso foi removido de propósito; o teste é que estava acoplado a dado de
+produção. Decisão (forma, autoridade permanente 4.3: intenção preservada, quem altera é o agente-testes): os testes de
+backend passam a usar um catálogo do bot em diretório temporário com os cursos de que precisam, sem ler `backend/courses`.
+Encadeamento: D42/D44 (E7) → D70. Os e2e que citam "lua" são verificados na mesma revisão.
+
+## D71 — F2: horário de São Paulo; ajuste mecânico do recibo PDF (19/10/2026, modo autônomo D69)
+Contrato da F2 (forma): o banco e a API continuam em UTC; a tela converte para `America/Sao_Paulo` (Intl) e mostra
+`dd/MM/aaaa HH:mm` (área do aluno só o dia); o backend usa deslocamento fixo de −3 h (sem horário de verão desde 2019,
+sem depender de tzdata) onde ele mesmo gera texto ou agrupa por dia: recibo PDF e série diária da E7.
+Encadeamento (autoridade 4.3): D63/D65 (recibo PDF imprimia `issued_at` cru) → D68/D71. O agente-testes alterou só a data
+esperada de A5, A19 e A20 em `test_b2_recibo_pdf.py` (`c657d64`), antes de o dev começar; a intenção (a data vem do
+pagamento, não do relógio) é preservada e o recibo JSON segue em UTC.
+Fora da F2, como dívida: `monthly_revenue` do financeiro agrupa por mês UTC; datas do chat do aluno não verificadas;
+o teste E7 C8 pode oscilar entre 00:00 e 03:00 UTC.
+
+## D72 — S1: compra duplicada do mesmo curso (19/10/2026, modo autônomo D69)
+Política decidida pelo orquestrador (marcada para revisão do PM):
+- Checkout do aluno logado: matrícula `active` do mesmo curso → 409 `Você já está matriculado neste curso.`, sem criar
+  nada e sem chamar o gateway.
+- Matrícula `pending` do mesmo curso (aluno logado ou mesmo e-mail na landing) → **retomar**: não cria matrícula nem
+  pagamento novos; gera nova preferência com a **mesma** `external_reference` e devolve o novo link. Qualquer link pago
+  ativa a mesma matrícula pelo webhook. Se o preço do catálogo mudou, o valor do pagamento pendente é atualizado.
+- Landing (anônima) com e-mail que já tem matrícula `active` no curso → 409 `Este e-mail já tem acesso a este curso.
+  Entre na sua conta para acessá-lo.` Troca consciente: revela a quem souber e-mail e curso que existe a matrícula
+  (enumeração, cf. D21), em troca de não cobrar duas vezes. **Revisão do PM.**
+- `cancelled`/`refunded` não bloqueiam: nova compra cria matrícula nova, como hoje.
+- Tela `/catalogo`: curso com matrícula `active` mostra "Você já está matriculado" sem botão de compra; com `pending`, o
+  botão vira "Retomar pagamento".
+- **Ajuste mecânico (autoridade 4.3), encadeamento D10 (E1) → D72:** três testes de `test_e1_referencia.py` faziam duas
+  compras da landing com o **mesmo e-mail** e o mesmo curso, que pela D72 agora retomam a mesma matrícula. A intenção
+  da D10 (duas compras do mesmo curso no mesmo instante não colidem na referência; o webhook só mexe na própria
+  matrícula) é preservada com **dois e-mails diferentes**: sem o sufixo aleatório, `curso:timestamp` colidiria do mesmo
+  jeito, então a prova de mutação da E1 continua valendo.
+
+## D73 — F3/F4: aluno → cursos e turma; curso → alunos (19/10/2026, modo autônomo D69)
+Política da D68: Suporte vê status, **nunca valores**. Contrato (forma, orquestrador):
+- `GET /api/dashboard/alunos/{user_id}` (todos os perfis internos): `student {id, name, email, created_at}`,
+  `enrollments [{enrollment_id, course_id, course_name, class_id, class_name, class_starts_on, status, enrolled_at}]`,
+  `payments [{payment_id, enrollment_id, course_id, status, created_at, amount}]` — `amount` **ausente** para Suporte —,
+  `chat {messages, last_chat_at}`. Id que não é aluno (inexistente ou funcionário) → 404 `Aluno não encontrado`.
+- `GET /api/dashboard/cursos/{course_id}/alunos` (todos os perfis internos), filtros opcionais `status` e `class_id`
+  (`none` = sem turma): `course {id, name, archived}`, `students [{user_id, name, email, enrollment_id, status,
+  enrolled_at, class_id, class_name, payment_status, amount}]` — `amount` ausente para Suporte. Curso fora do catálogo
+  → 404 `Course not found`. Ordenação: matrícula mais recente primeiro.
+- Aluno: cada item de `/api/student/enrollments` ganha `class_name` e `class_starts_on` (null sem turma); sem IDOR.
+- Telas: no dashboard de alunos, o nome abre o detalhe (`aluno-detalhe`); no de cursos, o curso abre a lista de alunos
+  (`curso-alunos`) com filtros de status e turma; o cartão do curso do aluno mostra `Turma: <nome>` e o início.
+
+## D74 — U1/U2: busca, paginação e exportação CSV (19/10/2026, modo autônomo D69)
+Contrato (forma, orquestrador; política marcada para revisão):
+- **Busca e paginação** (compatível: sem parâmetros, a resposta é a de hoje, com a chave nova `pagination`):
+  `GET /api/dashboard/alunos?q=&page=&page_size=` (q em nome ou e-mail, sem caixa; `metrics` continuam globais) e a
+  lista de pagamentos de `GET /api/dashboard/financeiro?q=&status=&page=&page_size=` (q em e-mail, nome ou curso).
+  `pagination {page, page_size, total}`; `page` a partir de 1; `page_size` padrão 50, máximo 200 (acima vale 200);
+  valores inválidos → 422. Sem `page`, devolve tudo (como hoje) com `page` 1 e `page_size` = total.
+  `GET /api/admin/audit-logs` ganha `q` (descrição ou e-mail do responsável), `date_from` e `date_to` (`AAAA-MM-DD`,
+  dias de São Paulo, inclusivos) e `offset`; formato da resposta igual.
+- **CSV** (política: **só Gestão e Financeiro**; Suporte 403 — exportação em massa de dado pessoal):
+  `GET /api/dashboard/alunos.csv`, `GET /api/dashboard/cursos/{id}/alunos.csv`, `GET /api/dashboard/financeiro.csv`.
+  Formato Excel pt-BR: UTF-8 com BOM, separador `;`, decimal com vírgula, datas `dd/mm/aaaa HH:MM` em São Paulo,
+  status em português, `Content-Disposition: attachment; filename=...csv`. Célula que começa com `=`, `+`, `-`, `@`,
+  tab ou CR recebe `'` na frente (injeção de fórmula). Cada exportação grava o evento de auditoria `export.csv` com o
+  relatório em `entity_id`. Aceitam os mesmos filtros da lista correspondente.
+- Telas: campo de busca e paginação em alunos, financeiro e auditoria (com datas); botão "Exportar CSV" só para Gestão e
+  Financeiro.
+
+## D75 — F5a: turma no checkout, reserva de vaga e lotação (19/10/2026, modo autônomo D69)
+Política da D68: a vaga fica reservada por 30 min a partir do checkout. Contrato (forma; política marcada):
+- `GET /api/courses/{course_id}/turmas` (público): turmas abertas do curso não arquivado — `starts_on` nulo ou
+  `>=` hoje em São Paulo —, `[{id, name, starts_on, capacity, seats_left}]` (`seats_left` nulo sem capacidade), em
+  ordem de `starts_on` (nulos por último) e nome. Nenhum dado de aluno. Curso inexistente ou arquivado → 404
+  `Course not found`.
+- **Ocupação** de uma turma para venda: matrículas `active` + `pending` com reserva válida (`reserved_until` > agora) +
+  `pending` sem `reserved_until` (atribuídas pela Gestão ou anteriores à F5a). Nova coluna `enrollments.reserved_until`.
+  Os números de turma do dashboard (L1) não mudam.
+- Checkouts (aluno e landing) aceitam `class_id` opcional; sem ele, comportamento de hoje (sem turma). Com ele: turma de
+  outro curso, inexistente ou já iniciada → 404 `Turma não encontrada`; lotada → 409 `Esta turma está lotada. Escolha
+  outra turma.`; senão a matrícula nasce com a turma e `reserved_until` = agora + 30 min. Conferência e gravação
+  atômicas (duas compras simultâneas da última vaga: uma vende, a outra recebe 409).
+- Retomada (D72) com `class_id`: troca a turma da pendente (com a mesma conferência de vaga) e renova a reserva.
+- **S8 (política, revisão do PM):** pagamento aprovado pelo webhook depois de a reserva expirar, com a turma já lotada
+  por outros → o pagamento e a matrícula são ativados (o dinheiro entrou), mas a matrícula fica **sem turma**
+  (`class_id` nulo) e grava o evento `enrollment.class_overflow` para a Gestão realocar. Com vaga, mantém a turma.
+- Tela `/catalogo`: curso com turmas abertas mostra `catalogo-turma` (seleção obrigatória) com nome, início e vagas;
+  turma lotada aparece desabilitada "(lotada)". A compra envia `class_id`. Aceita `?curso=<id>&turma=<id>` para
+  pré-selecionar (usado pelo chat na F5b). A landing estática fica sem seleção de turma (dívida).
+
+## D76 — F5b: chat do curso mostra turmas e oferece a matrícula (19/10/2026, modo autônomo D69)
+Contrato (forma, orquestrador; textos visíveis marcados para revisão):
+- Quando a mensagem é roteada para um curso (Course Agent), o prompt recebe, como **dado não confiável delimitado**
+  (padrão E6), a lista de turmas abertas do curso (nome, início, vagas — mesma regra de venda da D75; sem dado de aluno)
+  e a instrução de apresentar as turmas, perguntar qual faz mais sentido para o usuário (data, disponibilidade) e
+  **não** inventar turma, preço ou link.
+- A resposta JSON dos dois chats (`POST /api/chat` e `POST /api/student/chat`) ganha `actions` (lista; vazia quando
+  não se aplica), montada **pelo servidor**, nunca a partir do texto do LLM: para o curso roteado, uma ação
+  `{type: "enroll", course_id, class_id, label}` por turma aberta com vaga (até 3, na ordem da D75; label
+  `Matricular na turma <nome>`); curso sem turmas → uma ação com `class_id` nulo e label `Matricular no curso`.
+  Sem ação para: resposta geral, curso arquivado, entrada bloqueada, falha do LLM, saída barrada pelo filtro e aluno
+  logado que já tem matrícula `active` no curso. `actions` não é persistido no histórico.
+- Telas: no chat do aluno (`/student`), cada ação vira o botão `chat-acao-matricular` que leva a
+  `/catalogo?curso=<id>&turma=<id>`. Na landing, o mesmo botão leva a `<APP_URL>/login?area=aluno&next=<caminho>`.
+- Login e guarda (parte do U9): o `AuthGuard` manda quem não está logado para `/login?next=<rota pedida>`; o login de
+  **aluno** segue o `next` só se for caminho interno (começa com `/`, não com `//`, sem esquema), senão vai para
+  `/student` (sem redirecionamento aberto). Funcionário continua indo para `/admin`.
+- Complemento (forma): curso com turmas abertas **todas lotadas** → nenhuma ação (não vende); curso cujas turmas já
+  começaram todas (nenhuma aberta) → tratado como sem turmas (ação com `class_id` nulo, coerente com o checkout sem
+  turma da D75). Turma lotada aparece no prompt marcada como lotada, sem ação.
+- Ajuste mecânico (autoridade 4.3), guarda original → D76: `test_admin_angular.py` ("sem login: /admin volta para a
+  tela de login") e `test_e3_painel_angular.py` (P7) passam a esperar `/login?next=<rota>` (`7a816d1`); intenção
+  preservada (sem login não entra e cai no login).
+
+## D77 — F6: handoff para o WhatsApp (20/10/2026, modo autônomo D69)
+Política da D68: número do PM via `WHATSAPP_HANDOFF_NUMBER` (nunca versionado); texto com curso e tema, sem dado
+pessoal; limiares 80% do orçamento, 2 falhas seguidas do LLM, 3 "não entendi" seguidos. Contrato (forma):
+- Configuração: `WHATSAPP_HANDOFF_NUMBER` (só dígitos depois de limpar espaços, `+`, `-`, parênteses; 10 a 15 dígitos;
+  senão o handoff fica **desligado** e nenhuma ação é gerada). `CHAT_TOKEN_BUDGET` (inteiro, padrão 20000).
+- Gatilhos, avaliados por conversa (anônimo: sessão; aluno: o aluno no dia de São Paulo), a partir do que a E7 já grava
+  (`ai_usage`, `ai_interactions`):
+  - `token_budget`: soma de `total_tokens` da conversa ≥ 80% de `CHAT_TOKEN_BUDGET`;
+  - `llm_failures`: as 2 últimas interações da conversa são `llm_error` (a resposta de erro também leva a ação);
+  - `unresolved`: as 3 últimas interações da conversa são `unresolved`;
+  - `user_request`: a mensagem pede atendimento humano ("atendente", "humano", "pessoa", "falar com alguém",
+    "whatsapp", "suporte", sem caixa/acento) — dispara na hora, sem chamar o LLM para isso? **Não**: a mensagem segue o
+    fluxo normal e a ação é acrescentada.
+  Prioridade quando vários valem: `user_request`, `llm_failures`, `token_budget`, `unresolved` (uma ação só).
+- Ação, acrescentada a `actions` (D76) pelo servidor: `{type: "handoff", reason, url, label}` com label
+  `Falar com um atendente no WhatsApp` e `url` = `https://wa.me/<número>?text=<texto codificado>`; texto:
+  `Olá! Vim do assistente virtual da Global Training e gostaria de falar com um atendente sobre <alvo>.`, onde `<alvo>`
+  é `o curso <nome do curso roteado>` ou `os cursos`. Nunca inclui texto do usuário, nome, e-mail nem id.
+- Erros do LLM: `/api/chat` responde como hoje (`status: error`, `LLM_UNAVAILABLE`) com `actions` quando o gatilho vale;
+  `/api/student/chat` continua 502 com o mesmo `detail` e ganha `actions` no corpo quando o gatilho vale.
+- Observabilidade: cada ação de handoff emitida grava `ai_handoffs` (canal, user_id/session_hash como na E7, motivo,
+  curso). `GET /api/dashboard/observabilidade-ia` ganha `handoff {total, by_reason {...}, rate}` (rate = conversas com
+  handoff / conversas), visível para todos os perfis (não é custo). Tela: cartão "Encaminhamentos ao WhatsApp".
+- Telas: no chat do aluno e na landing, a ação vira o link `chat-acao-whatsapp` (`target=_blank`, `rel=noopener
+  noreferrer`) com o label.
+
+## D78 — F7: criar curso a partir de anexo (20/10/2026, modo autônomo D69)
+Política da D68: primeira versão aceita JSON e PDF; o anexo só preenche o formulário como **rascunho**. Contrato (forma):
+- `POST /api/admin/course-draft` (só Gestão; 403/401 como as demais rotas de admin), multipart com o campo `file`.
+  Nada é gravado em `backend/courses`: a resposta é `{status: "success", format: "json"|"pdf", draft: {...},
+  warnings: [...]}` e o curso só nasce quando a Gestão salva o formulário (rota de criação existente).
+- Limites: mais de 5 MB → 413 `Arquivo maior que 5 MB.`; tipo decidido pelo **conteúdo** (PDF começa com `%PDF-`;
+  JSON é um objeto JSON em UTF-8), não pela extensão; outro conteúdo → 415 `Formato não suportado. Envie um arquivo
+  JSON ou PDF.`
+- JSON: `draft` com os campos do schema de curso (`CourseInput`); desconhecidos descartados; ausentes com padrão vazio e
+  um aviso `Campo "<campo>" não encontrado no arquivo.` por campo obrigatório ausente; tipos inválidos viram aviso e
+  padrão vazio; `materials` validados como na L2 (inválidos descartados com aviso); `archived` nunca vem do anexo.
+- PDF: texto extraído com `pypdf` (nova dependência), até 20 000 caracteres; sem texto → 422 `Não foi possível ler
+  texto do PDF.` O texto vai ao LLM como **dado não confiável delimitado** (padrão E6) com o pedido de devolver só um
+  JSON com os campos do curso; a saída é validada pelo mesmo caminho do JSON. Do PDF **não** vêm `system_prompt` (fica
+  vazio, aviso `Escreva as instruções do assistente do curso.` — instrução de bot vinda de documento externo seria
+  injeção), nem `materials`, nem `archived`. `id` sugerido a partir do nome (minúsculas, sem acento, `_`). LLM
+  indisponível ou JSON inválido → 502 `Não foi possível gerar o rascunho agora. Tente novamente ou preencha o
+  formulário.`
+- Strings do rascunho com limites de tamanho; nenhum conteúdo do anexo é executado nem gravado.
+- Auditoria: evento `course.draft_from_file` com formato e nome do arquivo sanitizado, sem conteúdo.
+- Tela "Cadastro de cursos": controle `curso-anexo-input` (arquivo) que, ao enviar, abre o formulário de **novo curso**
+  preenchido com o rascunho, mostra os avisos em `curso-anexo-avisos` e erros em `curso-anexo-erro`; salvar usa a
+  criação existente.
+
+## D79 — S2/S9/S10: limite de tentativas, limite de taxa e id de curso (20/10/2026, modo autônomo D69)
+Política decidida pelo orquestrador (revisão do PM). Contrato:
+- **S10 — id de curso:** `POST /api/admin/create-course` só aceita `id` que case com `^[a-z0-9][a-z0-9_-]{0,63}$`;
+  senão 422 `Id do curso inválido: use letras minúsculas, números, _ ou -.` e nada é gravado. Nas rotas que recebem
+  `course_id` na URL (PUT, DELETE, archive/unarchive, turmas, alunos do curso, CSV), id fora do padrão nunca monta
+  caminho de arquivo: resposta 404 como curso inexistente. Cursos existentes com ids válidos continuam iguais.
+- **S2 — login:** `POST /api/token` (aluno e funcionário): 5 falhas para o **mesmo e-mail** (sem caixa, aparado) em
+  15 min bloqueiam esse e-mail por 15 min; 20 falhas do **mesmo IP** em 15 min bloqueiam o IP por 15 min. Bloqueado →
+  429 `Muitas tentativas. Tente novamente em alguns minutos.`, mesmo com a senha certa. E-mail inexistente conta igual
+  (sem enumeração). Sucesso zera as falhas daquele e-mail. `POST /api/admin/login` (legado, só senha): o limite por IP.
+  Estado em tabela (`login_attempts`), sobrevive a restart. Primeiro bloqueio de cada janela grava `auth.locked` na
+  auditoria (e-mail mascarado ou IP, nunca a senha).
+- **S9 — taxa:** `POST /api/chat` (anônimo): 30 mensagens por minuto por IP → 429 `Muitas mensagens em pouco tempo.
+  Aguarde um instante.`; sessões anônimas em memória com teto de 5000 (descarta a menos recente). Checkouts (aluno e
+  landing): 10 por minuto por IP (e por aluno no fluxo logado) → 429 `Muitas tentativas de compra em pouco tempo.
+  Aguarde um instante.` Estado em memória criado no startup do app.
+- IP = `request.client.host` (não confia em `X-Forwarded-For`; atrás de proxy precisa de configuração — dívida).
+- Telas: login e chat mostram o texto do 429 como erro, sem travar a tela.
+- Ajuste mecânico (autoridade 4.3), D52 (corrida do token) / D62 (B1) → D79: `test_ds_dividas_seguranca.py::test_c1_*` e
+  `test_b1_recuperacao_senha.py::test_f11_*` conferem com 7–8 logins errados no mesmo e-mail que a senha dos
+  perdedores não autentica; pela D79 o 6º vira 429. A conferência passa a limpar `login_attempts` entre as tentativas,
+  mantendo a exigência estrita de 400 (intenção preservada: só a senha vencedora autentica).
+
+## D80 — S4/S5/U3/U9: conta do aluno (20/10/2026, modo autônomo D69)
+Política decidida pelo orquestrador (revisão do PM). Contrato:
+- **Banco:** `users.is_active` (padrão 1) e `users.token_version` (padrão 0), migração idempotente. O JWT de conta
+  ganha a claim `tv`; token sem `tv` vale como 0 (compatível). Toda rota autenticada por JWT de conta confere, no banco,
+  conta existente, ativa e `tv` igual; senão 401 `Sessão expirada. Entre novamente.` (token legado de funcionário não
+  muda).
+- **S5:** definir senha (E2), redefinir senha (B1) e trocar senha logado incrementam `token_version`: tokens emitidos
+  antes deixam de valer.
+- **S4:** `POST /api/admin/students/{user_id}/deactivate` e `/reactivate` (só Gestão; id que não é aluno → 404 `Aluno
+  não encontrado`), idempotentes; desativar incrementa `token_version`; eventos `student.deactivate` /
+  `student.reactivate`. Login de aluno desativado **com a senha certa** → 403 `Sua conta está desativada. Fale com o
+  suporte.` (senha errada continua com a resposta genérica, sem enumeração). O detalhe do aluno (F3) e a lista de alunos
+  trazem `is_active`.
+- **U3:** `GET /api/student/me` → `{id, name, email, phone}`; `PUT /api/student/me` `{name, phone}` (e-mail não muda;
+  nome 1–120 caracteres aparados; telefone opcional, 10 a 15 dígitos depois de limpar; inválido → 422 com mensagem em
+  português); `POST /api/student/me/password` `{current_password, new_password}`: senha atual errada → 400 `Senha atual
+  incorreta.`; nova senha com a política da D14/D52; sucesso devolve `{status, token}` novo (a sessão atual continua,
+  as outras caem) e grava `student.password_change`. Nada aceita id de usuário do cliente.
+- **Telas:** `/student/perfil` (link "Meu perfil" na área do aluno) com `perfil-nome`, `perfil-telefone`,
+  `perfil-salvar`, `perfil-senha-atual`, `perfil-senha-nova`, `perfil-senha-salvar`, mensagens `perfil-ok` /
+  `perfil-erro`; o cabeçalho da área do aluno mostra `Olá, <primeiro nome>!` (resolve a dívida da D2). No detalhe do
+  aluno (F3), Gestão vê `aluno-desativar` / `aluno-reativar` com confirmação e o badge `aluno-desativado`.
+- **U9:** resposta 401 de rota `/api/student/` ou `/api/dashboard/`/`/api/admin/` com JWT → a SPA apaga o token e vai
+  para `/login?next=<rota atual>` mostrando `Sua sessão expirou. Entre novamente.`
+- Forma (dev, aceita pelo orquestrador): telefone em tabela `user_profiles` (a migração de `users` só ganha as duas
+  colunas da D80); `<base href="/">` no `index.html` (faltava; rotas de dois segmentos como `/student/perfil` ficavam
+  em branco); sessão expirada sinalizada por `?sessao=expirada`. Dívidas: troca de senha logado sem limite de
+  tentativas; conta desativada ainda recebe link de recuperação (não reativa a conta).
+
+## D81 — U4/S6: matrícula manual e expiração de pendente (20/10/2026, modo autônomo D69)
+Política decidida pelo orquestrador (revisão do PM). Contrato:
+- **U4:** `POST /api/admin/enrollments` (só Gestão) `{email, name?, course_id, class_id?, reason, amount?}`.
+  `reason` obrigatório (5 a 300 caracteres aparados); `amount` ≥ 0, padrão 0 (cortesia). Curso inexistente/arquivado →
+  404 `Course not found`; turma com as regras da D75 (404 `Turma não encontrada`, 409 lotada); aluno já `active` no
+  curso → 409 `O aluno já está matriculado neste curso.` Conta inexistente é criada (aluno sem senha) e recebe o link de
+  definição de senha da E2 (mesmo mecanismo de envio); conta de funcionário → 409 `Este e-mail pertence a um
+  funcionário.` Cria matrícula `active` e pagamento `approved` com `payment_method` `manual` e o valor informado, numa
+  transação; uma `pending` existente do mesmo curso é reaproveitada (vira `active`) em vez de criar outra. Evento
+  `enrollment.manual` com motivo, valor, curso e turma. Tela: no dashboard de cursos (lista de alunos do curso, F4),
+  botão `matricula-manual-abrir` (só Gestão) com formulário `matricula-manual-email`, `-nome`, `-turma`, `-valor`,
+  `-motivo`, `-salvar` e mensagens `matricula-manual-ok` / `-erro`. Recibo do aluno mostra forma de pagamento
+  "Matrícula manual".
+- **S6:** pagamento `pending` (e a matrícula `pending` dele) criado há mais de **7 dias** passa a `cancelled`
+  (pagamento e matrícula), liberando a vaga. Executado por `Database.expirar_pendentes()` no startup e antes das
+  leituras de dashboard, listas do aluno e checkout (UPDATE barato, idempotente). Cada expiração grava
+  `payment.expired`. Webhook `approved` depois da expiração: a máquina de estados da E9 já permite
+  `cancelled → approved`; a matrícula volta a `active` (regra da S8 para a turma) e grava `payment.approved_after_expiry`.
+  Retomada (D72) só vale para `pending`: a expirada não é retomada (compra nova).
+- Ajuste mecânico (autoridade 4.3), D73 (F3) → D81: o cenário de `test_f3_aluno_curso.py` grava pagamentos `pending`
+  com datas fixas de setembro/2026, que pela S6 expiram nas leituras. Os testes passam a usar datas **relativas a
+  hoje** (pendentes com menos de 7 dias; turmas futuras relativas), preservando a intenção. A mesma correção vale para
+  qualquer teste com data fixa que a passagem do tempo tornaria inválida (varredura feita na mesma revisão).
+
+## D82 — U5: pedido de cancelamento em 7 dias (20/10/2026, modo autônomo D69)
+Política decidida pelo orquestrador com base no CDC art. 49 (direito de arrependimento em compra fora do
+estabelecimento, 7 dias). **Revisão do PM.** Contrato:
+- `POST /api/student/enrollments/{id}/cancel-request` (só aluno; dono pelo JWT; matrícula alheia ou inexistente →
+  o mesmo 404 da E3) `{reason?}` (até 500 caracteres, opcional). Condições, nesta ordem:
+  matrícula não `active` → 409 `Só é possível pedir o cancelamento de uma matrícula ativa.`; já existe pedido `open`
+  → 409 `Já existe uma solicitação de cancelamento em análise para esta matrícula.`; último pagamento aprovado da
+  matrícula com valor 0 ou forma `manual` → 409 `Esta matrícula não tem pagamento a reembolsar. Fale com o suporte.`;
+  aprovado há mais de 7 dias (a partir do momento da aprovação: `payments.updated_at`, ou `created_at` sem ele) → 409
+  `O prazo de 7 dias para cancelamento terminou. Fale com o suporte.` Senão cria pedido `open` (tabela
+  `cancellation_requests`) e grava `enrollment.cancel_request`. Pedido recusado antes não impede um novo dentro do prazo.
+- Itens de `/api/student/enrollments` ganham `cancellation` (`null` ou `{status, requested_at, decided_at,
+  decision_reason}`) e `can_request_cancellation` (bool, mesmas regras).
+- Financeiro e Gestão: `GET /api/admin/cancellation-requests?status=` (padrão `open`) com `{id, enrollment_id,
+  payment_id, student_name, student_email, course_id, course_name, amount, requested_at, reason, status}`; Suporte e
+  aluno 403. `POST /api/admin/cancellation-requests/{id}/approve` executa o reembolso existente (mesma regra e trilha
+  da E9) e marca `approved`; `POST .../reject` `{reason}` (5 a 300) marca `rejected`. Pedido não `open` → 409
+  `Esta solicitação já foi decidida.`; inexistente → 404 `Solicitação não encontrada.` Reembolso feito direto pela tela
+  do financeiro também marca como `approved` o pedido `open` daquela matrícula. Eventos `cancellation.approve` /
+  `cancellation.reject`.
+- Telas: cartão do curso do aluno com `curso-cancelar` (só quando `can_request_cancellation`), que abre
+  `curso-cancelar-motivo` + `curso-cancelar-enviar` (com `window.confirm`); status em `curso-cancelamento-status`
+  (`Cancelamento em análise`, `Cancelamento aprovado`, `Cancelamento recusado: <motivo>`). Dashboard financeiro: seção
+  "Solicitações de cancelamento" com `cancelamento-row`, `cancelamento-aprovar` (confirm), `cancelamento-motivo` +
+  `cancelamento-recusar`.
+
+## D83 — U8: edição de turma, término e horário (20/10/2026, modo autônomo D69)
+Contrato (forma; textos marcados para revisão):
+- Turma ganha `ends_on` (`AAAA-MM-DD`, opcional) e `schedule` (texto livre aparado, até 120 caracteres, opcional, ex.
+  `Seg e Qua, 19h às 22h`), colunas novas com migração idempotente; turma antiga devolve `null`. Aceitos em
+  `POST /api/admin/classes` e `PUT /api/admin/classes/{id}` (PUT sem o campo preserva). `ends_on` anterior a
+  `starts_on` → 422 `A data de término não pode ser anterior ao início.`; `schedule` acima de 120 → 422
+  `O horário pode ter no máximo 120 caracteres.` Auditoria da L1 passa a registrar as mudanças desses campos.
+- Leitura: `/api/admin/classes`, dashboard de cursos, `GET /api/courses/{id}/turmas` (D75), detalhe do aluno (F3),
+  `/api/student/enrollments` (`class_ends_on`, `class_schedule`) e o bloco de turmas do chat (F5b) passam a incluir
+  término e horário. Nenhuma regra de venda muda (abertas continuam pelo início, D75).
+- Tela de turmas (dashboard de cursos, só Gestão): cada turma ganha `turma-editar` (formulário na linha:
+  `turma-edit-nome`, `-inicio`, `-fim`, `-horario`, `-capacidade`, `turma-edit-salvar`, `turma-edit-cancelar`) e
+  `turma-excluir` (confirm com o nome; o 409 da L1 aparece em `turma-erro`). A criação ganha `turma-new-end` e
+  `turma-new-schedule`. Catálogo: rótulo da turma inclui o horário quando houver. Área do aluno: `curso-turma`
+  acrescenta ` · <horário>` e ` · término em dd/mm/aaaa` quando houver.
+- Ajuste mecânico (autoridade 4.3), D53 (L1) / D75 (F5a) → D83: as listas de campos exatos da turma em
+  `test_l1_turmas.py` (`CAMPOS_TURMA`, campos permitidos em `changes`) e `test_f5a_turma_checkout.py`
+  (`CAMPOS_TURMA_PUBLICA`, esperado da t1) passam a incluir `ends_on` e `schedule` (`d0d9241`); intenção preservada
+  (campos exatos e "só o que mudou").
+
+## D84 — processo enxuto (20/10/2026, decisão do PM)
+O PM avaliou que o processo (três agentes, 50–90 testes por entrega, regressão completa a cada entrega) era pesado
+demais para um TCC e pediu entregas de ~30 min. Daqui em diante: o orquestrador implementa direto, com 10–15 testes
+por entrega (caminho principal + segurança essencial: IDOR, 403/401); roda só a suíte da entrega e as relacionadas, um
+e2e por tela nova e o build; a regressão completa e todos os e2e rodam uma vez, no fim (ou à noite). Os testes
+existentes continuam. Valem ainda: D30 (sem `main`, sem force-push, auditoria antes do push) e não versionar segredos.
+U8 fechada nesse modo: o backend parcial do dev-backend (interrompido por queda de internet) foi conferido e aproveitado.
+
+## D85 — S3: gestão da equipe (funcionários) (20/10/2026, processo enxuto D84)
+Política decidida pelo orquestrador (revisão do PM). Só Gestão; Financeiro, Suporte e aluno 403; sem token 401.
+- `GET /api/admin/staff` → `{staff: [{id, name, email, role, is_active, created_at}]}` (contas `admin`, `financial`,
+  `support`, por nome).
+- `POST /api/admin/staff` `{email, name, role}` (`role` em `admin|financial|support`) → cria a conta **sem senha** e envia
+  o link de definição de senha da E2 (mesmo mecanismo; sem SMTP vai para o outbox). E-mail já usado → 409 `Já existe
+  uma conta com este e-mail.` Evento `staff.create`.
+- `PUT /api/admin/staff/{id}` `{role?, name?}` e `POST /api/admin/staff/{id}/deactivate|reactivate`. Trocar o perfil ou
+  desativar incrementa `token_version` (a pessoa entra de novo com o perfil novo). Id que não é funcionário → 404
+  `Funcionário não encontrado.` Na própria conta, trocar o perfil ou desativar → 409 `Você não pode desativar ou trocar
+  o perfil da sua própria conta.` Deixar o sistema sem nenhuma conta de Gestão ativa → 409 `É preciso manter pelo
+  menos uma conta de Gestão ativa.` Eventos `staff.update`, `staff.deactivate`, `staff.reactivate`. Login de
+  funcionário desativado com a senha certa → 403 da D80.
+- As contas criadas pelo `.env` (startup) continuam e aparecem na lista. O login administrativo legado (só senha) não
+  muda.
+- Tela: aba "Equipe" (só Gestão) com `equipe-row`, formulário `equipe-email`, `equipe-nome`, `equipe-perfil`,
+  `equipe-convidar`, troca de perfil `equipe-perfil-select` na linha, `equipe-desativar`/`equipe-reativar` (confirm),
+  mensagens `equipe-ok` / `equipe-erro`.
+## D86 — rótulo em português no status das transações (20/10/2026, decisão do PM)
+(A D85 é a da S3, ainda na branch `feature/fase2-tdd-s3-equipe`.) A coluna Status da tabela de transações da aba
+Financeiro mostrava o código cru (`approved`, `cancelled`...). Passa a mostrar o rótulo de `ROTULOS_PAGAMENTO`, o mesmo do
+filtro de status (`Aprovado`, `Cancelado`, `Reembolsado`...); as cores do badge não mudam e a API continua devolvendo o
+código. Ajuste mecânico (autoridade 4.3), D48 (E9) → D86: em `test_admin_angular.py` o check de reembolso pela tela
+localiza a linha por `span.badge` "Aprovado" e conta badges "Reembolsado" (antes "approved"/"refunded"); intenção
+preservada. Alteração feita pelo agente-testes; e2e do admin 33/33.
+
+## D87 — X5: atualização automática dos painéis (20/10/2026, decisão do PM; processo enxuto D84)
+As abas de painel de `/admin` buscavam os dados uma vez, ao abrir. Decisão do PM: atualizam sozinhas **a cada 30 s,
+sempre ligado** (sem botão de liga/desliga), **só nas cinco abas de painel**: Financeiro, Alunos, Cursos,
+Observabilidade de IA e Auditoria. Cadastro de cursos e Equipe (formulários) ficam de fora.
+- Componente compartilhado no topo de cada painel: `atualizacao-botao` ("Atualizar", busca na hora) e
+  `atualizacao-hora` ("Atualizado às HH:MM", horário de São Paulo, D71).
+- A atualização refaz as mesmas buscas da aba mantendo busca, filtro e página; trocar de aba encerra o timer.
+- Não atualiza (pula o ciclo) quando: a aba do navegador está escondida; há campo de texto/seleção em foco dentro do
+  painel; há formulário aberto ou ação em andamento (Financeiro: reembolso ou decisão de cancelamento; Alunos:
+  ativar/desativar conta; Cursos: turma em edição, matrícula manual aberta). Escolha de forma do orquestrador.
+- Código de entrega X5 (U9 já está reservado no plano do feedback). E2e `test_x5_atualizacao_paineis_angular.py`.
+
+## D88 — U6: e-mail real por SMTP (20/10/2026, decisão do PM; processo enxuto D84)
+Com `SMTP_HOST` no ambiente, cada mensagem de `core/notifications.py` também sai por SMTP (`SMTP_PORT` 587 com
+STARTTLS ou 465 com SSL, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`), em texto e HTML com botão para o link. Sem
+`SMTP_HOST`, nada muda (outbox/log). Falha de envio só vai para o log (tipo do erro, sem senha nem token) e não muda a
+resposta da rota. O link de definição de senha ganhou assunto e texto (`Defina sua senha na Global Training`). As
+credenciais ficam só no `.env` do PM (Gmail com senha de app ou Brevo). Isolamento: a suíte de backend (`conftest`) e
+os servidores de e2e neutralizam `SMTP_HOST`, `PAYMENTS_MOCK`, `APP_ENV`, `WHATSAPP_HANDOFF_NUMBER`,
+`CORS_ALLOWED_ORIGINS`, as contas de funcionário semeadas e o outbox vindos do `backend/.env` de quem roda (o `.env`
+local do PM com pagamento simulado derrubava 9 testes da E2/B1).
+
+## D89 — U7: LGPD (20/10/2026, modo autônomo do PM; processo enxuto D84)
+Política decidida pelo orquestrador (revisão do PM):
+- **Aceite:** o cadastro só envia com a caixa "Li e aceito os Termos de Uso e a Política de Privacidade" marcada
+  (`cadastro-aceite`); o backend grava `users.terms_accepted_at` e `terms_version` (`2026-10`) quando
+  `accept_terms` vem verdadeiro. O campo é opcional na API para não quebrar clientes e testes antigos. Páginas
+  `/termos` e `/privacidade` com texto de projeto acadêmico (revisão jurídica fica para a operação real).
+- **Aviso de gravação** no chat do aluno e da landing (`chat-aviso-gravacao`).
+- **Portabilidade (art. 18, V):** `GET /api/student/me/export` devolve em JSON (anexo `meus-dados.json`) conta,
+  telefone, matrículas, pagamentos, conversas e pedidos de cancelamento do dono do JWT; evento `student.data_export`.
+- **Exclusão (art. 18, VI):** `POST /api/student/me/delete {password}` (senha errada → 400 `Senha incorreta.`)
+  anonimiza a conta: nome `Conta excluída`, e-mail `excluido-<id>@anonimo.invalid`, sem senha, inativa, token
+  revogado; apaga telefone, conversas, tokens de senha, falhas de login e o motivo dos pedidos de cancelamento.
+  Matrículas e pagamentos ficam sem identificação (registro financeiro é obrigação legal, art. 16, I) e a trilha de
+  auditoria (append-only, E8) fica; o evento `student.data_delete` é gravado sem o e-mail. O e-mail fica livre para um
+  cadastro novo. Tela: "Privacidade e dados" em Meu perfil.
+Ajuste mecânico (4.3), D18/D57 → D89: os e2e de cadastro (`test_e2_conta_aluno_angular.py`,
+`test_l2_cadastro_cursos_angular.py`) marcam o aceite antes de enviar.
+
+## D90 — X3/X4: backup do banco e saúde do sistema (21/10/2026, modo autônomo do PM; processo enxuto D84)
+- **X3:** com `BACKUP_DIR` definida, o startup grava `db-AAAAMMDD.sqlite` pela API de backup do SQLite (cópia
+  consistente com o servidor no ar) e mantém os `BACKUP_KEEP` mais recentes (padrão 7). Restaurar: parar o backend e
+  copiar o arquivo por cima do `db.sqlite`. Pasta `backups/` ignorada pelo git; testes e e2e neutralizam `BACKUP_DIR`.
+- **X4:** `/health` (e o alias `/api/health`, para a SPA pelo proxy) ganha `services` (`database` ok/erro, `llm`,
+  `payment_gateway` e `email` configurado ou não, `backup` com o último arquivo) e `status` `degraded` quando o banco
+  não responde; as chaves antigas continuam. Nenhum segredo nem host aparece. O LLM não é chamado (custo). Cartão
+  "Saúde do sistema" na aba Observabilidade de IA. Alerta ativo (e-mail/aviso quando algo cai) ficou de fora.
+
+## D91 — X1: progresso nos materiais e certificado (21/10/2026, modo autônomo do PM; processo enxuto D84)
+- Tabela `material_progress (enrollment_id, url, completed_at)`; o material é identificado pela URL.
+- `POST /api/student/enrollments/{id}/progress {url, done}`: matrícula alheia ou inexistente → o mesmo 404 da E3;
+  não ativa → 409 `O material só fica disponível com a matrícula ativa.`; URL fora do curso → 422.
+- Matrícula **ativa** ganha `progress {done, total, percent, completed, certificate_available, completed_at}`
+  (como os materiais, não aparece nos outros status).
+- `GET /api/student/enrollments/{id}/certificate.pdf`: só com todos os materiais concluídos (senão 409 `Conclua todos
+  os materiais para emitir o certificado.`); PDF com nome, curso, carga horária, data de conclusão (SP) e código de
+  validação (HMAC, sem dado pessoal). O gerador do recibo virou `gerar_pdf_de_linhas`, comum aos dois.
+- Tela: bloco "Seu progresso" no cartão do curso (barra, caixas por material, "Baixar certificado"); a lista de links
+  dos materiais ficou igual. Validação pública do código ficou de fora.
+
+## D92 — X2: avaliação do curso pelo aluno (21/10/2026, modo autônomo do PM; processo enxuto D84)
+- Tabela `course_reviews` (uma por matrícula). `POST /api/student/enrollments/{id}/review {rating 1–5, comment?}`
+  (comentário até 500, aparado); só matrícula ativa (senão 409); alheia → o mesmo 404 da E3; reenviar atualiza.
+- Matrícula ativa ganha `review` (ou null). Dashboard de cursos ganha `rating {average, count}` por curso, para todos
+  os perfis internos (não identifica o aluno). Telas: "Avalie o curso" no cartão do aluno; coluna "Avaliação" no painel.
+- NPS e a lista de comentários para a Gestão ficaram de fora (os comentários já estão gravados).
+- Ajuste mecânico (4.3), D80 → D89: `test_s4_conta_aluno.py::test_g2_*` passa a ignorar também `terms_accepted_at` e
+  `terms_version` ao comparar as linhas migradas de `users` (intenção preservada: nada se perde na migração).

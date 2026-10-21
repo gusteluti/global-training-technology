@@ -1,0 +1,71 @@
+<!-- Meu perfil (U3/S5, D80): só os dados do próprio aluno; a identidade vem do token. -->
+<div class="row justify-content-center mt-4">
+  <div class="col-md-8 col-lg-6">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h3 class="mb-0">Meu perfil</h3>
+      <a routerLink="/student" class="btn btn-link">Voltar para a área do aluno</a>
+    </div>
+
+    <div *ngIf="ok" class="alert alert-success" data-testid="perfil-ok">{{ ok }}</div>
+    <div *ngIf="erro" class="alert alert-danger" data-testid="perfil-erro">{{ erro }}</div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Dados pessoais</h5>
+        <form (ngSubmit)="salvarDados()">
+          <div class="mb-3">
+            <label class="form-label">E-mail</label>
+            <input class="form-control" [value]="email" disabled />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Nome</label>
+            <input class="form-control" [(ngModel)]="nome" name="nome" data-testid="perfil-nome" required maxlength="120" />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Telefone</label>
+            <input class="form-control" [(ngModel)]="telefone" name="telefone" data-testid="perfil-telefone" />
+          </div>
+          <button class="btn btn-primary" type="submit" data-testid="perfil-salvar" [disabled]="enviando">Salvar</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">Trocar senha</h5>
+        <form (ngSubmit)="trocarSenha()">
+          <div class="mb-3">
+            <label class="form-label">Senha atual</label>
+            <input type="password" class="form-control" [(ngModel)]="senhaAtual" name="senhaAtual"
+                   data-testid="perfil-senha-atual" autocomplete="current-password" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Nova senha (mínimo 8 caracteres)</label>
+            <input type="password" class="form-control" [(ngModel)]="senhaNova" name="senhaNova"
+                   data-testid="perfil-senha-nova" autocomplete="new-password" required />
+          </div>
+          <button class="btn btn-primary" type="submit" data-testid="perfil-senha-salvar" [disabled]="enviando">Trocar senha</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-body">
+        <h5 class="card-title">Privacidade e dados</h5>
+        <p class="small text-muted">Seus direitos pela LGPD. Veja a <a routerLink="/privacidade">Política de Privacidade</a>.</p>
+        <button type="button" class="btn btn-outline-primary mb-3" data-testid="perfil-exportar"
+                [disabled]="enviando" (click)="exportarDados()">Baixar meus dados</button>
+        <div class="border-top pt-3">
+          <p class="small mb-2"><strong>Excluir minha conta.</strong> Apaga nome, e-mail, telefone, senha e conversas.
+            Matrículas e pagamentos ficam sem identificação, por obrigação legal. Não dá para desfazer.</p>
+          <div class="input-group">
+            <input type="password" class="form-control" placeholder="Digite sua senha para confirmar"
+                   data-testid="perfil-excluir-senha" [(ngModel)]="senhaExclusao" name="senhaExclusao" autocomplete="current-password">
+            <button type="button" class="btn btn-outline-danger" data-testid="perfil-excluir"
+                    [disabled]="enviando || !senhaExclusao" (click)="excluirConta()">Excluir minha conta</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
