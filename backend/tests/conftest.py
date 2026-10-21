@@ -30,6 +30,18 @@ if str(TESTS_DIR) not in sys.path:
 from apoio_mercado_pago import SEGREDO_WEBHOOK  # noqa: E402
 
 os.environ.update({
+    # U6 (D88): a suíte nunca envia e-mail real, mesmo com SMTP no backend/.env (load_dotenv não sobrescreve).
+    "SMTP_HOST": "",
+    # Isolamento do backend/.env de quem roda (D88): pagamento simulado, WhatsApp, CORS, contas de funcionário
+    # semeadas no startup e o outbox de desenvolvimento ficam neutros; cada teste que precisa deles define o seu.
+    "PAYMENTS_MOCK": "0",
+    "APP_ENV": "test",
+    "WHATSAPP_HANDOFF_NUMBER": "",
+    "CORS_ALLOWED_ORIGINS": "",
+    "ADMIN_EMAIL": "",
+    "FINANCIAL_EMAIL": "",
+    "SUPPORT_EMAIL": "",
+    "PASSWORD_LINK_OUTBOX": "",
     "MERCADO_PAGO_WEBHOOK_SECRET": SEGREDO_WEBHOOK,
     "GROQ_API_KEY": "dummy",
     "ADMIN_PASSWORD": "admin123",
