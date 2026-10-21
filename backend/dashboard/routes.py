@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from core.audit import record_audit
 from core.csv_export import data_sp, decimal_br, resposta_csv, rotulo_matricula, rotulo_pagamento
 from core.security import AuthContext, Role, require_roles, require_staff
+from core import avaliacoes
 from db import Database
 from admin.routes import id_curso_valido, list_course_summaries
 
@@ -272,6 +273,7 @@ async def dashboard_cursos(current_user: AuthContext = Depends(require_staff)):
     for turma in Database.list_classes():
         classes_by_course.setdefault(turma["course_id"], []).append(turma)
     unassigned_by_course = Database.get_unassigned_counts()
+    notas = avaliacoes.medias_por_curso()  # X2 (D92)
 
     courses = []
     for course_id, course in catalog.items():
@@ -293,6 +295,7 @@ async def dashboard_cursos(current_user: AuthContext = Depends(require_staff)):
             # L1 (D53): inscritos por turma e matrículas ativas/pendentes ainda sem turma.
             "classes": classes_by_course.get(course_id, []),
             "unassigned": unassigned_by_course.get(course_id, {"total": 0, "active": 0, "pending": 0}),
+            "rating": notas.get(course_id, {"average": None, "count": 0}),
         })
 
     courses.sort(key=lambda course: course["total_enrollments"], reverse=True)
