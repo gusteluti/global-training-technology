@@ -139,3 +139,15 @@ Se o prazo do TCC apertar, o corte recomendado é: ondas 0 a 4 completas, F7 só
 4. **F6:** o número é o do PM por enquanto. Ele fica na variável de ambiente `WHATSAPP_HANDOFF_NUMBER` e **não** é versionado, porque o repo é público. Texto pré-preenchido e limiares: segue a recomendação do orquestrador (curso + tema sem dado pessoal; 80% do orçamento, 2 falhas do LLM, 3 "não entendi"). ✅
 5. **F7:** JSON + PDF na primeira versão. ✅
 6. **H1:** ainda falta definir quem troca os segredos do `chat1.json`. ⏳
+
+---
+
+## 5. Afazeres de hoje (20/10/2026)
+
+1. **U6 — e-mail real por SMTP** (decisão do PM): envio por SMTP quando `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`,
+   `SMTP_PASSWORD` e `SMTP_FROM` estiverem no ambiente (Gmail com senha de app, ou Brevo); sem elas, continua o outbox
+   em arquivo. Cobre link de definição de senha, recuperação, aviso de senha alterada, convite de funcionário e aviso
+   de conta criada. Falha de envio não trava o fluxo. A conta de e-mail e a senha de app ficam com o PM, só no `.env`.
+2. **U7 — LGPD**: aceite de termos, aviso de gravação no chat, exportação e exclusão dos dados pelo aluno.
+3. Extras opcionais (X1–X4), se houver tempo.
+4. Regressão completa e todos os e2e (à noite).
