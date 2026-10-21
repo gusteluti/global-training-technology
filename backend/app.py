@@ -28,7 +28,7 @@ from agents.manager_agent import ManagerAgent, montar_acoes
 from auth import router as auth_router
 from student.routes import router as student_router
 from core.security import get_password_hash, senha_excede_limite_bcrypt
-from core import rate_limit
+from core import operacao, rate_limit
 from db import Database
 
 # Initialize FastAPI
@@ -85,6 +85,11 @@ async def startup_event():
     """Load courses and initialize manager agent on startup"""
     # S9 (D79): estado em memória dos limites de taxa (chat e checkout) nasce zerado a cada startup.
     rate_limit.redefinir_limites()
+    # X3 (D90): backup diário do banco quando BACKUP_DIR está definida. Falha não impede a subida.
+    try:
+        operacao.fazer_backup()
+    except Exception as erro:
+        print(f"[AVISO] Backup do banco não foi feito: {type(erro).__name__}")
     # S6 (D81): pagamentos pendentes vencidos (mais de 7 dias) expiram no startup. Uma falha aqui não impede a
     # subida: as leituras de dashboard, do aluno e o checkout repetem a expiração.
     try:
@@ -123,6 +128,7 @@ async def startup_event():
                 print(f"[OK] Conta de {role} criada: {email}")
 
 @app.get("/health")
+@app.get("/api/health")
 async def health_check():
     """Health check endpoint"""
     try:
@@ -130,8 +136,11 @@ async def health_check():
         if manager_agent:
             manager_agent.refresh_courses_if_changed()
         courses_count = len(manager_agent.courses) if manager_agent else 0
+        # X4 (D90): estado das dependências; "degraded" quando o banco não responde.
+        servicos = operacao.verificar_servicos()
         return {
-            "status": "ok",
+            "status": "ok" if servicos["database"] == "ok" else "degraded",
+            "services": servicos,
             "courses_loaded": courses_count,
             "llm": "groq",
             "available_models": ["mixtral-8x7b-32768"],

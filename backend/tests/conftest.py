@@ -42,6 +42,7 @@ os.environ.update({
     "FINANCIAL_EMAIL": "",
     "SUPPORT_EMAIL": "",
     "PASSWORD_LINK_OUTBOX": "",
+    "BACKUP_DIR": "",
     "MERCADO_PAGO_WEBHOOK_SECRET": SEGREDO_WEBHOOK,
     "GROQ_API_KEY": "dummy",
     "ADMIN_PASSWORD": "admin123",

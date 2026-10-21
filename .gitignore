@@ -59,3 +59,7 @@ chat*.json
 
 # Permissões locais do Claude Code
 .claude/settings.local.json
+
+# Backups do banco (X3, D90)
+backups/
+backend/backups/

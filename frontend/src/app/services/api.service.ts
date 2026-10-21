@@ -17,6 +17,11 @@ export class ApiService {
     return { headers };
   }
 
+  // X4 (D90): estado das dependências (público, sem dado sensível).
+  public getHealth() {
+    return this.http.get(`${BASE}/api/health`);
+  }
+
   public getPublicCourses() {
     return this.http.get(`${BASE}/api/courses`);
   }

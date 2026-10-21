@@ -50,6 +50,7 @@ def _ambiente(outbox: str) -> None:
     os.environ.update({
         "PAYMENTS_MOCK": "0",
         "SMTP_HOST": "",
+        "BACKUP_DIR": "",
         "APP_ENV": "test",
         "GROQ_API_KEY": "chave-falsa-de-teste-e5",
         "GROQ_MODEL": "modelo-falso",
