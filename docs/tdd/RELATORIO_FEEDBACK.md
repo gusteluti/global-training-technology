@@ -27,6 +27,7 @@ Início: 19/10/2026. Fila: `docs/tdd/PLANO_FEEDBACK_PROF.md`. Atualizado ao fim 
 | U7 — LGPD | entregue | `c73d717` | 9 testes + 7 e2e verdes |
 | X3/X4 — backup e saúde do sistema | entregue | `d854dc9` | 6 testes + 2 e2e verdes |
 | X1 — progresso e certificado | entregue | ver `git log` | 6 testes + 3 e2e verdes |
+| X2 — avaliação do curso | entregue | ver `git log` | 7 testes + 4 e2e verdes |
 
 ## Decisões de política tomadas sem o PM (para revisão)
 
@@ -51,6 +52,7 @@ Início: 19/10/2026. Fila: `docs/tdd/PLANO_FEEDBACK_PROF.md`. Atualizado ao fim 
 - **U7 (D89):** exclusão = anonimização (matrículas e pagamentos ficam sem identificação; auditoria fica). Textos dos termos e da política são de projeto acadêmico, sem revisão jurídica.
 - **X3/X4 (D90):** backup só liga com `BACKUP_DIR` no `.env`; alerta ativo quando um serviço cai ficou de fora.
 - **X1 (D91):** certificado exige todos os materiais marcados; validação pública do código ficou de fora.
+- **X2 (D92):** média por estrelas no painel; NPS e lista de comentários para a Gestão ficaram de fora.
 
 ## Paradas e itens pulados
 
