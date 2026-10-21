@@ -1342,3 +1342,11 @@ por entrega (caminho principal + segurança essencial: IDOR, 403/401); roda só 
 e2e por tela nova e o build; a regressão completa e todos os e2e rodam uma vez, no fim (ou à noite). Os testes
 existentes continuam. Valem ainda: D30 (sem `main`, sem force-push, auditoria antes do push) e não versionar segredos.
 U8 fechada nesse modo: o backend parcial do dev-backend (interrompido por queda de internet) foi conferido e aproveitado.
+
+## D86 — rótulo em português no status das transações (20/10/2026, decisão do PM)
+(A D85 é a da S3, ainda na branch `feature/fase2-tdd-s3-equipe`.) A coluna Status da tabela de transações da aba
+Financeiro mostrava o código cru (`approved`, `cancelled`...). Passa a mostrar o rótulo de `ROTULOS_PAGAMENTO`, o mesmo do
+filtro de status (`Aprovado`, `Cancelado`, `Reembolsado`...); as cores do badge não mudam e a API continua devolvendo o
+código. Ajuste mecânico (autoridade 4.3), D48 (E9) → D86: em `test_admin_angular.py` o check de reembolso pela tela
+localiza a linha por `span.badge` "Aprovado" e conta badges "Reembolsado" (antes "approved"/"refunded"); intenção
+preservada. Alteração feita pelo agente-testes; e2e do admin 33/33.
