@@ -63,7 +63,12 @@ def _conteudo(linhas: List[Tuple[str, str]]) -> bytes:
 
 def gerar_recibo_pdf(recibo: Dict, nome_aluno: Optional[str]) -> bytes:
     """Monta o PDF do recibo (dict no formato do recibo JSON) e devolve os bytes."""
-    conteudo = _conteudo(_linhas_do_recibo(recibo, nome_aluno or ""))
+    return gerar_pdf_de_linhas(_linhas_do_recibo(recibo, nome_aluno or ""))
+
+
+def gerar_pdf_de_linhas(linhas: List[Tuple[str, str]]) -> bytes:
+    """PDF de uma página a partir de (fonte, texto); F2 = título em negrito. Usado pelo recibo e pelo certificado."""
+    conteudo = _conteudo(linhas)
     objetos = [
         b"<< /Type /Catalog /Pages 2 0 R >>",
         b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",

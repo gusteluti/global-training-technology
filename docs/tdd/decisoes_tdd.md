@@ -1417,3 +1417,15 @@ Ajuste mecânico (4.3), D18/D57 → D89: os e2e de cadastro (`test_e2_conta_alun
   `payment_gateway` e `email` configurado ou não, `backup` com o último arquivo) e `status` `degraded` quando o banco
   não responde; as chaves antigas continuam. Nenhum segredo nem host aparece. O LLM não é chamado (custo). Cartão
   "Saúde do sistema" na aba Observabilidade de IA. Alerta ativo (e-mail/aviso quando algo cai) ficou de fora.
+
+## D91 — X1: progresso nos materiais e certificado (21/10/2026, modo autônomo do PM; processo enxuto D84)
+- Tabela `material_progress (enrollment_id, url, completed_at)`; o material é identificado pela URL.
+- `POST /api/student/enrollments/{id}/progress {url, done}`: matrícula alheia ou inexistente → o mesmo 404 da E3;
+  não ativa → 409 `O material só fica disponível com a matrícula ativa.`; URL fora do curso → 422.
+- Matrícula **ativa** ganha `progress {done, total, percent, completed, certificate_available, completed_at}`
+  (como os materiais, não aparece nos outros status).
+- `GET /api/student/enrollments/{id}/certificate.pdf`: só com todos os materiais concluídos (senão 409 `Conclua todos
+  os materiais para emitir o certificado.`); PDF com nome, curso, carga horária, data de conclusão (SP) e código de
+  validação (HMAC, sem dado pessoal). O gerador do recibo virou `gerar_pdf_de_linhas`, comum aos dois.
+- Tela: bloco "Seu progresso" no cartão do curso (barra, caixas por material, "Baixar certificado"); a lista de links
+  dos materiais ficou igual. Validação pública do código ficou de fora.

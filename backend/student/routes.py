@@ -28,7 +28,7 @@ from agents.llm_guard import (
     LLMUnavailableError,
     bloco_dados_aluno,
 )
-from core import privacidade, rate_limit
+from core import privacidade, progresso, rate_limit
 from core.receipt_pdf import gerar_recibo_pdf
 from core.audit import change, record_audit
 from core.password_setup import senha_aceitavel
@@ -106,6 +106,8 @@ def _montar_item(matricula: Dict, cancelamento: Optional[Dict] = None) -> Dict:
     # Só a matrícula ativa recebe materiais. Nos demais status o campo nem existe na resposta.
     if matricula["status"] == STATUS_COM_MATERIAIS:
         item["materials"] = _materiais(curso)
+        # X1 (D91): progresso nos materiais e certificado, só na matrícula ativa (as URLs só aparecem aqui).
+        item["progress"] = progresso.resumo(matricula["id"], [m["url"] for m in item["materials"]])
     return item
 
 
@@ -520,3 +522,53 @@ async def excluir_minha_conta(corpo: ExclusaoInput,
     record_audit("student.data_delete", "Aluno excluiu a própria conta (dados anonimizados)",
                  actor={"role": "system"}, entity_type="student", entity_id=str(current_user.id))
     return {"status": "success", "message": "Sua conta foi excluída."}
+
+
+# --- Progresso nos materiais e certificado (X1, D91) --------------------------------------------------------------
+
+ERRO_MATERIAL_SO_ATIVA = "O material só fica disponível com a matrícula ativa."
+ERRO_MATERIAL_INEXISTENTE = "Material não encontrado neste curso."
+ERRO_CERTIFICADO_INCOMPLETO = "Conclua todos os materiais para emitir o certificado."
+
+
+class ProgressoInput(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    url: str
+    done: bool = True
+
+
+def _matricula_ativa_do_aluno(enrollment_id: int, user_id: int):
+    matricula = Database.get_enrollment_for_user(enrollment_id, user_id)
+    if matricula is None:
+        raise HTTPException(status_code=404, detail=ERRO_MATRICULA_NAO_ENCONTRADA)
+    if matricula["status"] != STATUS_COM_MATERIAIS:
+        raise HTTPException(status_code=409, detail=ERRO_MATERIAL_SO_ATIVA)
+    return matricula, _carregar_curso(matricula["course_id"])
+
+
+@router.post("/enrollments/{enrollment_id}/progress")
+async def marcar_material(enrollment_id: int, corpo: ProgressoInput,
+                          current_user: AuthContext = Depends(require_roles(Role.STUDENT))):
+    """Marca (ou desmarca) um material do curso como concluído. Matrícula alheia = o mesmo 404 da E3."""
+    matricula, curso = _matricula_ativa_do_aluno(enrollment_id, current_user.id)
+    urls = [m["url"] for m in _materiais(curso)]
+    if corpo.url not in urls:
+        raise HTTPException(status_code=422, detail=ERRO_MATERIAL_INEXISTENTE)
+    progresso.marcar(matricula["id"], corpo.url, corpo.done)
+    return {"status": "success", "progress": progresso.resumo(matricula["id"], urls)}
+
+
+@router.get("/enrollments/{enrollment_id}/certificate.pdf")
+async def baixar_certificado(enrollment_id: int, current_user: AuthContext = Depends(require_roles(Role.STUDENT))):
+    matricula, curso = _matricula_ativa_do_aluno(enrollment_id, current_user.id)
+    resumo = progresso.resumo(matricula["id"], [m["url"] for m in _materiais(curso)])
+    if not resumo["certificate_available"]:
+        raise HTTPException(status_code=409, detail=ERRO_CERTIFICADO_INCOMPLETO)
+    perfil = Database.get_student_profile(current_user.id) or {}
+    pdf = progresso.gerar_certificado_pdf(
+        perfil.get("name") or "", (curso or {}).get("name") or matricula["course_id"],
+        (curso or {}).get("duration_hours"), resumo["completed_at"],
+        progresso.codigo_validacao(matricula["id"], current_user.id),
+    )
+    return Response(content=pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="certificado-{matricula["course_id"]}.pdf"'})

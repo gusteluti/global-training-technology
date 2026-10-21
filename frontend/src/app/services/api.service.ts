@@ -173,6 +173,16 @@ export class ApiService {
     return this.http.put(`${BASE}/api/admin/classes/${classId}`, dados, this.authHeaders());
   }
 
+  // Progresso e certificado (X1, D91).
+  public markMaterial(enrollmentId: number, url: string, done: boolean) {
+    return this.http.post(`${BASE}/api/student/enrollments/${enrollmentId}/progress`, { url, done }, this.authHeaders());
+  }
+
+  public downloadCertificate(enrollmentId: number) {
+    return this.http.get(`${BASE}/api/student/enrollments/${enrollmentId}/certificate.pdf`,
+      { ...this.authHeaders(), observe: 'response', responseType: 'blob' });
+  }
+
   // LGPD (U7, D89): exportar e excluir os próprios dados.
   public exportMyData() {
     return this.http.get(`${BASE}/api/student/me/export`, { ...this.authHeaders(), observe: 'response', responseType: 'blob' });

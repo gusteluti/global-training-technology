@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { PainelMatriculas } from '../../resolvers/enrollments.resolver';
+import { salvarArquivo } from '../../services/salvar-arquivo';
 import { ApiService } from '../../services/api.service';
 import { AuthService } from '../../services/auth.service';
 import { formatarDataSP } from '../../pipes/data-sp.pipe';
@@ -229,6 +230,20 @@ export class StudentDashboardComponent implements OnInit {
         this.erroCancelamento[m.id] = typeof detalhe === 'string' ? detalhe : 'Não foi possível pedir o cancelamento.';
         this.recarregarMatriculas();
       }
+    });
+  }
+
+  marcarMaterial(matricula: any, url: string, feito: boolean): void {
+    this.api.markMaterial(matricula.id, url, feito).subscribe({
+      next: (r: any) => matricula.progress = r.progress,
+      error: () => this.recarregarMatriculas()
+    });
+  }
+
+  baixarCertificado(matricula: any): void {
+    this.api.downloadCertificate(matricula.id).subscribe({
+      next: resposta => salvarArquivo(resposta, 'certificado.pdf'),
+      error: () => this.recarregarMatriculas()
     });
   }
 
