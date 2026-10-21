@@ -1,4 +1,6 @@
 import { Component, OnInit } from '@angular/core';
+import { Router } from '@angular/router';
+import { salvarArquivo } from '../../services/salvar-arquivo';
 import { ApiService } from '../../services/api.service';
 import { AuthService } from '../../services/auth.service';
 
@@ -22,8 +24,9 @@ export class StudentProfileComponent implements OnInit {
   ok = '';
   erro = '';
   enviando = false;
+  senhaExclusao = '';
 
-  constructor(private api: ApiService, private auth: AuthService) { }
+  constructor(private api: ApiService, private auth: AuthService, private router: Router) { }
 
   ngOnInit(): void {
     this.api.getMyProfile().subscribe({
@@ -83,6 +86,35 @@ export class StudentProfileComponent implements OnInit {
       error: err => {
         this.enviando = false;
         this.erro = detalheDoErro(err, 'Não foi possível alterar a senha.');
+      }
+    });
+  }
+
+  exportarDados(): void {
+    this.ok = '';
+    this.erro = '';
+    this.api.exportMyData().subscribe({
+      next: resposta => salvarArquivo(resposta, 'meus-dados.json'),
+      error: err => this.erro = detalheDoErro(err, 'Não foi possível baixar seus dados.')
+    });
+  }
+
+  excluirConta(): void {
+    if (!confirm('Excluir sua conta? Essa ação não pode ser desfeita.')) {
+      return;
+    }
+    this.ok = '';
+    this.erro = '';
+    this.enviando = true;
+    this.api.deleteMyAccount(this.senhaExclusao).subscribe({
+      next: () => {
+        this.enviando = false;
+        this.auth.logout();
+        this.router.navigate(['/login'], { queryParams: { conta: 'excluida' } });
+      },
+      error: err => {
+        this.enviando = false;
+        this.erro = detalheDoErro(err, 'Não foi possível excluir a conta.');
       }
     });
   }

@@ -23,6 +23,7 @@ import { RedefinirSenhaComponent } from './components/redefinir-senha/redefinir-
 import { CourseCatalogComponent } from './components/course-catalog/course-catalog.component';
 import { StudentProfileComponent } from './components/student-profile/student-profile.component';
 import { StaffAdminComponent } from './components/staff-admin/staff-admin.component';
+import { TermosComponent } from './components/termos/termos.component';
 import { AtualizacaoAutomaticaComponent } from './components/atualizacao-automatica/atualizacao-automatica.component';
 import { AuthInterceptor } from './interceptors/auth.interceptor';
 import { DataSpPipe } from './pipes/data-sp.pipe';
@@ -49,6 +50,7 @@ registerLocaleData(localePt);
     CourseCatalogComponent,
     StudentProfileComponent,
     StaffAdminComponent,
+    TermosComponent,
     AtualizacaoAutomaticaComponent,
     DataSpPipe
   ],
