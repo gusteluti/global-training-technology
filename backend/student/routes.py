@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, StrictInt, field_validator
 
 import admin.routes as admin_routes
 import payments.routes as payments_routes
@@ -28,7 +28,7 @@ from agents.llm_guard import (
     LLMUnavailableError,
     bloco_dados_aluno,
 )
-from core import privacidade, progresso, rate_limit
+from core import avaliacoes, privacidade, progresso, rate_limit
 from core.receipt_pdf import gerar_recibo_pdf
 from core.audit import change, record_audit
 from core.password_setup import senha_aceitavel
@@ -108,6 +108,8 @@ def _montar_item(matricula: Dict, cancelamento: Optional[Dict] = None) -> Dict:
         item["materials"] = _materiais(curso)
         # X1 (D91): progresso nos materiais e certificado, só na matrícula ativa (as URLs só aparecem aqui).
         item["progress"] = progresso.resumo(matricula["id"], [m["url"] for m in item["materials"]])
+        # X2 (D92): avaliação do próprio aluno (ou null).
+        item["review"] = avaliacoes.da_matricula(matricula["id"])
     return item
 
 
@@ -572,3 +574,41 @@ async def baixar_certificado(enrollment_id: int, current_user: AuthContext = Dep
     )
     return Response(content=pdf, media_type="application/pdf",
                     headers={"Content-Disposition": f'attachment; filename="certificado-{matricula["course_id"]}.pdf"'})
+
+
+# --- Avaliação do curso (X2, D92) ---------------------------------------------------------------------------------
+
+class AvaliacaoInput(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    rating: StrictInt
+    comment: Optional[str] = None
+
+    @field_validator("rating")
+    @classmethod
+    def _nota_valida(cls, valor: int) -> int:
+        if isinstance(valor, bool) or not 1 <= valor <= 5:
+            raise ValueError("A nota vai de 1 a 5.")
+        return valor
+
+    @field_validator("comment")
+    @classmethod
+    def _comentario_valido(cls, valor: Optional[str]) -> Optional[str]:
+        if valor is None:
+            return None
+        valor = valor.strip()
+        if len(valor) > avaliacoes.COMENTARIO_MAX:
+            raise ValueError(f"O comentário pode ter no máximo {avaliacoes.COMENTARIO_MAX} caracteres.")
+        return valor or None
+
+
+@router.post("/enrollments/{enrollment_id}/review")
+async def avaliar_curso(enrollment_id: int, corpo: AvaliacaoInput,
+                        current_user: AuthContext = Depends(require_roles(Role.STUDENT))):
+    """Avaliação do curso pelo aluno com matrícula ativa; enviar de novo atualiza. Alheia = o mesmo 404 da E3."""
+    matricula = Database.get_enrollment_for_user(enrollment_id, current_user.id)
+    if matricula is None:
+        raise HTTPException(status_code=404, detail=ERRO_MATRICULA_NAO_ENCONTRADA)
+    if matricula["status"] != STATUS_COM_MATERIAIS:
+        raise HTTPException(status_code=409, detail="Só é possível avaliar um curso com matrícula ativa.")
+    review = avaliacoes.salvar(matricula["id"], matricula["course_id"], corpo.rating, corpo.comment)
+    return {"status": "success", "review": review}

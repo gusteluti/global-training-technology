@@ -233,6 +233,18 @@ export class StudentDashboardComponent implements OnInit {
     });
   }
 
+  notaAvaliacao: { [id: number]: number } = {};
+  comentarioAvaliacao: { [id: number]: string } = {};
+
+  avaliar(matricula: any): void {
+    const nota = this.notaAvaliacao[matricula.id] || matricula.review?.rating || 5;
+    const comentario = this.comentarioAvaliacao[matricula.id] ?? matricula.review?.comment ?? '';
+    this.api.reviewCourse(matricula.id, nota, comentario).subscribe({
+      next: (r: any) => matricula.review = r.review,
+      error: () => this.recarregarMatriculas()
+    });
+  }
+
   marcarMaterial(matricula: any, url: string, feito: boolean): void {
     this.api.markMaterial(matricula.id, url, feito).subscribe({
       next: (r: any) => matricula.progress = r.progress,

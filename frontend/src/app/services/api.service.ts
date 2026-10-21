@@ -173,6 +173,11 @@ export class ApiService {
     return this.http.put(`${BASE}/api/admin/classes/${classId}`, dados, this.authHeaders());
   }
 
+  // Avaliação do curso (X2, D92).
+  public reviewCourse(enrollmentId: number, rating: number, comment: string) {
+    return this.http.post(`${BASE}/api/student/enrollments/${enrollmentId}/review`, { rating, comment }, this.authHeaders());
+  }
+
   // Progresso e certificado (X1, D91).
   public markMaterial(enrollmentId: number, url: string, done: boolean) {
     return this.http.post(`${BASE}/api/student/enrollments/${enrollmentId}/progress`, { url, done }, this.authHeaders());
