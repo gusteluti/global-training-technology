@@ -1343,6 +1343,24 @@ e2e por tela nova e o build; a regressão completa e todos os e2e rodam uma vez,
 existentes continuam. Valem ainda: D30 (sem `main`, sem force-push, auditoria antes do push) e não versionar segredos.
 U8 fechada nesse modo: o backend parcial do dev-backend (interrompido por queda de internet) foi conferido e aproveitado.
 
+## D85 — S3: gestão da equipe (funcionários) (20/10/2026, processo enxuto D84)
+Política decidida pelo orquestrador (revisão do PM). Só Gestão; Financeiro, Suporte e aluno 403; sem token 401.
+- `GET /api/admin/staff` → `{staff: [{id, name, email, role, is_active, created_at}]}` (contas `admin`, `financial`,
+  `support`, por nome).
+- `POST /api/admin/staff` `{email, name, role}` (`role` em `admin|financial|support`) → cria a conta **sem senha** e envia
+  o link de definição de senha da E2 (mesmo mecanismo; sem SMTP vai para o outbox). E-mail já usado → 409 `Já existe
+  uma conta com este e-mail.` Evento `staff.create`.
+- `PUT /api/admin/staff/{id}` `{role?, name?}` e `POST /api/admin/staff/{id}/deactivate|reactivate`. Trocar o perfil ou
+  desativar incrementa `token_version` (a pessoa entra de novo com o perfil novo). Id que não é funcionário → 404
+  `Funcionário não encontrado.` Na própria conta, trocar o perfil ou desativar → 409 `Você não pode desativar ou trocar
+  o perfil da sua própria conta.` Deixar o sistema sem nenhuma conta de Gestão ativa → 409 `É preciso manter pelo
+  menos uma conta de Gestão ativa.` Eventos `staff.update`, `staff.deactivate`, `staff.reactivate`. Login de
+  funcionário desativado com a senha certa → 403 da D80.
+- As contas criadas pelo `.env` (startup) continuam e aparecem na lista. O login administrativo legado (só senha) não
+  muda.
+- Tela: aba "Equipe" (só Gestão) com `equipe-row`, formulário `equipe-email`, `equipe-nome`, `equipe-perfil`,
+  `equipe-convidar`, troca de perfil `equipe-perfil-select` na linha, `equipe-desativar`/`equipe-reativar` (confirm),
+  mensagens `equipe-ok` / `equipe-erro`.
 ## D86 — rótulo em português no status das transações (20/10/2026, decisão do PM)
 (A D85 é a da S3, ainda na branch `feature/fase2-tdd-s3-equipe`.) A coluna Status da tabela de transações da aba
 Financeiro mostrava o código cru (`approved`, `cancelled`...). Passa a mostrar o rótulo de `ROTULOS_PAGAMENTO`, o mesmo do

@@ -168,6 +168,24 @@ export class ApiService {
     return this.http.put(`${BASE}/api/admin/classes/${classId}`, dados, this.authHeaders());
   }
 
+  // Equipe (S3, D85): só a Gestão.
+  public getStaff() {
+    return this.http.get(`${BASE}/api/admin/staff`, this.authHeaders());
+  }
+
+  public inviteStaff(dados: { email: string; name: string; role: string }) {
+    return this.http.post(`${BASE}/api/admin/staff`, dados, this.authHeaders());
+  }
+
+  public updateStaff(userId: number, dados: { role?: string; name?: string }) {
+    return this.http.put(`${BASE}/api/admin/staff/${userId}`, dados, this.authHeaders());
+  }
+
+  public setStaffActive(userId: number, ativo: boolean) {
+    const acao = ativo ? 'reactivate' : 'deactivate';
+    return this.http.post(`${BASE}/api/admin/staff/${userId}/${acao}`, {}, this.authHeaders());
+  }
+
   public deleteClass(classId: number) {
     return this.http.delete(`${BASE}/api/admin/classes/${classId}`, this.authHeaders());
   }

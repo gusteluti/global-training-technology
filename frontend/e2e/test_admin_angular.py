@@ -53,7 +53,7 @@ from servidor_e2e_h1 import (  # noqa: E402
 )
 
 EXPECTED = {
-    GESTAO_EMAIL: (GESTAO_SENHA, ["Financeiro", "Alunos", "Cursos", "Cadastro de cursos", "Observabilidade de IA", "Auditoria"]),
+    GESTAO_EMAIL: (GESTAO_SENHA, ["Financeiro", "Alunos", "Cursos", "Cadastro de cursos", "Observabilidade de IA", "Auditoria", "Equipe"]),
     FINANCEIRO_EMAIL: (FINANCEIRO_SENHA, ["Financeiro", "Alunos", "Cursos", "Observabilidade de IA"]),
     SUPORTE_EMAIL: (SUPORTE_SENHA, ["Alunos", "Cursos", "Observabilidade de IA"]),
 }

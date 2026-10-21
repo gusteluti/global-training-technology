@@ -13,6 +13,7 @@ from fastapi import HTTPException
 from admin.routes import curso_arquivado, list_course_summaries, load_course_data, router as admin_router
 from payments.routes import pagamento_mockado_efetivo, router as payments_router
 from admin.cancellations import router as cancellations_router
+from admin.staff import router as staff_router
 from dashboard.routes import router as dashboard_router
 from agents.llm_guard import (
     INPUT_BLOCKED,
@@ -258,6 +259,7 @@ async def public_course_classes(course_id: str):
 app.include_router(admin_router, prefix="/api/admin", tags=["admin"])
 # Pedidos de cancelamento em 7 dias (U5, D82): /api/admin/cancellation-requests (Financeiro e Gestão).
 app.include_router(cancellations_router, prefix="/api/admin", tags=["admin"])
+app.include_router(staff_router, prefix="/api/admin", tags=["admin"])
 app.include_router(payments_router, prefix="/api/payments", tags=["payments"])
 # Dashboards de funcionário (Fase 2), consumidos pela aplicação Angular e pelo admin.html:
 # /api/dashboard/{alunos,cursos,financeiro,observabilidade-ia}
