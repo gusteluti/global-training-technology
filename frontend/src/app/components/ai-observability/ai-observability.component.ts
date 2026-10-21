@@ -25,7 +25,30 @@ export class AiObservabilityComponent implements OnInit, OnDestroy {
 
   constructor(private api: ApiService) { }
 
+  saude: any = null;
+  servicos: { rotulo: string; valor: string; texto: string }[] = [];
+
+  private carregarSaude(): void {
+    const rotulos: { [k: string]: string } = {
+      database: 'Banco de dados', llm: 'IA (Groq)', payment_gateway: 'Pagamentos', email: 'E-mail', backup: 'Último backup'
+    };
+    const textos: { [k: string]: string } = {
+      ok: 'ok', erro: 'erro', configurado: 'configurado', nao_configurado: 'não configurado',
+      desligado: 'desligado', nenhum: 'nenhum'
+    };
+    this.api.getHealth().subscribe({
+      next: (r: any) => {
+        this.saude = r;
+        this.servicos = Object.keys(rotulos).filter(k => r?.services && k in r.services).map(k => ({
+          rotulo: rotulos[k], valor: r.services[k], texto: textos[r.services[k]] || r.services[k]
+        }));
+      },
+      error: () => this.saude = { status: 'erro' }
+    });
+  }
+
   ngOnInit(): void {
+    this.carregarSaude();
     this.carregar();
   }
 

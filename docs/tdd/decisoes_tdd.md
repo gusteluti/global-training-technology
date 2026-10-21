@@ -1408,3 +1408,12 @@ Política decidida pelo orquestrador (revisão do PM):
   cadastro novo. Tela: "Privacidade e dados" em Meu perfil.
 Ajuste mecânico (4.3), D18/D57 → D89: os e2e de cadastro (`test_e2_conta_aluno_angular.py`,
 `test_l2_cadastro_cursos_angular.py`) marcam o aceite antes de enviar.
+
+## D90 — X3/X4: backup do banco e saúde do sistema (21/10/2026, modo autônomo do PM; processo enxuto D84)
+- **X3:** com `BACKUP_DIR` definida, o startup grava `db-AAAAMMDD.sqlite` pela API de backup do SQLite (cópia
+  consistente com o servidor no ar) e mantém os `BACKUP_KEEP` mais recentes (padrão 7). Restaurar: parar o backend e
+  copiar o arquivo por cima do `db.sqlite`. Pasta `backups/` ignorada pelo git; testes e e2e neutralizam `BACKUP_DIR`.
+- **X4:** `/health` (e o alias `/api/health`, para a SPA pelo proxy) ganha `services` (`database` ok/erro, `llm`,
+  `payment_gateway` e `email` configurado ou não, `backup` com o último arquivo) e `status` `degraded` quando o banco
+  não responde; as chaves antigas continuam. Nenhum segredo nem host aparece. O LLM não é chamado (custo). Cartão
+  "Saúde do sistema" na aba Observabilidade de IA. Alerta ativo (e-mail/aviso quando algo cai) ficou de fora.
