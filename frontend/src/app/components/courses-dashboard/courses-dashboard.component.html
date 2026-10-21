@@ -24,6 +24,7 @@
             <th>Aprovadas</th>
             <th>Pendentes</th>
             <th>Conversão</th>
+            <th>Avaliação</th>
           </tr>
         </thead>
         <tbody>
@@ -37,9 +38,10 @@
             <td>{{ c.approved_enrollments }}</td>
             <td>{{ c.pending_enrollments }}</td>
             <td>{{ c.conversion_rate }}%</td>
+            <td data-testid="curso-avaliacao-media">{{ c.rating?.count ? ((c.rating.average | number:'1.1-1') + ' ★ (' + c.rating.count + ')') : '—' }}</td>
           </tr>
           <tr *ngIf="courses.length === 0">
-            <td colspan="6" class="text-center text-muted">Nenhum curso cadastrado.</td>
+            <td colspan="7" class="text-center text-muted">Nenhum curso cadastrado.</td>
           </tr>
         </tbody>
       </table>

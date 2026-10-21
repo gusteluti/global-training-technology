@@ -1429,3 +1429,10 @@ Ajuste mecânico (4.3), D18/D57 → D89: os e2e de cadastro (`test_e2_conta_alun
   validação (HMAC, sem dado pessoal). O gerador do recibo virou `gerar_pdf_de_linhas`, comum aos dois.
 - Tela: bloco "Seu progresso" no cartão do curso (barra, caixas por material, "Baixar certificado"); a lista de links
   dos materiais ficou igual. Validação pública do código ficou de fora.
+
+## D92 — X2: avaliação do curso pelo aluno (21/10/2026, modo autônomo do PM; processo enxuto D84)
+- Tabela `course_reviews` (uma por matrícula). `POST /api/student/enrollments/{id}/review {rating 1–5, comment?}`
+  (comentário até 500, aparado); só matrícula ativa (senão 409); alheia → o mesmo 404 da E3; reenviar atualiza.
+- Matrícula ativa ganha `review` (ou null). Dashboard de cursos ganha `rating {average, count}` por curso, para todos
+  os perfis internos (não identifica o aluno). Telas: "Avalie o curso" no cartão do aluno; coluna "Avaliação" no painel.
+- NPS e a lista de comentários para a Gestão ficaram de fora (os comentários já estão gravados).

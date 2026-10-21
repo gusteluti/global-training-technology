@@ -91,6 +91,22 @@
               <button type="button" class="btn btn-success btn-sm mt-2" data-testid="curso-certificado"
                       *ngIf="m.progress.certificate_available" (click)="baixarCertificado(m)">Baixar certificado</button>
             </div>
+            <div class="mt-3 border-top pt-2">
+              <div class="small mb-1"><strong>Avalie o curso</strong>
+                <span class="text-muted" data-testid="curso-avaliacao-atual" *ngIf="m.review"> · sua nota: {{ m.review.rating }} ★</span>
+              </div>
+              <div class="d-flex gap-2 align-items-start">
+                <select class="form-select form-select-sm" style="max-width: 90px" data-testid="curso-avaliacao-nota"
+                        [(ngModel)]="notaAvaliacao[m.id]" [ngModelOptions]="{standalone: true}">
+                  <option *ngFor="let n of [5,4,3,2,1]" [ngValue]="n">{{ n }} ★</option>
+                </select>
+                <input class="form-control form-control-sm" maxlength="500" placeholder="Comentário (opcional)"
+                       data-testid="curso-avaliacao-comentario" [(ngModel)]="comentarioAvaliacao[m.id]"
+                       [ngModelOptions]="{standalone: true}">
+                <button type="button" class="btn btn-outline-primary btn-sm" data-testid="curso-avaliacao-enviar"
+                        (click)="avaliar(m)">Enviar</button>
+              </div>
+            </div>
           </ng-container>
 
           <ng-template #semAcesso>
