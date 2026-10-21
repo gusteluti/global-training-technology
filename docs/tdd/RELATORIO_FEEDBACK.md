@@ -20,6 +20,7 @@ Início: 19/10/2026. Fila: `docs/tdd/PLANO_FEEDBACK_PROF.md`. Atualizado ao fim 
 | S4/S5/U3/U9 — conta do aluno | entregue | red `ea05128`; backend `facd5ad`; front `cac20ce` | regressão 1725 passed; 14 e2e verdes |
 | U4/S6 — matrícula manual e expiração de pendente | entregue | red `0b0c89b`; backend `370387f`; front `58acc06`; datas relativas `6845c02` | regressão verde; 6 e2e verdes |
 | U5 — pedido de cancelamento em 7 dias | entregue | red `8df5c09`; backend `578b224`; front `d61d386` | regressão 1871 passed; 8 e2e verdes |
+| U8 — edição de turma, término e horário | entregue | red `d0d9241`; backend `f318c9c`; front | relacionados verdes; 2 e2e verdes (regressão completa fica para o fim, D84) |
 
 ## Decisões de política tomadas sem o PM (para revisão)
 
@@ -38,9 +39,11 @@ Início: 19/10/2026. Fila: `docs/tdd/PLANO_FEEDBACK_PROF.md`. Atualizado ao fim 
 - **S4 (D80):** aluno desativado vê `Sua conta está desativada. Fale com o suporte.` só com a senha certa; telefone 10–15 dígitos; textos do perfil escolhidos pelo dev ("Dados atualizados.", "Senha alterada." etc.).
 - **U4/S6 (D81):** pendente expira em 7 dias; matrícula manual exige motivo (5–300) e vira pagamento aprovado `manual` (entra na receita). Dívida: o CSV do financeiro não expira pendentes antes de exportar; mensagem do 422 da tela cita só o motivo.
 - **U5 (D82):** prazo de 7 dias contado da aprovação do pagamento (CDC art. 49); matrícula manual/cortesia não entra; aprovar = reembolso local (MVP, sem estorno real no gateway, como na E9). Textos dos botões e confirms escolhidos pelo dev.
+- **D84:** processo enxuto a pedido do PM; regressão completa só no fim.
 
 ## Paradas e itens pulados
 
 - Observação O0: o `frontend/node_modules` local estava sem `@fontsource/barlow*` (instalado com `--no-save`). Em clone novo, rodar `npm ci`.
 - O harness e2e (`servidor_e2e_e5/e7/h1`) ainda lê o catálogo real do bot (`c_e_c`, `python_profissional`); não quebra hoje.
 - **Achado de segurança (F7):** `POST /api/admin/create-course` aceita `id` vindo do cliente sem validação; um `id` com `../` pode gravar o JSON fora de `backend/courses` (só Gestão). Tratado na entrega S10 da onda 6.
+- Queda de internet interrompeu o dev-backend da U8; o trabalho parcial foi conferido e aproveitado.

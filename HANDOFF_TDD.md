@@ -319,3 +319,4 @@ Fila e respostas do PM em `docs/tdd/PLANO_FEEDBACK_PROF.md`; modo autônomo D69;
 | S4/S5/U3/U9 — conta do aluno | `feature/fase2-tdd-s4-conta-aluno` | `ea05128` | `facd5ad`, `cac20ce` | ver `git log` | backend 69/69; regressão 1725 passed; 14 e2e verdes |
 | U4/S6 — matrícula manual e expiração | `feature/fase2-tdd-u4-matricula-manual` | `0b0c89b`, `6845c02` | `370387f`, `58acc06` | ver `git log` | backend 96/96; regressão verde; 6 e2e verdes |
 | U5 — cancelamento em 7 dias | `feature/fase2-tdd-u5-cancelamento` | `8df5c09` | `578b224`, `d61d386` | ver `git log` | backend 50/50; regressão 1871 passed; 8 e2e verdes |
+| U8 — turmas | `feature/fase2-tdd-u8-turmas` | `d0d9241` | `f318c9c` + front | ver `git log` | U8 60/60; relacionados 338 passed; e2e U8 10/10, L1 16/16 |
