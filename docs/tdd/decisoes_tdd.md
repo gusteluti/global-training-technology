@@ -1492,3 +1492,13 @@ falhas seguidas e "não entendi". A entrega **GR — Guardrails do chatbot** cob
 **Decisões que sobem ao PM antes de implementar:** os textos fixos de cada bloqueio; se a moderação usa um modelo
 dedicado (custo e chave) ou só heurística; quanto falso positivo é aceitável; se o bloqueio por assunto vale também
 para o chat do aluno logado.
+
+## D95 — plano GR: guardrails e RAG do chatbot (22/10/2026, decisão do PM)
+O PM aprovou o pacote de cinco entregas (GR1 a GR5) e pediu a execução com a arquitetura de agentes do `AGENTS.md`
+(orquestrador, agente-testes, dev-backend, dev-frontend, um por vez), na branch `feature/fase2-ia-guardrails-rag`.
+Contratos, vocabulário de `guard` e textos fixos em `docs/tdd/PLANO_GR.md`. Volume de testes do processo enxuto (D84),
+com teste vermelho antes do código. Escolhas do orquestrador, **para revisão do PM**: os seis textos fixos; base
+institucional escrita só com o que o sistema já faz (formas e parcelamento ficam "no checkout do Mercado Pago";
+certificado de curso livre, não diploma do MEC); classificador externo de injeção desligado por padrão e, se ligado,
+falha cai na heurística; recusa de fora do domínio por padrões fechados (inclusive no chat do aluno); links do bot
+removidos salvo host permitido; RAG por FTS5 em memória (sem dependência nova, sem embeddings).
