@@ -87,7 +87,8 @@ export class StudentDashboardComponent implements OnInit {
   erroFinanceiro = '';
   receipt: any = null;
   baixandoPdf = new Set<number>();
-  chatMessages: { role: string; content: string }[] = [];
+  // `fontes`: títulos de `sources` da resposta (GR1). Só nesta sessão de tela; o histórico do servidor não traz fonte.
+  chatMessages: { role: string; content: string; fontes?: string[] }[] = [];
   chatInput = '';
   chatEnviando = false;
   // Ações de matrícula da última resposta (F5b, D76). Montadas pelo servidor e não persistidas no histórico.
@@ -350,7 +351,7 @@ export class StudentDashboardComponent implements OnInit {
         this.chatMessages = [
           ...this.chatMessages,
           { role: 'user', content: texto },
-          { role: 'assistant', content: res.message }
+          { role: 'assistant', content: res.message, fontes: this.titulosDasFontes(res.sources) }
         ];
         this.chatAcoes = (Array.isArray(res.actions) ? res.actions : [])
           .filter((a: any) => a && a.type === 'enroll' && a.course_id && a.label);
@@ -364,6 +365,16 @@ export class StudentDashboardComponent implements OnInit {
         this.chatEnviando = false;
       }
     });
+  }
+
+  // Títulos de `sources` (GR1): só strings não vazias; sem fonte, lista vazia e nada aparece na tela.
+  private titulosDasFontes(sources: any): string[] {
+    if (!Array.isArray(sources)) {
+      return [];
+    }
+    return sources
+      .map((f: any) => (f && typeof f.title === 'string' ? f.title.trim() : ''))
+      .filter((t: string) => t.length > 0);
   }
 
   // Só aceita link que aponte para https://wa.me/ (defesa, D77).

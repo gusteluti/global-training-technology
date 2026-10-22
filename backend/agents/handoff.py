@@ -79,8 +79,12 @@ def _motivo(mensagem: str, identidade: Dict) -> Optional[str]:
 
 
 def acoes_de_handoff(mensagem: str, *, user_id: Optional[int] = None, session_id: Optional[str] = None,
-                     course_id: Optional[str] = None, course_name: Optional[str] = None) -> list:
+                     course_id: Optional[str] = None, course_name: Optional[str] = None,
+                     motivo_padrao: Optional[str] = None) -> list:
     """Lista com a ação de handoff (0 ou 1 item) para a mensagem já processada; grava ai_handoffs quando emite.
+
+    `motivo_padrao` (GR1, D96): motivo do vocabulário da D77 usado quando nenhuma regra da F6 se aplica (o "não sei"
+    da base institucional passa 'unresolved'); as regras da D77 continuam com prioridade.
 
     `user_id` vem só do JWT (aluno); sem ele, a conversa é a sessão anônima `session_id` (emitida pelo servidor).
     Qualquer falha de leitura ou gravação desliga o handoff desta resposta, sem derrubar o chat.
@@ -90,7 +94,7 @@ def acoes_de_handoff(mensagem: str, *, user_id: Optional[int] = None, session_id
         return []
     try:
         identidade = _identidade(user_id, session_id)
-        motivo = _motivo(mensagem, identidade)
+        motivo = _motivo(mensagem, identidade) or (motivo_padrao if motivo_padrao in MOTIVOS else None)
         if motivo is None:
             return []
         alvo = f"o curso {course_name}" if course_id and course_name else ALVO_GERAL

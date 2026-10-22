@@ -198,6 +198,8 @@ class Database:
                 topic TEXT
             )
         """)
+        # GR1 (D95, PLANO_GR): tipo de bloqueio do guardrail (vocabulário fechado), nulo na interação normal.
+        Database._ensure_column(cursor, "ai_interactions", "guard", "TEXT")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_interactions_user ON ai_interactions (user_id, id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_interactions_session ON ai_interactions (session_hash, id)")
         # F6 (D77): uma linha por ação de handoff para o WhatsApp emitida. Mesma identidade da E7 (user_id do JWT
@@ -2104,14 +2106,16 @@ class Database:
 
     @staticmethod
     def add_ai_interaction(*, channel: str, user_id: Optional[int], session_hash: Optional[str],
-                           course_id: Optional[str], outcome: str, topic: Optional[str]) -> int:
-        """Uma linha por mensagem que chegou ao pipeline. `topic` já vem mascarado (ou None)."""
+                           course_id: Optional[str], outcome: str, topic: Optional[str],
+                           guard: Optional[str] = None) -> int:
+        """Uma linha por mensagem que chegou ao pipeline. `topic` já vem mascarado (ou None); `guard` (GR1) é o
+        tipo de bloqueio do guardrail, ou None."""
         conn = sqlite3.connect(Database.DB_PATH)
         try:
             cursor = conn.execute(
-                """INSERT INTO ai_interactions (channel, user_id, session_hash, course_id, outcome, topic)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
-                (channel, user_id, session_hash, course_id, outcome, topic),
+                """INSERT INTO ai_interactions (channel, user_id, session_hash, course_id, outcome, topic, guard)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (channel, user_id, session_hash, course_id, outcome, topic, guard),
             )
             conn.commit()
             return cursor.lastrowid

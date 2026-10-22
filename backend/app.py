@@ -99,6 +99,8 @@ async def startup_event():
     try:
         manager_agent = ManagerAgent()
         manager_agent.load_courses()
+        # GR1 (D95): índice da base institucional montado no startup (e reconstruído quando um arquivo muda).
+        manager_agent.base_institucional.atualizar_se_mudou()
         app.state.manager_agent = manager_agent
         print(f"[OK] Manager Agent initialized with {len(manager_agent.courses)} courses")
         print(f"[OK] Groq LLM loaded successfully")
@@ -178,10 +180,12 @@ async def chat_courses_debug(request: Request):
         ]
     }
 
-def _handoff_anonimo(manager_agent, mensagem: str, session_id: str, course_id: Optional[str]) -> list:
+def _handoff_anonimo(manager_agent, mensagem: str, session_id: str, course_id: Optional[str],
+                     motivo_padrao: Optional[str] = None) -> list:
     """Ação de handoff (F6, D77) da sessão anônima; o nome do curso vem do catálogo do servidor."""
     nome = (manager_agent.courses.get(course_id) or {}).get("name") if course_id else None
-    return acoes_de_handoff(mensagem, session_id=session_id, course_id=course_id, course_name=nome)
+    return acoes_de_handoff(mensagem, session_id=session_id, course_id=course_id, course_name=nome,
+                            motivo_padrao=motivo_padrao)
 
 
 @app.post("/api/chat")
@@ -219,7 +223,8 @@ async def chat(chat_msg: ChatMessage, request: Request):
         try:
             resultado = manager_agent.process_message(user_message, session_id)
         except InputBlockedError:
-            return {"status": "success", "message": INPUT_BLOCKED, "session_id": session_id, "actions": []}
+            return {"status": "success", "message": INPUT_BLOCKED, "session_id": session_id, "actions": [],
+                    "sources": []}
         except LLMUnavailableError as erro:
             corpo = {"status": "error", "message": LLM_UNAVAILABLE, "session_id": session_id}
             # F6 (D77): o erro continua como antes; ganha `actions` só quando o handoff vale.
@@ -234,8 +239,12 @@ async def chat(chat_msg: ChatMessage, request: Request):
             "session_id": session_id,
             # F5b (D76): ações montadas pelo servidor a partir do curso roteado; visitante não tem matrícula.
             # F6 (D77): a ação de handoff, quando vale, vem depois das de matrícula.
+            # GR1 (D96): no "não sei" da base institucional o handoff vale com o motivo 'unresolved' da F6.
             "actions": montar_acoes(resultado)
-            + _handoff_anonimo(manager_agent, user_message, session_id, resultado.curso),
+            + _handoff_anonimo(manager_agent, user_message, session_id, resultado.curso,
+                               motivo_padrao="unresolved" if resultado.sem_fonte else None),
+            # GR1 (D95): documentos da base institucional usados na resposta (lista vazia quando não houve).
+            "sources": resultado.fontes,
         }
     except Exception as e:
         # Nada do texto da exceção vai ao cliente (E6, D38.6); o log leva só o tipo.

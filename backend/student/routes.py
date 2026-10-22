@@ -365,29 +365,35 @@ def conversar_com_o_chatbot(
     try:
         # E7: o contexto de observabilidade (canal e aluno) vem só do JWT e é definido nesta thread,
         # a mesma que chama o LLM (o endpoint é síncrono e roda em threadpool).
+        # GR1 (D95): os cursos com matrícula 'active' do aluno do JWT liberam os trechos de curso da base.
         with identidade_aluno(current_user.id):
             resultado = manager_agent.process_authenticated_message(
-                corpo.message, _contexto_do_aluno(current_user.id), historico
+                corpo.message, _contexto_do_aluno(current_user.id), historico,
+                cursos_ativos=Database.list_active_course_ids_for_user(current_user.id),
             )
     except InputBlockedError:
-        return {"status": "success", "message": INPUT_BLOCKED, "actions": []}
+        return {"status": "success", "message": INPUT_BLOCKED, "actions": [], "sources": []}
     except LLMUnavailableError as erro:
         # F6 (D77): mesmo 502 e mesmo detail; o corpo ganha `actions` só quando o handoff vale.
         handoff = _handoff_aluno(manager_agent, corpo.message, current_user.id, getattr(erro, "curso", None))
         if handoff:
             return JSONResponse(status_code=502, content={"detail": LLM_UNAVAILABLE, "actions": handoff})
         raise HTTPException(status_code=502, detail=LLM_UNAVAILABLE)
-    # Só o texto é persistido; as ações (F5b, D76; F6, D77) são montadas pelo servidor e não vão ao histórico.
+    # Só o texto é persistido; as ações (F5b, D76; F6, D77) e as fontes (GR1) são montadas pelo servidor e não vão
+    # ao histórico. O "não sei" (SEM_INFORMACAO) também é persistido como resposta do assistente (D96).
     Database.add_chat_exchange(current_user.id, corpo.message, resultado.texto)
     acoes = montar_acoes(resultado, Database.list_active_course_ids_for_user(current_user.id))
-    acoes += _handoff_aluno(manager_agent, corpo.message, current_user.id, resultado.curso)
-    return {"status": "success", "message": resultado.texto, "actions": acoes}
+    acoes += _handoff_aluno(manager_agent, corpo.message, current_user.id, resultado.curso,
+                            motivo_padrao="unresolved" if resultado.sem_fonte else None)
+    return {"status": "success", "message": resultado.texto, "actions": acoes, "sources": resultado.fontes}
 
 
-def _handoff_aluno(manager_agent, mensagem: str, user_id: int, course_id: Optional[str]) -> list:
+def _handoff_aluno(manager_agent, mensagem: str, user_id: int, course_id: Optional[str],
+                   motivo_padrao: Optional[str] = None) -> list:
     """Ação de handoff (F6, D77) do aluno do JWT; o nome do curso vem do catálogo do servidor."""
     nome = (manager_agent.courses.get(course_id) or {}).get("name") if course_id else None
-    return acoes_de_handoff(mensagem, user_id=user_id, course_id=course_id, course_name=nome)
+    return acoes_de_handoff(mensagem, user_id=user_id, course_id=course_id, course_name=nome,
+                            motivo_padrao=motivo_padrao)
 
 
 @router.get("/chat/history")
