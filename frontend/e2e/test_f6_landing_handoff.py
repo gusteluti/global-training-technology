@@ -13,12 +13,13 @@ Cenários (cada um com contexto de navegador próprio):
   L0 pré-condição: o chat da landing responde (eco do dublê) e a pergunta geral não tem link de WhatsApp [passa no red]
   L1 "Quero falar com um atendente": 1 link com label, href wa.me com o texto "os cursos", target e rel
   L2 pedido de atendente sobre Omega: texto "o curso Omega Analytics" e os 3 botões de matrícula continuam
-  L3 texto do bot com link wa.me em pergunta sem gatilho: nenhum link de handoff                        [caract.]
+  L3 texto do bot com link wa.me (resposta interceptada, sem action): nenhum link de handoff           [caract.]
   L4 sem erros de console nem exceções de página
 
 Execução (da raiz do repo): py -3 -m pytest frontend/e2e/test_f6_landing_handoff.py -s
 """
 
+import json
 import sys
 import time
 from pathlib import Path
@@ -44,6 +45,7 @@ SEL_WHATSAPP = '[data-testid="chat-acao-whatsapp"]'
 PREFIXO_RESPOSTA = "Resposta simulada do assistente a: "
 PERGUNTA_GERAL = "Gostaria de uma recomendacao geral da plataforma"
 LINK_FALSO = "Fale no https://wa.me/5599999999999?text=oi"
+TEXTO_BOT_COM_WA_ME = f"Resposta simulada do assistente. {LINK_FALSO}"
 
 
 @pytest.fixture(scope="module")
@@ -54,7 +56,7 @@ def servidores():
         dados = semear_cursos_f5b(ambiente["api"], ambiente["db_path"])
         estatico = _servidor_da_landing(porta_web, ambiente["api"])
         try:
-            yield dict(ambiente, landing=base + "/landing_global_training.html", dados=dados)
+            yield dict(ambiente, origem=base, landing=base + "/landing_global_training.html", dados=dados)
         finally:
             estatico.shutdown()
             estatico.server_close()
@@ -71,11 +73,30 @@ def browser():
 
 
 class Visitante:
-    def __init__(self, browser, servidores):
+    def __init__(self, browser, servidores, resposta=None):
+        """`resposta`: dict devolvido no lugar de POST /api/chat (interceptado); None vai ao backend de teste."""
         self.contexto = browser.new_context()
         self.contexto.route("https://fonts.googleapis.com/**",
                             lambda rota: rota.fulfill(status=200, content_type="text/css", body=""))
         self.contexto.route("https://fonts.gstatic.com/**", lambda rota: rota.abort())
+        if resposta is not None:
+            origem = servidores["origem"]
+            cabecalhos = {
+                "Access-Control-Allow-Origin": origem,
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type",
+            }
+
+            def interceptar(rota):
+                if rota.request.method == "OPTIONS":
+                    rota.fulfill(status=204, headers=cabecalhos, body="")
+                elif rota.request.method == "POST":
+                    rota.fulfill(status=200, headers=dict(cabecalhos, **{"Content-Type": "application/json"}),
+                                 body=json.dumps(resposta, ensure_ascii=False))
+                else:
+                    rota.continue_()
+
+            self.contexto.route(f"{servidores['api']}/api/chat", interceptar)
         self.page = self.contexto.new_page()
         self.erros = []
         self.page.on("console", lambda m: self.erros.append(m.text) if m.type == "error" else None)
@@ -122,8 +143,8 @@ class Visitante:
 def visitante(browser, servidores):
     criados = []
 
-    def novo():
-        v = Visitante(browser, servidores)
+    def novo(resposta=None):
+        v = Visitante(browser, servidores, resposta)
         criados.append(v)
         return v
 
@@ -168,10 +189,19 @@ def test_l2_pedido_sobre_o_curso_tem_o_curso_no_texto_e_mantem_a_matricula(servi
 
 
 def test_l3_link_wa_me_no_texto_do_bot_nao_vira_link_de_handoff(servidores, visitante):
-    v = visitante()
-    v.enviar(f"{PERGUNTA_GERAL}. {LINK_FALSO}")
+    """Link wa.me no texto do bot nunca vira link de handoff (os links vêm só de `actions`, D77).
+
+    Intercepta POST /api/chat (mesmo estilo do L1 de test_gr2_landing_links.py): com a GR2 (D97) o backend remove do
+    texto as URLs de host fora de CHAT_ALLOWED_LINK_HOSTS, então o eco do backend de teste não traz mais o wa.me e a
+    tela não seria exercitada. A resposta interceptada traz o wa.me no texto e nenhuma action de handoff.
+    """
+    resposta = {"status": "success", "message": TEXTO_BOT_COM_WA_ME, "session_id": "0" * 32, "actions": [],
+                "sources": []}
+    v = visitante(resposta)
+    dados = v.enviar(PERGUNTA_GERAL)
+    assert dados.get("message") == TEXTO_BOT_COM_WA_ME, "pré-condição: a resposta interceptada chegou à página"
     assert any("wa.me/5599999999999" in t for t in v.page.locator(SEL_BOT).all_inner_texts()), \
-        "pré-condição: o texto do bot (eco) traz o link"
+        "pré-condição: o texto do bot (interceptado) traz o link"
     assert v.links() == [], "link do texto do bot virou link de handoff"
 
 

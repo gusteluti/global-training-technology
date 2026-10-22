@@ -1521,3 +1521,28 @@ removidos salvo host permitido; RAG por FTS5 em memória (sem dependência nova,
 - **Riscos:** o corte bm25 depende do tamanho da base (base com pouquíssimos trechos derruba acertos; a real tem 25);
   sem radical (flexões fora da base caem no "não sei"); FTS5 precisa estar compilado no SQLite.
 - **Para revisão do PM:** textos dos 6 documentos de `backend/knowledge/` (em especial "não é reconhecido pelo MEC").
+
+## D97 — GR2: guardrails de saída (22/10/2026, plano D95)
+- **Promessa:** só conta como promessa uma forma de "garantir" que afirma garantia (garantia, garantimos, garante,
+  garantido, assegurado e flexões) a até 6 palavras de emprego, contratação, salário, aprovação, reconhecimento ou
+  recolocação; mais "reconhecido pelo MEC", "100% de aprovação" e "diploma", sempre sem negação na mesma frase →
+  `PROMESSA_BLOQUEADA`. O imperativo "Garanta sua vaga" na turma **não é promessa** (é chamada para reservar vaga):
+  protege `test_f5b_chat_turmas.py::test_j1` e o e2e Angular G5 da F5b. "Aprovação do pagamento" é fluxo do checkout,
+  não promessa.
+- **Links:** URL de host fora de `CHAT_ALLOWED_LINK_HOSTS` (padrão vazio) é removida do texto e markdown vira só o
+  texto; `guard='output_link'`, **sem barrar a resposta**: `outcome` normal e as ações da F5b (matrícula) e da F6
+  (WhatsApp), que vêm de `actions`, ficam. A landing mostra o texto do bot só escapado, sem `linkify`.
+- **Datas:** `dd/mm`, `dd/mm/aaaa`, `d de <mês>` e também ISO `aaaa-mm-dd` contam como data; fora das turmas abertas
+  do curso roteado (ou qualquer data, sem curso roteado) → `NAO_VERIFICADO`. Prazos ("7 dias") não são datas.
+- **Fora da GR2:** "reembolso fora do prazo da política" (item do `PLANO_GR`) não foi implementado; vai como pendência.
+- **Ajuste mecânico (4.3), D77 → D95 → D97:** `frontend/e2e/test_f6_landing_handoff.py::test_l3` dependia do eco do
+  backend de teste trazer o `wa.me` no texto; com a GR2 o backend remove a URL e a pré-condição falhava. O cenário
+  passa a interceptar `POST /api/chat` com `page.route` (mesmo estilo do L1 de `test_gr2_landing_links.py`),
+  devolvendo texto com o `wa.me` e sem action de handoff. Intenção mantida: link do texto do bot não vira link de
+  handoff (`links() == []`). Nenhuma mudança de produção.
+- Ciclo: red `149761c` (backend 93 de 110 falham; e2e L1/L3 da GR2 falham), backend `b0dda59` (GR2 110 passed;
+  regressão 2131 passed), landing `1775b4e` (e2e GR2 6/6), ajuste do L3 da F6 no commit desta decisão (e2e landing
+  F6 5/5, GR2 6/6).
+- **Riscos (falsos positivos/negativos conhecidos):** "diploma" sem negação barra mesmo em uso neutro; no caminho
+  geral (sem curso roteado) qualquer data barra; paráfrase de promessa sem as palavras da lista passa; domínio sem
+  `http(s)://` nem `www.` ("golpe.com") não é removido.
