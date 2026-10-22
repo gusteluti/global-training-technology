@@ -12,12 +12,15 @@ from agents.groq_client import GroqChatClient
 from agents import rag
 from agents.llm_guard import (
     POLICY_BLOCK,
+    REGRAS_DE_RESPOSTA,
     SEM_INFORMACAO,
+    TEMPERATURA_RESPOSTA,
     InputBlockedError,
     LLMUnavailableError,
     bloco_base_institucional,
+    SaidaFiltrada,
+    avaliar_saida,
     entrada_bloqueada,
-    filtrar_saida,
     precos_do_catalogo,
 )
 from db import Database
@@ -177,17 +180,18 @@ CURSOS DISPONÍVEIS:
 
 Sua função é:
 1. Entender o que o usuário quer (qual curso, informações gerais, preço, etc)
-2. Fornecer informações persuasivas sobre os cursos
-3. Ajudar na decisão de compra
+2. Informar com precisão sobre os cursos do catálogo acima
+3. Ajudar o usuário a escolher o curso adequado
 4. Rotear para agentes especializados quando necessário
 
 INSTRUÇÕES IMPORTANTES:
 - Seja amigável e profissional
 - Se não conseguir entender, peça clarificação
-- Incentive o usuário a conhecer os cursos
-- Esteja sempre pronto para discutir preços, duração, objetivos
+- Responda sobre preços, duração e objetivos só com os dados do catálogo
 - Se o usuário pedir detalhes muito específicos de um curso, mencione que pode ajudar melhor
+- Datas e turmas abertas não estão neste prompt: para conhecê-las, o usuário deve citar o curso ou ver o catálogo
 
+{REGRAS_DE_RESPOSTA}
 Responda em português (pt-BR)."""
     
     def identify_course_intent(self, user_message: str) -> Tuple[str, bool]:
@@ -295,9 +299,13 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
         self.sessions[novo] = []
         return novo
 
-    def _filtrar_saida(self, resposta: str) -> str:
-        """Filtro de saída (D38.5): descarta desconto, valor fora do catálogo e vazamento de prompt."""
-        return filtrar_saida(resposta, precos_do_catalogo(self.courses.values()))
+    def _filtrar_saida(self, resposta: str, curso: Optional[str] = None,
+                       turmas: Optional[List[Dict]] = None) -> SaidaFiltrada:
+        """Filtro de saída (E6 + GR2): vazamento, oferta (desconto/valor fora do catálogo), promessa, data não
+        verificada (contra as turmas abertas do curso roteado) e links de host não permitido."""
+        return avaliar_saida(
+            resposta, precos_do_catalogo(self.courses.values()), curso_roteado=bool(curso), turmas=turmas
+        )
 
     def process_message(self, user_message: str, session_id: str) -> RespostaChat:
         """
@@ -369,16 +377,17 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
             erro.curso = curso
             raise
 
-        filtrada = self._filtrar_saida(resposta)
-        if filtrada != resposta:
+        # GR2: as turmas abertas já lidas acima são a única fonte de datas verificáveis (sem nova consulta).
+        saida = self._filtrar_saida(resposta, curso, turmas)
+        if saida.barrada:
             outcome = "output_blocked"
         elif curso:
             outcome = "answered"
         else:
             outcome = "unresolved"
-        ai_observability.registrar_interacao(outcome, curso, user_message)
+        ai_observability.registrar_interacao(outcome, curso, user_message, guard=saida.guard)
         return RespostaChat(
-            texto=filtrada, curso=curso, barrada=filtrada != resposta, turmas=turmas, fontes=rag.fontes(trechos)
+            texto=saida.texto, curso=curso, barrada=saida.barrada, turmas=turmas, fontes=rag.fontes(trechos)
         )
 
     def _buscar_base(self, user_message: str, *, aluno: bool, cursos_ativos: Iterable[str]) -> List:
@@ -442,7 +451,7 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
                 messages.append({"role": msg["role"], "content": msg["content"]})
             
             # Get response from Groq
-            response_text = self.llm.create_chat_completion(messages, max_tokens=600)
+            response_text = self.llm.create_chat_completion(messages, max_tokens=600, temperature=TEMPERATURA_RESPOSTA)
             return response_text
             
         except Exception as e:
