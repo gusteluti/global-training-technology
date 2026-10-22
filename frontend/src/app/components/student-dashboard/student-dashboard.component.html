@@ -190,11 +190,14 @@
   <div class="card mb-0 chat-card">
     <div class="chat-mensagens">
       <p *ngIf="chatMessages.length === 0" class="text-muted small mb-0">Nenhuma mensagem ainda. Pergunte algo ao assistente.</p>
-      <div *ngFor="let msg of chatMessages"
-           data-testid="chat-message"
-           [attr.data-role]="msg.role"
-           class="chat-bolha text-break"
-           [ngClass]="msg.role === 'user' ? 'chat-bolha-aluno' : 'chat-bolha-bot'">{{ msg.content }}</div>
+      <ng-container *ngFor="let msg of chatMessages">
+        <div data-testid="chat-message"
+             [attr.data-role]="msg.role"
+             class="chat-bolha text-break"
+             [ngClass]="msg.role === 'user' ? 'chat-bolha-aluno' : 'chat-bolha-bot'">{{ msg.content }}</div>
+        <p *ngIf="msg.role === 'assistant' && msg.fontes?.length" class="chat-fonte"
+           data-testid="chat-fonte">Fonte: {{ msg.fontes?.join(', ') }}</p>
+      </ng-container>
       <div *ngIf="chatAcoes.length || chatWhatsapp" class="chat-acoes">
         <button *ngFor="let acao of chatAcoes" type="button" class="btn btn-sm btn-outline-primary"
                 data-testid="chat-acao-matricular" (click)="abrirMatricula(acao)">{{ acao.label }}</button>
