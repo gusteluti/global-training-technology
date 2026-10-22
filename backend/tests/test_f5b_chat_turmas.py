@@ -643,7 +643,8 @@ def test_h1_actions_nao_persistido_no_historico(client, llm, ator, turmas):
 def test_h2_compatibilidade_chat_anonimo(client, llm, ator, turmas):
     llm.fixo = "Texto neutro do bot F5b"
     corpo, _ = ator("anonimo").enviar_ok(PERGUNTA_CURSO)
-    assert set(corpo) == {"status", "message", "session_id", "actions"}, corpo
+    # Ajuste mecanico (AGENTS.md 4.3), D76 -> D95 (GR1): a resposta ganhou `sources`, sempre presente.
+    assert set(corpo) == {"status", "message", "session_id", "actions", "sources"}, corpo
     assert corpo["message"] == "Texto neutro do bot F5b", "o texto do LLM nao e alterado pelas acoes"
     assert re.fullmatch(r"[0-9a-f]{32}", corpo["session_id"])
     sid = corpo["session_id"]
@@ -654,7 +655,8 @@ def test_h2_compatibilidade_chat_anonimo(client, llm, ator, turmas):
 def test_h3_compatibilidade_chat_do_aluno(client, llm, ator, turmas):
     llm.fixo = "Texto neutro do bot F5b aluno"
     corpo, _ = ator("aluno").enviar_ok(PERGUNTA_CURSO)
-    assert set(corpo) == {"status", "message", "actions"}, corpo
+    # Ajuste mecanico (AGENTS.md 4.3), D76 -> D95 (GR1): a resposta ganhou `sources`, sempre presente.
+    assert set(corpo) == {"status", "message", "actions", "sources"}, corpo
     assert corpo["message"] == "Texto neutro do bot F5b aluno"
 
 
