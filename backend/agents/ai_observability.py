@@ -136,10 +136,12 @@ def registrar_uso(model: str, status: str, latencia_ms: int, prompt_tokens: int 
         print(f"Error recording ai_usage: {type(e).__name__}")
 
 
-def registrar_interacao(outcome: str, course_id: Optional[str] = None, mensagem: Optional[str] = None) -> None:
+def registrar_interacao(outcome: str, course_id: Optional[str] = None, mensagem: Optional[str] = None,
+                        guard: Optional[str] = None) -> None:
     """Grava uma linha de ai_interactions para a mensagem que chegou ao pipeline.
 
     `mensagem` só é usada para o tópico mascarado, e só no canal anônimo com outcome 'unresolved'.
+    `guard` (GR1, PLANO_GR) é o tipo de bloqueio do vocabulário fechado (ex.: 'no_source'); None no caso normal.
     """
     identidade = identidade_atual()
     if identidade is None:
@@ -155,6 +157,7 @@ def registrar_interacao(outcome: str, course_id: Optional[str] = None, mensagem:
             course_id=course_id,
             outcome=outcome,
             topic=topico,
+            guard=guard,
         )
     except Exception as e:
         print(f"Error recording ai_interaction: {type(e).__name__}")

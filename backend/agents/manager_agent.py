@@ -9,10 +9,13 @@ from typing import Dict, Iterable, List, Optional, Tuple
 from agents import ai_observability
 from agents.course_agent import CourseAgent
 from agents.groq_client import GroqChatClient
+from agents import rag
 from agents.llm_guard import (
     POLICY_BLOCK,
+    SEM_INFORMACAO,
     InputBlockedError,
     LLMUnavailableError,
+    bloco_base_institucional,
     entrada_bloqueada,
     filtrar_saida,
     precos_do_catalogo,
@@ -38,12 +41,15 @@ LABEL_MATRICULAR_CURSO = "Matricular no curso"
 class RespostaChat:
     """Resultado de uma resposta do chat (F5b): o texto já filtrado e os dados que o servidor usa para montar
     as ações. `turmas` é a lista de turmas abertas (D75) do curso roteado; None quando não se aplica ou não foi
-    possível ler."""
+    possível ler. `fontes` (GR1) são os documentos da base institucional usados (`sources` da resposta) e
+    `sem_fonte` marca o "não sei" determinístico (tema de política sem trecho)."""
 
     texto: str
     curso: Optional[str] = None
     barrada: bool = False
     turmas: Optional[List[Dict]] = field(default=None)
+    fontes: List[Dict] = field(default_factory=list)
+    sem_fonte: bool = False
 
 
 def montar_acoes(resposta: Optional[RespostaChat], cursos_ativos: Iterable[str] = ()) -> List[Dict]:
@@ -76,6 +82,8 @@ class ManagerAgent:
         self.course_agents: Dict[str, CourseAgent] = {}
         self.sessions: Dict = {}  # Store conversation history per session
         self.courses_fingerprint: Dict[str, Tuple[int, int]] = {}
+        # GR1 (D95): índice em memória da base institucional (KNOWLEDGE_DIR), reconstruído quando os arquivos mudam.
+        self.base_institucional = rag.BaseInstitucional()
 
         # Initialize Groq chat client
         self.llm = GroqChatClient()
@@ -156,11 +164,12 @@ class ManagerAgent:
         
         return "\n".join(courses_list)
     
-    def create_system_prompt(self) -> str:
-        """Create the system prompt for the manager agent"""
+    def create_system_prompt(self, base_institucional=None) -> str:
+        """Create the system prompt for the manager agent. `base_institucional`: trechos da GR1 (ou nada)."""
         courses_info = self.get_course_names_list()
         
         return f"""{POLICY_BLOCK}
+{bloco_base_institucional(base_institucional)}
 Você é um assistente gerenciador de cursos de uma escola de tecnologia.
 
 CURSOS DISPONÍVEIS:
@@ -313,7 +322,7 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
             conversation_history = self.sessions[session_id].copy()
             conversation_history.append({"role": "user", "content": user_message})
 
-            response = self._responder(user_message, conversation_history)
+            response = self._responder(user_message, conversation_history, aluno=False)
 
         # Store in history (só o texto; as ações da F5b não entram no histórico)
         self.sessions[session_id].append({"role": "user", "content": user_message})
@@ -326,10 +335,19 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
         return response
 
     def _responder(self, user_message: str, conversation_history: List, student_context: str = None,
-                   history_limit: int = 10) -> RespostaChat:
-        """Identifica o curso, responde (Course Agent ou resposta geral), aplica o filtro de saída e grava
-        a interação (E7). Levanta LLMUnavailableError, depois de gravar a interação como 'llm_error'.
-        Devolve o texto filtrado com o curso roteado, se a saída foi barrada e as turmas abertas (F5b)."""
+                   history_limit: int = 10, aluno: bool = False, cursos_ativos: Iterable[str] = ()) -> RespostaChat:
+        """Busca a base institucional (GR1), identifica o curso, responde (Course Agent ou resposta geral), aplica
+        o filtro de saída e grava a interação (E7). Levanta LLMUnavailableError, depois de gravar a interação como
+        'llm_error'. Devolve o texto filtrado com o curso roteado, se a saída foi barrada, as turmas abertas (F5b)
+        e as fontes usadas (GR1).
+
+        Tema de política sem trecho recuperado -> SEM_INFORMACAO, sem chamar o LLM (nem o roteamento), com
+        outcome 'unresolved' e guard 'no_source'. `aluno`/`cursos_ativos` vêm do servidor (JWT -> banco)."""
+        trechos = self._buscar_base(user_message, aluno=aluno, cursos_ativos=cursos_ativos)
+        if not trechos and rag.tema_de_politica(user_message):
+            ai_observability.registrar_interacao("unresolved", None, user_message, guard="no_source")
+            return RespostaChat(texto=SEM_INFORMACAO, sem_fonte=True)
+
         course_id, is_specific = self.identify_course_intent(user_message)
         curso = course_id if is_specific and course_id in self.course_agents else None
         turmas = self._turmas_abertas(curso) if curso else None
@@ -338,11 +356,12 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
             if curso:
                 resposta = self.course_agents[curso].answer_question(
                     user_message, conversation_history, student_context=student_context, history_limit=history_limit,
-                    turmas=turmas,
+                    turmas=turmas, base_institucional=trechos,
                 )
             else:
                 resposta = self._answer_general_question(
-                    user_message, conversation_history, student_context=student_context, history_limit=history_limit
+                    user_message, conversation_history, student_context=student_context, history_limit=history_limit,
+                    base_institucional=trechos,
                 )
         except LLMUnavailableError as erro:
             ai_observability.registrar_interacao("llm_error", curso)
@@ -358,7 +377,17 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
         else:
             outcome = "unresolved"
         ai_observability.registrar_interacao(outcome, curso, user_message)
-        return RespostaChat(texto=filtrada, curso=curso, barrada=filtrada != resposta, turmas=turmas)
+        return RespostaChat(
+            texto=filtrada, curso=curso, barrada=filtrada != resposta, turmas=turmas, fontes=rag.fontes(trechos)
+        )
+
+    def _buscar_base(self, user_message: str, *, aluno: bool, cursos_ativos: Iterable[str]) -> List:
+        """Trechos da base institucional visíveis para quem pergunta. Falha na base nunca derruba o chat."""
+        try:
+            return self.base_institucional.buscar(user_message, aluno=aluno, cursos_ativos=cursos_ativos)
+        except Exception as e:
+            print(f"Error searching institutional base: {type(e).__name__}")
+            return []
 
     @staticmethod
     def _turmas_abertas(course_id: str) -> Optional[List[Dict]]:
@@ -369,7 +398,8 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
             print(f"Error listing open classes: {type(e).__name__}")
             return None
 
-    def process_authenticated_message(self, user_message: str, student_context: str, history: List) -> RespostaChat:
+    def process_authenticated_message(self, user_message: str, student_context: str, history: List,
+                                      cursos_ativos: Iterable[str] = ()) -> RespostaChat:
         """Chat do aluno logado (E5). Não lê nem grava em self.sessions.
 
         `history` são as mensagens persistidas do próprio aluno (anteriores à atual, já limitadas pelo
@@ -379,7 +409,9 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
         Levanta InputBlockedError (nada deve ser gravado) ou LLMUnavailableError (nada deve ser gravado).
         Saída barrada pelo filtro volta como texto fixo, que o chamador grava no lugar do texto cru.
         A identidade do aluno para a observabilidade (E7) vem do contexto definido pelo chamador
-        (`ai_observability.identidade_aluno`), nunca de parâmetro do cliente.
+        (`ai_observability.identidade_aluno`), nunca de parâmetro do cliente. `cursos_ativos` (GR1) são os ids
+        dos cursos com matrícula 'active' do aluno do JWT, lidos do banco pelo chamador: só eles liberam trechos
+        `aluno` de curso da base institucional.
         """
         if entrada_bloqueada(user_message):
             ai_observability.registrar_interacao("input_blocked")
@@ -391,16 +423,17 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
         conversation_history.append({"role": "user", "content": user_message})
         return self._responder(
             user_message, conversation_history, student_context=student_context,
-            history_limit=len(conversation_history),
+            history_limit=len(conversation_history), aluno=True, cursos_ativos=cursos_ativos,
         )
 
     def _answer_general_question(
-        self, user_message: str, history: List, student_context: str = None, history_limit: int = 10
+        self, user_message: str, history: List, student_context: str = None, history_limit: int = 10,
+        base_institucional=None,
     ) -> str:
         """Answer a general question using the LLM"""
         try:
             # Build messages for LLM
-            messages = [{"role": "system", "content": self.create_system_prompt()}]
+            messages = [{"role": "system", "content": self.create_system_prompt(base_institucional)}]
             if student_context:
                 messages.append({"role": "system", "content": student_context})
 

@@ -1,7 +1,13 @@
 import os
 from typing import Dict, List, Optional
 from agents.groq_client import GroqChatClient
-from agents.llm_guard import POLICY_BLOCK, LLMUnavailableError, bloco_base_conhecimento, bloco_turmas_abertas
+from agents.llm_guard import (
+    POLICY_BLOCK,
+    LLMUnavailableError,
+    bloco_base_conhecimento,
+    bloco_base_institucional,
+    bloco_turmas_abertas,
+)
 
 try:
     from dotenv import load_dotenv
@@ -86,12 +92,13 @@ Se não houver turma aberta, diga que a matrícula é feita direto no curso. Nã
 link: a matrícula é feita pelo botão que a plataforma exibe junto da resposta.
 """
 
-    def get_system_prompt(self, turmas: Optional[List[Dict]] = None) -> str:
-        """Get the system prompt for this course agent"""
+    def get_system_prompt(self, turmas: Optional[List[Dict]] = None, base_institucional=None) -> str:
+        """Get the system prompt for this course agent. `base_institucional`: trechos da GR1 (ou nada)."""
         knowledge = self.build_knowledge_base()
         system_prompt = self.course_data.get('system_prompt', '')
 
         return f"""{POLICY_BLOCK}
+{bloco_base_institucional(base_institucional)}
 {system_prompt}
 
 {bloco_base_conhecimento(knowledge)}
@@ -125,6 +132,7 @@ Responda em português (pt-BR)."""
         student_context: str = None,
         history_limit: int = 10,
         turmas: Optional[List[Dict]] = None,
+        base_institucional=None,
     ) -> str:
         """
         Answer a question about the course
@@ -134,6 +142,7 @@ Responda em português (pt-BR)."""
             conversation_history: Previous messages for context
             student_context: Optional text about the logged-in student (E5), sent as an extra system message
             history_limit: How many entries of the history are sent to the model
+            base_institucional: trechos recuperados da base institucional (GR1), na 1a mensagem system
 
         Returns:
             Course agent's response
@@ -143,7 +152,7 @@ Responda em português (pt-BR)."""
                 conversation_history = []
             
             # Build messages for Groq chat
-            messages = [{"role": "system", "content": self.get_system_prompt(turmas)}]
+            messages = [{"role": "system", "content": self.get_system_prompt(turmas, base_institucional)}]
             if student_context:
                 messages.append({"role": "system", "content": student_context})
 
