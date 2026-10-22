@@ -3,6 +3,8 @@ from typing import Dict, List, Optional
 from agents.groq_client import GroqChatClient
 from agents.llm_guard import (
     POLICY_BLOCK,
+    REGRAS_DE_RESPOSTA,
+    TEMPERATURA_RESPOSTA,
     LLMUnavailableError,
     bloco_base_conhecimento,
     bloco_base_institucional,
@@ -108,20 +110,20 @@ link: a matrícula é feita pelo botão que a plataforma exibe junto da resposta
 INSTRUÇÕES OPERACIONAIS
 ═══════════════════════════════════════════════════════════════════
 
-✅ FAÇA:
+FAÇA:
 • Responda todas as perguntas baseado APENAS na base de conhecimento acima
-• Seja amigável, didático e motivador
-• Destaque os benefícios do curso
-• Se perguntarem sobre inscrição/compra, seja persuasivo
-• Use emojis para deixar a resposta mais atrativa
+• Seja amigável, didático e objetivo
+• Explique os benefícios do curso como estão na base de conhecimento
+• Se perguntarem sobre inscrição/compra, explique como se matricular pela plataforma
 
-❌ NÃO FAÇA:
+NÃO FAÇA:
 • Não invente informações não presentes na base de conhecimento
 • Se perguntarem algo fora do escopo do curso, redirecione gentilmente
 • Não responda sobre outros cursos (você só conhece este)
 
-🎯 OBJETIVO FINAL:
-Ajude o usuário a entender o valor do curso e incentive a inscrição!
+{REGRAS_DE_RESPOSTA}
+OBJETIVO FINAL:
+Ajude o usuário a entender o curso com informações corretas, para ele decidir com segurança.
 
 Responda em português (pt-BR)."""
     
@@ -161,7 +163,7 @@ Responda em português (pt-BR)."""
                 messages.append({"role": msg["role"], "content": msg["content"]})
             
             # Get response from Groq
-            response_text = self.llm.create_chat_completion(messages, max_tokens=800)
+            response_text = self.llm.create_chat_completion(messages, max_tokens=800, temperature=TEMPERATURA_RESPOSTA)
             return response_text
             
         except Exception as e:
