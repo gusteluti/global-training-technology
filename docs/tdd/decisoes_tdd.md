@@ -1502,3 +1502,22 @@ institucional escrita só com o que o sistema já faz (formas e parcelamento fic
 certificado de curso livre, não diploma do MEC); classificador externo de injeção desligado por padrão e, se ligado,
 falha cai na heurística; recusa de fora do domínio por padrões fechados (inclusive no chat do aluno); links do bot
 removidos salvo host permitido; RAG por FTS5 em memória (sem dependência nova, sem embeddings).
+
+## D96 — GR1: RAG das políticas com fonte e "não sei" (22/10/2026, plano D95)
+- Índice FTS5 em memória (`agents/rag.py`) sobre `KNOWLEDGE_DIR` (padrão `backend/knowledge`, 6 documentos públicos e
+  25 trechos), reconstruído quando os arquivos mudam; busca em toda mensagem, depois do filtro de injeção; corte
+  `bm25 <= -0,5`; filtro de acesso aplicado antes do corte em k=3 (anônimo só `publico`; aluno também `aluno` sem curso
+  e `aluno` de curso com matrícula `active`, pelo JWT).
+- Bloco `[BASE INSTITUCIONAL …]` na 1ª mensagem system dos dois caminhos, neutralizado; tema de política sem trecho →
+  `SEM_INFORMACAO` sem nenhuma chamada ao LLM, `outcome='unresolved'`, `guard='no_source'`; coluna `guard` em
+  `ai_interactions`. Respostas ganham `sources: [{id, title}]`; telas mostram "Fonte: <título>" (`chat-fonte`), não
+  persistida.
+- Decisões de forma do orquestrador: (1) handoff no "não sei" com o motivo `unresolved` da F6; (2) o aluno tem a
+  resposta `SEM_INFORMACAO` gravada no histórico; (3) `sources` sem duplicatas, por relevância.
+- **Ajuste mecânico (4.3), D76 → D95:** `test_f5b_chat_turmas.py::test_h2/test_h3` aceitam a chave `sources`.
+- Ciclo: red `bd39bf9` (30 de 31 falham), backend `d8a10e1` (31/31; regressão 2019 passed antes do ajuste da F5b),
+  ajuste `28c6116`, e2e red `aa735c4` (A1/A2 e L1/L2), frontend `acfbf0c` (e2e GR1 2/2; e2e de chat E5, E6, F5b, F6, D2
+  verdes; build limpo).
+- **Riscos:** o corte bm25 depende do tamanho da base (base com pouquíssimos trechos derruba acertos; a real tem 25);
+  sem radical (flexões fora da base caem no "não sei"); FTS5 precisa estar compilado no SQLite.
+- **Para revisão do PM:** textos dos 6 documentos de `backend/knowledge/` (em especial "não é reconhecido pelo MEC").
