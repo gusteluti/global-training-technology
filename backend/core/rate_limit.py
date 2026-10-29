@@ -1,6 +1,8 @@
 """Limite de taxa em memória (S9, D79): chat anônimo e checkouts.
 
 - POST /api/chat: 30 mensagens por minuto por IP -> 429 ERRO_CHAT.
+- POST /api/student/chat (GR3, D95): 30 mensagens por minuto por aluno (id do JWT, em qualquer IP) -> 429 ERRO_CHAT.
+  Não consome o limite por IP do chat anônimo.
 - Checkouts (aluno logado e landing): 10 por minuto por IP e, no fluxo logado, também por aluno -> 429 ERRO_CHECKOUT.
 
 Janela deslizante de 1 minuto. Tentativa barrada não conta. O estado é zerado no startup do app
@@ -18,6 +20,7 @@ ERRO_CHAT = "Muitas mensagens em pouco tempo. Aguarde um instante."
 ERRO_CHECKOUT = "Muitas tentativas de compra em pouco tempo. Aguarde um instante."
 JANELA_SEGUNDOS = 60.0
 LIMITE_CHAT_POR_IP = 30
+LIMITE_CHAT_POR_ALUNO = 30
 LIMITE_CHECKOUT = 10
 _MAX_CHAVES = 10_000  # acima disso, chaves sem registro na janela são descartadas
 
@@ -67,6 +70,11 @@ def permitir_chat(request: Request) -> bool:
     if ip is None:
         return True
     return _consumir([("chat", "ip", ip)], LIMITE_CHAT_POR_IP)
+
+
+def permitir_chat_aluno(user_id: int) -> bool:
+    """Limite do chat do aluno logado (GR3): a chave é só o id do JWT, nunca o IP nem o corpo da requisição."""
+    return _consumir([("chat", "user", user_id)], LIMITE_CHAT_POR_ALUNO)
 
 
 def permitir_checkout(request: Request, user_id: Optional[int] = None) -> bool:

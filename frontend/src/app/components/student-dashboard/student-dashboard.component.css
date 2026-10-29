@@ -48,6 +48,11 @@
   max-width: 80%; margin: -8px 0 0; padding: 0 4px; align-self: flex-start;
   font-size: 12px; color: var(--gt-muted);
 }
+.chat-aviso-pii {
+  max-width: 80%; margin: -4px 0 0; padding: 6px 10px; align-self: flex-start;
+  font-size: 12px; color: var(--gt-muted); background: var(--gt-soft-blue);
+  border-left: 3px solid var(--gt-teal); border-radius: 6px;
+}
 .chat-aviso { margin: 0; padding: 10px 16px 0; }
 .chat-acoes { display: flex; flex-wrap: wrap; gap: 8px; align-self: flex-start; }
 .chat-form { padding: 12px 16px; border-top: 1px solid #d8e0e8; background: #ffffff; }

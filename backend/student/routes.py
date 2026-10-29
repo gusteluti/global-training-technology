@@ -21,12 +21,12 @@ from agents.ai_observability import identidade_aluno
 from agents.handoff import acoes_de_handoff
 from agents.manager_agent import montar_acoes
 from agents.llm_guard import (
-    INPUT_BLOCKED,
     LLM_UNAVAILABLE,
     MAX_MESSAGE_CHARS,
     InputBlockedError,
     LLMUnavailableError,
     bloco_dados_aluno,
+    mascarar_pii,
 )
 from core import avaliacoes, privacidade, progresso, rate_limit
 from core.receipt_pdf import gerar_recibo_pdf
@@ -360,6 +360,9 @@ def conversar_com_o_chatbot(
     manager_agent = getattr(request.app.state, "manager_agent", None)
     if manager_agent is None:
         raise HTTPException(status_code=503, detail="Chatbot indisponível.")
+    # GR3 (D95): 30 mensagens por minuto por aluno do JWT; a barrada não chega ao LLM e não é gravada.
+    if not rate_limit.permitir_chat_aluno(current_user.id):
+        return JSONResponse(status_code=429, content={"status": "error", "message": rate_limit.ERRO_CHAT})
 
     historico = Database.list_chat_messages(current_user.id, limit=JANELA_CONTEXTO_CHAT)
     try:
@@ -371,21 +374,26 @@ def conversar_com_o_chatbot(
                 corpo.message, _contexto_do_aluno(current_user.id), historico,
                 cursos_ativos=Database.list_active_course_ids_for_user(current_user.id),
             )
-    except InputBlockedError:
-        return {"status": "success", "message": INPUT_BLOCKED, "actions": [], "sources": []}
+    except InputBlockedError as bloqueio:
+        # Injeção (INPUT_BLOCKED) ou fora do domínio (FORA_DO_ASSUNTO, GR3): nada é gravado.
+        return {"status": "success", "message": bloqueio.texto, "actions": [], "sources": []}
     except LLMUnavailableError as erro:
         # F6 (D77): mesmo 502 e mesmo detail; o corpo ganha `actions` só quando o handoff vale.
-        handoff = _handoff_aluno(manager_agent, corpo.message, current_user.id, getattr(erro, "curso", None))
+        # GR3: a mensagem do handoff é a mascarada (o handoff só procura pedido de atendente; nada é gravado).
+        mascarada, _ = mascarar_pii(corpo.message)
+        handoff = _handoff_aluno(manager_agent, mascarada, current_user.id, getattr(erro, "curso", None))
         if handoff:
             return JSONResponse(status_code=502, content={"detail": LLM_UNAVAILABLE, "actions": handoff})
         raise HTTPException(status_code=502, detail=LLM_UNAVAILABLE)
     # Só o texto é persistido; as ações (F5b, D76; F6, D77) e as fontes (GR1) são montadas pelo servidor e não vão
     # ao histórico. O "não sei" (SEM_INFORMACAO) também é persistido como resposta do assistente (D96).
-    Database.add_chat_exchange(current_user.id, corpo.message, resultado.texto)
+    # GR3 (D95): grava a mensagem com a PII já mascarada; `pii_masked` avisa a tela (AVISO_PII).
+    Database.add_chat_exchange(current_user.id, resultado.mensagem, resultado.texto)
     acoes = montar_acoes(resultado, Database.list_active_course_ids_for_user(current_user.id))
-    acoes += _handoff_aluno(manager_agent, corpo.message, current_user.id, resultado.curso,
+    acoes += _handoff_aluno(manager_agent, resultado.mensagem, current_user.id, resultado.curso,
                             motivo_padrao="unresolved" if resultado.sem_fonte else None)
-    return {"status": "success", "message": resultado.texto, "actions": acoes, "sources": resultado.fontes}
+    return {"status": "success", "message": resultado.texto, "actions": acoes, "sources": resultado.fontes,
+            "pii_masked": resultado.pii_masked}
 
 
 def _handoff_aluno(manager_agent, mensagem: str, user_id: int, course_id: Optional[str],

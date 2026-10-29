@@ -2,7 +2,7 @@ import os
 import time
 from dotenv import load_dotenv
 from groq import Groq
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from agents import ai_observability
 
@@ -20,28 +20,34 @@ class GroqChatClient:
         self.client = Groq(api_key=self.api_key)
         print(f"[OK] GroqChatClient initialized with model: {self.model}")
 
-    def create_chat_completion(self, messages: List[Dict[str, str]], max_tokens: int = 1024, temperature: float = 0.7) -> str:
+    def create_chat_completion(self, messages: List[Dict[str, str]], max_tokens: int = 1024, temperature: float = 0.7,
+                               model: Optional[str] = None) -> str:
         # E7 (D42): o usage de cada chamada é persistido aqui, com latência e custo. O contexto (canal,
         # usuário, sessão, tipo de chamada) vem por contextvars. A exceção do SDK é relançada como antes
         # (o contrato da E6 continua) e o texto dela nunca é gravado.
+        # GR3 (D95): `model` troca o modelo só nesta chamada (classificador GUARD_MODEL); sem ele, nada muda.
+        modelo = model or self.model
+        parametros = {
+            "model": modelo,
+            "messages": messages,
+            "temperature": temperature,
+            "max_completion_tokens": max_tokens,
+            "top_p": 1,
+            "stream": False,
+            "stop": None,
+        }
+        if modelo == self.model:
+            # reasoning_effort é do modelo de resposta; um classificador dedicado pode não aceitar o parâmetro.
+            parametros["reasoning_effort"] = "medium"
         inicio = time.perf_counter()
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=temperature,
-                max_completion_tokens=max_tokens,
-                top_p=1,
-                reasoning_effort="medium",
-                stream=False,
-                stop=None,
-            )
+            response = self.client.chat.completions.create(**parametros)
         except Exception:
-            ai_observability.registrar_uso(self.model, "error", self._latencia_ms(inicio))
+            ai_observability.registrar_uso(modelo, "error", self._latencia_ms(inicio))
             raise
         prompt_tokens, completion_tokens, total_tokens = ai_observability.tokens_do_usage(response)
         ai_observability.registrar_uso(
-            self.model, "ok", self._latencia_ms(inicio), prompt_tokens, completion_tokens, total_tokens
+            modelo, "ok", self._latencia_ms(inicio), prompt_tokens, completion_tokens, total_tokens
         )
         return self._extract_text(response)
 

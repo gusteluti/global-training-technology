@@ -88,7 +88,8 @@ export class StudentDashboardComponent implements OnInit {
   receipt: any = null;
   baixandoPdf = new Set<number>();
   // `fontes`: títulos de `sources` da resposta (GR1). Só nesta sessão de tela; o histórico do servidor não traz fonte.
-  chatMessages: { role: string; content: string; fontes?: string[] }[] = [];
+  // `piiMasked`: a resposta veio com `pii_masked: true` (GR3); mostra AVISO_PII abaixo da resposta. Também só na sessão.
+  chatMessages: { role: string; content: string; fontes?: string[]; piiMasked?: boolean }[] = [];
   chatInput = '';
   chatEnviando = false;
   // Ações de matrícula da última resposta (F5b, D76). Montadas pelo servidor e não persistidas no histórico.
@@ -351,7 +352,8 @@ export class StudentDashboardComponent implements OnInit {
         this.chatMessages = [
           ...this.chatMessages,
           { role: 'user', content: texto },
-          { role: 'assistant', content: res.message, fontes: this.titulosDasFontes(res.sources) }
+          { role: 'assistant', content: res.message, fontes: this.titulosDasFontes(res.sources),
+            piiMasked: res.pii_masked === true }
         ];
         this.chatAcoes = (Array.isArray(res.actions) ? res.actions : [])
           .filter((a: any) => a && a.type === 'enroll' && a.course_id && a.label);
