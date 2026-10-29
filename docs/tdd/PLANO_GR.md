@@ -13,7 +13,7 @@ Regras que valem em todas as entregas:
 - `ai_interactions.outcome` mantém o vocabulário atual (CHECK da E7). O tipo de bloqueio vai numa coluna nova
   `guard` (TEXT, nula), criada com `_ensure_column` na GR1 e usada por GR1–GR3; GR5 mostra no painel.
 
-Vocabulário de `guard` (fechado): `no_source`, `input_injection`, `input_off_topic`, `input_pii` (mascarou, não
+Vocabulário de `guard` (fechado): `no_source`, `input_injection`, `input_off_topic`, `input_login` (D99), `input_pii` (mascarou, não
 bloqueia), `output_leak`, `output_offer` (desconto/preço), `output_link`, `output_promise`, `output_unverified`.
 
 Textos fixos (para revisão do PM):
