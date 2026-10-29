@@ -216,6 +216,29 @@ class Database:
                 course_id TEXT
             )
         """)
+        # GR5 (D95): ai_replies liga cada `reply_id` emitido numa resposta 200 do chat ao dono (canal + user_id do
+        # JWT ou session_hash da sessão anônima), para validar o feedback mesmo depois de um restart. ai_feedback
+        # guarda uma nota por reply_id (a última vale). Nenhuma das duas guarda texto nem o id cru da sessão.
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ai_replies (
+                reply_id TEXT PRIMARY KEY,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                channel TEXT NOT NULL CHECK (channel IN ('anonymous', 'student')),
+                user_id INTEGER,
+                session_hash TEXT
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ai_feedback (
+                reply_id TEXT PRIMARY KEY,
+                rating TEXT NOT NULL CHECK (rating IN ('up', 'down')),
+                channel TEXT NOT NULL CHECK (channel IN ('anonymous', 'student')),
+                user_id INTEGER,
+                session_hash TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
 
         # S2 (D79): limite de tentativas de login. Uma linha por falha ('fail') ou bloqueio ('lock') de um e-mail
         # normalizado ou de um IP. Datas em UTC no formato de CURRENT_TIMESTAMP. Nunca guarda senha.
@@ -2258,6 +2281,84 @@ class Database:
             return conn.execute(
                 f"SELECT COALESCE(SUM(total_tokens), 0) FROM ai_usage WHERE {where}", params
             ).fetchone()[0]
+        finally:
+            conn.close()
+
+    # --- GR5 (D95): guardrails no painel e feedback das respostas -------------------------------------------------
+
+    # Vocabulário fechado de ai_interactions.guard (PLANO_GR; `input_login` desde a D99).
+    AI_GUARDS = (
+        "no_source", "input_injection", "input_off_topic", "input_login", "input_pii",
+        "output_leak", "output_offer", "output_link", "output_promise", "output_unverified",
+    )
+    AI_RATINGS = ("up", "down")
+
+    @staticmethod
+    def get_ai_guard_stats() -> Dict:
+        """`guards {total, by_type}` do painel: todas as chaves do vocabulário (zeros inclusive); guard nulo ou fora
+        do vocabulário não conta. Histórico inteiro, como `outcomes`."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        try:
+            por_tipo = {guard: 0 for guard in Database.AI_GUARDS}
+            for guard, total in conn.execute(
+                "SELECT guard, COUNT(*) FROM ai_interactions WHERE guard IS NOT NULL GROUP BY guard"
+            ):
+                if guard in por_tipo:
+                    por_tipo[guard] = total
+            return {"total": sum(por_tipo.values()), "by_type": por_tipo}
+        finally:
+            conn.close()
+
+    @staticmethod
+    def add_ai_reply(*, reply_id: str, channel: str, user_id: Optional[int], session_hash: Optional[str]) -> None:
+        """Registra o dono de um reply_id emitido (sem texto)."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        try:
+            conn.execute(
+                "INSERT INTO ai_replies (reply_id, channel, user_id, session_hash) VALUES (?, ?, ?, ?)",
+                (reply_id, channel, user_id, session_hash),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_ai_reply(reply_id: str) -> Optional[Dict]:
+        conn = sqlite3.connect(Database.DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            linha = conn.execute(
+                "SELECT reply_id, channel, user_id, session_hash FROM ai_replies WHERE reply_id = ?", (reply_id,)
+            ).fetchone()
+            return dict(linha) if linha else None
+        finally:
+            conn.close()
+
+    @staticmethod
+    def upsert_ai_feedback(*, reply_id: str, rating: str, channel: str, user_id: Optional[int],
+                           session_hash: Optional[str]) -> None:
+        """Uma linha por reply_id: repetir o feedback atualiza a nota (vale a última)."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        try:
+            conn.execute(
+                """INSERT INTO ai_feedback (reply_id, rating, channel, user_id, session_hash) VALUES (?, ?, ?, ?, ?)
+                   ON CONFLICT(reply_id) DO UPDATE SET rating = excluded.rating, updated_at = CURRENT_TIMESTAMP""",
+                (reply_id, rating, channel, user_id, session_hash),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_ai_feedback_counts() -> Dict:
+        """{up, down} do histórico inteiro de ai_feedback."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        try:
+            contagens = {rating: 0 for rating in Database.AI_RATINGS}
+            for rating, total in conn.execute("SELECT rating, COUNT(*) FROM ai_feedback GROUP BY rating"):
+                if rating in contagens:
+                    contagens[rating] = total
+            return contagens
         finally:
             conn.close()
 
