@@ -53,6 +53,14 @@
   font-size: 12px; color: var(--gt-muted); background: var(--gt-soft-blue);
   border-left: 3px solid var(--gt-teal); border-radius: 6px;
 }
+.chat-feedback { display: flex; gap: 6px; margin: -6px 0 0; align-self: flex-start; }
+.chat-feedback-btn {
+  border: 1px solid #d8e0e8; background: #ffffff; border-radius: 14px;
+  padding: 1px 9px; font-size: 13px; line-height: 1.5; cursor: pointer;
+}
+.chat-feedback-btn:hover:not(:disabled) { border-color: #0096c7; }
+.chat-feedback-btn:disabled { cursor: default; opacity: 0.55; }
+.chat-feedback-btn.ativo, .chat-feedback-btn.ativo:disabled { opacity: 1; border-color: #0096c7; background: #eaf8fc; }
 .chat-aviso { margin: 0; padding: 10px 16px 0; }
 .chat-acoes { display: flex; flex-wrap: wrap; gap: 8px; align-self: flex-start; }
 .chat-form { padding: 12px 16px; border-top: 1px solid #d8e0e8; background: #ffffff; }

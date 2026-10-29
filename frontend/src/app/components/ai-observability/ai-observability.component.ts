@@ -9,6 +9,20 @@ const MOTIVOS_HANDOFF: { key: string; label: string }[] = [
   { key: 'unresolved', label: 'Dúvidas não resolvidas' }
 ];
 
+// Guardrails (GR5, D95): vocabulário fechado de `guard`, na ordem do contrato, com rótulo em português.
+const TIPOS_GUARD: { key: string; label: string }[] = [
+  { key: 'no_source', label: 'Sem fonte na base ("não sei")' },
+  { key: 'input_injection', label: 'Tentativa de injeção' },
+  { key: 'input_off_topic', label: 'Fora do assunto' },
+  { key: 'input_login', label: 'Dado do aluno sem login' },
+  { key: 'input_pii', label: 'Dados pessoais mascarados' },
+  { key: 'output_leak', label: 'Vazamento de instruções' },
+  { key: 'output_offer', label: 'Desconto ou preço não oficial' },
+  { key: 'output_link', label: 'Link removido' },
+  { key: 'output_promise', label: 'Promessa bloqueada' },
+  { key: 'output_unverified', label: 'Data ou turma não verificada' }
+];
+
 @Component({
   selector: 'app-ai-observability',
   templateUrl: './ai-observability.component.html'
@@ -19,6 +33,7 @@ export class AiObservabilityComponent implements OnInit, OnDestroy {
 
   metrics: any = null;
   handoffReasons: { label: string; count: number }[] = [];
+  guardTypes: { key: string; label: string; count: number }[] = [];
   error = '';
   private chart?: Chart;
   private dayChart?: Chart;
@@ -59,6 +74,9 @@ export class AiObservabilityComponent implements OnInit, OnDestroy {
         this.metrics = r.metrics || {};
         const porMotivo = (this.metrics.handoff && this.metrics.handoff.by_reason) || {};
         this.handoffReasons = MOTIVOS_HANDOFF.map(m => ({ label: m.label, count: Number(porMotivo[m.key] || 0) }));
+        // Montada uma vez por carga (como handoffReasons): um getter com objetos novos recriaria as linhas a cada ciclo.
+        const porTipo = (this.metrics.guards && this.metrics.guards.by_type) || {};
+        this.guardTypes = TIPOS_GUARD.map(t => ({ key: t.key, label: t.label, count: Number(porTipo[t.key] || 0) }));
         this.renderMessagesChart();
         this.renderPerDayChart();
       },
@@ -104,6 +122,21 @@ export class AiObservabilityComponent implements OnInit, OnDestroy {
 
   get handoffRateText(): string {
     return this.percent(this.handoff.rate);
+  }
+
+  // Guardrails (GR5): total, um contador por tipo (zeros inclusive), "não sei" e feedback 👍/👎.
+  get guards(): any {
+    return (this.metrics && this.metrics.guards) || {};
+  }
+
+  get feedback(): any {
+    return (this.metrics && this.metrics.feedback) || {};
+  }
+
+  // Sem feedback (rate null) mostra "—", nunca "0,0%".
+  get feedbackRateText(): string {
+    const taxa = this.feedback.rate;
+    return taxa === null || taxa === undefined || !isFinite(Number(taxa)) ? '—' : this.percent(taxa);
   }
 
   private percent(fraction: number | undefined | null): string {

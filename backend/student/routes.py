@@ -9,16 +9,17 @@ Regras:
 
 import json
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, StrictInt, field_validator
+from pydantic import BaseModel, ConfigDict, StrictInt, StrictStr, field_validator
 
 import admin.routes as admin_routes
 import payments.routes as payments_routes
 from agents.ai_observability import identidade_aluno
 from agents.dados_aluno import acoes_abrir
+from agents.feedback import ERRO_RESPOSTA_NAO_ENCONTRADA, emitir_reply_id_aluno, registrar_feedback_aluno
 from agents.handoff import acoes_de_handoff
 from agents.manager_agent import montar_acoes
 from agents.llm_guard import (
@@ -380,7 +381,9 @@ def conversar_com_o_chatbot(
             )
     except InputBlockedError as bloqueio:
         # Injeção (INPUT_BLOCKED) ou fora do domínio (FORA_DO_ASSUNTO, GR3): nada é gravado.
-        return {"status": "success", "message": bloqueio.texto, "actions": [], "sources": []}
+        # GR5 (D95): a resposta de texto fixo também ganha reply_id (o 👎 nela mede falso positivo).
+        return {"status": "success", "message": bloqueio.texto, "actions": [], "sources": [],
+                "reply_id": emitir_reply_id_aluno(current_user.id)}
     except LLMUnavailableError as erro:
         # F6 (D77): mesmo 502 e mesmo detail; o corpo ganha `actions` só quando o handoff vale.
         # GR3: a mensagem do handoff é a mascarada (o handoff só procura pedido de atendente; nada é gravado).
@@ -399,7 +402,28 @@ def conversar_com_o_chatbot(
     acoes += _handoff_aluno(manager_agent, resultado.mensagem, current_user.id, resultado.curso,
                             motivo_padrao="unresolved" if resultado.sem_fonte else None)
     return {"status": "success", "message": resultado.texto, "actions": acoes, "sources": resultado.fontes,
-            "pii_masked": resultado.pii_masked}
+            "pii_masked": resultado.pii_masked,
+            # GR5 (D95): id opaco da resposta para o feedback 👍/👎 (dono = aluno do JWT; não vai ao histórico).
+            "reply_id": emitir_reply_id_aluno(current_user.id)}
+
+
+class FeedbackRequest(BaseModel):
+    """GR5 (D95): nota de uma resposta do chat do aluno. Campos extras (user_id...) são ignorados de propósito."""
+
+    reply_id: StrictStr
+    rating: Literal["up", "down"]
+
+
+@router.post("/chat/feedback")
+def avaliar_resposta_do_chatbot(
+    corpo: FeedbackRequest,
+    current_user: AuthContext = Depends(require_roles(Role.STUDENT)),
+):
+    """Feedback 👍/👎 de uma resposta do próprio aluno (GR5). Identidade só pelo JWT; reply_id de outro aluno, do chat
+    anônimo ou inexistente -> o mesmo 404. Repetir atualiza a nota."""
+    if not registrar_feedback_aluno(current_user.id, corpo.reply_id, corpo.rating):
+        raise HTTPException(status_code=404, detail=ERRO_RESPOSTA_NAO_ENCONTRADA)
+    return {"status": "success", "reply_id": corpo.reply_id, "rating": corpo.rating}
 
 
 def _handoff_aluno(manager_agent, mensagem: str, user_id: int, course_id: Optional[str],

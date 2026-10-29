@@ -5,8 +5,8 @@ import os
 import json
 from pathlib import Path
 from urllib.parse import urlparse
-from typing import Optional
-from pydantic import BaseModel
+from typing import Literal, Optional
+from pydantic import BaseModel, StrictStr
 
 # Import routers
 from fastapi import HTTPException
@@ -25,6 +25,7 @@ from agents.llm_guard import (
     mascarar_pii,
 )
 from agents.dados_aluno import acoes_login
+from agents.feedback import ERRO_RESPOSTA_NAO_ENCONTRADA, emitir_reply_id_anonimo, registrar_feedback_anonimo
 from agents.handoff import acoes_de_handoff
 from agents.manager_agent import ManagerAgent, montar_acoes
 from auth import router as auth_router
@@ -81,6 +82,14 @@ app.add_middleware(
 class ChatMessage(BaseModel):
     message: str
     session_id: Optional[str] = None  # só vale se foi emitido pelo servidor (E6, D38.1)
+
+
+class FeedbackAnonimo(BaseModel):
+    """GR5 (D95): nota de uma resposta do chat anônimo. `rating` só "up" ou "down" (qualquer outro valor -> 422)."""
+
+    session_id: StrictStr
+    reply_id: StrictStr
+    rating: Literal["up", "down"]
 
 @app.on_event("startup")
 async def startup_event():
@@ -228,7 +237,9 @@ async def chat(chat_msg: ChatMessage, request: Request):
             # Injeção (INPUT_BLOCKED), fora do domínio (FORA_DO_ASSUNTO, GR3) ou pedido de dado pessoal
             # (LOGIN_NECESSARIO, GR4: com a ação de entrar na Área do aluno).
             return {"status": "success", "message": bloqueio.texto, "session_id": session_id,
-                    "actions": acoes_login() if bloqueio.guard == GUARD_LOGIN else [], "sources": []}
+                    "actions": acoes_login() if bloqueio.guard == GUARD_LOGIN else [], "sources": [],
+                    # GR5 (D95): o 👎 numa resposta barrada é o sinal de falso positivo.
+                    "reply_id": emitir_reply_id_anonimo(session_id)}
         except LLMUnavailableError as erro:
             corpo = {"status": "error", "message": LLM_UNAVAILABLE, "session_id": session_id}
             # F6 (D77): o erro continua como antes; ganha `actions` só quando o handoff vale.
@@ -253,6 +264,8 @@ async def chat(chat_msg: ChatMessage, request: Request):
             "sources": resultado.fontes,
             # GR3 (D95): a mensagem teve dado pessoal mascarado antes do LLM e do histórico (a tela mostra AVISO_PII).
             "pii_masked": resultado.pii_masked,
+            # GR5 (D95): id opaco da resposta para o feedback 👍/👎 (dono = hash desta sessão).
+            "reply_id": emitir_reply_id_anonimo(session_id),
         }
     except Exception as e:
         # Nada do texto da exceção vai ao cliente (E6, D38.6); o log leva só o tipo.
@@ -261,6 +274,16 @@ async def chat(chat_msg: ChatMessage, request: Request):
             "status": "error",
             "message": "Erro ao processar mensagem."
         }
+
+@app.post("/api/chat/feedback")
+async def chat_feedback(corpo: FeedbackAnonimo):
+    """Feedback 👍/👎 de uma resposta do chat anônimo (GR5, D95). O reply_id precisa ser desta sessão (conferido pelo
+    hash gravado, vale depois de um restart); outra sessão, outro canal ou inexistente -> o mesmo 404. Repetir
+    atualiza a nota. Não grava texto nem o session_id cru."""
+    if not registrar_feedback_anonimo(corpo.session_id, corpo.reply_id, corpo.rating):
+        raise HTTPException(status_code=404, detail=ERRO_RESPOSTA_NAO_ENCONTRADA)
+    return {"status": "success", "reply_id": corpo.reply_id, "rating": corpo.rating}
+
 
 @app.get("/api/courses")
 async def public_courses():

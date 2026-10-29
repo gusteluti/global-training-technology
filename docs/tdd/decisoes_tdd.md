@@ -1606,3 +1606,32 @@ removidos salvo host permitido; RAG por FTS5 em memória (sem dependência nova,
   trecho deixa de cair no "não sei" no chat do aluno; `dados_aluno` importa `student.routes._carregar_curso`
   (privada); a tela descarta ação com campo novo até ser atualizada.
 - **Para revisão do PM:** rótulos das ações, a instrução que acompanha o bloco e os cabeçalhos/linhas do bloco.
+
+## D100 — GR5: avaliação adversarial, feedback e painel de guardrails (29/10/2026, plano D95)
+- **Bateria** `backend/evals/chatbot_casos.json` (50 casos: 35 ataques em 9 categorias — injeção, desconto, preço,
+  promessa, data, link, PII, fora do domínio, dado pessoal no anônimo — e 15 legítimas: preço, parcelamento, turma,
+  cancelamento, certificado), escrita pelo agente-testes como dado do contrato; só dados fabricados. Exceção
+  `!backend/evals/chatbot_casos.json` no `.gitignore` (a regra `chat*.json` a ignoraria).
+- **Runner** `backend/evals/run_eval.py (--duble | --real)`: o dublê roda em processo, sem rede, com banco e catálogo
+  temporários e variáveis fabricadas à força (o `.env` real nunca é lido); saída 0/1/2 (tudo bateu / caso falhou /
+  erro de uso). `--real` lê `GROQ_API_KEY` só do ambiente. Resultado versionado em `backend/evals/relatorio.md`:
+  **35/35 ataques contidos (100,0%), 0/15 falso positivo (0,0%), 0 vazamentos** — mede só os guardrails
+  determinísticos; o modo real fica para a máquina do aluno.
+- **Feedback:** `reply_id` (32 hex de `secrets.token_hex(16)`) em toda resposta 200 de sucesso, inclusive as de texto
+  fixo (o 👎 numa resposta barrada é o sinal de falso positivo); nunca em erro; o histórico não o traz. Dono em
+  `ai_replies` (canal + `user_id` do JWT, ou `session_hash` no anônimo); `ai_feedback` com uma linha por `reply_id`
+  (vale a última nota), sem texto nem `session_id` cru. Dono errado, canal errado, formato inválido ou inexistente →
+  o mesmo 404 "Resposta não encontrada.". A tela trava o par de botões depois do voto aceito.
+- **Painel:** `guards {total, by_type}` com os 10 tipos do vocabulário (inclui `input_login`), `no_source` e
+  `feedback {up, down, rate}` (`rate` null sem voto → "—" na tela); cartão "Guardrails" para todos os perfis
+  internos, com vírgula decimal.
+- **Ajuste mecânico (4.3), D76 → D95 → D100:** `test_f5b_chat_turmas.py::test_h2/test_h3` aceitam `reply_id` no
+  conjunto de chaves. Intenção mantida.
+- Ciclo: red `b9afb0f` (backend 53 de 110 falham; e2e de feedback e painel), backend `af2902c` (GR5 110 passed;
+  regressão 2509 passed; bateria 35/35 e 0/15), frontend `604a3aa` (e2e GR5 8/8 + 7/7 + 10/10; builds limpos; 12 e2e
+  antigos verdes).
+- **Riscos:** `ai_replies` cresce sem expurgo e a anonimização da U7 não a apaga (só `user_id`, sem texto); rotas de
+  feedback sem limite de taxa; o runner distingue roteamento de resposta por `max_tokens ≤ 300`; o check G8 do e2e da
+  D3 oscilou uma vez (lê a tabela logo após `networkidle`).
+- **Para revisão do PM:** rótulos dos 10 tipos de guard no painel, rótulos acessíveis "Resposta útil"/"Resposta não
+  útil", legendas do cartão e o texto do 404.
