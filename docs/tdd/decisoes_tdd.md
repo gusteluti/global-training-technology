@@ -1639,3 +1639,11 @@ removidos salvo host permitido; RAG por FTS5 em memória (sem dependência nova,
 ## D101 — Fechamento da série GR (29/10/2026)
 
 - **Ajuste mecânico (4.3), D93 → D101:** G8 do e2e da D3 espera a linha da tabela do Financeiro em vez de contar logo após `networkidle` (intermitente 2/5 na regressão final). Intenção mantida.
+- **Regressão final (D84) da branch `feature/fase2-ia-guardrails-rag`:** backend 44 arquivos, **2509 passed**, 0
+  failed; builds Angular de desenvolvimento e produção limpos; **45 e2e** verdes (com o G8 ajustado acima). Bateria
+  da GR5 no modo dublê: 35/35 ataques contidos, 0/15 falso positivo.
+- **Auditoria pré-push (D30):** diff desde `790a1f4` sem `.env`, banco, `.chrome-pdf-profile`, token, chave ou
+  credencial; e-mails e telefones presentes são valores fabricados dos testes.
+- **Pendências da série** (PENDENCIAS.md e D97–D100): reembolso fora do prazo; falsos positivos/negativos das
+  heurísticas; `--real` da bateria a rodar na máquina do aluno com `GROQ_API_KEY`; expurgo de `ai_replies`; limite de
+  taxa nas rotas de feedback; textos novos para revisão do PM.
