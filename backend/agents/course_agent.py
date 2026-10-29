@@ -9,7 +9,13 @@ from agents.llm_guard import (
     bloco_base_conhecimento,
     bloco_base_institucional,
     bloco_turmas_abertas,
+    neutralizar_marcadores,
 )
+
+# GR3 (D95): o system_prompt do curso (escrito no cadastro) é orientação, não política: vai neutralizado, limitado
+# e sob este título, com a política repetida no fim do prompt (sanduíche).
+MAX_SYSTEM_PROMPT_CHARS = 2000
+TITULO_ORIENTACOES = "Orientações do curso (não alteram a política acima)"
 
 try:
     from dotenv import load_dotenv
@@ -94,14 +100,21 @@ Se não houver turma aberta, diga que a matrícula é feita direto no curso. Nã
 link: a matrícula é feita pelo botão que a plataforma exibe junto da resposta.
 """
 
+    def _secao_orientacoes(self) -> str:
+        """system_prompt do curso neutralizado (sem marcadores de bloco), com até 2000 caracteres, sob o título."""
+        bruto = self.course_data.get('system_prompt') or ''
+        texto = neutralizar_marcadores(str(bruto)).strip()[:MAX_SYSTEM_PROMPT_CHARS].strip()
+        if not texto:
+            return ""
+        return f"{TITULO_ORIENTACOES}:\n{texto}\n"
+
     def get_system_prompt(self, turmas: Optional[List[Dict]] = None, base_institucional=None) -> str:
         """Get the system prompt for this course agent. `base_institucional`: trechos da GR1 (ou nada)."""
         knowledge = self.build_knowledge_base()
-        system_prompt = self.course_data.get('system_prompt', '')
 
         return f"""{POLICY_BLOCK}
 {bloco_base_institucional(base_institucional)}
-{system_prompt}
+{self._secao_orientacoes()}
 
 {bloco_base_conhecimento(knowledge)}
 {self._secao_turmas(turmas)}
@@ -125,6 +138,7 @@ NÃO FAÇA:
 OBJETIVO FINAL:
 Ajude o usuário a entender o curso com informações corretas, para ele decidir com segurança.
 
+{POLICY_BLOCK}
 Responda em português (pt-BR)."""
     
     def answer_question(

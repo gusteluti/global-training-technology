@@ -16,12 +16,12 @@ from admin.cancellations import router as cancellations_router
 from admin.staff import router as staff_router
 from dashboard.routes import router as dashboard_router
 from agents.llm_guard import (
-    INPUT_BLOCKED,
     LLM_UNAVAILABLE,
     MAX_MESSAGE_CHARS,
     TOO_LONG,
     InputBlockedError,
     LLMUnavailableError,
+    mascarar_pii,
 )
 from agents.handoff import acoes_de_handoff
 from agents.manager_agent import ManagerAgent, montar_acoes
@@ -222,13 +222,16 @@ async def chat(chat_msg: ChatMessage, request: Request):
         # Route message through manager agent
         try:
             resultado = manager_agent.process_message(user_message, session_id)
-        except InputBlockedError:
-            return {"status": "success", "message": INPUT_BLOCKED, "session_id": session_id, "actions": [],
+        except InputBlockedError as bloqueio:
+            # Injeção (INPUT_BLOCKED) ou fora do domínio (FORA_DO_ASSUNTO, GR3).
+            return {"status": "success", "message": bloqueio.texto, "session_id": session_id, "actions": [],
                     "sources": []}
         except LLMUnavailableError as erro:
             corpo = {"status": "error", "message": LLM_UNAVAILABLE, "session_id": session_id}
             # F6 (D77): o erro continua como antes; ganha `actions` só quando o handoff vale.
-            handoff = _handoff_anonimo(manager_agent, user_message, session_id, getattr(erro, "curso", None))
+            # GR3: o handoff recebe a mensagem mascarada (só procura pedido de atendente).
+            mascarada, _ = mascarar_pii(user_message)
+            handoff = _handoff_anonimo(manager_agent, mascarada, session_id, getattr(erro, "curso", None))
             if handoff:
                 corpo["actions"] = handoff
             return corpo
@@ -241,10 +244,12 @@ async def chat(chat_msg: ChatMessage, request: Request):
             # F6 (D77): a ação de handoff, quando vale, vem depois das de matrícula.
             # GR1 (D96): no "não sei" da base institucional o handoff vale com o motivo 'unresolved' da F6.
             "actions": montar_acoes(resultado)
-            + _handoff_anonimo(manager_agent, user_message, session_id, resultado.curso,
+            + _handoff_anonimo(manager_agent, resultado.mensagem, session_id, resultado.curso,
                                motivo_padrao="unresolved" if resultado.sem_fonte else None),
             # GR1 (D95): documentos da base institucional usados na resposta (lista vazia quando não houve).
             "sources": resultado.fontes,
+            # GR3 (D95): a mensagem teve dado pessoal mascarado antes do LLM e do histórico (a tela mostra AVISO_PII).
+            "pii_masked": resultado.pii_masked,
         }
     except Exception as e:
         # Nada do texto da exceção vai ao cliente (E6, D38.6); o log leva só o tipo.
