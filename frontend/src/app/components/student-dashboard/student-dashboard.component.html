@@ -201,7 +201,9 @@
            data-testid="chat-aviso-pii">Para sua segurança, removemos dados pessoais (CPF, cartão, telefone ou e-mail) da
           sua mensagem antes de enviá-la ao assistente.</p>
       </ng-container>
-      <div *ngIf="chatAcoes.length || chatWhatsapp" class="chat-acoes">
+      <div *ngIf="chatAcoes.length || chatWhatsapp || chatAbrir.length" class="chat-acoes">
+        <button *ngFor="let acao of chatAbrir" type="button" class="btn btn-sm btn-outline-primary"
+                data-testid="chat-acao-abrir" (click)="abrirAtalho(acao)">{{ acao.label }}</button>
         <button *ngFor="let acao of chatAcoes" type="button" class="btn btn-sm btn-outline-primary"
                 data-testid="chat-acao-matricular" (click)="abrirMatricula(acao)">{{ acao.label }}</button>
         <a *ngIf="chatWhatsapp" class="btn btn-sm btn-whatsapp" data-testid="chat-acao-whatsapp"
