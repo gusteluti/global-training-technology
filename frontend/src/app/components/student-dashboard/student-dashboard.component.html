@@ -200,6 +200,20 @@
         <p *ngIf="msg.role === 'assistant' && msg.piiMasked" class="chat-aviso-pii"
            data-testid="chat-aviso-pii">Para sua segurança, removemos dados pessoais (CPF, cartão, telefone ou e-mail) da
           sua mensagem antes de enviá-la ao assistente.</p>
+        <div *ngIf="msg.role === 'assistant' && msg.replyId" class="chat-feedback">
+          <button type="button" class="chat-feedback-btn" data-testid="chat-feedback-up"
+                  aria-label="Resposta útil" title="Resposta útil"
+                  [attr.aria-pressed]="msg.feedback === 'up' ? 'true' : 'false'"
+                  [class.ativo]="msg.feedback === 'up'"
+                  [disabled]="!!msg.feedback || msg.enviandoFeedback"
+                  (click)="enviarFeedback(msg, 'up')">👍</button>
+          <button type="button" class="chat-feedback-btn" data-testid="chat-feedback-down"
+                  aria-label="Resposta não útil" title="Resposta não útil"
+                  [attr.aria-pressed]="msg.feedback === 'down' ? 'true' : 'false'"
+                  [class.ativo]="msg.feedback === 'down'"
+                  [disabled]="!!msg.feedback || msg.enviandoFeedback"
+                  (click)="enviarFeedback(msg, 'down')">👎</button>
+        </div>
       </ng-container>
       <div *ngIf="chatAcoes.length || chatWhatsapp || chatAbrir.length" class="chat-acoes">
         <button *ngFor="let acao of chatAbrir" type="button" class="btn btn-sm btn-outline-primary"

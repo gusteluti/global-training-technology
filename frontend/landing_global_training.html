@@ -209,6 +209,11 @@
   .msg-bot { background: #f0f4f7; color: var(--text); align-self: flex-start; border-bottom-left-radius: 4px; }
   .chat-fonte { max-width: 80%; margin: -8px 0 0; padding: 0 4px; align-self: flex-start; font-size: 11px; color: var(--muted); }
   .chat-aviso-pii { max-width: 80%; margin: -4px 0 0; padding: 6px 10px; align-self: flex-start; font-size: 11px; color: var(--muted); background: var(--soft-blue); border-left: 3px solid var(--teal); border-radius: 6px; }
+  .chat-feedback { display: flex; gap: 6px; margin: -6px 0 0; align-self: flex-start; }
+  .chat-feedback-btn { background: #ffffff; border: 1px solid var(--card-border); border-radius: 14px; padding: 1px 9px; font-size: 12px; line-height: 1.5; cursor: pointer; }
+  .chat-feedback-btn:hover:not(:disabled) { border-color: var(--teal); }
+  .chat-feedback-btn:disabled { cursor: default; opacity: 0.55; }
+  .chat-feedback-btn[aria-pressed="true"] { opacity: 1; border-color: var(--teal); background: var(--soft-blue); }
   .msg-user { background: var(--teal); color: #ffffff; align-self: flex-end; border-bottom-right-radius: 4px; font-weight: 600; }
   .chat-quick { padding: 0 16px 12px; display: flex; flex-wrap: wrap; gap: 8px; }
   .quick-btn {
@@ -662,6 +667,50 @@ function addPiiNotice(piiMasked) {
   msgs.appendChild(aviso);
   msgs.scrollTop = msgs.scrollHeight;
 }
+// Feedback 👍/👎 da resposta (GR5): só quando o servidor devolve `reply_id`. Aceito (200) trava o par e marca o
+// escolhido; falha (rede ou HTTP) libera para tentar de novo. Só createElement/textContent.
+function addFeedbackButtons(replyId, sessionId) {
+  if (typeof replyId !== 'string' || !replyId) return;
+  const msgs = document.getElementById('chat-messages');
+  const box = document.createElement('div');
+  box.className = 'chat-feedback';
+  const botoes = {};
+  const opcoes = [['up', '👍', 'Resposta útil'], ['down', '👎', 'Resposta não útil']];
+  const travar = (valor) => { Object.values(botoes).forEach(b => { b.disabled = valor; }); };
+  opcoes.forEach(([nota, icone, rotulo]) => {
+    const botao = document.createElement('button');
+    botao.type = 'button';
+    botao.className = 'chat-feedback-btn';
+    botao.setAttribute('data-testid', `chat-feedback-${nota}`);
+    botao.setAttribute('aria-label', rotulo);
+    botao.setAttribute('aria-pressed', 'false');
+    botao.title = rotulo;
+    botao.textContent = icone;
+    botao.addEventListener('click', async () => {
+      travar(true);
+      let aceito = false;
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/chat/feedback`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: sessionId, reply_id: replyId, rating: nota })
+        });
+        aceito = response.ok;
+      } catch (e) {
+        aceito = false;
+      }
+      if (aceito) {
+        botao.setAttribute('aria-pressed', 'true');
+      } else {
+        travar(false);
+      }
+    });
+    botoes[nota] = botao;
+    box.appendChild(botao);
+  });
+  msgs.appendChild(box);
+  msgs.scrollTop = msgs.scrollHeight;
+}
 function setChatStatus(text) {
   const status = document.querySelector('.chat-header-info span');
   if (status) status.textContent = text;
@@ -702,6 +751,7 @@ async function sendMsg() {
     }
     if (data.status === 'success') addSourceNote(data.sources);
     if (data.status === 'success') addPiiNotice(data.pii_masked);
+    if (data.status === 'success') addFeedbackButtons(data.reply_id, (typeof data.session_id === 'string' && data.session_id) ? data.session_id : getChatSessionId());
     if (data.status === 'success') addEnrollActions(data.actions);
     if (data.status === 'success') addLoginAction(data.actions);
     if (data) addHandoffAction(data.actions);

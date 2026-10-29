@@ -23,6 +23,18 @@ interface AcaoWhatsapp {
 
 const PREFIXO_WHATSAPP = 'https://wa.me/';
 
+type NotaFeedback = 'up' | 'down';
+
+interface MensagemChat {
+  role: string;
+  content: string;
+  fontes?: string[];
+  piiMasked?: boolean;
+  replyId?: string;
+  feedback?: NotaFeedback | null;
+  enviandoFeedback?: boolean;
+}
+
 // Ação de atalho devolvida pelo chat (GR4): abre uma seção da Área do aluno como os atalhos da D2.
 type AlvoAbrir = 'financeiro' | 'cursos' | 'perfil';
 interface AcaoAbrir {
@@ -101,7 +113,9 @@ export class StudentDashboardComponent implements OnInit {
   baixandoPdf = new Set<number>();
   // `fontes`: títulos de `sources` da resposta (GR1). Só nesta sessão de tela; o histórico do servidor não traz fonte.
   // `piiMasked`: a resposta veio com `pii_masked: true` (GR3); mostra AVISO_PII abaixo da resposta. Também só na sessão.
-  chatMessages: { role: string; content: string; fontes?: string[]; piiMasked?: boolean }[] = [];
+  // `replyId`/`feedback`/`enviandoFeedback` (GR5): só respostas desta sessão com reply_id ganham 👍/👎; o histórico
+  // do servidor não traz reply_id, então não mostra botões.
+  chatMessages: MensagemChat[] = [];
   chatInput = '';
   chatEnviando = false;
   // Ações de matrícula da última resposta (F5b, D76). Montadas pelo servidor e não persistidas no histórico.
@@ -368,7 +382,9 @@ export class StudentDashboardComponent implements OnInit {
           ...this.chatMessages,
           { role: 'user', content: texto },
           { role: 'assistant', content: res.message, fontes: this.titulosDasFontes(res.sources),
-            piiMasked: res.pii_masked === true }
+            piiMasked: res.pii_masked === true,
+            replyId: typeof res.reply_id === 'string' && res.reply_id ? res.reply_id : undefined,
+            feedback: null, enviandoFeedback: false }
         ];
         this.chatAcoes = (Array.isArray(res.actions) ? res.actions : [])
           .filter((a: any) => a && a.type === 'enroll' && a.course_id && a.label);
@@ -381,6 +397,24 @@ export class StudentDashboardComponent implements OnInit {
         this.erroChat = 'Não foi possível enviar a mensagem. Tente novamente.';
         this.chatWhatsapp = this.acaoWhatsapp(err?.error?.actions);
         this.chatEnviando = false;
+      }
+    });
+  }
+
+  // Feedback 👍/👎 (GR5): aceito (200) trava o par e marca o escolhido; falha libera para tentar de novo.
+  enviarFeedback(msg: MensagemChat, nota: NotaFeedback): void {
+    if (!msg.replyId || msg.feedback || msg.enviandoFeedback) {
+      return;
+    }
+    msg.enviandoFeedback = true;
+    this.api.sendChatFeedback(msg.replyId, nota).subscribe({
+      next: () => {
+        msg.feedback = nota;
+        msg.enviandoFeedback = false;
+      },
+      error: () => {
+        msg.feedback = null;
+        msg.enviandoFeedback = false;
       }
     });
   }
