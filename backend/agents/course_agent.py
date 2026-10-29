@@ -149,6 +149,7 @@ Responda em português (pt-BR)."""
         history_limit: int = 10,
         turmas: Optional[List[Dict]] = None,
         base_institucional=None,
+        dados_conta: Optional[str] = None,
     ) -> str:
         """
         Answer a question about the course
@@ -159,6 +160,7 @@ Responda em português (pt-BR)."""
             student_context: Optional text about the logged-in student (E5), sent as an extra system message
             history_limit: How many entries of the history are sent to the model
             base_institucional: trechos recuperados da base institucional (GR1), na 1a mensagem system
+            dados_conta: bloco de dados da conta do próprio aluno (GR4), numa mensagem system própria
 
         Returns:
             Course agent's response
@@ -171,6 +173,9 @@ Responda em português (pt-BR)."""
             messages = [{"role": "system", "content": self.get_system_prompt(turmas, base_institucional)}]
             if student_context:
                 messages.append({"role": "system", "content": student_context})
+            # GR4 (D95): dados da conta do próprio aluno, numa mensagem system só da chamada de resposta.
+            if dados_conta:
+                messages.append({"role": "system", "content": dados_conta})
 
             # Add conversation history (last entries only, to avoid overflow)
             for msg in conversation_history[-history_limit:]:

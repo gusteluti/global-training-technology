@@ -23,6 +23,18 @@ interface AcaoWhatsapp {
 
 const PREFIXO_WHATSAPP = 'https://wa.me/';
 
+// Ação de atalho devolvida pelo chat (GR4): abre uma seção da Área do aluno como os atalhos da D2.
+type AlvoAbrir = 'financeiro' | 'cursos' | 'perfil';
+interface AcaoAbrir {
+  target: AlvoAbrir;
+  label: string;
+}
+
+// Só estes alvos e só os campos type/target/label; qualquer outro campo (ex.: `url`) descarta a ação inteira.
+const SECOES_ABRIR: { [alvo: string]: string } = { financeiro: 'secao-financeiro', cursos: 'secao-cursos' };
+const ALVOS_ABRIR = ['financeiro', 'cursos', 'perfil'];
+const CAMPOS_ABRIR = ['type', 'target', 'label'];
+
 // Rótulos e cores dos status de matrícula (conjunto fechado, D28).
 const ROTULOS_STATUS: { [status: string]: string } = {
   pending: 'Pendente',
@@ -95,6 +107,8 @@ export class StudentDashboardComponent implements OnInit {
   // Ações de matrícula da última resposta (F5b, D76). Montadas pelo servidor e não persistidas no histórico.
   chatAcoes: AcaoChat[] = [];
   chatWhatsapp: AcaoWhatsapp | null = null;
+  // Atalhos da última resposta (GR4); o `label` aparece só como texto.
+  chatAbrir: AcaoAbrir[] = [];
   erroChat = '';
   email = '';
   // Primeiro nome do próprio aluno (GET /api/student/me, D80); vazio mantém a saudação genérica.
@@ -347,6 +361,7 @@ export class StudentDashboardComponent implements OnInit {
     this.erroChat = '';
     this.chatAcoes = [];
     this.chatWhatsapp = null;
+    this.chatAbrir = [];
     this.api.sendChatMessage(texto).subscribe({
       next: (res: any) => {
         this.chatMessages = [
@@ -358,6 +373,7 @@ export class StudentDashboardComponent implements OnInit {
         this.chatAcoes = (Array.isArray(res.actions) ? res.actions : [])
           .filter((a: any) => a && a.type === 'enroll' && a.course_id && a.label);
         this.chatWhatsapp = this.acaoWhatsapp(res.actions);
+        this.chatAbrir = this.acoesAbrir(res.actions);
         this.chatInput = '';
         this.chatEnviando = false;
       },
@@ -387,6 +403,31 @@ export class StudentDashboardComponent implements OnInit {
     const acao = actions.find((a: any) => a && a.type === 'handoff' && typeof a.url === 'string'
       && a.url.startsWith(PREFIXO_WHATSAPP) && typeof a.label === 'string' && a.label);
     return acao ? { type: acao.type, url: acao.url, label: acao.label } : null;
+  }
+
+  // Ações `open` do servidor (GR4): alvo da lista fechada, label texto não vazio e nenhum campo a mais.
+  private acoesAbrir(actions: any): AcaoAbrir[] {
+    if (!Array.isArray(actions)) {
+      return [];
+    }
+    return actions
+      .filter((a: any) => a && typeof a === 'object' && a.type === 'open'
+        && Object.keys(a).every(k => CAMPOS_ABRIR.includes(k))
+        && typeof a.target === 'string' && ALVOS_ABRIR.includes(a.target)
+        && typeof a.label === 'string' && a.label.trim().length > 0)
+      .map((a: any) => ({ target: a.target as AlvoAbrir, label: a.label }));
+  }
+
+  // Mesma navegação dos atalhos da D2: seção da página com irPara, perfil pela rota /student/perfil.
+  abrirAtalho(acao: AcaoAbrir): void {
+    if (acao.target === 'perfil') {
+      this.router.navigate(['/student/perfil']);
+      return;
+    }
+    const secao = SECOES_ABRIR[acao.target];
+    if (secao) {
+      this.irPara(secao);
+    }
   }
 
   // Leva ao catálogo com o curso e, se houver, a turma pré-selecionada (D75/D76).

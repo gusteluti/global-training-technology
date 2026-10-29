@@ -16,6 +16,7 @@ from admin.cancellations import router as cancellations_router
 from admin.staff import router as staff_router
 from dashboard.routes import router as dashboard_router
 from agents.llm_guard import (
+    GUARD_LOGIN,
     LLM_UNAVAILABLE,
     MAX_MESSAGE_CHARS,
     TOO_LONG,
@@ -23,6 +24,7 @@ from agents.llm_guard import (
     LLMUnavailableError,
     mascarar_pii,
 )
+from agents.dados_aluno import acoes_login
 from agents.handoff import acoes_de_handoff
 from agents.manager_agent import ManagerAgent, montar_acoes
 from auth import router as auth_router
@@ -223,9 +225,10 @@ async def chat(chat_msg: ChatMessage, request: Request):
         try:
             resultado = manager_agent.process_message(user_message, session_id)
         except InputBlockedError as bloqueio:
-            # Injeção (INPUT_BLOCKED) ou fora do domínio (FORA_DO_ASSUNTO, GR3).
-            return {"status": "success", "message": bloqueio.texto, "session_id": session_id, "actions": [],
-                    "sources": []}
+            # Injeção (INPUT_BLOCKED), fora do domínio (FORA_DO_ASSUNTO, GR3) ou pedido de dado pessoal
+            # (LOGIN_NECESSARIO, GR4: com a ação de entrar na Área do aluno).
+            return {"status": "success", "message": bloqueio.texto, "session_id": session_id,
+                    "actions": acoes_login() if bloqueio.guard == GUARD_LOGIN else [], "sources": []}
         except LLMUnavailableError as erro:
             corpo = {"status": "error", "message": LLM_UNAVAILABLE, "session_id": session_id}
             # F6 (D77): o erro continua como antes; ganha `actions` só quando o handoff vale.

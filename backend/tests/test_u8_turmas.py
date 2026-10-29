@@ -942,7 +942,10 @@ def test_p1_bloco_de_turmas_traz_termino_e_horario_dentro_dos_delimitadores(clie
         f"D83: o termino da Beta ({_dia_sp(99)}) deve aparecer junto da turma: {trechos[beta['name']]!r}"
     # o resto da F5b continua: inicio no trecho e acoes montadas pelo servidor
     assert _tem_data(trechos[alfa["name"]], _dia_sp(6))
-    assert [a["class_id"] for a in corpo.get("actions", [])] == [alfa["id"], beta["id"]], corpo.get("actions")
+    # Ajuste mecanico (4.3), D83 -> D95 (GR4): "horarios" e lexico de turma da GR4 e, no chat do aluno, a resposta
+    # pode trazer tambem a acao {type: "open", target: "cursos"}; a conferencia continua sobre as acoes de matricula.
+    matriculas = [a for a in corpo.get("actions", []) if a.get("type") == "enroll"]
+    assert [a["class_id"] for a in matriculas] == [alfa["id"], beta["id"]], corpo.get("actions")
 
 
 def test_p2_horario_com_injecao_e_neutralizado_como_o_nome(client_chat, llm):

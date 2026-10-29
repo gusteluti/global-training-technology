@@ -1365,7 +1365,10 @@ class Database:
 
     @staticmethod
     def cancelamento_das_matriculas(user_id: int) -> Dict[int, Dict]:
-        """Por matrícula do aluno: {"cancellation": pedido mais recente ou None, "can_request_cancellation": bool}."""
+        """Por matrícula do aluno: {"cancellation": pedido mais recente ou None, "can_request_cancellation": bool,
+        "impediment": primeira condição da D82 que impede o pedido (ou None), "deadline": fim do prazo de 7 dias
+        (UTC, 'AAAA-MM-DD HH:MM:SS') contado da aprovação do último pagamento aprovado, ou None sem ele}.
+        `impediment` e `deadline` (GR4) só servem ao assistente; a API da Área do aluno não os expõe."""
         conn = sqlite3.connect(Database.DB_PATH)
         conn.row_factory = sqlite3.Row
         try:
@@ -1382,9 +1385,14 @@ class Database:
                     matricula["status"], Database._tem_pedido_aberto(conn, matricula["id"]),
                     dict(pagamento) if pagamento else None, agora,
                 )
+                aprovado_em = (
+                    Database._instante_utc(pagamento["updated_at"] or pagamento["created_at"]) if pagamento else None
+                )
                 situacao[matricula["id"]] = {
                     "cancellation": dict(ultimo) if ultimo else None,
                     "can_request_cancellation": impedimento is None,
+                    "impediment": impedimento,
+                    "deadline": Database._utc_texto(aprovado_em + Database.PRAZO_CANCELAMENTO) if aprovado_em else None,
                 }
             return situacao
         finally:
