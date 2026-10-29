@@ -18,6 +18,7 @@ from pydantic import BaseModel, ConfigDict, StrictInt, field_validator
 import admin.routes as admin_routes
 import payments.routes as payments_routes
 from agents.ai_observability import identidade_aluno
+from agents.dados_aluno import acoes_abrir
 from agents.handoff import acoes_de_handoff
 from agents.manager_agent import montar_acoes
 from agents.llm_guard import (
@@ -27,6 +28,7 @@ from agents.llm_guard import (
     LLMUnavailableError,
     bloco_dados_aluno,
     mascarar_pii,
+    neutralizar_marcadores,
 )
 from core import avaliacoes, privacidade, progresso, rate_limit
 from core.receipt_pdf import gerar_recibo_pdf
@@ -344,7 +346,8 @@ def _contexto_do_aluno(user_id: int) -> str:
         bloco_dados_aluno(usuario.get("name")),
     ]
     if nomes:
-        linhas.append("- Cursos em que o aluno está matriculado: " + "; ".join(nomes))
+        # GR4 (D95): o nome do curso vem do cadastro; marcador falso nele (ex.: o de dados da conta) é neutralizado.
+        linhas.append("- Cursos em que o aluno está matriculado: " + "; ".join(neutralizar_marcadores(str(n)) for n in nomes))
     else:
         linhas.append("- O aluno ainda não tem cursos ativos.")
     return "\n".join(linhas)
@@ -373,6 +376,7 @@ def conversar_com_o_chatbot(
             resultado = manager_agent.process_authenticated_message(
                 corpo.message, _contexto_do_aluno(current_user.id), historico,
                 cursos_ativos=Database.list_active_course_ids_for_user(current_user.id),
+                user_id=current_user.id,  # GR4: dados da conta sempre do aluno do JWT
             )
     except InputBlockedError as bloqueio:
         # Injeção (INPUT_BLOCKED) ou fora do domínio (FORA_DO_ASSUNTO, GR3): nada é gravado.
@@ -390,6 +394,8 @@ def conversar_com_o_chatbot(
     # GR3 (D95): grava a mensagem com a PII já mascarada; `pii_masked` avisa a tela (AVISO_PII).
     Database.add_chat_exchange(current_user.id, resultado.mensagem, resultado.texto)
     acoes = montar_acoes(resultado, Database.list_active_course_ids_for_user(current_user.id))
+    # GR4 (D95): atalhos `open` da intenção de dado da conta, montados pelo servidor (nunca do texto do modelo).
+    acoes += acoes_abrir(resultado.intencoes)
     acoes += _handoff_aluno(manager_agent, resultado.mensagem, current_user.id, resultado.curso,
                             motivo_padrao="unresolved" if resultado.sem_fonte else None)
     return {"status": "success", "message": resultado.texto, "actions": acoes, "sources": resultado.fontes,

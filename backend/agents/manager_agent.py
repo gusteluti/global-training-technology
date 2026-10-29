@@ -5,16 +5,19 @@ import unicodedata
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Set, Tuple
 from agents import ai_observability
+from agents import dados_aluno
 from agents.course_agent import CourseAgent
 from agents.groq_client import GroqChatClient
 from agents import rag
 from agents.llm_guard import (
     FORA_DO_ASSUNTO,
     GUARD_INJECTION,
+    GUARD_LOGIN,
     GUARD_OFF_TOPIC,
     GUARD_PII,
+    LOGIN_NECESSARIO,
     MAX_TOKENS_CLASSIFICADOR,
     POLICY_BLOCK,
     USER_MESSAGE_CLOSE,
@@ -70,6 +73,8 @@ class RespostaChat:
     # GR3 (D95): a mensagem do usuário já mascarada (é ela que o chamador grava) e se houve mascaramento.
     mensagem: str = ""
     pii_masked: bool = False
+    # GR4 (D95): intenções de dado da conta da mensagem (chat do aluno); delas saem as ações `open`.
+    intencoes: Set[str] = field(default_factory=set)
 
 
 def montar_acoes(resposta: Optional[RespostaChat], cursos_ativos: Iterable[str] = ()) -> List[Dict]:
@@ -328,11 +333,15 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
         return novo
 
     def _filtrar_saida(self, resposta: str, curso: Optional[str] = None,
-                       turmas: Optional[List[Dict]] = None) -> SaidaFiltrada:
+                       turmas: Optional[List[Dict]] = None,
+                       dados_conta: Optional[dados_aluno.DadosConta] = None) -> SaidaFiltrada:
         """Filtro de saída (E6 + GR2): vazamento, oferta (desconto/valor fora do catálogo), promessa, data não
-        verificada (contra as turmas abertas do curso roteado) e links de host não permitido."""
+        verificada (contra as turmas abertas do curso roteado) e links de host não permitido. GR4: as datas e os
+        valores pagos do bloco de dados da conta do próprio aluno também contam como verificados."""
+        dados_conta = dados_conta or dados_aluno.DadosConta()
         return avaliar_saida(
-            resposta, precos_do_catalogo(self.courses.values()), curso_roteado=bool(curso), turmas=turmas
+            resposta, precos_do_catalogo(self.courses.values()), curso_roteado=bool(curso), turmas=turmas,
+            datas_verificadas=dados_conta.datas, valores_verificados=dados_conta.valores,
         )
 
     def process_message(self, user_message: str, session_id: str) -> RespostaChat:
@@ -346,6 +355,11 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
         with ai_observability.identidade_anonima(session_id):
             # GR3 (D95): injeção e fora do domínio barram aqui; a PII sai antes do LLM, do histórico e do banco.
             user_message, pii = self._filtrar_entrada(user_message)
+
+            # GR4 (D95): pedido de dado pessoal no anônimo -> LOGIN_NECESSARIO, sem LLM e antes do "não sei" da GR1.
+            if dados_aluno.pede_dado_pessoal(user_message):
+                ai_observability.registrar_interacao("input_blocked", guard=GUARD_LOGIN)
+                raise InputBlockedError(LOGIN_NECESSARIO, GUARD_LOGIN)
 
             # Initialize session if not exists
             if session_id not in self.sessions:
@@ -409,7 +423,8 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
 
     def _responder(self, user_message: str, conversation_history: List, student_context: str = None,
                    history_limit: int = 10, aluno: bool = False, cursos_ativos: Iterable[str] = (),
-                   pii: bool = False) -> RespostaChat:
+                   pii: bool = False, intencoes: Iterable[str] = (),
+                   dados_conta: Optional[dados_aluno.DadosConta] = None) -> RespostaChat:
         """Busca a base institucional (GR1), identifica o curso, responde (Course Agent ou resposta geral), aplica
         o filtro de saída e grava a interação (E7). Levanta LLMUnavailableError, depois de gravar a interação como
         'llm_error'. Devolve o texto filtrado com o curso roteado, se a saída foi barrada, as turmas abertas (F5b)
@@ -419,10 +434,15 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
         outcome 'unresolved' e guard 'no_source'. `aluno`/`cursos_ativos` vêm do servidor (JWT -> banco).
 
         GR3: `user_message` já chega com a PII mascarada (`pii` diz se houve); os marcadores de PII ficam fora da
-        busca na base ("[cartao]" não é tema de política). Sem outro guard, a interação grava 'input_pii'."""
+        busca na base ("[cartao]" não é tema de política). Sem outro guard, a interação grava 'input_pii'.
+
+        GR4: `intencoes`/`dados_conta` (só no chat do aluno) levam o bloco de dados da conta à chamada de resposta;
+        com intenção, o "não sei" da GR1 não dispara, e as datas e os valores do bloco contam como verificados."""
+        intencoes = set(intencoes or ())
+        dados_conta = dados_conta or dados_aluno.DadosConta()
         consulta = sem_marcadores_pii(user_message)
         trechos = self._buscar_base(consulta, aluno=aluno, cursos_ativos=cursos_ativos)
-        if not trechos and rag.tema_de_politica(consulta):
+        if not trechos and not intencoes and rag.tema_de_politica(consulta):
             ai_observability.registrar_interacao("unresolved", None, user_message, guard="no_source")
             return RespostaChat(texto=SEM_INFORMACAO, sem_fonte=True, mensagem=user_message, pii_masked=pii)
         guard_entrada = GUARD_PII if pii else None
@@ -435,12 +455,12 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
             if curso:
                 resposta = self.course_agents[curso].answer_question(
                     user_message, conversation_history, student_context=student_context, history_limit=history_limit,
-                    turmas=turmas, base_institucional=trechos,
+                    turmas=turmas, base_institucional=trechos, dados_conta=dados_aluno.mensagem_dados_conta(dados_conta),
                 )
             else:
                 resposta = self._answer_general_question(
                     user_message, conversation_history, student_context=student_context, history_limit=history_limit,
-                    base_institucional=trechos,
+                    base_institucional=trechos, dados_conta=dados_aluno.mensagem_dados_conta(dados_conta),
                 )
         except LLMUnavailableError as erro:
             ai_observability.registrar_interacao("llm_error", curso, guard=guard_entrada)
@@ -449,7 +469,7 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
             raise
 
         # GR2: as turmas abertas já lidas acima são a única fonte de datas verificáveis (sem nova consulta).
-        saida = self._filtrar_saida(resposta, curso, turmas)
+        saida = self._filtrar_saida(resposta, curso, turmas, dados_conta)
         if saida.barrada:
             outcome = "output_blocked"
         elif curso:
@@ -459,7 +479,7 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
         ai_observability.registrar_interacao(outcome, curso, user_message, guard=saida.guard or guard_entrada)
         return RespostaChat(
             texto=saida.texto, curso=curso, barrada=saida.barrada, turmas=turmas, fontes=rag.fontes(trechos),
-            mensagem=user_message, pii_masked=pii,
+            mensagem=user_message, pii_masked=pii, intencoes=intencoes,
         )
 
     def _buscar_base(self, user_message: str, *, aluno: bool, cursos_ativos: Iterable[str]) -> List:
@@ -480,7 +500,8 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
             return None
 
     def process_authenticated_message(self, user_message: str, student_context: str, history: List,
-                                      cursos_ativos: Iterable[str] = ()) -> RespostaChat:
+                                      cursos_ativos: Iterable[str] = (),
+                                      user_id: Optional[int] = None) -> RespostaChat:
         """Chat do aluno logado (E5). Não lê nem grava em self.sessions.
 
         `history` são as mensagens persistidas do próprio aluno (anteriores à atual, já limitadas pelo
@@ -493,20 +514,40 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
         (`ai_observability.identidade_aluno`), nunca de parâmetro do cliente. `cursos_ativos` (GR1) são os ids
         dos cursos com matrícula 'active' do aluno do JWT, lidos do banco pelo chamador: só eles liberam trechos
         `aluno` de curso da base institucional.
+
+        GR4 (D95): `user_id` é o do JWT (passado pelo chamador, nunca do cliente). Depois dos filtros de entrada, a
+        intenção da mensagem (léxico fechado) decide quais dados da conta desse aluno entram no bloco da chamada de
+        resposta; `resultado.intencoes` dá as ações `open`.
         """
         # GR3 (D95): mesmos filtros de entrada do chat anônimo; o chamador grava `resultado.mensagem` (mascarada).
         user_message, pii = self._filtrar_entrada(user_message)
+
+        intencoes = dados_aluno.intencoes(user_message) if user_id is not None else set()
+        dados_conta = self._dados_da_conta(user_id, intencoes)
 
         conversation_history = [{"role": m["role"], "content": m["content"]} for m in history]
         conversation_history.append({"role": "user", "content": user_message})
         return self._responder(
             user_message, conversation_history, student_context=student_context,
             history_limit=len(conversation_history), aluno=True, cursos_ativos=cursos_ativos, pii=pii,
+            intencoes=intencoes, dados_conta=dados_conta,
         )
+
+    @staticmethod
+    def _dados_da_conta(user_id: Optional[int], intencoes: Set[str]) -> dados_aluno.DadosConta:
+        """Dados da conta do aluno do JWT para as intenções (GR4). Falha na leitura nunca derruba o chat: o bloco
+        diz que os dados não puderam ser consultados (nada é inventado e nada é verificado)."""
+        if user_id is None or not intencoes:
+            return dados_aluno.DadosConta()
+        try:
+            return dados_aluno.consultar(user_id, intencoes)
+        except Exception as e:
+            print(f"Error reading student account data: {type(e).__name__}")
+            return dados_aluno.DadosConta(bloco=dados_aluno.bloco_indisponivel())
 
     def _answer_general_question(
         self, user_message: str, history: List, student_context: str = None, history_limit: int = 10,
-        base_institucional=None,
+        base_institucional=None, dados_conta: str = None,
     ) -> str:
         """Answer a general question using the LLM"""
         try:
@@ -514,6 +555,9 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
             messages = [{"role": "system", "content": self.create_system_prompt(base_institucional)}]
             if student_context:
                 messages.append({"role": "system", "content": student_context})
+            # GR4 (D95): dados da conta do próprio aluno, numa mensagem system só da chamada de resposta.
+            if dados_conta:
+                messages.append({"role": "system", "content": dados_conta})
 
             # Add conversation history (last entries only, to avoid overflow)
             for msg in history[-history_limit:]:
