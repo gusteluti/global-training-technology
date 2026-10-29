@@ -1635,3 +1635,7 @@ removidos salvo host permitido; RAG por FTS5 em memória (sem dependência nova,
   D3 oscilou uma vez (lê a tabela logo após `networkidle`).
 - **Para revisão do PM:** rótulos dos 10 tipos de guard no painel, rótulos acessíveis "Resposta útil"/"Resposta não
   útil", legendas do cartão e o texto do 404.
+
+## D101 — Fechamento da série GR (29/10/2026)
+
+- **Ajuste mecânico (4.3), D93 → D101:** G8 do e2e da D3 espera a linha da tabela do Financeiro em vez de contar logo após `networkidle` (intermitente 2/5 na regressão final). Intenção mantida.
