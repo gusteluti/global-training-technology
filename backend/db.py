@@ -215,6 +215,16 @@ class Database:
             )
         """)
 
+        # GR (D95): uma linha por bloqueio dos guardrails. Só canal e tipo, nunca o texto da mensagem.
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ai_guard_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                channel TEXT NOT NULL CHECK (channel IN ('anonymous', 'student')),
+                kind TEXT NOT NULL
+            )
+        """)
+
         # S2 (D79): limite de tentativas de login. Uma linha por falha ('fail') ou bloqueio ('lock') de um e-mail
         # normalizado ou de um IP. Datas em UTC no formato de CURRENT_TIMESTAMP. Nunca guarda senha.
         cursor.execute("""
@@ -2260,6 +2270,25 @@ class Database:
             )
             conn.commit()
             return cursor.lastrowid
+        finally:
+            conn.close()
+
+    @staticmethod
+    def add_ai_guard_event(*, channel: str, kind: str) -> None:
+        conn = sqlite3.connect(Database.DB_PATH)
+        try:
+            conn.execute("INSERT INTO ai_guard_events (channel, kind) VALUES (?, ?)", (channel, kind))
+            conn.commit()
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_ai_guard_stats() -> Dict:
+        """`guardrails {total, by_kind}` do painel (GR, D95)."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        try:
+            por_tipo = dict(conn.execute("SELECT kind, COUNT(*) FROM ai_guard_events GROUP BY kind").fetchall())
+            return {"total": sum(por_tipo.values()), "by_kind": por_tipo}
         finally:
             conn.close()
 

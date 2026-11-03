@@ -9,13 +9,25 @@ from typing import Dict, Iterable, List, Optional, Tuple
 from agents import ai_observability
 from agents.course_agent import CourseAgent
 from agents.groq_client import GroqChatClient
+from agents.guardrails import (
+    IMPROPER_BLOCKED,
+    INSTRUCAO_CLASSIFICADOR,
+    TIPO_IMPROPRIO,
+    TIPO_INJECAO,
+    TIPOS_QUE_MANTEM_ACOES,
+    VEREDITOS,
+    classificar_saida,
+    conteudo_improprio,
+    montar_contexto,
+)
+from agents.handoff import pede_atendimento_humano
 from agents.llm_guard import (
+    INPUT_BLOCKED,
     POLICY_BLOCK,
     InputBlockedError,
     LLMUnavailableError,
     entrada_bloqueada,
-    filtrar_saida,
-    precos_do_catalogo,
+    normalizar,
 )
 from db import Database
 
@@ -208,13 +220,15 @@ CURSOS DISPONÍVEIS:
 
 MENSAGEM DO USUÁRIO: {user_message}
 
-Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
+{INSTRUCAO_CLASSIFICADOR}
+
+Responda com apenas uma palavra: o ID do curso, GENERAL, FORA, IMPROPRIO ou INJECAO.
 """
             with ai_observability.tipo_de_chamada("route"):
                 response_text = self.llm.create_chat_completion([
                     {"role": "system", "content": "Você é um assistente que identifica intenções. Responda com apenas uma palavra."},
                     {"role": "user", "content": identify_prompt}
-                ], max_tokens=200, temperature=0.3)
+                ], max_tokens=300, temperature=0.3)
             result = response_text.strip().strip('`"\'').split()[0]
             course_lookup = {course_id.lower(): course_id for course_id in self.courses}
             
@@ -223,7 +237,12 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
                 
         except Exception as e:
             print(f"Error in course identification: {type(e).__name__}")
-        
+            return "GENERAL", False
+
+        # GR (D95): o classificador usa a mesma chamada. Falha ou palavra desconhecida seguem como pergunta geral.
+        veredito = VEREDITOS.get(normalizar(result).upper())
+        if veredito and not pede_atendimento_humano(user_message):
+            self._barrar_entrada(*veredito)
         return "GENERAL", False
 
     def _normalize_text(self, value: str) -> str:
@@ -286,9 +305,17 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
         self.sessions[novo] = []
         return novo
 
-    def _filtrar_saida(self, resposta: str) -> str:
-        """Filtro de saída (D38.5): descarta desconto, valor fora do catálogo e vazamento de prompt."""
-        return filtrar_saida(resposta, precos_do_catalogo(self.courses.values()))
+    def _barrar_entrada(self, texto: str, tipo: str) -> None:
+        """Registra o bloqueio (E7, GR) e interrompe a mensagem: nada vai ao histórico."""
+        ai_observability.registrar_interacao("input_blocked")
+        ai_observability.registrar_bloqueio(tipo)
+        raise InputBlockedError(texto)
+
+    def _filtrar_entrada(self, user_message: str) -> None:
+        if entrada_bloqueada(user_message):
+            self._barrar_entrada(INPUT_BLOCKED, TIPO_INJECAO)
+        if conteudo_improprio(user_message):
+            self._barrar_entrada(IMPROPER_BLOCKED, TIPO_IMPROPRIO)
 
     def process_message(self, user_message: str, session_id: str) -> RespostaChat:
         """
@@ -299,9 +326,7 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
         gravado no histórico). A interação e o usage do LLM vão para o banco (E7), só com o hash da sessão.
         """
         with ai_observability.identidade_anonima(session_id):
-            if entrada_bloqueada(user_message):
-                ai_observability.registrar_interacao("input_blocked")
-                raise InputBlockedError()
+            self._filtrar_entrada(user_message)
 
             self.refresh_courses_if_changed()
 
@@ -350,15 +375,17 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
             erro.curso = curso
             raise
 
-        filtrada = self._filtrar_saida(resposta)
-        if filtrada != resposta:
+        filtrada, tipo_bloqueio = classificar_saida(resposta, montar_contexto(self.courses.values(), turmas))
+        if tipo_bloqueio:
+            ai_observability.registrar_bloqueio(tipo_bloqueio)
             outcome = "output_blocked"
         elif curso:
             outcome = "answered"
         else:
             outcome = "unresolved"
         ai_observability.registrar_interacao(outcome, curso, user_message)
-        return RespostaChat(texto=filtrada, curso=curso, barrada=filtrada != resposta, turmas=turmas)
+        barrada = tipo_bloqueio is not None and tipo_bloqueio not in TIPOS_QUE_MANTEM_ACOES
+        return RespostaChat(texto=filtrada, curso=curso, barrada=barrada, turmas=turmas)
 
     @staticmethod
     def _turmas_abertas(course_id: str) -> Optional[List[Dict]]:
@@ -381,9 +408,7 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
         A identidade do aluno para a observabilidade (E7) vem do contexto definido pelo chamador
         (`ai_observability.identidade_aluno`), nunca de parâmetro do cliente.
         """
-        if entrada_bloqueada(user_message):
-            ai_observability.registrar_interacao("input_blocked")
-            raise InputBlockedError()
+        self._filtrar_entrada(user_message)
 
         self.refresh_courses_if_changed()
 

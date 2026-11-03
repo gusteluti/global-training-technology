@@ -65,7 +65,8 @@ Modo autônomo (D40): ver `docs/tdd/RELATORIO_NOITE.md`. E5 (D37), E6 (D41), E7 
 
 ## 3. A fazer — escopo de cada entrega
 
-### GR — Guardrails do chatbot (escopo incluído pelo PM em 21/10/2026, D94)
+### GR — Guardrails do chatbot — **Entregue (D95).**
+Decisões delegadas pelo PM em 03/11/2026; ver D95 (resultado, taxas medidas e limites). Texto original abaixo.
 Base já entregue: E6 (filtros de entrada e saída, delimitação de dados, limite de tamanho), S9 (limite de taxa) e F6
 (encaminhamento ao WhatsApp). Falta: (1) recusa de assunto fora do domínio; (2) mascarar dado pessoal na entrada, no
 histórico e na saída; (3) moderação de conteúdo impróprio; (4) fidelidade ao catálogo (cursos, turmas, datas, preços);

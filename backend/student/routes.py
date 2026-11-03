@@ -20,8 +20,8 @@ import payments.routes as payments_routes
 from agents.ai_observability import identidade_aluno
 from agents.handoff import acoes_de_handoff
 from agents.manager_agent import montar_acoes
+from agents.guardrails import mascarar_dados_pessoais
 from agents.llm_guard import (
-    INPUT_BLOCKED,
     LLM_UNAVAILABLE,
     MAX_MESSAGE_CHARS,
     InputBlockedError,
@@ -362,25 +362,27 @@ def conversar_com_o_chatbot(
         raise HTTPException(status_code=503, detail="Chatbot indisponível.")
 
     historico = Database.list_chat_messages(current_user.id, limit=JANELA_CONTEXTO_CHAT)
+    # GR (D95): CPF, cartão, telefone e e-mail não chegam ao LLM nem ao histórico.
+    mensagem = mascarar_dados_pessoais(corpo.message)
     try:
         # E7: o contexto de observabilidade (canal e aluno) vem só do JWT e é definido nesta thread,
         # a mesma que chama o LLM (o endpoint é síncrono e roda em threadpool).
         with identidade_aluno(current_user.id):
             resultado = manager_agent.process_authenticated_message(
-                corpo.message, _contexto_do_aluno(current_user.id), historico
+                mensagem, _contexto_do_aluno(current_user.id), historico
             )
-    except InputBlockedError:
-        return {"status": "success", "message": INPUT_BLOCKED, "actions": []}
+    except InputBlockedError as erro:
+        return {"status": "success", "message": erro.texto, "actions": []}
     except LLMUnavailableError as erro:
         # F6 (D77): mesmo 502 e mesmo detail; o corpo ganha `actions` só quando o handoff vale.
-        handoff = _handoff_aluno(manager_agent, corpo.message, current_user.id, getattr(erro, "curso", None))
+        handoff = _handoff_aluno(manager_agent, mensagem, current_user.id, getattr(erro, "curso", None))
         if handoff:
             return JSONResponse(status_code=502, content={"detail": LLM_UNAVAILABLE, "actions": handoff})
         raise HTTPException(status_code=502, detail=LLM_UNAVAILABLE)
     # Só o texto é persistido; as ações (F5b, D76; F6, D77) são montadas pelo servidor e não vão ao histórico.
-    Database.add_chat_exchange(current_user.id, corpo.message, resultado.texto)
+    Database.add_chat_exchange(current_user.id, mensagem, resultado.texto)
     acoes = montar_acoes(resultado, Database.list_active_course_ids_for_user(current_user.id))
-    acoes += _handoff_aluno(manager_agent, corpo.message, current_user.id, resultado.curso)
+    acoes += _handoff_aluno(manager_agent, mensagem, current_user.id, resultado.curso)
     return {"status": "success", "message": resultado.texto, "actions": acoes}
 
 

@@ -9,6 +9,18 @@ const MOTIVOS_HANDOFF: { key: string; label: string }[] = [
   { key: 'unresolved', label: 'Dúvidas não resolvidas' }
 ];
 
+const TIPOS_BLOQUEIO = [
+  { key: 'injection', label: 'Tentativa de manipular o assistente' },
+  { key: 'off_topic', label: 'Fora do assunto' },
+  { key: 'improper', label: 'Conteúdo impróprio' },
+  { key: 'offer', label: 'Desconto ou valor indevido' },
+  { key: 'promise', label: 'Promessa fora da política' },
+  { key: 'personal_data', label: 'Dado pessoal na resposta' },
+  { key: 'link', label: 'Link não permitido' },
+  { key: 'fidelity', label: 'Informação fora do catálogo' },
+  { key: 'prompt_leak', label: 'Vazamento de instruções' }
+];
+
 @Component({
   selector: 'app-ai-observability',
   templateUrl: './ai-observability.component.html'
@@ -19,6 +31,7 @@ export class AiObservabilityComponent implements OnInit, OnDestroy {
 
   metrics: any = null;
   handoffReasons: { label: string; count: number }[] = [];
+  bloqueios: { label: string; count: number }[] = [];
   error = '';
   private chart?: Chart;
   private dayChart?: Chart;
@@ -59,6 +72,8 @@ export class AiObservabilityComponent implements OnInit, OnDestroy {
         this.metrics = r.metrics || {};
         const porMotivo = (this.metrics.handoff && this.metrics.handoff.by_reason) || {};
         this.handoffReasons = MOTIVOS_HANDOFF.map(m => ({ label: m.label, count: Number(porMotivo[m.key] || 0) }));
+        const porTipo = (this.metrics.guardrails && this.metrics.guardrails.by_kind) || {};
+        this.bloqueios = TIPOS_BLOQUEIO.map(t => ({ label: t.label, count: Number(porTipo[t.key] || 0) }));
         this.renderMessagesChart();
         this.renderPerDayChart();
       },
