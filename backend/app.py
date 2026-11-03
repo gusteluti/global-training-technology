@@ -15,8 +15,8 @@ from payments.routes import pagamento_mockado_efetivo, router as payments_router
 from admin.cancellations import router as cancellations_router
 from admin.staff import router as staff_router
 from dashboard.routes import router as dashboard_router
+from agents.guardrails import mascarar_dados_pessoais
 from agents.llm_guard import (
-    INPUT_BLOCKED,
     LLM_UNAVAILABLE,
     MAX_MESSAGE_CHARS,
     TOO_LONG,
@@ -214,12 +214,14 @@ async def chat(chat_msg: ChatMessage, request: Request):
             return {"status": "error", "message": TOO_LONG}
 
         session_id = manager_agent.resolve_session(chat_msg.session_id)
+        # GR (D95): CPF, cartão, telefone e e-mail não chegam ao LLM nem à memória da sessão.
+        user_message = mascarar_dados_pessoais(user_message)
 
         # Route message through manager agent
         try:
             resultado = manager_agent.process_message(user_message, session_id)
-        except InputBlockedError:
-            return {"status": "success", "message": INPUT_BLOCKED, "session_id": session_id, "actions": []}
+        except InputBlockedError as erro:
+            return {"status": "success", "message": erro.texto, "session_id": session_id, "actions": []}
         except LLMUnavailableError as erro:
             corpo = {"status": "error", "message": LLM_UNAVAILABLE, "session_id": session_id}
             # F6 (D77): o erro continua como antes; ganha `actions` só quando o handoff vale.

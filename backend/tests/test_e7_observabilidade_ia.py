@@ -759,7 +759,7 @@ def test_b2_uma_linha_por_mensagem_na_ordem(client, groq, canal):
     ("Falem com Maria99999@Exemplo.COM sobre meu pedido", "falem com [email] sobre meu pedido"),
     ("Meu pedido 123456 sumiu", "meu pedido [num] sumiu"),
     ("Turma 1234 tem vaga", "turma 1234 tem vaga"),
-    ("Ligar para (11) 98765-4321 amanha", "ligar para (11) [num]-4321 amanha"),
+    ("Ligar para (11) 98765-4321 amanha", "ligar para [telefone oculto] amanha"),  # GR (D95): telefone inteiro mascarado
 ], ids=["simples", "minusculas", "email", "numero_5_digitos", "numero_4_digitos_fica", "telefone"])
 def test_b3_topic_mascarado_no_anonimo_unresolved(client, groq, original, mascarado):
     ator = _novo_ator(client, "anonimo")

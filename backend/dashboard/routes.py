@@ -427,5 +427,7 @@ async def dashboard_observabilidade_ia(request: Request, current_user: AuthConte
             "per_day": per_day,
             # F6 (D77): encaminhamentos ao WhatsApp; não é custo, vale para todos os perfis.
             "handoff": Database.get_ai_handoff_stats(),
+            # GR (D95): bloqueios por tipo; não é custo, vale para todos os perfis.
+            "guardrails": Database.get_ai_guard_stats(),
         },
     }

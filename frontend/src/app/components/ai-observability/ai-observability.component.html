@@ -91,6 +91,28 @@
 
 <div class="card mb-3" *ngIf="metrics">
   <div class="card-body">
+    <h5>Bloqueios dos guardrails</h5>
+    <div class="row g-3">
+      <div class="col-md-3">
+        <div class="text-muted small">Total</div>
+        <div class="fs-3" data-testid="ia-bloqueios-total">{{ (metrics.guardrails && metrics.guardrails.total) || 0 }}</div>
+      </div>
+      <div class="col-md-9">
+        <table class="table table-sm mb-0">
+          <tbody>
+            <tr *ngFor="let b of bloqueios" data-testid="ia-bloqueio-tipo">
+              <td>{{ b.label }}</td>
+              <td class="text-end">{{ b.count }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card mb-3" *ngIf="metrics">
+  <div class="card-body">
     <h5>Encaminhamentos ao WhatsApp</h5>
     <div class="row g-3">
       <div class="col-md-3">

@@ -136,6 +136,17 @@ def registrar_uso(model: str, status: str, latencia_ms: int, prompt_tokens: int 
         print(f"Error recording ai_usage: {type(e).__name__}")
 
 
+def registrar_bloqueio(tipo: str) -> None:
+    """Grava o tipo de um bloqueio dos guardrails (GR, D95): só canal e tipo, nunca o texto da mensagem."""
+    identidade = identidade_atual()
+    if identidade is None:
+        return
+    try:
+        Database.add_ai_guard_event(channel=identidade["channel"], kind=tipo)
+    except Exception as e:
+        print(f"Error recording ai_guard_event: {type(e).__name__}")
+
+
 def registrar_interacao(outcome: str, course_id: Optional[str] = None, mensagem: Optional[str] = None) -> None:
     """Grava uma linha de ai_interactions para a mensagem que chegou ao pipeline.
 
