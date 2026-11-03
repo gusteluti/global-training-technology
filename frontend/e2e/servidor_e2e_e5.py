@@ -69,6 +69,7 @@ def _ambiente(outbox: str) -> None:
         "FRONTEND_BASE_URL": "http://localhost:4200",
         "API_BASE_URL": "http://localhost:8000",
         "PASSWORD_LINK_OUTBOX": outbox,
+        "CONTENTS_DIR": str(Path(outbox).parent / "conteudos"),
     })
 
 

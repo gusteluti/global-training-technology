@@ -1521,3 +1521,21 @@ com um cartão que achei na rua". Resta 1 resposta vazia do modelo nessa rodada.
 **Limites conhecidos:** a fidelidade só reconhece nomes com inicial maiúscula após "curso de" e "turma"; frase com negação
 não é checada; moderação heurística é só para português.
 **Verificação (pedido do PM: rodada curta):** suítes do chat e e2e F6 verdes, build limpo. Regressão completa e demais e2e não foram rodados nesta entrega.
+
+## D96 — C1-C4: sala do curso (03/11/2026, aprovado pelo PM com as recomendações; processo enxuto D84)
+**Decisões do PM:** YouTube não listado e Vimeo; extras não contam para o certificado; sem prévia antes da compra; acesso
+enquanto a matrícula estiver ativa; conteúdo por curso.
+**Entregue:** tabela `course_contents` (`core/conteudos.py`); `GET /api/student/enrollments/{id}/room` e
+`.../contents/{id}/file` (só matrícula ativa, alheia = 404 da E3, outro curso ou oculto = 404); CRUD só da Gestão em
+`/api/admin/courses/{id}/contents` e `/api/admin/contents/{id}` (criar, enviar arquivo, editar, mover, excluir), com
+auditoria `course_content.*`; página `/student/curso/:id` e painel "Conteúdos" no Cadastro de cursos.
+**Segurança:** o player nasce de um id validado (YouTube ou Vimeo em https); arquivo em pasta privada (`CONTENTS_DIR`,
+padrão `backend/uploads/conteudos`, ignorada pelo git), com nome gerado pelo servidor; aceita PDF, DOCX, XLSX, PPTX e ZIP até
+20 MB, conferindo o início do arquivo.
+**Desvio do escopo aprovado:** os `materials` não foram copiados para a tabela. Continuam no JSON e aparecem na sala como
+módulo "Materiais", com progresso pela URL, como antes. Copiar criaria duas fontes para o mesmo dado, porque a edição no
+Cadastro de cursos continua existindo. Efeito: esses materiais não aparecem no painel "Conteúdos" e seguem editados na
+caixa de texto do cadastro. Formatos antigos `.doc`, `.xls` e `.ppt` não são aceitos.
+**"Continuar de onde parei":** é a primeira aula não concluída; não há registro do minuto do vídeo.
+**Limites:** o link não listado pode ser repassado; o e2e confere o endereço do player, não a reprodução do vídeo.
+**Verificação (rodada curta, pedido do PM):** backend C + X1 + materiais, e2e C, X1 e D2 e build. Regressão completa não rodada.

@@ -1,0 +1,80 @@
+<p class="mb-3"><a routerLink="/student" data-testid="sala-voltar">&larr; Voltar para Meus cursos</a></p>
+
+<p class="text-muted" *ngIf="carregando">Carregando...</p>
+<div class="alert alert-warning" *ngIf="erro" data-testid="sala-erro">{{ erro }}</div>
+
+<ng-container *ngIf="sala">
+  <h3 class="text-break" data-testid="sala-curso">{{ sala.course_name }}</h3>
+
+  <div class="mb-4" *ngIf="sala.progress.total">
+    <div class="d-flex justify-content-between small mb-1">
+      <strong>Seu progresso</strong>
+      <span data-testid="sala-progresso">{{ sala.progress.done }} de {{ sala.progress.total }} concluídos</span>
+    </div>
+    <div class="progress curso-progresso">
+      <div class="progress-bar" [style.width.%]="sala.progress.percent"></div>
+    </div>
+    <button type="button" class="btn btn-primary btn-sm mt-2" data-testid="sala-certificado"
+            *ngIf="sala.progress.certificate_available" (click)="baixarCertificado()">Baixar certificado</button>
+  </div>
+
+  <div class="alert alert-info" data-testid="sala-vazia" *ngIf="!sala.modules.length && !sala.extras.length">
+    Este curso ainda não tem conteúdos.
+  </div>
+
+  <div class="row g-4" *ngIf="sala.modules.length || sala.extras.length">
+    <div class="col-12 col-lg-8">
+      <div class="card" *ngIf="atual">
+        <div class="ratio ratio-16x9" *ngIf="player">
+          <iframe [src]="player" [title]="atual.title" data-testid="sala-player" allowfullscreen
+                  allow="encrypted-media; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+        </div>
+        <div class="card-body">
+          <h5 class="text-break" data-testid="sala-titulo">{{ atual.title }}</h5>
+          <div class="alert alert-danger" *ngIf="erroArquivo" data-testid="sala-erro-arquivo">{{ erroArquivo }}</div>
+          <div class="d-flex flex-wrap gap-2 mb-3" *ngIf="atual.kind === 'file'">
+            <button type="button" class="btn btn-primary btn-sm" *ngIf="ePdf(atual)" data-testid="sala-abrir"
+                    (click)="abrirPdf(atual)">Abrir</button>
+            <button type="button" class="btn btn-outline-primary btn-sm" data-testid="sala-baixar"
+                    (click)="baixar(atual)">Baixar</button>
+          </div>
+          <p *ngIf="atual.url">
+            <a class="btn btn-primary btn-sm" [href]="atual.url" target="_blank" rel="noopener noreferrer"
+               data-testid="sala-link">Abrir conteúdo</a>
+          </p>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="sala-concluido" data-testid="sala-concluido"
+                   [checked]="atual.done" (change)="alternarConcluido(atual, $any($event.target).checked)">
+            <label class="form-check-label" for="sala-concluido">Marcar como concluído</label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-4">
+      <div class="mb-3" *ngFor="let modulo of sala.modules">
+        <h6 class="curso-subtitulo text-break">{{ modulo.title }}</h6>
+        <div class="list-group">
+          <button type="button" *ngFor="let item of modulo.items" data-testid="sala-item"
+                  class="list-group-item list-group-item-action d-flex justify-content-between gap-2 text-start"
+                  [class.active]="atual === item" (click)="abrir(item)">
+            <span class="text-break">{{ item.done ? '✓ ' : '' }}{{ item.title }}</span>
+            <small class="text-nowrap">{{ rotuloTipo(item) }}<ng-container *ngIf="item.duration_minutes"> · {{ item.duration_minutes }} min</ng-container></small>
+          </button>
+        </div>
+      </div>
+
+      <div class="mb-3" *ngIf="sala.extras.length" data-testid="sala-extras">
+        <h6 class="curso-subtitulo">Conteúdos extras</h6>
+        <div class="list-group">
+          <button type="button" *ngFor="let item of sala.extras" data-testid="sala-extra"
+                  class="list-group-item list-group-item-action d-flex justify-content-between gap-2 text-start"
+                  [class.active]="atual === item" (click)="abrir(item)">
+            <span class="text-break">{{ item.done ? '✓ ' : '' }}{{ item.title }}</span>
+            <small class="text-nowrap">{{ rotuloTipo(item) }}</small>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</ng-container>

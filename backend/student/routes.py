@@ -12,7 +12,7 @@ import re
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict, StrictInt, field_validator
 
 import admin.routes as admin_routes
@@ -28,7 +28,7 @@ from agents.llm_guard import (
     LLMUnavailableError,
     bloco_dados_aluno,
 )
-from core import avaliacoes, privacidade, progresso, rate_limit
+from core import avaliacoes, conteudos, privacidade, progresso, rate_limit
 from core.receipt_pdf import gerar_recibo_pdf
 from core.audit import change, record_audit
 from core.password_setup import senha_aceitavel
@@ -84,6 +84,12 @@ def _materiais(curso: Optional[Dict]) -> List[Dict[str, str]]:
     ]
 
 
+def _chaves_das_aulas(course_id: str, curso: Optional[Dict]) -> List[str]:
+    """O que conta para o progresso e o certificado (D96): materiais do JSON e aulas publicadas. Extras ficam de fora."""
+    urls = [m["url"] for m in _materiais(curso)]
+    return urls + [conteudos.chave(c) for c in conteudos.listar(course_id, so_publicados=True) if not c["is_extra"]]
+
+
 def _montar_item(matricula: Dict, cancelamento: Optional[Dict] = None) -> Dict:
     curso = _carregar_curso(matricula["course_id"])
     cancelamento = cancelamento or {}
@@ -107,7 +113,7 @@ def _montar_item(matricula: Dict, cancelamento: Optional[Dict] = None) -> Dict:
     if matricula["status"] == STATUS_COM_MATERIAIS:
         item["materials"] = _materiais(curso)
         # X1 (D91): progresso nos materiais e certificado, só na matrícula ativa (as URLs só aparecem aqui).
-        item["progress"] = progresso.resumo(matricula["id"], [m["url"] for m in item["materials"]])
+        item["progress"] = progresso.resumo(matricula["id"], _chaves_das_aulas(matricula["course_id"], curso))
         # X2 (D92): avaliação do próprio aluno (ou null).
         item["review"] = avaliacoes.da_matricula(matricula["id"])
     return item
@@ -532,6 +538,7 @@ async def excluir_minha_conta(corpo: ExclusaoInput,
 
 ERRO_MATERIAL_SO_ATIVA = "O material só fica disponível com a matrícula ativa."
 ERRO_MATERIAL_INEXISTENTE = "Material não encontrado neste curso."
+ERRO_CONTEUDO_NAO_ENCONTRADO = "Conteúdo não encontrado."
 ERRO_CERTIFICADO_INCOMPLETO = "Conclua todos os materiais para emitir o certificado."
 
 
@@ -555,17 +562,83 @@ async def marcar_material(enrollment_id: int, corpo: ProgressoInput,
                           current_user: AuthContext = Depends(require_roles(Role.STUDENT))):
     """Marca (ou desmarca) um material do curso como concluído. Matrícula alheia = o mesmo 404 da E3."""
     matricula, curso = _matricula_ativa_do_aluno(enrollment_id, current_user.id)
-    urls = [m["url"] for m in _materiais(curso)]
-    if corpo.url not in urls:
+    extras = [conteudos.chave(c) for c in conteudos.listar(matricula["course_id"], so_publicados=True) if c["is_extra"]]
+    aulas = _chaves_das_aulas(matricula["course_id"], curso)
+    if corpo.url not in aulas + extras:
         raise HTTPException(status_code=422, detail=ERRO_MATERIAL_INEXISTENTE)
     progresso.marcar(matricula["id"], corpo.url, corpo.done)
-    return {"status": "success", "progress": progresso.resumo(matricula["id"], urls)}
+    return {"status": "success", "progress": progresso.resumo(matricula["id"], aulas)}
+
+
+def _item_da_sala(conteudo: Dict, feitos: Dict) -> Dict:
+    chave = conteudos.chave(conteudo)
+    item = {
+        "key": chave, "title": conteudo["title"], "kind": conteudo["kind"],
+        "duration_minutes": conteudo["duration_minutes"], "done": chave in feitos,
+    }
+    if conteudo["kind"] == "video":
+        item["embed_url"] = conteudos.embed_do_video(conteudo["url"])
+    elif conteudo["kind"] == "link":
+        item["url"] = conteudo["url"]
+    else:
+        item.update({"content_id": conteudo["id"], "file_name": conteudo["file_name"]})
+    return item
+
+
+def _item_de_material(material: Dict, feitos: Dict) -> Dict:
+    embed = conteudos.embed_do_video(material["url"])
+    item = {"key": material["url"], "title": material["title"], "kind": "video" if embed else "link",
+            "duration_minutes": None, "done": material["url"] in feitos}
+    item.update({"embed_url": embed} if embed else {"url": material["url"]})
+    return item
+
+
+@router.get("/enrollments/{enrollment_id}/room")
+async def sala_do_curso(enrollment_id: int, current_user: AuthContext = Depends(require_roles(Role.STUDENT))):
+    """Sala do curso (D96): aulas em módulos, extras e progresso. Só com matrícula ativa; alheia = o mesmo 404 da E3."""
+    matricula, curso = _matricula_ativa_do_aluno(enrollment_id, current_user.id)
+    course_id = matricula["course_id"]
+    feitos = progresso.concluidos(matricula["id"])
+    modulos: Dict[str, List[Dict]] = {}
+    materiais = [_item_de_material(m, feitos) for m in _materiais(curso)]
+    if materiais:
+        modulos[conteudos.MODULO_MATERIAIS] = materiais
+    extras = []
+    for conteudo in conteudos.listar(course_id, so_publicados=True):
+        item = _item_da_sala(conteudo, feitos)
+        if conteudo["is_extra"]:
+            extras.append(item)
+        else:
+            modulos.setdefault(conteudo["module"], []).append(item)
+    aulas = [item for itens in modulos.values() for item in itens]
+    return {
+        "status": "success",
+        "course_name": (curso or {}).get("name") or course_id,
+        "modules": [{"title": titulo, "items": itens} for titulo, itens in modulos.items()],
+        "extras": extras,
+        "progress": progresso.resumo(matricula["id"], [item["key"] for item in aulas]),
+        "next_key": next((item["key"] for item in aulas if not item["done"]), None),
+    }
+
+
+@router.get("/enrollments/{enrollment_id}/contents/{conteudo_id}/file")
+async def baixar_conteudo(enrollment_id: int, conteudo_id: int,
+                          current_user: AuthContext = Depends(require_roles(Role.STUDENT))):
+    """Download autenticado (D96): a matrícula é conferida a cada pedido; conteúdo de outro curso ou oculto = 404."""
+    matricula, _ = _matricula_ativa_do_aluno(enrollment_id, current_user.id)
+    conteudo = conteudos.obter(conteudo_id)
+    caminho = None
+    if conteudo and conteudo["published"] and conteudo["course_id"] == matricula["course_id"]:
+        caminho = conteudos.caminho_do_arquivo(conteudo)
+    if caminho is None:
+        raise HTTPException(status_code=404, detail=ERRO_CONTEUDO_NAO_ENCONTRADO)
+    return FileResponse(caminho, media_type=conteudos.media_type(conteudo), filename=conteudo["file_name"])
 
 
 @router.get("/enrollments/{enrollment_id}/certificate.pdf")
 async def baixar_certificado(enrollment_id: int, current_user: AuthContext = Depends(require_roles(Role.STUDENT))):
     matricula, curso = _matricula_ativa_do_aluno(enrollment_id, current_user.id)
-    resumo = progresso.resumo(matricula["id"], [m["url"] for m in _materiais(curso)])
+    resumo = progresso.resumo(matricula["id"], _chaves_das_aulas(matricula["course_id"], curso))
     if not resumo["certificate_available"]:
         raise HTTPException(status_code=409, detail=ERRO_CERTIFICADO_INCOMPLETO)
     perfil = Database.get_student_profile(current_user.id) or {}

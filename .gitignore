@@ -27,6 +27,9 @@ backend/venv/
 *.sqlite3
 *.db
 
+# Arquivos enviados aos cursos (D96): pasta privada, nunca versionar
+backend/uploads/
+
 # OS files
 .DS_Store
 Thumbs.db

@@ -63,6 +63,7 @@
           </p>
 
           <ng-container *ngIf="m.status === 'active'; else semAcesso">
+            <a class="btn btn-primary btn-sm mb-3 align-self-start" data-testid="curso-entrar" [routerLink]="['/student/curso', m.id]">Entrar no curso</a>
             <h6 class="curso-subtitulo">Materiais</h6>
             <div class="list-group" *ngIf="m.materials?.length; else semMateriais">
               <a *ngFor="let mat of m.materials"
@@ -72,7 +73,7 @@
                  rel="noopener noreferrer">{{ mat.title }}</a>
             </div>
             <ng-template #semMateriais>
-              <p class="text-muted small mb-0">Este curso ainda não tem materiais.</p>
+              <p class="text-muted small mb-0" *ngIf="!m.progress?.total">Este curso ainda não tem materiais.</p>
             </ng-template>
             <div class="mt-3" *ngIf="m.progress?.total">
               <div class="d-flex justify-content-between small mb-1">

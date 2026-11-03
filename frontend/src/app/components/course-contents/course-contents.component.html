@@ -1,0 +1,87 @@
+<div class="card mb-3" data-testid="conteudos-painel">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+      <h5 class="text-break mb-0">Conteúdos de {{ curso.name }}</h5>
+      <button type="button" class="btn btn-sm btn-outline-secondary" data-testid="conteudos-fechar" (click)="fechar.emit()">Fechar</button>
+    </div>
+    <p class="small text-muted">Os alunos veem estes conteúdos na sala do curso. Os materiais do cadastro continuam aparecendo no módulo "Materiais".</p>
+
+    <div class="alert alert-danger" *ngIf="erro" data-testid="conteudo-erro">{{ erro }}</div>
+    <div class="alert alert-success" *ngIf="aviso" data-testid="conteudo-aviso">{{ aviso }}</div>
+
+    <div class="table-responsive mb-3" *ngIf="conteudos.length; else semConteudos">
+      <table class="table table-sm align-middle">
+        <thead>
+          <tr><th>Módulo</th><th>Título</th><th>Tipo</th><th>Situação</th><th></th></tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let c of conteudos; let i = index" data-testid="conteudo-linha">
+            <td class="text-break">{{ c.is_extra ? 'Extra' : c.module }}</td>
+            <td class="text-break">{{ c.title }}</td>
+            <td>{{ rotuloTipo(c) }}</td>
+            <td>{{ c.published ? 'Publicado' : 'Oculto' }}</td>
+            <td class="text-end text-nowrap">
+              <ng-container *ngIf="confirmandoId !== c.id">
+                <button type="button" class="btn btn-sm btn-outline-secondary me-1" aria-label="Subir" [disabled]="i === 0" data-testid="conteudo-subir" (click)="mover(c, 'up')">&uarr;</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary me-1" aria-label="Descer" [disabled]="i === conteudos.length - 1" (click)="mover(c, 'down')">&darr;</button>
+                <button type="button" class="btn btn-sm btn-outline-primary me-1" data-testid="conteudo-editar" (click)="editar(c)">Editar</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary me-1" data-testid="conteudo-publicar" (click)="alternarPublicacao(c)">{{ c.published ? 'Ocultar' : 'Publicar' }}</button>
+                <button type="button" class="btn btn-sm btn-outline-danger" data-testid="conteudo-excluir" (click)="confirmandoId = c.id">Excluir</button>
+              </ng-container>
+              <ng-container *ngIf="confirmandoId === c.id">
+                <button type="button" class="btn btn-sm btn-danger me-1" data-testid="conteudo-excluir-confirmar" (click)="excluir(c)">Confirmar</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" (click)="confirmandoId = null">Cancelar</button>
+              </ng-container>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <ng-template #semConteudos><p class="text-muted" data-testid="conteudos-vazio">Nenhum conteúdo cadastrado.</p></ng-template>
+
+    <h6>{{ editandoId ? 'Editar conteúdo' : 'Novo conteúdo' }}</h6>
+    <form (ngSubmit)="salvar()">
+      <div class="row g-2">
+        <div class="col-md-4">
+          <label class="form-label" for="conteudo-modulo">Módulo</label>
+          <input id="conteudo-modulo" class="form-control" name="module" maxlength="120" data-testid="conteudo-modulo" [(ngModel)]="form.module">
+        </div>
+        <div class="col-md-5">
+          <label class="form-label" for="conteudo-titulo">Título</label>
+          <input id="conteudo-titulo" class="form-control" name="title" maxlength="200" data-testid="conteudo-titulo" [(ngModel)]="form.title">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label" for="conteudo-tipo">Tipo</label>
+          <select id="conteudo-tipo" class="form-select" name="kind" data-testid="conteudo-tipo" [disabled]="editandoId !== null" [(ngModel)]="form.kind">
+            <option value="video">Vídeo</option>
+            <option value="file">Arquivo</option>
+            <option value="link">Link externo</option>
+          </select>
+        </div>
+        <div class="col-md-9" *ngIf="form.kind !== 'file'">
+          <label class="form-label" for="conteudo-url">{{ form.kind === 'video' ? 'Link do YouTube ou do Vimeo' : 'Link' }}</label>
+          <input id="conteudo-url" class="form-control" name="url" data-testid="conteudo-url" [(ngModel)]="form.url">
+        </div>
+        <div class="col-md-9" *ngIf="form.kind === 'file' && !editandoId">
+          <label class="form-label" for="conteudo-arquivo">Arquivo (PDF, Word, Excel, PowerPoint ou ZIP, até 20 MB)</label>
+          <input id="conteudo-arquivo" type="file" class="form-control" data-testid="conteudo-arquivo"
+                 accept=".pdf,.docx,.xlsx,.pptx,.zip" (change)="escolherArquivo($event)">
+        </div>
+        <div class="col-md-3" *ngIf="form.kind === 'video'">
+          <label class="form-label" for="conteudo-duracao">Duração (min)</label>
+          <input id="conteudo-duracao" type="number" min="0" class="form-control" name="duration" [(ngModel)]="form.duration_minutes">
+        </div>
+      </div>
+      <div class="form-check mt-2">
+        <input class="form-check-input" type="checkbox" id="conteudo-extra" name="is_extra" data-testid="conteudo-extra" [(ngModel)]="form.is_extra">
+        <label class="form-check-label" for="conteudo-extra">Conteúdo extra (não conta para o certificado)</label>
+      </div>
+      <div class="form-check mb-2">
+        <input class="form-check-input" type="checkbox" id="conteudo-publicado" name="published" [(ngModel)]="form.published">
+        <label class="form-check-label" for="conteudo-publicado">Publicado</label>
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm me-2" data-testid="conteudo-salvar" [disabled]="salvando">Salvar</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" *ngIf="editandoId" (click)="limpar()">Cancelar edição</button>
+    </form>
+  </div>
+</div>
