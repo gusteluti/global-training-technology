@@ -1,6 +1,6 @@
 # Escopo — Sala do curso (conteúdos do aluno)
 
-Proposta para aprovação do PM (03/11/2026). Nada implementado.
+Aprovado pelo PM e entregue em 03/11/2026 (D96). A D96 registra um desvio: os `materials` não migraram para a tabela.
 
 ## Objetivo
 O aluno com matrícula ativa abre uma página do curso e, sem sair da plataforma, assiste às videoaulas gravadas, lê a

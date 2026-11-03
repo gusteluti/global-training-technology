@@ -21,6 +21,7 @@
             <td><ng-container *ngIf="c.duration_hours !== null">{{ c.duration_hours }} h</ng-container></td>
             <td class="text-end text-nowrap">
               <ng-container *ngIf="deletingId !== c.id">
+                <button type="button" class="btn btn-sm btn-outline-primary me-1" data-testid="curso-conteudos" (click)="conteudosDe = c">Conteúdos</button>
                 <button type="button" class="btn btn-sm btn-outline-primary me-1" data-testid="curso-edit" (click)="edit(c)">Editar</button>
                 <button type="button" class="btn btn-sm btn-outline-secondary me-1" data-testid="curso-archive" *ngIf="!c.archived" [disabled]="busy" (click)="archive(c)">Arquivar</button>
                 <button type="button" class="btn btn-sm btn-outline-secondary me-1" data-testid="curso-unarchive" *ngIf="c.archived" [disabled]="busy" (click)="unarchive(c)">Desarquivar</button>
@@ -39,6 +40,8 @@
     </div>
   </div>
 </div>
+
+<app-course-contents *ngIf="conteudosDe" [curso]="conteudosDe" (fechar)="conteudosDe = null"></app-course-contents>
 
 <div class="card">
   <div class="card-body">

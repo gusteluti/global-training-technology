@@ -178,6 +178,47 @@ export class ApiService {
     return this.http.post(`${BASE}/api/student/enrollments/${enrollmentId}/review`, { rating, comment }, this.authHeaders());
   }
 
+  // Sala do curso (D96): a matrícula é conferida pelo servidor a cada pedido.
+  public getCourseRoom(enrollmentId: number) {
+    return this.http.get(`${BASE}/api/student/enrollments/${enrollmentId}/room`, this.authHeaders());
+  }
+
+  public downloadContent(enrollmentId: number, contentId: number) {
+    return this.http.get(`${BASE}/api/student/enrollments/${enrollmentId}/contents/${contentId}/file`,
+      { ...this.authHeaders(), responseType: 'blob', observe: 'response' });
+  }
+
+  // Conteúdos do curso na Gestão (D96).
+  public getCourseContents(courseId: string) {
+    return this.http.get(`${BASE}/api/admin/courses/${encodeURIComponent(courseId)}/contents`, this.authHeaders());
+  }
+
+  public createCourseContent(courseId: string, conteudo: any) {
+    return this.http.post(`${BASE}/api/admin/courses/${encodeURIComponent(courseId)}/contents`, conteudo, this.authHeaders());
+  }
+
+  public uploadCourseContent(courseId: string, arquivo: File, conteudo: any) {
+    const corpo = new FormData();
+    corpo.append('file', arquivo);
+    corpo.append('module', conteudo.module);
+    corpo.append('title', conteudo.title);
+    corpo.append('is_extra', String(conteudo.is_extra));
+    corpo.append('published', String(conteudo.published));
+    return this.http.post(`${BASE}/api/admin/courses/${encodeURIComponent(courseId)}/contents/file`, corpo);
+  }
+
+  public updateCourseContent(id: number, conteudo: any) {
+    return this.http.put(`${BASE}/api/admin/contents/${id}`, conteudo, this.authHeaders());
+  }
+
+  public moveCourseContent(id: number, direction: 'up' | 'down') {
+    return this.http.post(`${BASE}/api/admin/contents/${id}/move`, { direction }, this.authHeaders());
+  }
+
+  public deleteCourseContent(id: number) {
+    return this.http.delete(`${BASE}/api/admin/contents/${id}`, this.authHeaders());
+  }
+
   // Progresso e certificado (X1, D91).
   public markMaterial(enrollmentId: number, url: string, done: boolean) {
     return this.http.post(`${BASE}/api/student/enrollments/${enrollmentId}/progress`, { url, done }, this.authHeaders());

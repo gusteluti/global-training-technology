@@ -19,7 +19,7 @@ from core.security import (
     TOKEN_TTL_SECONDS,
 )
 from core.audit import change, legacy_actor, record_audit
-from core import login_limit
+from core import conteudos, login_limit
 from core.notifications import send_password_setup_link
 from core.password_setup import emitir_token_definicao
 from admin import course_draft
@@ -489,6 +489,7 @@ async def delete_course(course_id: str, request: Request, current_user: AuthCont
             )
             raise HTTPException(status_code=409, detail=ERR_CURSO_COM_MATRICULAS)
 
+        conteudos.remover_do_curso(course_id)
         loaded_courses = reload_manager_agent_courses(request, f"course deletion: {course_id}")
         record_audit(
             "course.delete",
