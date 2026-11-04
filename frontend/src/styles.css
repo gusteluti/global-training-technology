@@ -185,9 +185,12 @@ a:hover { color: var(--gt-teal-dark); }
 }
 
 /* Sala do curso (D96): seleção na paleta do site; o cabeçalho fixo não cobre o conteúdo ao rolar. */
-.sala-lista .list-group-item.active {
+.sala-lista .list-group-item.active,
+.sala-lista .list-group-item.active:hover,
+.sala-lista .list-group-item.active:focus {
   background-color: var(--gt-teal-dark);
   border-color: var(--gt-teal-dark);
+  color: #fff;
 }
 
 .sala-atual {
