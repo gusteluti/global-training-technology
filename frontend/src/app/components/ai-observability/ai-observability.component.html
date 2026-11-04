@@ -15,7 +15,7 @@
     <div class="card h-100">
       <div class="card-body">
         <div class="text-muted small">Requisições à IA</div>
-        <div class="fs-3" data-testid="obs-requests">{{ usage.requests }}</div>
+        <div class="gt-kpi" data-testid="obs-requests">{{ usage.requests }}</div>
       </div>
     </div>
   </div>
@@ -23,7 +23,7 @@
     <div class="card h-100">
       <div class="card-body">
         <div class="text-muted small">Tokens</div>
-        <div class="fs-3" data-testid="obs-tokens">{{ usage.total_tokens }}</div>
+        <div class="gt-kpi" data-testid="obs-tokens">{{ usage.total_tokens }}</div>
       </div>
     </div>
   </div>
@@ -31,7 +31,7 @@
     <div class="card h-100">
       <div class="card-body">
         <div class="text-muted small">Custo</div>
-        <div class="fs-3 text-nowrap" data-testid="obs-cost">{{ costText }}</div>
+        <div class="gt-kpi text-nowrap" data-testid="obs-cost">{{ costText }}</div>
       </div>
     </div>
   </div>
@@ -39,7 +39,7 @@
     <div class="card h-100">
       <div class="card-body">
         <div class="text-muted small">Taxa de resolução</div>
-        <div class="fs-3" data-testid="obs-resolution-rate">{{ resolutionRateText }}</div>
+        <div class="gt-kpi" data-testid="obs-resolution-rate">{{ resolutionRateText }}</div>
       </div>
     </div>
   </div>
@@ -47,7 +47,7 @@
     <div class="card h-100">
       <div class="card-body">
         <div class="text-muted small">Conversão</div>
-        <div class="fs-3" data-testid="obs-conversion">{{ conversionRateText }}</div>
+        <div class="gt-kpi" data-testid="obs-conversion">{{ conversionRateText }}</div>
       </div>
     </div>
   </div>
@@ -58,7 +58,7 @@
     <div class="card h-100">
       <div class="card-body">
         <div class="text-muted small">Sessões de chat</div>
-        <div class="fs-3">{{ metrics.total_sessions }}</div>
+        <div class="gt-kpi">{{ metrics.total_sessions }}</div>
       </div>
     </div>
   </div>
@@ -66,7 +66,7 @@
     <div class="card h-100">
       <div class="card-body">
         <div class="text-muted small">Mensagens processadas</div>
-        <div class="fs-3">{{ metrics.total_messages }}</div>
+        <div class="gt-kpi">{{ metrics.total_messages }}</div>
       </div>
     </div>
   </div>
@@ -74,7 +74,7 @@
     <div class="card h-100">
       <div class="card-body">
         <div class="text-muted small">Tópicos não compreendidos</div>
-        <div class="fs-3 text-danger">{{ metrics.unresolved_messages }}</div>
+        <div class="gt-kpi" [class.text-danger]="metrics.unresolved_messages > 0">{{ metrics.unresolved_messages }}</div>
         <div class="small text-muted">Perguntas gerais sem curso identificado</div>
       </div>
     </div>
@@ -117,11 +117,11 @@
     <div class="row g-3">
       <div class="col-md-3">
         <div class="text-muted small">Total</div>
-        <div class="fs-3" data-testid="ia-handoff-total">{{ handoff.total || 0 }}</div>
+        <div class="gt-kpi" data-testid="ia-handoff-total">{{ handoff.total || 0 }}</div>
       </div>
       <div class="col-md-3">
         <div class="text-muted small">Taxa</div>
-        <div class="fs-3">{{ handoffRateText }}</div>
+        <div class="gt-kpi">{{ handoffRateText }}</div>
       </div>
       <div class="col-md-6">
         <table class="table table-sm mb-0">

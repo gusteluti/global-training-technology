@@ -7,7 +7,7 @@
     <div class="card h-100">
       <div class="card-body">
         <div class="text-muted small">Receita aprovada</div>
-        <div class="fs-4 text-success">{{ totals.revenue_approved | currency:'BRL':'symbol':'1.2-2' }}</div>
+        <div class="gt-kpi" data-testid="kpi-valor">{{ totals.revenue_approved | currency:'BRL':'symbol':'1.2-2' }}</div>
         <div class="small text-muted">{{ totals.approved_count }} transação(ões)</div>
       </div>
     </div>
@@ -16,7 +16,7 @@
     <div class="card h-100">
       <div class="card-body">
         <div class="text-muted small">Pendente</div>
-        <div class="fs-4">{{ totals.revenue_pending | currency:'BRL':'symbol':'1.2-2' }}</div>
+        <div class="gt-kpi" data-testid="kpi-valor">{{ totals.revenue_pending | currency:'BRL':'symbol':'1.2-2' }}</div>
         <div class="small text-muted">{{ totals.pending_count }} transação(ões)</div>
       </div>
     </div>
@@ -25,7 +25,7 @@
     <div class="card h-100">
       <div class="card-body">
         <div class="text-muted small">Reembolsado</div>
-        <div class="fs-4 text-danger">{{ totals.revenue_refunded | currency:'BRL':'symbol':'1.2-2' }}</div>
+        <div class="gt-kpi" data-testid="kpi-valor">{{ totals.revenue_refunded | currency:'BRL':'symbol':'1.2-2' }}</div>
         <div class="small text-muted">{{ totals.refunded_count }} transação(ões)</div>
       </div>
     </div>
@@ -34,7 +34,7 @@
     <div class="card h-100">
       <div class="card-body">
         <div class="text-muted small">Projeção próximo mês</div>
-        <div class="fs-4">{{ totals.projected_next_month | currency:'BRL':'symbol':'1.2-2' }}</div>
+        <div class="gt-kpi" data-testid="kpi-valor">{{ totals.projected_next_month | currency:'BRL':'symbol':'1.2-2' }}</div>
         <div class="small text-muted">Média dos últimos meses</div>
       </div>
     </div>

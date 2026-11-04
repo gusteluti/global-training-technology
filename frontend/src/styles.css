@@ -82,7 +82,7 @@ a:hover { color: var(--gt-teal-dark); }
 .gt-nav-cta {
   background: transparent; color: #ffffff; padding: 8px 20px;
   border-radius: 6px; font-weight: 700; font-size: 14px;
-  border: 1.5px solid rgba(255, 255, 255, 0.75); transition: all .2s; cursor: pointer;
+  border: 1.5px solid rgba(255, 255, 255, 0.75); transition: border-color .2s, color .2s; cursor: pointer;
 }
 .gt-nav-cta:hover { border-color: #00b7df; color: #00b7df; }
 
@@ -105,7 +105,10 @@ a:hover { color: var(--gt-teal-dark); }
 }
 .card-body { padding: 1.5rem; }
 
-.btn { font-weight: 700; border-radius: 8px; transition: all .2s; }
+.btn {
+  font-weight: 700; border-radius: 8px;
+  transition: color .2s, background-color .2s, border-color .2s, box-shadow .2s, transform .2s;
+}
 .btn-primary {
   --bs-btn-bg: #0096c7; --bs-btn-border-color: #0096c7; --bs-btn-color: #ffffff;
   --bs-btn-hover-bg: #0077a3; --bs-btn-hover-border-color: #0077a3; --bs-btn-hover-color: #ffffff;
@@ -142,6 +145,19 @@ a:hover { color: var(--gt-teal-dark); }
 .nav-tabs .nav-link.active {
   color: var(--gt-teal); background: transparent; border-bottom-color: var(--gt-teal);
 }
+/* D95: com o indicador deslizante, a aba ativa não desenha a própria borda; o indicador vai até ela. */
+.nav-tabs.gt-abas { position: relative; }
+.nav-tabs.gt-abas .nav-link.active { border-bottom-color: transparent; }
+.gt-abas-indicador {
+  position: absolute; bottom: 0; left: 0; height: 3px; width: 0;
+  background: var(--gt-teal); border-radius: 3px 3px 0 0; pointer-events: none;
+  transition: transform .3s cubic-bezier(.3, .7, .2, 1), width .3s cubic-bezier(.3, .7, .2, 1);
+}
+
+/* D95: foco por teclado sempre visível. */
+:focus-visible { outline: 2px solid var(--gt-teal); outline-offset: 2px; }
+.btn:focus-visible, .nav-link:focus-visible { outline: 2px solid var(--gt-teal); outline-offset: 2px; box-shadow: none; }
+.gt-nav :focus-visible { outline-color: #7fd8f0; }
 
 .table { --bs-table-color: var(--gt-text); --bs-table-striped-bg: #f7f9fb; --bs-table-hover-bg: #eaf8fc; }
 /* Sem text-transform: os e2e (E5, E8) leem o texto literal dos cabeçalhos. */
@@ -156,11 +172,17 @@ a:hover { color: var(--gt-teal-dark); }
 
 .list-group-item-action:hover { background: var(--gt-soft-blue); color: var(--gt-teal-dark); }
 
-/* Rótulo de seção no estilo da landing (".section-tag"). Versalete em vez de uppercase: o texto lido pelo e2e não muda. */
+/* Rótulo da área (D95): informação de contexto, sem caixa alta espaçada nem versalete (sinal de página genérica). */
 .gt-tag {
-  font-size: 15px; font-weight: 700; color: var(--gt-teal);
-  letter-spacing: 3px; font-variant-caps: all-small-caps; margin-bottom: 6px;
+  font-size: 15px; font-weight: 600; color: var(--gt-muted); margin-bottom: 4px;
 }
+
+/* KPIs dos painéis (D95): número na cor do texto; a cor fica para gráficos e status. */
+.gt-kpi {
+  font-family: var(--gt-font-title); font-weight: 900; font-size: 32px; line-height: 1.1;
+  color: var(--gt-text); font-variant-numeric: tabular-nums;
+}
+.table td, .table th { font-variant-numeric: tabular-nums; }
 
 /* D93: botão do WhatsApp com o verde do botão de chat da landing (#40c351), não o verde padrão do Bootstrap. */
 .btn-whatsapp {
@@ -208,4 +230,9 @@ a:hover { color: var(--gt-teal-dark); }
 
 .previa-video {
   max-width: 480px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0s !important; transition-duration: 0s !important; scroll-behavior: auto !important; }
+  .btn-primary:hover { transform: none; }
 }

@@ -1,12 +1,14 @@
 <div class="gt-tag">Área do funcionário</div>
 <h3 class="mb-3">Painel administrativo</h3>
 
-<ul class="nav nav-tabs mb-3">
+<ul class="nav nav-tabs gt-abas mb-3" #abas>
   <li class="nav-item" *ngFor="let tab of visibleTabs">
-    <button type="button" class="nav-link" [class.active]="activeTab === tab.key" (click)="select(tab.key)">
+    <button type="button" class="nav-link" [class.active]="activeTab === tab.key" [attr.aria-current]="activeTab === tab.key ? 'page' : null"
+            [attr.data-aba]="tab.key" (click)="select(tab.key)">
       {{ tab.label }}
     </button>
   </li>
+  <li class="gt-abas-indicador" data-testid="abas-indicador" aria-hidden="true" #indicador></li>
 </ul>
 
 <app-financial-dashboard *ngIf="activeTab === 'financeiro'"></app-financial-dashboard>
