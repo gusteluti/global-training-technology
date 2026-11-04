@@ -9,7 +9,7 @@ Landing (servida estática, backend da F5b sem Angular):
   L4 nenhum emoji no texto visível da página (ícones são SVG)
   L5 botões só com ícone têm aria-label (#chat-btn, .chat-send, .chat-close) e o campo do chat tem nome acessível
   L6 foco por teclado visível (outline com largura > 0) no botão "Ver todos os cursos"
-  L7 nenhum botão anima "all" (transition-property != all)
+  L7 nenhum link ou botão anima "all" (transition-property all com duração > 0; o padrão do navegador é all/0s)
   L8 movimento reduzido: o cursor da planilha não anima (animation-name none ou duração 0)
   L9 celular (390 px): sem rolagem horizontal; a planilha cabe na tela
   L10 resposta do chat entra com a revelação (.msg-revelar) e o texto completo já está no DOM
@@ -188,7 +188,9 @@ def test_d4_landing(browser, landing):
 
     def l7():
         animam_tudo = principal.evaluate("""() => [...document.querySelectorAll('a, button')]
-            .filter(e => getComputedStyle(e).transitionProperty.split(',').map(s => s.trim()).includes('all'))
+            .filter(e => { const s = getComputedStyle(e);
+                return s.transitionProperty.split(',').map(p => p.trim()).includes('all')
+                       && s.transitionDuration.split(',').some(d => parseFloat(d) > 0); })
             .map(e => (e.className || e.id || e.tagName).toString().slice(0, 30))""")
         if animam_tudo:
             raise Falha(f"elementos com transition: all -> {sorted(set(animam_tudo))[:5]}")
@@ -321,7 +323,8 @@ def test_d4_spa(browser, spa):
 
     def s5():
         botao = page.locator(".btn").first
-        if "all" in [p.strip() for p in _estilo(botao, "transition-property").split(",")]:
+        duracoes = [float(d.strip().rstrip("s")) for d in _estilo(botao, "transition-duration").split(",")]
+        if "all" in [p.strip() for p in _estilo(botao, "transition-property").split(",")] and max(duracoes) > 0:
             raise Falha(".btn ainda usa transition: all")
 
     def s6():
