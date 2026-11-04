@@ -49,6 +49,9 @@ todos todas cada outro outra the of to and is
 curso cursos
 """.split())
 
+PEDIDO_DE_MATERIAL = frozenset("""material materiais conteudo conteudos apostila apostilas aula aulas video videos
+modulo modulos""".split())
+
 _TOKEN = re.compile(r"[a-z0-9]+")
 _CABECALHO = re.compile(r"\A﻿?---[ \t]*\r?\n(.*?)\r?\n---[ \t]*(?:\r?\n|\Z)", re.S)
 _SECAO = re.compile(r"^##[ \t]+(.+?)[ \t]*#*[ \t]*$", re.M)
@@ -178,6 +181,9 @@ def trechos_dos_arquivos() -> List[Trecho]:
             for pedaco in _partir(mascarar_pii(pagina)[0]):
                 trechos.append(Trecho(f"conteudo:{documento['id']}", documento["title"], f"Página {numero}", "aluno",
                                       documento["course_id"], pedaco))
+    for sumario in conteudos.sumarios_para_o_assistente():
+        for pedaco in _partir(sumario["text"]):
+            trechos.append(Trecho(f"sala:{sumario['course_id']}", sumario["title"], "", "aluno", sumario["course_id"], pedaco))
     return trechos
 
 
@@ -189,6 +195,14 @@ def _visivel(trecho: Trecho, aluno: bool, cursos_ativos: frozenset) -> bool:
     if trecho.visibilidade != "aluno" or not aluno:
         return False
     return trecho.curso is None or trecho.curso in cursos_ativos
+
+
+def _aderente(trecho: Trecho, termos: List[str]) -> bool:
+    """D107: com 3 ou mais termos, uma palavra genérica em comum não basta para o trecho virar fonte."""
+    if len(termos) < 3:
+        return True
+    presentes = set(tokens(f"{trecho.titulo} {trecho.secao} {trecho.texto}"))
+    return sum(termo in presentes for termo in termos) >= 2
 
 
 def _assinatura_dos_arquivos() -> Tuple:
@@ -304,11 +318,15 @@ class BaseInstitucional:
             if nota > CORTE_BM25:
                 continue
             trecho = trechos[rowid]
-            if not _visivel(trecho, aluno, ativos):
+            if not _visivel(trecho, aluno, ativos) or not _aderente(trecho, termos):
                 continue
             achados.append(trecho)
             if len(achados) >= k:
                 break
+        # D107: "quais materiais tem?" não cita o curso; a lista da sala vem antes das políticas que usam as mesmas palavras.
+        if aluno and PEDIDO_DE_MATERIAL & set(termos):
+            listas = [t for t in trechos if t.doc_id.startswith("sala:") and _visivel(t, aluno, ativos)]
+            achados = (listas + [t for t in achados if t not in listas])[:k]
         return achados
 
 

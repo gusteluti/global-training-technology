@@ -120,6 +120,22 @@ def test_rag_perfil_e_corpo(s):
 # ===================================================================== Ciclo de vida
 
 
+@ct("CT-RAG-25", "SALA-IA", "SEC", "Chat na sala fica só naquele curso; curso sem matrícula ativa enviado no corpo é ignorado")
+def test_rag_chat_na_sala(s):
+    curso_a, _ = curso_com_apostila(s, titulo="Apostila A")
+    curso_b, _ = curso_com_apostila(s, titulo="Apostila B")
+    fora, _ = curso_com_apostila(s, titulo="Apostila Fora")
+    aluno = s.aluno()
+    s.matricula(aluno.id, curso=curso_a)
+    s.matricula(aluno.id, curso=curso_b)
+    pergunta = {"message": "Explique xilofone"}
+    assert {"Apostila A", "Apostila B"} <= set(fontes(s.post("/api/student/chat", pergunta, aluno.tk)))
+    na_sala = fontes(s.post("/api/student/chat", {**pergunta, "course_id": curso_a}, aluno.tk))
+    assert "Apostila A" in na_sala and "Apostila B" not in na_sala
+    assert "Apostila Fora" not in fontes(s.post("/api/student/chat", {**pergunta, "course_id": fora}, aluno.tk))
+    assert s.post("/api/student/chat", {**pergunta, "course_id": 123}, aluno.tk).s == 422
+
+
 @ct("CT-RAG-07", "SALA-IA", "ST", "Oculto sai, republicado volta, trocado muda o texto, excluído some, sem reiniciar")
 def test_rag_ciclo(s):
     curso, item = curso_com_apostila(s)

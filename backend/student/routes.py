@@ -28,6 +28,7 @@ from agents.llm_guard import (
     InputBlockedError,
     LLMUnavailableError,
     bloco_dados_aluno,
+    sanitizar_nome,
     mascarar_pii,
     neutralizar_marcadores,
 )
@@ -332,6 +333,8 @@ class ChatRequest(BaseModel):
     """Corpo do chat autenticado. Campos extras (user_id, session_id...) são ignorados de propósito."""
 
     message: str
+    # D107: chat aberto na sala de um curso. Só vale se o aluno do JWT tiver matrícula ativa nele.
+    course_id: Optional[StrictStr] = None
 
     @field_validator("message")
     @classmethod
@@ -385,10 +388,17 @@ def conversar_com_o_chatbot(
         # E7: o contexto de observabilidade (canal e aluno) vem só do JWT e é definido nesta thread,
         # a mesma que chama o LLM (o endpoint é síncrono e roda em threadpool).
         # GR1 (D95): os cursos com matrícula 'active' do aluno do JWT liberam os trechos de curso da base.
+        # D107: na sala de um curso, a busca fica só nele; curso sem matrícula ativa é ignorado.
+        ativos = Database.list_active_course_ids_for_user(current_user.id)
+        sala = corpo.course_id if corpo.course_id in ativos else None
+        contexto = _contexto_do_aluno(current_user.id)
+        if sala:
+            nome_da_sala = sanitizar_nome((_carregar_curso(sala) or {}).get("name") or sala)
+            contexto += f"\n- O aluno está na sala do curso {nome_da_sala}: pergunta sem outro curso citado é sobre ele."
         with identidade_aluno(current_user.id):
             resultado = manager_agent.process_authenticated_message(
-                corpo.message, _contexto_do_aluno(current_user.id), historico,
-                cursos_ativos=Database.list_active_course_ids_for_user(current_user.id),
+                corpo.message, contexto, historico,
+                cursos_ativos=[sala] if sala else ativos,
                 user_id=current_user.id,  # GR4: dados da conta sempre do aluno do JWT
             )
     except InputBlockedError as bloqueio:
@@ -415,6 +425,8 @@ def conversar_com_o_chatbot(
                             motivo_padrao="unresolved" if resultado.sem_fonte else None)
     return {"status": "success", "message": resultado.texto, "actions": acoes, "sources": resultado.fontes,
             "pii_masked": resultado.pii_masked,
+            # D107: a tela troca o balão pelo texto mascarado, para o dado não ficar visível até recarregar.
+            **({"masked_message": resultado.mensagem} if resultado.pii_masked else {}),
             # GR5 (D95): id opaco da resposta para o feedback 👍/👎 (dono = aluno do JWT; não vai ao histórico).
             "reply_id": emitir_reply_id_aluno(current_user.id)}
 
@@ -689,6 +701,7 @@ async def sala_do_curso(enrollment_id: int, current_user: AuthContext = Depends(
     visto = next((item for item in aulas + extras if item["key"] == progresso.ultimo_visto(matricula["id"])), None)
     return {
         "status": "success",
+        "course_id": course_id,
         "course_name": (curso or {}).get("name") or course_id,
         "modules": [{"title": titulo, "items": itens} for titulo, itens in modulos.items()],
         "extras": extras,

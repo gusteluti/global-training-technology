@@ -254,6 +254,7 @@ async def chat(chat_msg: ChatMessage, request: Request):
         return {
             "status": "success",
             "message": resultado.texto,
+            **({"masked_message": resultado.mensagem} if resultado.pii_masked else {}),
             "session_id": session_id,
             # F5b (D76): ações montadas pelo servidor a partir do curso roteado; visitante não tem matrícula.
             # F6 (D77): a ação de handoff, quando vale, vem depois das de matrícula.

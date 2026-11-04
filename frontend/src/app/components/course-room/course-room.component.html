@@ -54,7 +54,7 @@
             <label class="form-check-label" for="sala-concluido">Marcar como concluído</label>
           </div>
           <button type="button" class="btn btn-primary btn-sm mt-3" data-testid="sala-proxima" *ngIf="proxima"
-                  (click)="escolher(proxima)">Próxima aula</button>
+                  (click)="escolher(proxima)">Próximo conteúdo</button>
         </div>
       </div>
     </div>
@@ -85,4 +85,5 @@
       </div>
     </div>
   </div>
+  <app-chat-sala [cursoId]="sala.course_id" [cursoNome]="sala.course_name"></app-chat-sala>
 </ng-container>

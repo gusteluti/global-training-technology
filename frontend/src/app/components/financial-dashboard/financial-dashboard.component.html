@@ -142,7 +142,7 @@
             <td>{{ p.created_at | dataSP }}</td>
             <td class="text-end">
               <button class="btn btn-sm btn-outline-danger" type="button"
-                      *ngIf="p.status !== 'refunded'"
+                      *ngIf="p.status === 'approved'"
                       [disabled]="refundingId === p.id"
                       (click)="refund(p)">
                 {{ refundingId === p.id ? 'Processando...' : 'Reembolsar' }}

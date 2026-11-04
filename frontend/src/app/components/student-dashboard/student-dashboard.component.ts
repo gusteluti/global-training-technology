@@ -139,7 +139,7 @@ export class StudentDashboardComponent implements OnInit {
     this.email = auth.decodeToken()?.email || '';
     // Dados vindos do EnrollmentsResolver (rota /student).
     const painel: PainelMatriculas | undefined = this.route.snapshot.data['painel'];
-    this.enrollments = painel?.enrollments || [];
+    this.enrollments = this.ativasPrimeiro(painel?.enrollments || []);
     if (painel && !painel.ok) {
       this.erro = 'Não foi possível carregar suas matrículas.';
     }
@@ -314,7 +314,7 @@ export class StudentDashboardComponent implements OnInit {
   private recarregarMatriculas(): void {
     this.api.getMyEnrollments().subscribe({
       next: (res: any) => {
-        this.enrollments = res.enrollments || [];
+        this.enrollments = this.ativasPrimeiro(res.enrollments || []);
         this.erro = '';
       },
       error: () => this.erro = 'Não foi possível carregar suas matrículas.'
@@ -366,6 +366,13 @@ export class StudentDashboardComponent implements OnInit {
     return !this.chatEnviando && this.chatInput.trim().length > 0;
   }
 
+  // O curso em andamento vem antes dos pendentes, e os encerrados ficam por último.
+  private ativasPrimeiro(matriculas: any[]): any[] {
+    const ordem: { [status: string]: number } = { active: 0, pending: 1 };
+    const posicao = (m: any) => ordem[m.status] ?? 2;
+    return [...matriculas].sort((a, b) => posicao(a) - posicao(b));
+  }
+
   enviarChat(): void {
     if (!this.podeEnviarChat()) {
       return;
@@ -380,7 +387,7 @@ export class StudentDashboardComponent implements OnInit {
       next: (res: any) => {
         this.chatMessages = [
           ...this.chatMessages,
-          { role: 'user', content: texto },
+          { role: 'user', content: res.masked_message || texto },
           { role: 'assistant', content: res.message, fontes: this.titulosDasFontes(res.sources),
             piiMasked: res.pii_masked === true,
             replyId: typeof res.reply_id === 'string' && res.reply_id ? res.reply_id : undefined,

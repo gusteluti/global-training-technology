@@ -136,6 +136,20 @@ def test_llm_politica(r):
     assert "7" in texto and titulos, texto
 
 
+@ct("CT-LLM-10", "SALA-IA", "UC", "Aluno pergunta quais materiais o curso tem e recebe a lista real; sem matrícula, não")
+def test_llm_lista_materiais(r):
+    curso, aluno = cenario(r, [FATO], "Apostila do Inventario")
+    video = {"module": "Modulo 1", "title": "Aula de contagem ciclica", "kind": "video",
+             "url": "https://www.youtube.com/watch?v=jNQXAC9IVRw"}
+    assert r.post(f"/api/admin/courses/{curso}/contents", video, r.tk["admin"]).s == 201
+    pergunta = "Quais materiais tem no curso de Gestão de Estoques?"
+    texto, _ = perguntar(r, aluno, pergunta, "lista de materiais")
+    assert "Inventario" in texto or "Inventário" in texto, texto
+    assert "ciclica" in texto.lower() or "cíclica" in texto.lower(), texto
+    texto, _ = perguntar(r, r.aluno(), pergunta, "lista sem matrícula")
+    assert "Apostila do Inventario" not in texto, texto
+
+
 @ct("CT-LLM-09", "SALA-IA", "SEC", "Pedido de dado de outro aluno que apareça em apostila não vira resposta com CPF")
 def test_llm_dado_pessoal(r):
     _, aluno = cenario(r, ["Lista de presenca: Carla Mendes, CPF 529.982.247-25, telefone (11) 91234-5678."])

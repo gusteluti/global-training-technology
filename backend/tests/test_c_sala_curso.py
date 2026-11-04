@@ -532,3 +532,27 @@ def test_dado_pessoal_do_arquivo_nao_entra_no_indice(client, gestao):
 def test_arquivo_corrompido_nao_impede_o_envio(client, gestao):
     assert _arquivo(client, gestao, dados=b"%PDF-1.4 sem estrutura").json()["content"]["text_status"] == "empty"
     assert _arquivo(client, gestao, nome="a.docx", dados=b"PK quebrado").json()["content"]["text_status"] == "empty"
+
+
+def test_assistente_sabe_o_que_o_curso_oferece(client, gestao):
+    _video(client, gestao, title="Aula de abertura")
+    achados = _base().buscar("Quais materiais tem no Curso Sala?", aluno=True, cursos_ativos=[CURSO])
+    assert achados and achados[0].titulo == "Conteúdos do curso Curso Sala"
+    assert "Aula de abertura" in achados[0].texto and "Apostila antiga" in achados[0].texto
+    for achados in (_base().buscar("Quais materiais tem no Curso Sala?", aluno=True, cursos_ativos=["outro"]),
+                    _base().buscar("Quais materiais tem no Curso Sala?")):
+        assert all(trecho.curso is None for trecho in achados)
+
+
+def test_pedido_de_material_sem_citar_o_curso_traz_a_lista(client, gestao):
+    _video(client, gestao, title="Aula de abertura")
+    achados = _base().buscar("Quais materiais tem?", aluno=True, cursos_ativos=[CURSO])
+    assert achados[0].doc_id == f"sala:{CURSO}"
+    assert all(not t.doc_id.startswith("sala:") for t in _base().buscar("Quais materiais tem?", aluno=True, cursos_ativos=["x"]))
+    assert all(not t.doc_id.startswith("sala:") for t in _base().buscar("Quais materiais tem?"))
+
+
+def test_conteudo_oculto_nao_entra_na_lista_do_curso(client, gestao):
+    _video(client, gestao, title="Aula rascunho", published=False)
+    achados = _base().buscar("Quais materiais tem no Curso Sala?", aluno=True, cursos_ativos=[CURSO])
+    assert "Aula rascunho" not in achados[0].texto

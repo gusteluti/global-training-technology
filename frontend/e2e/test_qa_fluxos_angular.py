@@ -333,6 +333,43 @@ def test_fluxo_chat_seguranca(s, navegador):
     foto(pagina, "Segurança do chat", "CPF digitado e tentativa de injeção", "CPF some do histórico e a injeção é recusada")
 
 
+@ct("CT-FLX-17", "E4-Historico", "SEC", "Resposta do assistente aparece formatada, e HTML vindo do modelo não executa")
+def test_fluxo_chat_markdown(s, navegador):
+    aluno = s.aluno("Rita Markdown")
+    pagina = tela(navegador)
+    entrar(pagina, s, aluno.email, SENHA, "student")
+    resposta = json.dumps({"status": "success", "message": "Temos **Excel** e:\n- Aula 1\n- Aula 2\n<img src=x onerror=window.__xss=1>",
+                           "actions": [], "sources": []})
+    pagina.route("**/api/student/chat", lambda rota: rota.fulfill(status=200, content_type="application/json", body=resposta)
+                 if rota.request.method == "POST" else rota.continue_())
+    campo(pagina, "chat-input").fill("Quais materiais tem?")
+    campo(pagina, "chat-send").click()
+    bolha = pagina.locator('[data-role="assistant"]').last
+    bolha.locator("strong", has_text="Excel").wait_for()
+    assert bolha.locator("li").count() == 2 and "**" not in bolha.inner_text()
+    assert pagina.evaluate("window.__xss") is None and bolha.locator("img").count() == 0
+    foto(pagina, "Segurança do chat", "Resposta com formatação e HTML malicioso", "Negrito e lista aparecem; o HTML vira texto")
+
+
+@ct("CT-FLX-18", "SALA-IA", "UC", "Aluno usa o assistente dentro da sala e a resposta cita a apostila daquele curso")
+def test_fluxo_chat_na_sala(s, navegador):
+    _, corpo = novo_curso(s, s.tk["admin"], name="Curso Sala Chat")
+    resposta = s.api("POST", f"/api/admin/courses/{corpo['id']}/contents/file", s.tk["admin"],
+                     multipart={"file": _anexo(dados=pdf("Capitulo sobre margem de contribuicao")), "module": "M",
+                                "title": "Apostila de Margem"})
+    assert resposta.s == 201
+    aluno = s.aluno("Sara Sala")
+    enrollment, _ = s.matricula(aluno.id, curso=corpo["id"])
+    pagina = tela(navegador)
+    entrar(pagina, s, aluno.email, SENHA, "student")
+    pagina.goto(f"{s.alvo['base']}/student/curso/{enrollment}", wait_until="networkidle")
+    campo(pagina, "sala-chat-input").fill("O que é margem de contribuicao?")
+    campo(pagina, "sala-chat-enviar").click()
+    campo(pagina, "sala-chat-fonte").first.wait_for()
+    assert "Apostila de Margem" in campo(pagina, "sala-chat-fonte").first.inner_text()
+    foto(pagina, "Assistente na sala", "Pergunta feita dentro do curso", "Resposta com a fonte da apostila do curso")
+
+
 @ct("CT-FLX-14", "RF22", "UC", "Aluno avalia o curso pela tela e a nota aparece")
 def test_fluxo_avaliacao(s, navegador):
     aluno = s.aluno("Nair Avalia")

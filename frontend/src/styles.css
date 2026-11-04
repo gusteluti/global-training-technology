@@ -236,3 +236,28 @@ a:hover { color: var(--gt-teal-dark); }
   *, *::before, *::after { animation-duration: 0s !important; transition-duration: 0s !important; scroll-behavior: auto !important; }
   .btn-primary:hover { transform: none; }
 }
+
+/* Tabelas no celular: largura mínima com rolagem própria, sem quebrar palavra letra por letra. */
+@media (max-width: 768px) {
+  .table-responsive > .table { min-width: 680px; }
+  .table-responsive > .table td.text-break { min-width: 110px; word-break: normal !important; }
+}
+
+/* Assistente na sala do curso (D107). */
+.sala-chat-mensagens { max-height: 360px; overflow-y: auto; margin-bottom: 12px; }
+.sala-chat-bolha {
+  background: var(--gt-bg-soft);
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  margin-bottom: 8px;
+  max-width: 88%;
+  overflow-wrap: anywhere;
+  padding: 10px 14px;
+  width: fit-content;
+}
+.sala-chat-aluno { background: var(--gt-teal-dark); color: #fff; margin-left: auto; }
+.sala-chat-texto p { margin: 0 0 8px; }
+.sala-chat-texto p:last-child, .sala-chat-texto ul:last-child, .sala-chat-texto ol:last-child { margin-bottom: 0; }
+.sala-chat-texto ul, .sala-chat-texto ol { margin: 0 0 8px; padding-left: 20px; }
+.sala-chat-nota { color: var(--gt-teal-dark); font-size: 12px; margin: -4px 0 8px; }

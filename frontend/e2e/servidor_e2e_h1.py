@@ -58,6 +58,19 @@ def _ambiente_h1(cors_origin: str) -> None:
     })
 
 
+def _bot_le_o_catalogo_isolado(pasta: Path) -> None:
+    """Com o modelo real, o assistente responde pelo mesmo catálogo isolado do teste, não por backend/courses."""
+    from agents.manager_agent import ManagerAgent  # noqa: PLC0415
+
+    construtor = ManagerAgent.__init__
+
+    def com_catalogo(self, *args, **kwargs):
+        construtor(self, *args, **kwargs)
+        self.courses_dir = pasta
+
+    ManagerAgent.__init__ = com_catalogo
+
+
 def _usar_groq_real() -> None:
     """test_qa_chat_llm_real (D107): usa a chave do backend/.env só neste processo; ela nunca vai a arquivo nem a log."""
     from dotenv import dotenv_values  # noqa: PLC0415
@@ -116,10 +129,13 @@ def main() -> None:
     _iniciar_cobertura_qa()
     base._ambiente(args.outbox)
     _ambiente_h1(args.cors_origin)
+    if os.getenv("QA_DEMO"):  # demonstração local: compra aprovada na hora
+        os.environ.update({"PAYMENTS_MOCK": "1", "APP_ENV": "development"})
     app = base._importar_app_com_banco_isolado(Path(args.db_path))
     e8._isolar_cursos(Path(args.courses_dir))
     if os.getenv("QA_GROQ_REAL"):
         _usar_groq_real()
+        _bot_le_o_catalogo_isolado(Path(args.courses_dir))
     else:
         e7._instalar_groq_falso()
     e7._instalar_mercado_pago_falso()

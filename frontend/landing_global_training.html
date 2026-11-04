@@ -905,6 +905,10 @@ async function sendMsg() {
     if (data && typeof data.session_id === 'string' && data.session_id) saveChatSessionId(data.session_id);
     const botMsg = data.status === 'success' ? data.message : `Erro: ${data.message || 'não foi possível responder'}`;
     const msgs = document.getElementById('chat-messages');
+    if (data.masked_message) {
+      const baloes = msgs.querySelectorAll('.msg-user');
+      if (baloes.length) baloes[baloes.length - 1].textContent = data.masked_message;
+    }
     const lastMsg = msgs.lastElementChild;
     if (lastMsg && lastMsg.classList.contains('msg-processando')) {
       lastMsg.innerHTML = markdownToHtml(botMsg);

@@ -7,6 +7,7 @@ Os `materials` do JSON do curso continuam como estão e aparecem na sala como o 
 
 import html
 import io
+import json
 import os
 import re
 import sqlite3
@@ -296,14 +297,51 @@ def preparar_texto(conteudo: Dict) -> Dict:
 
 
 def assinatura_para_o_assistente() -> Tuple:
-    """Muda quando um arquivo publicado entra, sai, é trocado ou é renomeado: o índice do RAG se reconstrói."""
+    """Muda quando um conteúdo publicado entra, sai, é trocado ou renomeado, ou quando um curso é salvo: o índice do RAG
+    se reconstrói."""
     conn = _conectar()
     try:
-        return tuple(tuple(linha) for linha in conn.execute(
-            """SELECT id, course_id, title, stored_name FROM course_contents
-               WHERE kind = 'file' AND published = 1 ORDER BY id"""))
+        linhas = tuple(tuple(linha) for linha in conn.execute(
+            """SELECT id, course_id, module, title, kind, stored_name, is_extra FROM course_contents
+               WHERE published = 1 ORDER BY position, id"""))
     finally:
         conn.close()
+    return linhas, tuple((c["id"], c["versao"]) for c in _cursos())
+
+
+def _cursos() -> List[Dict]:
+    """Cursos cadastrados, lidos da mesma pasta da Gestão."""
+    from admin import routes as admin_routes  # noqa: PLC0415  (admin.routes importa este módulo)
+
+    cursos = []
+    pasta = admin_routes.COURSES_DIR
+    for arquivo in sorted(pasta.glob("*.json")) if pasta.exists() else []:
+        try:
+            dados = json.loads(arquivo.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if admin_routes.id_curso_valido(dados.get("id")):
+            cursos.append({"id": dados["id"], "name": dados.get("name") or dados["id"], "materials": dados.get("materials") or [],
+                           "versao": arquivo.stat().st_mtime_ns})
+    return cursos
+
+
+def sumarios_para_o_assistente() -> List[Dict]:
+    """Lista do que cada curso oferece na sala: {course_id, title, text}. Responde "quais materiais tem?", que não está
+    no texto de nenhuma apostila. Curso sem conteúdo fica de fora."""
+    rotulos = {"video": "Vídeo", "file": "Apostila ou arquivo", "link": "Link"}
+    sumarios = []
+    for curso in _cursos():
+        linhas = [f"- Material: {m.get('title')}" for m in curso["materials"] if m.get("title")]
+        for conteudo in listar(curso["id"], so_publicados=True):
+            grupo = "Conteúdo extra" if conteudo["is_extra"] else conteudo["module"]
+            linhas.append(f"- {grupo}: {rotulos[conteudo['kind']]}: {conteudo['title']}")
+        if linhas:
+            titulo = f"Conteúdos do curso {curso['name']}"
+            texto = (f"Materiais, aulas, apostilas, vídeos e conteúdos disponíveis na sala do curso {curso['name']}, "
+                     "para quem tem matrícula ativa:\n" + "\n".join(linhas))
+            sumarios.append({"course_id": curso["id"], "title": titulo, "text": texto})
+    return sumarios
 
 
 def documentos_para_o_assistente() -> List[Dict]:

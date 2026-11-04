@@ -64,7 +64,7 @@
 
           <ng-container *ngIf="m.status === 'active'; else semAcesso">
             <a class="btn btn-primary btn-sm mb-3 align-self-start" data-testid="curso-entrar" [routerLink]="['/student/curso', m.id]">Entrar no curso</a>
-            <h6 class="curso-subtitulo">Materiais</h6>
+            <h6 class="curso-subtitulo" *ngIf="m.materials?.length">Materiais</h6>
             <div class="list-group" *ngIf="m.materials?.length; else semMateriais">
               <a *ngFor="let mat of m.materials"
                  class="list-group-item list-group-item-action text-break"
@@ -198,7 +198,10 @@
         <div data-testid="chat-message"
              [attr.data-role]="msg.role"
              class="chat-bolha text-break"
-             [ngClass]="msg.role === 'user' ? 'chat-bolha-aluno' : 'chat-bolha-bot'">{{ msg.content }}</div>
+             [ngClass]="msg.role === 'user' ? 'chat-bolha-aluno' : 'chat-bolha-bot'">
+          <ng-container *ngIf="msg.role === 'user'; else respostaFormatada">{{ msg.content }}</ng-container>
+          <ng-template #respostaFormatada><div class="chat-texto" [innerHTML]="msg.content | chatMarkdown"></div></ng-template>
+        </div>
         <p *ngIf="msg.role === 'assistant' && msg.fontes?.length" class="chat-fonte"
            data-testid="chat-fonte">Fonte: {{ msg.fontes?.join(', ') }}</p>
         <p *ngIf="msg.role === 'assistant' && msg.piiMasked" class="chat-aviso-pii"

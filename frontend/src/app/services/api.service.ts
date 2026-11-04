@@ -52,8 +52,9 @@ export class ApiService {
   }
 
   // Chat do aluno logado (E5). O corpo leva só a mensagem: a identidade vem do JWT.
-  public sendChatMessage(message: string) {
-    return this.http.post(`${BASE}/api/student/chat`, { message }, this.authHeaders());
+  public sendChatMessage(message: string, courseId?: string) {
+    const corpo = courseId ? { message, course_id: courseId } : { message };
+    return this.http.post(`${BASE}/api/student/chat`, corpo, this.authHeaders());
   }
 
   // Feedback 👍/👎 de uma resposta do chat (GR5, D95). Só reply_id e rating: o aluno vem do JWT.

@@ -116,6 +116,11 @@ export class AiObservabilityComponent implements OnInit, OnDestroy {
   }
 
   // Encaminhamentos ao WhatsApp (D77): total, taxa e motivos com rótulo em português.
+  private diaBr(dia: string): string {
+    const [, mes, numero] = String(dia).split('-');
+    return numero ? `${numero}/${mes}` : dia;
+  }
+
   get handoff(): any {
     return (this.metrics && this.metrics.handoff) || {};
   }
@@ -195,7 +200,7 @@ export class AiObservabilityComponent implements OnInit, OnDestroy {
     }
     if (this.dayChart) {
       // Atualização automática (X5): a série de custo pode aparecer ou sumir, então troca dados e escalas.
-      this.dayChart.data = { labels: perDay.map(d => d.date), datasets };
+      this.dayChart.data = { labels: perDay.map(d => this.diaBr(d.date)), datasets };
       this.dayChart.options.scales = scales;
       this.dayChart.options.plugins = { legend: { display: datasets.length > 1 } };
       this.dayChart.update();
@@ -203,7 +208,7 @@ export class AiObservabilityComponent implements OnInit, OnDestroy {
     }
     this.dayChart = new Chart(this.perDayChart.nativeElement, {
       type: 'bar',
-      data: { labels: perDay.map(d => d.date), datasets },
+      data: { labels: perDay.map(d => this.diaBr(d.date)), datasets },
       options: {
         responsive: true,
         maintainAspectRatio: false,
