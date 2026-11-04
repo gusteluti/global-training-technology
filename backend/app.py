@@ -268,6 +268,12 @@ async def public_course_classes(course_id: str):
     return Database.list_open_classes_for_sale(course_id)
 
 # Include admin routes
+@app.exception_handler(OverflowError)
+async def id_fora_do_intervalo(request: Request, _erro: OverflowError):
+    """D97: número maior que o inteiro do SQLite na URL é um recurso que não existe, não uma falha do servidor."""
+    return JSONResponse(status_code=404, content={"detail": "Não encontrado."})
+
+
 app.include_router(admin_router, prefix="/api/admin", tags=["admin"])
 # Pedidos de cancelamento em 7 dias (U5, D82): /api/admin/cancellation-requests (Financeiro e Gestão).
 app.include_router(cancellations_router, prefix="/api/admin", tags=["admin"])
