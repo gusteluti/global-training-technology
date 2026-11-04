@@ -67,7 +67,7 @@
                   class="list-group-item list-group-item-action d-flex justify-content-between gap-2 text-start"
                   [class.active]="atual === item" (click)="escolher(item)">
             <span class="text-break">{{ item.done ? '✓ ' : '' }}{{ item.title }}</span>
-            <small class="text-nowrap">{{ rotuloTipo(item) }}<ng-container *ngIf="item.duration_minutes"> · {{ item.duration_minutes }} min</ng-container><ng-container *ngIf="item.watched_percent && !item.done"> · {{ item.watched_percent }}%</ng-container></small>
+            <small class="text-nowrap">{{ rotuloTipo(item) }}<ng-container *ngIf="item.watched_percent && !item.done"> · {{ item.watched_percent }}%</ng-container></small>
           </button>
         </div>
       </div>
