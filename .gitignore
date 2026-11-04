@@ -66,3 +66,6 @@ chat*.json
 # Backups do banco (X3, D90)
 backups/
 backend/backups/
+
+# Medição de cobertura da suíte de QA (D97)
+.coverage*

@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict
 from core.audit import record_audit
 from core import login_limit
 from core.security import create_account_token, verify_password, get_password_hash
+from core.emails import email_valido, normalizar_email
 from core.password_setup import (
     definir_senha_pelo_token,
     emitir_token_com_limite,
@@ -86,8 +87,8 @@ class PasswordResetInput(BaseModel):
 async def register(dados: RegisterInput):
     """Cadastro direto de aluno (D15). Papel fixo 'student'."""
     nome = dados.name.strip()
-    email = dados.email.strip()
-    if not nome or "@" not in email or "." not in email or not senha_aceitavel(dados.password):
+    email = normalizar_email(dados.email)
+    if not nome or not email_valido(email) or not senha_aceitavel(dados.password):
         raise HTTPException(status_code=400, detail=ERRO_CADASTRO)
     # Paridade de tempo (D21): o bcrypt é calculado ANTES de consultar a conta, nos dois caminhos.
     senha_hash = get_password_hash(dados.password)

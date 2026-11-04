@@ -193,3 +193,16 @@ a:hover { color: var(--gt-teal-dark); }
 .sala-atual {
   scroll-margin-top: 96px;
 }
+
+/* O YouTube cria o iframe em 640 x 360; aqui ele ocupa todo o espaço, em qualquer largura de tela. */
+.video-player iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.previa-video {
+  max-width: 480px;
+}

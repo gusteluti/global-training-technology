@@ -5,13 +5,13 @@ Trocar o perfil ou desativar incrementa `token_version` (D80): a pessoa entra de
 """
 
 import os
-import re
 import sqlite3
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from core.emails import email_valido
 from core.audit import change, record_audit
 from core.notifications import send_password_setup_link
 from core.password_setup import emitir_token_definicao
@@ -29,8 +29,6 @@ ERR_PROPRIA_CONTA = "Você não pode desativar ou trocar o perfil da sua própri
 ERR_ULTIMA_GESTAO = "É preciso manter pelo menos uma conta de Gestão ativa."
 
 NOME_MAX = 120
-EMAIL_MAX = 254
-_PADRAO_EMAIL = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
 
 _gestao = require_roles(Role.ADMIN)
 
@@ -54,7 +52,7 @@ class ConviteInput(BaseModel):
     @classmethod
     def _email_valido(cls, valor: str) -> str:
         valor = (valor or "").strip()
-        if len(valor) > EMAIL_MAX or not _PADRAO_EMAIL.fullmatch(valor):
+        if not email_valido(valor):
             raise ValueError("Informe um e-mail válido.")
         return valor
 

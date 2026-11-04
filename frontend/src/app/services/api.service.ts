@@ -183,6 +183,10 @@ export class ApiService {
     return this.http.get(`${BASE}/api/student/enrollments/${enrollmentId}/room`, this.authHeaders());
   }
 
+  public saveVideoProgress(enrollmentId: number, avanco: any) {
+    return this.http.post(`${BASE}/api/student/enrollments/${enrollmentId}/room/video`, avanco, this.authHeaders());
+  }
+
   public markContentSeen(enrollmentId: number, key: string) {
     return this.http.post(`${BASE}/api/student/enrollments/${enrollmentId}/room/last-seen`, { key }, this.authHeaders());
   }

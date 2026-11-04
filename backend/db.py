@@ -6,6 +6,8 @@ from typing import Dict, List, Optional, Tuple
 
 from core.fuso import MODIFICADOR_SQLITE_SP, dia_sao_paulo
 
+from core.emails import normalizar_email
+
 class Database:
     """SQLite database: contas de usuário, alunos, matrículas, pagamentos e trilha de auditoria."""
 
@@ -390,7 +392,7 @@ class Database:
         conn = sqlite3.connect(Database.DB_PATH)
         cursor = conn.cursor()
 
-        cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
+        cursor.execute("SELECT id FROM users WHERE LOWER(email) = ?", (normalizar_email(email),))
         row = cursor.fetchone()
         if row:
             user_id = row[0]
@@ -414,7 +416,7 @@ class Database:
 
             cursor.execute(
                 "INSERT INTO users (email, name, password_hash, role) VALUES (?, ?, ?, ?)",
-                (email, name, password_hash, role)
+                (normalizar_email(email), name, password_hash, role)
             )
 
             conn.commit()
@@ -430,8 +432,8 @@ class Database:
         cursor = conn.cursor()
         cursor.execute(
             "SELECT id, email, name, password_hash, role, created_at, is_active, token_version "
-            "FROM users WHERE email = ?",
-            (email,),
+            "FROM users WHERE LOWER(email) = ?",
+            (normalizar_email(email),),
         )
         row = cursor.fetchone()
         conn.close()
@@ -982,7 +984,8 @@ class Database:
                     )
             else:
                 if user_id is None:
-                    conta = conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+                    conta = conn.execute("SELECT id FROM users WHERE LOWER(email) = ?",
+                                         (normalizar_email(email),)).fetchone()
                     if conta is not None:
                         user_id = conta["id"]
                     else:
@@ -1625,7 +1628,8 @@ class Database:
                 conn.execute("ROLLBACK")
                 return {"outcome": outcome}
 
-            conta = conn.execute("SELECT id, role FROM users WHERE email = ?", (email,)).fetchone()
+            conta = conn.execute("SELECT id, role FROM users WHERE LOWER(email) = ?",
+                                 (normalizar_email(email),)).fetchone()
             if conta is not None and (conta["role"] or "student") != "student":
                 return recusar("staff")
 

@@ -103,14 +103,23 @@ def test_sala_do_curso():
             aluno.click('[data-testid="curso-entrar"]')
             aluno.wait_for_url("**/student/curso/*", timeout=TIMEOUT)
             player = aluno.locator('[data-testid="sala-player"]')
-            player.wait_for(timeout=TIMEOUT)
-            assert player.get_attribute("src") == "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ"
+            player.locator("iframe").wait_for(state="attached", timeout=TIMEOUT)
+            assert "youtube-nocookie.com/embed/dQw4w9WgXcQ" in player.locator("iframe").get_attribute("src")
             assert aluno.locator('[data-testid="sala-item"]').count() == 2
             assert aluno.locator('[data-testid="sala-extra"]').count() == 1
             assert aluno.locator('[data-testid="sala-progresso"]').inner_text().strip() == "0 de 2 concluídos"
 
-            aluno.check('[data-testid="sala-concluido"]')
+            assert aluno.locator('[data-testid="sala-concluido"]').count() == 0, "vídeo não se conclui à mão"
+            conn = sqlite3.connect(alvo["db_path"])
+            matricula = conn.execute("SELECT id FROM enrollments WHERE user_id = ?", (aluno_id,)).fetchone()[0]
+            conteudo = conn.execute("SELECT id FROM course_contents WHERE kind = 'video'").fetchone()[0]
+            conn.execute("INSERT INTO material_progress (enrollment_id, url, completed_at) VALUES (?, ?, datetime('now'))",
+                         (matricula, f"conteudo:{conteudo}"))
+            conn.commit()
+            conn.close()
+            aluno.reload(wait_until="networkidle")
             aluno.locator('[data-testid="sala-progresso"]', has_text="1 de 2").wait_for(timeout=TIMEOUT)
+            aluno.locator('[data-testid="sala-item"]').first.click()
 
             aluno.click('[data-testid="sala-proxima"]')
             aluno.locator('[data-testid="sala-titulo"]', has_text="Apostila").wait_for(timeout=TIMEOUT)

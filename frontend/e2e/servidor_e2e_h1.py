@@ -58,6 +58,41 @@ def _ambiente_h1(cors_origin: str) -> None:
     })
 
 
+def _iniciar_cobertura_qa():
+    """Suíte de QA (D97): mede a cobertura do backend neste processo, gravando de 10 em 10 s (é encerrado à força)."""
+    destino = os.getenv("QA_COVERAGE")
+    if not destino:
+        return
+    import threading  # noqa: PLC0415
+    import time  # noqa: PLC0415
+
+    import coverage  # noqa: PLC0415
+
+    medidor = coverage.Coverage(data_file=destino, source=[str(base.BACKEND)], omit=["*/tests/*", "*/venv/*"])
+    medidor.start()
+
+    def gravar():
+        while True:
+            time.sleep(10)
+            medidor.save()
+
+    threading.Thread(target=gravar, daemon=True).start()
+
+
+def _instrumentar_qa(app) -> None:
+    """Suíte de QA (D97): registra método, caminho e status de cada chamada para medir a cobertura de endpoints."""
+    destino = os.getenv("QA_LOG_ROTAS")
+    if not destino:
+        return
+
+    @app.middleware("http")
+    async def registrar_rota(request, call_next):
+        resposta = await call_next(request)
+        with open(destino, "a", encoding="utf-8") as arquivo:
+            print(request.method, request.url.path, resposta.status_code, file=arquivo)
+        return resposta
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, required=True)
@@ -67,12 +102,14 @@ def main() -> None:
     parser.add_argument("--cors-origin", required=True)
     args = parser.parse_args()
 
+    _iniciar_cobertura_qa()
     base._ambiente(args.outbox)
     _ambiente_h1(args.cors_origin)
     app = base._importar_app_com_banco_isolado(Path(args.db_path))
     e8._isolar_cursos(Path(args.courses_dir))
     e7._instalar_groq_falso()
     e7._instalar_mercado_pago_falso()
+    _instrumentar_qa(app)
 
     import uvicorn  # noqa: PLC0415
 

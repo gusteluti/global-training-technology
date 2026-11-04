@@ -25,9 +25,11 @@
   <div class="row g-4" *ngIf="sala.modules.length || sala.extras.length">
     <div class="col-12 col-lg-8">
       <div class="card sala-atual" *ngIf="atual">
-        <div class="ratio ratio-16x9" *ngIf="player">
-          <iframe [src]="player" [title]="atual.title" data-testid="sala-player" allowfullscreen
-                  allow="encrypted-media; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+        <app-video-player *ngIf="atual.embed_url && !videoComFalha" [embedUrl]="atual.embed_url" [inicio]="inicioDoVideo"
+                          [titulo]="atual.title" [chave]="atual.key" (avanco)="registrarAvanco($event)"
+                          (falha)="videoComFalha = true"></app-video-player>
+        <div class="alert alert-warning m-3 mb-0" data-testid="sala-video-falha" *ngIf="videoComFalha">
+          Este vídeo não está disponível agora. Tente novamente mais tarde ou avise a equipe.
         </div>
         <div class="card-body">
           <h5 class="text-break" data-testid="sala-titulo">{{ atual.title }}</h5>
@@ -42,7 +44,11 @@
             <a class="btn btn-primary btn-sm" [href]="atual.url" target="_blank" rel="noopener noreferrer"
                data-testid="sala-link">Abrir conteúdo</a>
           </p>
-          <div class="form-check">
+          <p class="small mb-0" data-testid="sala-video-status" *ngIf="atual.embed_url">
+            <ng-container *ngIf="atual.done">Aula concluída.</ng-container>
+            <ng-container *ngIf="!atual.done">Você assistiu {{ atual.watched_percent }}%. A aula é concluída ao chegar a 90%.</ng-container>
+          </p>
+          <div class="form-check" *ngIf="!atual.embed_url">
             <input class="form-check-input" type="checkbox" id="sala-concluido" data-testid="sala-concluido"
                    [checked]="atual.done" (change)="alternarConcluido(atual, $any($event.target).checked)">
             <label class="form-check-label" for="sala-concluido">Marcar como concluído</label>
@@ -61,7 +67,7 @@
                   class="list-group-item list-group-item-action d-flex justify-content-between gap-2 text-start"
                   [class.active]="atual === item" (click)="escolher(item)">
             <span class="text-break">{{ item.done ? '✓ ' : '' }}{{ item.title }}</span>
-            <small class="text-nowrap">{{ rotuloTipo(item) }}<ng-container *ngIf="item.duration_minutes"> · {{ item.duration_minutes }} min</ng-container></small>
+            <small class="text-nowrap">{{ rotuloTipo(item) }}<ng-container *ngIf="item.duration_minutes"> · {{ item.duration_minutes }} min</ng-container><ng-container *ngIf="item.watched_percent && !item.done"> · {{ item.watched_percent }}%</ng-container></small>
           </button>
         </div>
       </div>

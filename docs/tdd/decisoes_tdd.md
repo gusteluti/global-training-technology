@@ -1540,3 +1540,25 @@ caixa de texto do cadastro. Formatos antigos `.doc`, `.xls` e `.ppt` não são a
 **Limites:** o link não listado pode ser repassado; o e2e confere o endereço do player, não a reprodução do vídeo.
 **Verificação (rodada curta, pedido do PM):** backend C + X1 + materiais, e2e C, X1 e D2 e build. Regressão completa não rodada.
 **Ajustes do teste por personas (mesmo dia, 11 itens aprovados pelo PM):** o cartão do curso só lista caixas quando todas as aulas estão nele; o painel mostra os materiais do cadastro (só leitura); botão "Próxima aula"; `POST .../room/last-seen` e `resume_key` para retomar (concluído volta à próxima pendente); `PUT /api/admin/contents/{id}/file` troca o arquivo mantendo o id e o progresso; aceita `youtube.com/live`, `player.vimeo.com`, link sem esquema ou com http, com mensagem própria para playlist e canal; extra sem módulo vira "Extras"; 409 na sala aberta encerra a página com "Seu acesso a este curso foi encerrado." (a checagem ocorre na próxima ação do aluno, então um vídeo já em reprodução continua até lá); rolagem até o conteúdo e o painel; seleção na paleta do site; rótulos PDF, Planilha, Documento e Slides.
+
+## D97 — QA por técnicas ISTQB e correção dos defeitos (03/11/2026, pedido do PM)
+`frontend/e2e/test_qa_istqb.py` declara em cada cenário o requisito e a técnica; `gerar_relatorio_qa.py` gera
+`docs/qa/RELATORIO_QA.md` do resultado real. São 518 casos: 466 chamadas diretas à API por Playwright e 52 em Chromium.
+**Regra corrigida:** e-mail normalizado (minúsculas, sem espaços) ao gravar e ao procurar, e formato único em
+`core/emails.py`; conta antiga com maiúsculas continua entrando. Compra da landing valida o e-mail. A API exige preço e
+duração positivos. Id acima do inteiro do SQLite vira 404. Tópico longo quebra linha no painel de IA.
+**Verificação:** 518/518 na suíte; 477 testes de backend das áreas afetadas. Regressão completa e os e2e antigos não foram
+rodados (decisão do PM pela rodada curta). Cobertura de linhas do backend: 79% só com esta suíte; a soma com os testes
+unitários não foi medida.
+
+## D98 — Videoaula: conclusão pelo tempo assistido (03/11/2026, pedido do PM a partir da professora)
+**Regra:** a aula em vídeo conclui sozinha aos 90% assistidos e não pode ser marcada à mão (409). Vale também para material
+antigo que seja link de vídeo. O certificado passa a depender disso.
+**Tempo assistido:** o player soma só o avanço contínuo; pulo acima de 2,5 s não conta. `POST .../room/video` credita no máximo
+2× o tempo real desde o último envio, com teto de 60 s, e o primeiro envio não credita nada. Tabela `video_progress`.
+**Retomada:** o vídeo volta do segundo salvo; parado nos últimos 5 s, recomeça do início. Concluído recomeça do início.
+**Falhas:** vídeo inexistente, privado ou que não permite incorporação mostra aviso ao aluno; a Gestão ganhou prévia no painel.
+**Limites:** o aluno que chamar a API com um script consegue simular tempo, respeitando o limite de velocidade; a duração vem
+do player. Fechar a aba perde até 10 s. A checagem de acesso ocorre a cada 10 s durante a reprodução.
+**Teste real:** `test_video_real_angular.py` usa vídeo real do YouTube (E2E_VER=1 abre o navegador). O Vimeo recusa reprodução
+em navegador automatizado: o teste prova que o player carrega e lê a duração, não que o vídeo toca.

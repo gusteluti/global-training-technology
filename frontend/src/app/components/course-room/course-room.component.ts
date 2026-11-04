@@ -1,11 +1,9 @@
 import { Component, OnInit } from '@angular/core';
-import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { ActivatedRoute } from '@angular/router';
 import { ApiService } from '../../services/api.service';
 import { salvarArquivo } from '../../services/salvar-arquivo';
+import { AvancoDoVideo } from '../video-player/video-player.component';
 
-// Só estes players entram no iframe; o endereço é montado pelo servidor (D96).
-const PLAYERS = ['https://www.youtube-nocookie.com/embed/', 'https://player.vimeo.com/video/'];
 const MSG_ERRO = 'Não foi possível abrir este curso. Ele só fica disponível com a matrícula ativa.';
 const MSG_ARQUIVO = 'Não foi possível baixar o arquivo. Tente novamente.';
 const MSG_ACESSO_ENCERRADO = 'Seu acesso a este curso foi encerrado.';
@@ -20,13 +18,13 @@ const TIPOS_DE_MATERIAL: { [tipo: string]: string } = {
 export class CourseRoomComponent implements OnInit {
   sala: any = null;
   atual: any = null;
-  player: SafeResourceUrl | null = null;
+  videoComFalha = false;
   erro = '';
   erroArquivo = '';
   carregando = true;
   private matriculaId = 0;
 
-  constructor(private api: ApiService, private route: ActivatedRoute, private sanitizer: DomSanitizer) { }
+  constructor(private api: ApiService, private route: ActivatedRoute) { }
 
   ngOnInit(): void {
     this.matriculaId = Number(this.route.snapshot.paramMap.get('id'));
@@ -69,7 +67,6 @@ export class CourseRoomComponent implements OnInit {
     if (err && err.status === 409) {
       this.sala = null;
       this.atual = null;
-      this.player = null;
       this.erro = MSG_ACESSO_ENCERRADO;
       return true;
     }
@@ -79,9 +76,28 @@ export class CourseRoomComponent implements OnInit {
   abrir(item: any): void {
     this.atual = item;
     this.erroArquivo = '';
-    const embed = item && item.embed_url;
-    const permitido = embed && PLAYERS.some(prefixo => embed.startsWith(prefixo));
-    this.player = permitido ? this.sanitizer.bypassSecurityTrustResourceUrl(embed) : null;
+    this.videoComFalha = false;
+  }
+
+  // Aula concluída recomeça do início; as demais continuam de onde o aluno parou.
+  get inicioDoVideo(): number {
+    return !this.atual || this.atual.done ? 0 : this.atual.position || 0;
+  }
+
+  registrarAvanco(avanco: AvancoDoVideo): void {
+    const item = this.itemDaChave(avanco.key);
+    if (!item) {
+      return;
+    }
+    this.api.saveVideoProgress(this.matriculaId, avanco).subscribe({
+      next: (r: any) => {
+        item.position = r.video.position;
+        item.watched_percent = r.video.percent;
+        item.done = item.done || r.video.complete;
+        this.sala.progress = r.progress;
+      },
+      error: err => this.verificarAcesso(err)
+    });
   }
 
   alternarConcluido(item: any, feito: boolean): void {
