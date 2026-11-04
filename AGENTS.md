@@ -10,6 +10,8 @@ Este arquivo é para quem nunca viu o projeto: uma pessoa ou outro agente de IA 
 5. `docs/tdd/papeis_tdd.md` (charter original do gerente de projeto).
 6. `Escopo_Fase2_Global_Training_Technology.pdf` (documento de escopo, na raiz).
 
+Para mexer em qualquer tela, siga também `docs/DESIGN.md` (sistema visual da landing e da SPA, D95).
+
 Em caso de conflito entre documentos, valem as decisões de número mais alto no `decisoes_tdd.md`. Algumas regras antigas foram revogadas (ver "Regras revogadas" abaixo).
 
 ---
@@ -175,6 +177,7 @@ py -3 -m pytest frontend/e2e/test_d1_design_landing_angular.py -s  # 10 checks (
 py -3 -m pytest frontend/e2e/test_d2_area_aluno_angular.py -s      # 10 checks (área do aluno, D67)
 py -3 -m pytest frontend/e2e/test_d3_ajustes_design_angular.py -s  # 10 checks (ajustes de design, D93)
 py -3 -m pytest frontend/e2e/test_d3_landing_vitrine.py -s         # 5 testes (landing: APP_URL e curso no login, D93)
+py -3 -m pytest frontend/e2e/test_d4_polimento_visual.py -s     # 2 testes, 17 checks (polimento visual, D95)
 py -3 -m pytest frontend/e2e/test_x5_atualizacao_paineis_angular.py -s # 10 checks (atualização automática dos painéis, D87)
 py -3 -m pytest frontend/e2e/test_o0_catalogo_angular.py -s  # 7 checks (catálogo do aluno, O0)
 py -3 -m pytest frontend/e2e/test_f1_trava_exclusao_angular.py -s  # 11 checks (arquivar curso, F1)

@@ -1492,3 +1492,31 @@ falhas seguidas e "não entendi". A entrega **GR — Guardrails do chatbot** cob
 **Decisões que sobem ao PM antes de implementar:** os textos fixos de cada bloqueio; se a moderação usa um modelo
 dedicado (custo e chave) ou só heurística; quanto falso positivo é aceitável; se o bloqueio por assunto vale também
 para o chat do aluno logado.
+
+## D95 — D4: polimento visual com referências de design (04/11/2026, pedido do PM)
+Origem: o PM pediu para melhorar o visual usando 15 referências (Impeccable, Hallmark, taste-skill, ui-ux-pro-max,
+awesome-design-md, frontend-design da Anthropic, Web Interface Guidelines e agent-skills da Vercel, Humanizer, Tailwind
+Plus, React Bits, Magic UI, Aceternity, Motion Primitives, Animate UI). Proposta em três frentes aprovada pelo PM.
+**Decisões do PM:** (1) as três frentes; (2) os números do hero (10k+, 500+, 100%) são fictícios e **ficam**;
+(3) usar só as regras das referências, **sem adicionar as skills ao repositório**. Nenhuma biblioteca React ou Tailwind
+entra (o stack segue Angular 15 + Bootstrap 5).
+- **Sistema:** `docs/DESIGN.md` documenta cores, tipografia, componentes, movimento, acessibilidade e textos.
+- **Landing:** hero sem selo nem palavra colorida; o elemento marcante é uma planilha com os cursos do catálogo
+  (`hero-planilha`, linha por curso, total, clique leva ao cartão); rótulos em maiúsculas espaçadas removidos; títulos
+  de seção em `h2`; ícones SVG no lugar de emojis; faixa "Em todos os cursos" no lugar do cartão "Por que a Global?";
+  cartões com iniciais e preço em pt-BR; textos dos quatro passos descrevem o fluxo real.
+- **SPA:** `.gt-tag` em texto normal; `.gt-kpi` (número na cor do texto, `tabular-nums`) nos KPIs do financeiro, alunos e
+  observabilidade (vermelho só se houver tópico não compreendido); tabelas com `tabular-nums`.
+- **Acessibilidade:** `:focus-visible`, sem `transition: all`, `prefers-reduced-motion`, `aria-label` nos botões de
+  ícone, `aria-live` no chat, input de 16 px, link "Pular para o conteúdo".
+- **Movimento (três momentos):** cursor de célula da planilha (uma vez), indicador deslizante das abas do painel,
+  revelação da resposta do chat da landing (texto completo no DOM desde o início; o marcador "Processando…" foi mantido
+  porque os e2e da E6/F5b/F6 esperam essa palavra sumir).
+- **Trocado na implementação:** a contagem animada dos KPIs (ideia do Magic UI) saiu, porque muda o texto lido pelos e2e
+  logo após a carga (D2 A2); entrou o indicador das abas (ideia do Motion Primitives/Animate UI).
+Ciclo: branch `claude/project-thread-97ett2` a partir da `main` (`790a1f4`); teste vermelho `0b53ef6` (landing 8 de 10
+falham, SPA 5 de 7, pelo motivo certo); implementação `7806080` (landing) e `7caf8c3` (SPA). Ajuste do próprio teste antes
+do verde: L7/S5 contam só `transition: all` com duração > 0 (o padrão do navegador é `all 0s`). Resultados: e2e D4 17/17;
+40 e2e verdes um por vez; build Angular limpo.
+**Para revisão do PM:** o título "Aprenda as ferramentas que o mercado cobra.", os textos dos passos e da faixa
+"Em todos os cursos", e a fórmula `=FILTRO(Cursos; Matrículas="abertas")` da planilha.
