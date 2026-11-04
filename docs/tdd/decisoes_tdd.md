@@ -1752,3 +1752,12 @@ trecho é `aluno` do curso, então só chega a quem tem matrícula ativa nele; v
 inativa não recuperam nada. Arquivo oculto, excluído ou trocado acompanha o índice. Vídeo e ZIP não são lidos.
 PDF escaneado não tem texto: a Gestão vê "Sem texto para o assistente". O texto entra pelo mesmo bloco delimitado da GR1,
 como dado, nunca como instrução. A extração fica em `core/conteudos.py`; `agents/rag.py` só ganhou essa fonte.
+
+**Ajustes do teste manual do PM (04/11/2026):** dado pessoal do arquivo é mascarado antes do índice; resposta vazia do modelo repete
+com mais tokens e, vazia de novo, vira indisponível; o RAG traz a lista de conteúdos de cada curso, com o texto real dos arquivos, e
+pedido de material põe essa lista primeiro; com 3 ou mais termos, o trecho precisa casar ao menos 2; chat na sala (`course_id`, só com
+matrícula ativa); pergunta geral de turma ou vaga usa as turmas abertas do catálogo; resposta do assistente formatada, com tabela;
+tempo do vídeo conta desde o play, com envio a cada 5 s; a duração digitada saiu da sala e do cadastro; Reembolsar só em aprovado.
+**Limite:** a instrução reduz, mas não elimina, o modelo deduzir o conteúdo de um arquivo pelo título.
+**Verificação:** antes destes ajustes, backend 2.580, QA 520, assistente 48, fluxos 16, modelo real 9 e e2e 48. Depois deles, só testes
+das áreas tocadas; a regressão completa precisa ser repetida.
