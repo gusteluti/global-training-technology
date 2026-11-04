@@ -15,7 +15,7 @@
     <div class="card h-100">
       <div class="card-body">
         <div class="text-muted small">Requisições à IA</div>
-        <div class="fs-3" data-testid="obs-requests">{{ usage.requests }}</div>
+        <div class="gt-kpi" data-testid="obs-requests">{{ usage.requests }}</div>
       </div>
     </div>
   </div>
@@ -23,7 +23,7 @@
     <div class="card h-100">
       <div class="card-body">
         <div class="text-muted small">Tokens</div>
-        <div class="fs-3" data-testid="obs-tokens">{{ usage.total_tokens }}</div>
+        <div class="gt-kpi" data-testid="obs-tokens">{{ usage.total_tokens }}</div>
       </div>
     </div>
   </div>
@@ -31,7 +31,7 @@
     <div class="card h-100">
       <div class="card-body">
         <div class="text-muted small">Custo</div>
-        <div class="fs-3 text-nowrap" data-testid="obs-cost">{{ costText }}</div>
+        <div class="gt-kpi text-nowrap" data-testid="obs-cost">{{ costText }}</div>
       </div>
     </div>
   </div>
@@ -39,7 +39,7 @@
     <div class="card h-100">
       <div class="card-body">
         <div class="text-muted small">Taxa de resolução</div>
-        <div class="fs-3" data-testid="obs-resolution-rate">{{ resolutionRateText }}</div>
+        <div class="gt-kpi" data-testid="obs-resolution-rate">{{ resolutionRateText }}</div>
       </div>
     </div>
   </div>
@@ -47,7 +47,7 @@
     <div class="card h-100">
       <div class="card-body">
         <div class="text-muted small">Conversão</div>
-        <div class="fs-3" data-testid="obs-conversion">{{ conversionRateText }}</div>
+        <div class="gt-kpi" data-testid="obs-conversion">{{ conversionRateText }}</div>
       </div>
     </div>
   </div>
@@ -58,7 +58,7 @@
     <div class="card h-100">
       <div class="card-body">
         <div class="text-muted small">Sessões de chat</div>
-        <div class="fs-3">{{ metrics.total_sessions }}</div>
+        <div class="gt-kpi">{{ metrics.total_sessions }}</div>
       </div>
     </div>
   </div>
@@ -66,7 +66,7 @@
     <div class="card h-100">
       <div class="card-body">
         <div class="text-muted small">Mensagens processadas</div>
-        <div class="fs-3">{{ metrics.total_messages }}</div>
+        <div class="gt-kpi">{{ metrics.total_messages }}</div>
       </div>
     </div>
   </div>
@@ -74,7 +74,7 @@
     <div class="card h-100">
       <div class="card-body">
         <div class="text-muted small">Tópicos não compreendidos</div>
-        <div class="fs-3 text-danger">{{ metrics.unresolved_messages }}</div>
+        <div class="gt-kpi" [class.text-danger]="metrics.unresolved_messages > 0">{{ metrics.unresolved_messages }}</div>
         <div class="small text-muted">Perguntas gerais sem curso identificado</div>
       </div>
     </div>
@@ -95,11 +95,11 @@
     <div class="row g-3">
       <div class="col-md-3">
         <div class="text-muted small">Total</div>
-        <div class="fs-3" data-testid="ia-handoff-total">{{ handoff.total || 0 }}</div>
+        <div class="gt-kpi" data-testid="ia-handoff-total">{{ handoff.total || 0 }}</div>
       </div>
       <div class="col-md-3">
         <div class="text-muted small">Taxa</div>
-        <div class="fs-3">{{ handoffRateText }}</div>
+        <div class="gt-kpi">{{ handoffRateText }}</div>
       </div>
       <div class="col-md-6">
         <table class="table table-sm mb-0">
@@ -107,6 +107,48 @@
             <tr *ngFor="let m of handoffReasons">
               <td>{{ m.label }}</td>
               <td class="text-end">{{ m.count }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card mb-3" data-testid="obs-guardrails" *ngIf="metrics">
+  <div class="card-body">
+    <h5>Guardrails</h5>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="row g-3">
+          <div class="col-6">
+            <div class="text-muted small">Bloqueios e ajustes</div>
+            <div class="fs-3" data-testid="obs-guard-total">{{ guards.total || 0 }}</div>
+          </div>
+          <div class="col-6">
+            <div class="text-muted small">Respostas sem fonte</div>
+            <div class="fs-3" data-testid="obs-no-source">{{ metrics.no_source || 0 }}</div>
+          </div>
+          <div class="col-4">
+            <div class="text-muted small">Avaliações 👍</div>
+            <div class="fs-3" data-testid="obs-feedback-up">{{ feedback.up || 0 }}</div>
+          </div>
+          <div class="col-4">
+            <div class="text-muted small">Avaliações 👎</div>
+            <div class="fs-3" data-testid="obs-feedback-down">{{ feedback.down || 0 }}</div>
+          </div>
+          <div class="col-4">
+            <div class="text-muted small">Aprovação</div>
+            <div class="fs-3" data-testid="obs-feedback-taxa">{{ feedbackRateText }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <table class="table table-sm mb-0">
+          <tbody>
+            <tr *ngFor="let g of guardTypes">
+              <td>{{ g.label }}</td>
+              <td class="text-end" [attr.data-testid]="'obs-guard-' + g.key">{{ g.count }}</td>
             </tr>
           </tbody>
         </table>
@@ -136,14 +178,14 @@
 <div class="card" *ngIf="metrics">
   <div class="card-body">
     <h5>Tópicos não compreendidos</h5>
-    <p class="text-muted small" *ngIf="!topics.length">Nenhum tópico registrado.</p>
+    <p class="text-muted small" *ngIf="!topics.length">Nenhum tópico de visitante registrado. Por privacidade, as conversas de alunos não são listadas.</p>
     <table class="table table-sm mb-0" *ngIf="topics.length">
       <thead>
         <tr><th>Tópico</th><th class="text-end">Ocorrências</th></tr>
       </thead>
       <tbody>
         <tr *ngFor="let t of topics" data-testid="obs-topic">
-          <td>{{ t.topic }}</td>
+          <td class="text-break">{{ t.topic }}</td>
           <td class="text-end">{{ t.count }}</td>
         </tr>
       </tbody>

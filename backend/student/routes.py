@@ -9,26 +9,30 @@ Regras:
 
 import json
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, StrictInt, field_validator
+from fastapi.responses import FileResponse, JSONResponse
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, field_validator
 
 import admin.routes as admin_routes
 import payments.routes as payments_routes
 from agents.ai_observability import identidade_aluno
+from agents.dados_aluno import acoes_abrir
+from agents.feedback import ERRO_RESPOSTA_NAO_ENCONTRADA, emitir_reply_id_aluno, registrar_feedback_aluno
 from agents.handoff import acoes_de_handoff
 from agents.manager_agent import montar_acoes
 from agents.llm_guard import (
-    INPUT_BLOCKED,
     LLM_UNAVAILABLE,
     MAX_MESSAGE_CHARS,
     InputBlockedError,
     LLMUnavailableError,
     bloco_dados_aluno,
+    sanitizar_nome,
+    mascarar_pii,
+    neutralizar_marcadores,
 )
-from core import avaliacoes, privacidade, progresso, rate_limit
+from core import avaliacoes, conteudos, privacidade, progresso, rate_limit
 from core.receipt_pdf import gerar_recibo_pdf
 from core.audit import change, record_audit
 from core.password_setup import senha_aceitavel
@@ -84,6 +88,18 @@ def _materiais(curso: Optional[Dict]) -> List[Dict[str, str]]:
     ]
 
 
+def _chaves_das_aulas(course_id: str, curso: Optional[Dict]) -> List[str]:
+    """O que conta para o progresso e o certificado (D103): materiais do JSON e aulas publicadas. Extras ficam de fora."""
+    urls = [m["url"] for m in _materiais(curso)]
+    return urls + [conteudos.chave(c) for c in conteudos.listar(course_id, so_publicados=True) if not c["is_extra"]]
+
+
+def _chaves_da_sala(course_id: str, curso: Optional[Dict]) -> List[str]:
+    """Tudo o que o aluno pode abrir na sala: aulas e extras publicados."""
+    extras = [conteudos.chave(c) for c in conteudos.listar(course_id, so_publicados=True) if c["is_extra"]]
+    return _chaves_das_aulas(course_id, curso) + extras
+
+
 def _montar_item(matricula: Dict, cancelamento: Optional[Dict] = None) -> Dict:
     curso = _carregar_curso(matricula["course_id"])
     cancelamento = cancelamento or {}
@@ -107,7 +123,7 @@ def _montar_item(matricula: Dict, cancelamento: Optional[Dict] = None) -> Dict:
     if matricula["status"] == STATUS_COM_MATERIAIS:
         item["materials"] = _materiais(curso)
         # X1 (D91): progresso nos materiais e certificado, só na matrícula ativa (as URLs só aparecem aqui).
-        item["progress"] = progresso.resumo(matricula["id"], [m["url"] for m in item["materials"]])
+        item["progress"] = progresso.resumo(matricula["id"], _chaves_das_aulas(matricula["course_id"], curso))
         # X2 (D92): avaliação do próprio aluno (ou null).
         item["review"] = avaliacoes.da_matricula(matricula["id"])
     return item
@@ -317,6 +333,8 @@ class ChatRequest(BaseModel):
     """Corpo do chat autenticado. Campos extras (user_id, session_id...) são ignorados de propósito."""
 
     message: str
+    # D107: chat aberto na sala de um curso. Só vale se o aluno do JWT tiver matrícula ativa nele.
+    course_id: Optional[StrictStr] = None
 
     @field_validator("message")
     @classmethod
@@ -344,7 +362,8 @@ def _contexto_do_aluno(user_id: int) -> str:
         bloco_dados_aluno(usuario.get("name")),
     ]
     if nomes:
-        linhas.append("- Cursos em que o aluno está matriculado: " + "; ".join(nomes))
+        # GR4 (D95): o nome do curso vem do cadastro; marcador falso nele (ex.: o de dados da conta) é neutralizado.
+        linhas.append("- Cursos em que o aluno está matriculado: " + "; ".join(neutralizar_marcadores(str(n)) for n in nomes))
     else:
         linhas.append("- O aluno ainda não tem cursos ativos.")
     return "\n".join(linhas)
@@ -360,34 +379,83 @@ def conversar_com_o_chatbot(
     manager_agent = getattr(request.app.state, "manager_agent", None)
     if manager_agent is None:
         raise HTTPException(status_code=503, detail="Chatbot indisponível.")
+    # GR3 (D95): 30 mensagens por minuto por aluno do JWT; a barrada não chega ao LLM e não é gravada.
+    if not rate_limit.permitir_chat_aluno(current_user.id):
+        return JSONResponse(status_code=429, content={"status": "error", "message": rate_limit.ERRO_CHAT})
 
     historico = Database.list_chat_messages(current_user.id, limit=JANELA_CONTEXTO_CHAT)
     try:
         # E7: o contexto de observabilidade (canal e aluno) vem só do JWT e é definido nesta thread,
         # a mesma que chama o LLM (o endpoint é síncrono e roda em threadpool).
+        # GR1 (D95): os cursos com matrícula 'active' do aluno do JWT liberam os trechos de curso da base.
+        # D107: na sala de um curso, a busca fica só nele; curso sem matrícula ativa é ignorado.
+        ativos = Database.list_active_course_ids_for_user(current_user.id)
+        sala = corpo.course_id if corpo.course_id in ativos else None
+        contexto = _contexto_do_aluno(current_user.id)
+        if sala:
+            nome_da_sala = sanitizar_nome((_carregar_curso(sala) or {}).get("name") or sala)
+            contexto += f"\n- O aluno está na sala do curso {nome_da_sala}: pergunta sem outro curso citado é sobre ele."
         with identidade_aluno(current_user.id):
             resultado = manager_agent.process_authenticated_message(
-                corpo.message, _contexto_do_aluno(current_user.id), historico
+                corpo.message, contexto, historico,
+                cursos_ativos=[sala] if sala else ativos,
+                user_id=current_user.id,  # GR4: dados da conta sempre do aluno do JWT
             )
-    except InputBlockedError:
-        return {"status": "success", "message": INPUT_BLOCKED, "actions": []}
+    except InputBlockedError as bloqueio:
+        # Injeção (INPUT_BLOCKED) ou fora do domínio (FORA_DO_ASSUNTO, GR3): nada é gravado.
+        # GR5 (D95): a resposta de texto fixo também ganha reply_id (o 👎 nela mede falso positivo).
+        return {"status": "success", "message": bloqueio.texto, "actions": [], "sources": [],
+                "reply_id": emitir_reply_id_aluno(current_user.id)}
     except LLMUnavailableError as erro:
         # F6 (D77): mesmo 502 e mesmo detail; o corpo ganha `actions` só quando o handoff vale.
-        handoff = _handoff_aluno(manager_agent, corpo.message, current_user.id, getattr(erro, "curso", None))
+        # GR3: a mensagem do handoff é a mascarada (o handoff só procura pedido de atendente; nada é gravado).
+        mascarada, _ = mascarar_pii(corpo.message)
+        handoff = _handoff_aluno(manager_agent, mascarada, current_user.id, getattr(erro, "curso", None))
         if handoff:
             return JSONResponse(status_code=502, content={"detail": LLM_UNAVAILABLE, "actions": handoff})
         raise HTTPException(status_code=502, detail=LLM_UNAVAILABLE)
-    # Só o texto é persistido; as ações (F5b, D76; F6, D77) são montadas pelo servidor e não vão ao histórico.
-    Database.add_chat_exchange(current_user.id, corpo.message, resultado.texto)
+    # Só o texto é persistido; as ações (F5b, D76; F6, D77) e as fontes (GR1) são montadas pelo servidor e não vão
+    # ao histórico. O "não sei" (SEM_INFORMACAO) também é persistido como resposta do assistente (D96).
+    # GR3 (D95): grava a mensagem com a PII já mascarada; `pii_masked` avisa a tela (AVISO_PII).
+    Database.add_chat_exchange(current_user.id, resultado.mensagem, resultado.texto)
     acoes = montar_acoes(resultado, Database.list_active_course_ids_for_user(current_user.id))
-    acoes += _handoff_aluno(manager_agent, corpo.message, current_user.id, resultado.curso)
-    return {"status": "success", "message": resultado.texto, "actions": acoes}
+    # GR4 (D95): atalhos `open` da intenção de dado da conta, montados pelo servidor (nunca do texto do modelo).
+    acoes += acoes_abrir(resultado.intencoes)
+    acoes += _handoff_aluno(manager_agent, resultado.mensagem, current_user.id, resultado.curso,
+                            motivo_padrao="unresolved" if resultado.sem_fonte else None)
+    return {"status": "success", "message": resultado.texto, "actions": acoes, "sources": resultado.fontes,
+            "pii_masked": resultado.pii_masked,
+            # D107: a tela troca o balão pelo texto mascarado, para o dado não ficar visível até recarregar.
+            **({"masked_message": resultado.mensagem} if resultado.pii_masked else {}),
+            # GR5 (D95): id opaco da resposta para o feedback 👍/👎 (dono = aluno do JWT; não vai ao histórico).
+            "reply_id": emitir_reply_id_aluno(current_user.id)}
 
 
-def _handoff_aluno(manager_agent, mensagem: str, user_id: int, course_id: Optional[str]) -> list:
+class FeedbackRequest(BaseModel):
+    """GR5 (D95): nota de uma resposta do chat do aluno. Campos extras (user_id...) são ignorados de propósito."""
+
+    reply_id: StrictStr
+    rating: Literal["up", "down"]
+
+
+@router.post("/chat/feedback")
+def avaliar_resposta_do_chatbot(
+    corpo: FeedbackRequest,
+    current_user: AuthContext = Depends(require_roles(Role.STUDENT)),
+):
+    """Feedback 👍/👎 de uma resposta do próprio aluno (GR5). Identidade só pelo JWT; reply_id de outro aluno, do chat
+    anônimo ou inexistente -> o mesmo 404. Repetir atualiza a nota."""
+    if not registrar_feedback_aluno(current_user.id, corpo.reply_id, corpo.rating):
+        raise HTTPException(status_code=404, detail=ERRO_RESPOSTA_NAO_ENCONTRADA)
+    return {"status": "success", "reply_id": corpo.reply_id, "rating": corpo.rating}
+
+
+def _handoff_aluno(manager_agent, mensagem: str, user_id: int, course_id: Optional[str],
+                   motivo_padrao: Optional[str] = None) -> list:
     """Ação de handoff (F6, D77) do aluno do JWT; o nome do curso vem do catálogo do servidor."""
     nome = (manager_agent.courses.get(course_id) or {}).get("name") if course_id else None
-    return acoes_de_handoff(mensagem, user_id=user_id, course_id=course_id, course_name=nome)
+    return acoes_de_handoff(mensagem, user_id=user_id, course_id=course_id, course_name=nome,
+                            motivo_padrao=motivo_padrao)
 
 
 @router.get("/chat/history")
@@ -530,7 +598,17 @@ async def excluir_minha_conta(corpo: ExclusaoInput,
 
 ERRO_MATERIAL_SO_ATIVA = "O material só fica disponível com a matrícula ativa."
 ERRO_MATERIAL_INEXISTENTE = "Material não encontrado neste curso."
+ERRO_CONTEUDO_NAO_ENCONTRADO = "Conteúdo não encontrado."
+ERRO_VIDEO_AUTOMATICO = "A aula em vídeo é concluída ao assistir."
+SEGUNDOS_FINAIS_DO_VIDEO = 5
 ERRO_CERTIFICADO_INCOMPLETO = "Conclua todos os materiais para emitir o certificado."
+
+
+def _chaves_de_video(course_id: str, curso: Optional[Dict]) -> List[str]:
+    """Vídeos publicados na sala, incluindo materiais antigos que são link do YouTube ou do Vimeo."""
+    materiais = [m["url"] for m in _materiais(curso) if conteudos.embed_do_video(m["url"])]
+    return materiais + [conteudos.chave(c) for c in conteudos.listar(course_id, so_publicados=True)
+                        if c["kind"] == "video"]
 
 
 class ProgressoInput(BaseModel):
@@ -553,17 +631,140 @@ async def marcar_material(enrollment_id: int, corpo: ProgressoInput,
                           current_user: AuthContext = Depends(require_roles(Role.STUDENT))):
     """Marca (ou desmarca) um material do curso como concluído. Matrícula alheia = o mesmo 404 da E3."""
     matricula, curso = _matricula_ativa_do_aluno(enrollment_id, current_user.id)
-    urls = [m["url"] for m in _materiais(curso)]
-    if corpo.url not in urls:
+    aulas = _chaves_das_aulas(matricula["course_id"], curso)
+    if corpo.url not in _chaves_da_sala(matricula["course_id"], curso):
         raise HTTPException(status_code=422, detail=ERRO_MATERIAL_INEXISTENTE)
+    if corpo.url in _chaves_de_video(matricula["course_id"], curso):
+        raise HTTPException(status_code=409, detail=ERRO_VIDEO_AUTOMATICO)
     progresso.marcar(matricula["id"], corpo.url, corpo.done)
-    return {"status": "success", "progress": progresso.resumo(matricula["id"], urls)}
+    return {"status": "success", "progress": progresso.resumo(matricula["id"], aulas)}
+
+
+def _com_video(item: Dict, videos: Dict) -> Dict:
+    """Soma à aula em vídeo a posição e o percentual assistido."""
+    estado = videos.get(item["key"]) or {}
+    posicao = estado.get("position", 0)
+    # Quem parou nos últimos segundos recomeça do início; senão o vídeo terminaria ao abrir.
+    if posicao >= estado.get("duration", 0) - SEGUNDOS_FINAIS_DO_VIDEO:
+        posicao = 0
+    item.update({"position": posicao, "watched_percent": estado.get("percent", 0)})
+    return item
+
+
+def _item_da_sala(conteudo: Dict, feitos: Dict, videos: Dict) -> Dict:
+    chave = conteudos.chave(conteudo)
+    item = {
+        "key": chave, "title": conteudo["title"], "kind": conteudo["kind"],
+        "duration_minutes": conteudo["duration_minutes"], "done": chave in feitos,
+    }
+    if conteudo["kind"] == "video":
+        item["embed_url"] = conteudos.embed_do_video(conteudo["url"])
+        _com_video(item, videos)
+    elif conteudo["kind"] == "link":
+        item["url"] = conteudo["url"]
+    else:
+        item.update({"content_id": conteudo["id"], "file_name": conteudo["file_name"]})
+    return item
+
+
+def _item_de_material(material: Dict, feitos: Dict, videos: Dict) -> Dict:
+    embed = conteudos.embed_do_video(material["url"])
+    item = {"key": material["url"], "title": material["title"], "kind": "video" if embed else "link",
+            "duration_minutes": None, "done": material["url"] in feitos, "material_type": material["type"]}
+    if embed:
+        item["embed_url"] = embed
+        return _com_video(item, videos)
+    item["url"] = material["url"]
+    return item
+
+
+@router.get("/enrollments/{enrollment_id}/room")
+async def sala_do_curso(enrollment_id: int, current_user: AuthContext = Depends(require_roles(Role.STUDENT))):
+    """Sala do curso (D103): aulas em módulos, extras e progresso. Só com matrícula ativa; alheia = o mesmo 404 da E3."""
+    matricula, curso = _matricula_ativa_do_aluno(enrollment_id, current_user.id)
+    course_id = matricula["course_id"]
+    feitos = progresso.concluidos(matricula["id"])
+    videos = progresso.videos(matricula["id"])
+    modulos: Dict[str, List[Dict]] = {}
+    materiais = [_item_de_material(m, feitos, videos) for m in _materiais(curso)]
+    if materiais:
+        modulos[conteudos.MODULO_MATERIAIS] = materiais
+    extras = []
+    for conteudo in conteudos.listar(course_id, so_publicados=True):
+        item = _item_da_sala(conteudo, feitos, videos)
+        if conteudo["is_extra"]:
+            extras.append(item)
+        else:
+            modulos.setdefault(conteudo["module"], []).append(item)
+    aulas = [item for itens in modulos.values() for item in itens]
+    proxima = next((item["key"] for item in aulas if not item["done"]), None)
+    visto = next((item for item in aulas + extras if item["key"] == progresso.ultimo_visto(matricula["id"])), None)
+    return {
+        "status": "success",
+        "course_id": course_id,
+        "course_name": (curso or {}).get("name") or course_id,
+        "modules": [{"title": titulo, "items": itens} for titulo, itens in modulos.items()],
+        "extras": extras,
+        "progress": progresso.resumo(matricula["id"], [item["key"] for item in aulas]),
+        "next_key": proxima,
+        "resume_key": visto["key"] if visto and not visto["done"] else proxima,
+    }
+
+
+class AvancoVideoInput(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    key: str
+    position: float = Field(ge=0, le=86400, allow_inf_nan=False)
+    watched_delta: float = Field(ge=0, le=3600, allow_inf_nan=False)
+    duration: float = Field(gt=0, le=86400, allow_inf_nan=False)
+
+
+@router.post("/enrollments/{enrollment_id}/room/video")
+async def registrar_avanco_do_video(enrollment_id: int, corpo: AvancoVideoInput,
+                                    current_user: AuthContext = Depends(require_roles(Role.STUDENT))):
+    """Tempo assistido de uma aula em vídeo (D105). Só matrícula ativa; alheia = o mesmo 404 da E3."""
+    matricula, curso = _matricula_ativa_do_aluno(enrollment_id, current_user.id)
+    if corpo.key not in _chaves_de_video(matricula["course_id"], curso):
+        raise HTTPException(status_code=422, detail=ERRO_MATERIAL_INEXISTENTE)
+    estado = progresso.registrar_video(matricula["id"], corpo.key, corpo.position, corpo.watched_delta, corpo.duration)
+    aulas = _chaves_das_aulas(matricula["course_id"], curso)
+    return {"status": "success", "video": estado, "progress": progresso.resumo(matricula["id"], aulas)}
+
+
+class VistoInput(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    key: str
+
+
+@router.post("/enrollments/{enrollment_id}/room/last-seen")
+async def marcar_visto(enrollment_id: int, corpo: VistoInput,
+                       current_user: AuthContext = Depends(require_roles(Role.STUDENT))):
+    """Guarda o último conteúdo aberto (D103). Também avisa a sala aberta de que o acesso acabou (409)."""
+    matricula, curso = _matricula_ativa_do_aluno(enrollment_id, current_user.id)
+    if corpo.key not in _chaves_da_sala(matricula["course_id"], curso):
+        raise HTTPException(status_code=422, detail=ERRO_MATERIAL_INEXISTENTE)
+    progresso.marcar_visto(matricula["id"], corpo.key)
+    return {"status": "success"}
+
+
+@router.get("/enrollments/{enrollment_id}/contents/{conteudo_id}/file")
+async def baixar_conteudo(enrollment_id: int, conteudo_id: int,
+                          current_user: AuthContext = Depends(require_roles(Role.STUDENT))):
+    """Download autenticado (D103): a matrícula é conferida a cada pedido; conteúdo de outro curso ou oculto = 404."""
+    matricula, _ = _matricula_ativa_do_aluno(enrollment_id, current_user.id)
+    conteudo = conteudos.obter(conteudo_id)
+    caminho = None
+    if conteudo and conteudo["published"] and conteudo["course_id"] == matricula["course_id"]:
+        caminho = conteudos.caminho_do_arquivo(conteudo)
+    if caminho is None:
+        raise HTTPException(status_code=404, detail=ERRO_CONTEUDO_NAO_ENCONTRADO)
+    return FileResponse(caminho, media_type=conteudos.media_type(conteudo), filename=conteudo["file_name"])
 
 
 @router.get("/enrollments/{enrollment_id}/certificate.pdf")
 async def baixar_certificado(enrollment_id: int, current_user: AuthContext = Depends(require_roles(Role.STUDENT))):
     matricula, curso = _matricula_ativa_do_aluno(enrollment_id, current_user.id)
-    resumo = progresso.resumo(matricula["id"], [m["url"] for m in _materiais(curso)])
+    resumo = progresso.resumo(matricula["id"], _chaves_das_aulas(matricula["course_id"], curso))
     if not resumo["certificate_available"]:
         raise HTTPException(status_code=409, detail=ERRO_CERTIFICADO_INCOMPLETO)
     perfil = Database.get_student_profile(current_user.id) or {}

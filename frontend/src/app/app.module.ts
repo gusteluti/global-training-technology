@@ -21,12 +21,17 @@ import { DefinirSenhaComponent } from './components/definir-senha/definir-senha.
 import { EsqueciSenhaComponent } from './components/esqueci-senha/esqueci-senha.component';
 import { RedefinirSenhaComponent } from './components/redefinir-senha/redefinir-senha.component';
 import { CourseCatalogComponent } from './components/course-catalog/course-catalog.component';
+import { VideoPlayerComponent } from './components/video-player/video-player.component';
+import { ChatSalaComponent } from './components/chat-sala/chat-sala.component';
+import { CourseRoomComponent } from './components/course-room/course-room.component';
+import { CourseContentsComponent } from './components/course-contents/course-contents.component';
 import { StudentProfileComponent } from './components/student-profile/student-profile.component';
 import { StaffAdminComponent } from './components/staff-admin/staff-admin.component';
 import { TermosComponent } from './components/termos/termos.component';
 import { AtualizacaoAutomaticaComponent } from './components/atualizacao-automatica/atualizacao-automatica.component';
 import { AuthInterceptor } from './interceptors/auth.interceptor';
 import { DataSpPipe } from './pipes/data-sp.pipe';
+import { ChatMarkdownPipe } from './pipes/chat-markdown.pipe';
 
 // Valores em reais e datas no formato brasileiro (R$ 1.234,56).
 registerLocaleData(localePt);
@@ -49,10 +54,15 @@ registerLocaleData(localePt);
     RedefinirSenhaComponent,
     CourseCatalogComponent,
     StudentProfileComponent,
+    CourseRoomComponent,
+    ChatSalaComponent,
+    CourseContentsComponent,
+    VideoPlayerComponent,
     StaffAdminComponent,
     TermosComponent,
     AtualizacaoAutomaticaComponent,
-    DataSpPipe
+    DataSpPipe,
+    ChatMarkdownPipe
   ],
   imports: [
     BrowserModule,

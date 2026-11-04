@@ -1,0 +1,28 @@
+<section class="card mt-4" data-testid="sala-chat" aria-label="Assistente do curso">
+  <div class="card-body">
+    <h5 class="mb-1">Dúvidas sobre este curso</h5>
+    <p class="small text-muted">O assistente responde com base nas apostilas e nos conteúdos de {{ cursoNome }}. Não envie dados sensíveis.</p>
+
+    <div class="sala-chat-mensagens" #lista *ngIf="mensagens.length">
+      <ng-container *ngFor="let m of mensagens">
+        <div class="sala-chat-bolha" data-testid="sala-chat-msg" [attr.data-role]="m.role"
+             [class.sala-chat-aluno]="m.role === 'user'">
+          <ng-container *ngIf="m.role === 'user'; else formatada">{{ m.content }}</ng-container>
+          <ng-template #formatada><div class="sala-chat-texto" [innerHTML]="m.content | chatMarkdown"></div></ng-template>
+        </div>
+        <p class="sala-chat-nota" data-testid="sala-chat-fonte" *ngIf="m.fontes?.length">Fonte: {{ m.fontes?.join(', ') }}</p>
+        <p class="sala-chat-nota" *ngIf="m.piiMasked">Para sua segurança, removemos dados pessoais da sua mensagem.</p>
+      </ng-container>
+    </div>
+
+    <div class="alert alert-danger py-2 small" *ngIf="erro" data-testid="sala-chat-erro">{{ erro }}</div>
+
+    <form class="d-flex gap-2" (ngSubmit)="enviar()">
+      <input class="form-control" name="pergunta" maxlength="2000" placeholder="Pergunte sobre as aulas e apostilas"
+             aria-label="Pergunta para o assistente" data-testid="sala-chat-input" [(ngModel)]="texto">
+      <button type="submit" class="btn btn-primary" data-testid="sala-chat-enviar" [disabled]="!podeEnviar">
+        {{ enviando ? 'Enviando...' : 'Enviar' }}
+      </button>
+    </form>
+  </div>
+</section>

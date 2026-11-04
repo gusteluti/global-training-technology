@@ -27,6 +27,9 @@ backend/venv/
 *.sqlite3
 *.db
 
+# Arquivos enviados aos cursos (D103): pasta privada, nunca versionar
+backend/uploads/
+
 # OS files
 .DS_Store
 Thumbs.db
@@ -56,6 +59,7 @@ temp/
 
 # Exportações de sessão de assistentes de IA (podem conter .env e segredos)
 chat*.json
+!backend/evals/chatbot_casos.json
 
 # Permissões locais do Claude Code
 .claude/settings.local.json
@@ -63,3 +67,6 @@ chat*.json
 # Backups do banco (X3, D90)
 backups/
 backend/backups/
+
+# Medição de cobertura da suíte de QA (D104)
+.coverage*

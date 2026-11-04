@@ -6,21 +6,21 @@
   display: inline-flex; align-items: center; text-decoration: none; font-family: inherit; line-height: 1.5;
   background: #ffffff; border: 1.5px solid #d8e0e8; color: #17212b;
   padding: 7px 18px; border-radius: 20px; font-weight: 600; font-size: 14px;
-  cursor: pointer; transition: all .2s;
+  cursor: pointer; transition: border-color .2s, color .2s;
 }
 .aluno-atalho:hover { border-color: #0096c7; color: #0096c7; text-decoration: none; }
 
 .aluno-resumo-rotulo { font-size: 13px; font-weight: 600; color: #66707c; }
 .aluno-resumo-valor {
   font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-weight: 900;
-  font-size: 38px; color: #0096c7; line-height: 1.1;
+  font-size: 38px; color: #17212b; line-height: 1.1; font-variant-numeric: tabular-nums;
 }
 
 .aluno-secao { margin-bottom: 2.5rem; scroll-margin-top: 96px; }
 .aluno-secao > h3 { font-size: 30px; margin-bottom: 1rem; }
 
-.curso-card { transition: all .25s; }
-.curso-card:hover { border-color: #9fd3e4; transform: translateY(-3px); box-shadow: 0 12px 32px rgba(20, 35, 50, 0.10); }
+.curso-card { transition: border-color .2s, box-shadow .2s; }
+.curso-card:hover { border-color: #9fd3e4; box-shadow: 0 12px 32px rgba(20, 35, 50, 0.08); }
 .curso-icone {
   width: 48px; height: 48px; border-radius: 12px; flex-shrink: 0;
   background: #eaf8fc; border: 1.5px solid #b8e7f1; color: #0096c7;
@@ -44,6 +44,23 @@
 }
 .chat-bolha-bot { background: #f0f4f7; color: #17212b; align-self: flex-start; border-bottom-left-radius: 4px; }
 .chat-bolha-aluno { background: #0096c7; color: #ffffff; align-self: flex-end; border-bottom-right-radius: 4px; font-weight: 600; }
+.chat-fonte {
+  max-width: 80%; margin: -8px 0 0; padding: 0 4px; align-self: flex-start;
+  font-size: 12px; color: var(--gt-muted);
+}
+.chat-aviso-pii {
+  max-width: 80%; margin: -4px 0 0; padding: 6px 10px; align-self: flex-start;
+  font-size: 12px; color: var(--gt-muted); background: var(--gt-soft-blue);
+  border-left: 3px solid var(--gt-teal); border-radius: 6px;
+}
+.chat-feedback { display: flex; gap: 6px; margin: -6px 0 0; align-self: flex-start; }
+.chat-feedback-btn {
+  border: 1px solid #d8e0e8; background: #ffffff; border-radius: 14px;
+  padding: 1px 9px; font-size: 13px; line-height: 1.5; cursor: pointer;
+}
+.chat-feedback-btn:hover:not(:disabled) { border-color: #0096c7; }
+.chat-feedback-btn:disabled { cursor: default; opacity: 0.55; }
+.chat-feedback-btn.ativo, .chat-feedback-btn.ativo:disabled { opacity: 1; border-color: #0096c7; background: #eaf8fc; }
 .chat-aviso { margin: 0; padding: 10px 16px 0; }
 .chat-acoes { display: flex; flex-wrap: wrap; gap: 8px; align-self: flex-start; }
 .chat-form { padding: 12px 16px; border-top: 1px solid #d8e0e8; background: #ffffff; }
@@ -51,14 +68,14 @@
 .curso-card .list-group-item-action { color: #0077a3; font-weight: 600; display: flex; justify-content: space-between; gap: 8px; }
 /* Seta em ::after: conteúdo gerado não entra no innerText, e o título do material segue exato (e2e L2). */
 .curso-card .list-group-item-action::after { content: '\2197'; color: #0096c7; }
-.aluno-resumo-valor { overflow-wrap: anywhere; }
+.aluno-resumo-valor { white-space: nowrap; }
 
 @media (max-width: 576px) {
   .aluno-hero .card-body { padding: 1.25rem; }
   .aluno-titulo { font-size: 30px; }
   .aluno-resumo .card-body { padding: 0.85rem; }
   .aluno-resumo-rotulo { font-size: 11px; line-height: 1.25; }
-  .aluno-resumo-valor { font-size: 22px; margin-top: 4px; }
+  .aluno-resumo-valor { font-size: 17px; margin-top: 4px; }
   .chat-bolha { max-width: 92%; }
 
   /* Histórico financeiro em cartões empilhados: mesmo DOM da tabela (tbody tr, botões), só o layout muda. */
@@ -80,3 +97,9 @@
 .curso-progresso { height: 6px; background: #eaf8fc; }
 .curso-progresso .progress-bar { background-color: #0096c7; }
 .avaliacao-nota { max-width: 96px; }
+
+/* Resposta do assistente formatada (D107): o [innerHTML] não recebe o escopo do componente. */
+.chat-bolha-bot { white-space: normal; }
+.chat-texto ::ng-deep p { margin: 0 0 8px; }
+.chat-texto ::ng-deep p:last-child, .chat-texto ::ng-deep ul:last-child, .chat-texto ::ng-deep ol:last-child { margin-bottom: 0; }
+.chat-texto ::ng-deep ul, .chat-texto ::ng-deep ol { margin: 0 0 8px; padding-left: 20px; }

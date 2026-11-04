@@ -9,7 +9,8 @@ from typing import Optional
 
 import requests
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+from core.emails import email_valido, normalizar_email
 from dotenv import load_dotenv
 
 from admin.routes import ERR_CURSO_INDISPONIVEL, curso_arquivado, load_course_data
@@ -66,6 +67,14 @@ class PayerInput(BaseModel):
     name: str
     email: str
     phone: Optional[str] = None
+
+    @field_validator("email")
+    @classmethod
+    def _email_valido(cls, valor: str) -> str:
+        valor = normalizar_email(valor)
+        if not email_valido(valor):
+            raise ValueError("E-mail inválido.")
+        return valor
 
 
 class CheckoutInput(BaseModel):

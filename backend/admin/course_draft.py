@@ -17,6 +17,8 @@ import re
 import unicodedata
 from typing import Any, Dict, List, Optional, Tuple
 
+from agents.llm_guard import entrada_bloqueada
+
 MAX_BYTES = 5 * 1024 * 1024
 MAX_PDF_CHARS = 20_000
 
@@ -25,6 +27,7 @@ MSG_415 = "Formato não suportado. Envie um arquivo JSON ou PDF."
 MSG_422 = "Não foi possível ler texto do PDF."
 MSG_502 = "Não foi possível gerar o rascunho agora. Tente novamente ou preencha o formulário."
 AVISO_PROMPT = "Escreva as instruções do assistente do curso."
+AVISO_INJECAO = "O arquivo tem trechos que parecem comandos ao assistente. Revise o texto antes de salvar."
 
 TEXT_FIELDS = ("id", "name", "description", "level", "target_audience", "system_prompt")
 NUMBER_FIELDS = ("price", "duration_hours")
@@ -209,6 +212,9 @@ def montar_rascunho(dados: Dict[str, Any], origem: str) -> Tuple[Dict[str, Any],
         else:
             rascunho[campo] = resultado
 
+    # GR (D95): injeção indireta. O texto continua como dado delimitado no prompt, mas a Gestão é avisada.
+    if entrada_bloqueada(json.dumps({c: v for c, v in rascunho.items() if c != "system_prompt"}, ensure_ascii=False)):
+        avisos.append(AVISO_INJECAO)
     if origem == "pdf":
         rascunho["id"] = sugerir_id(rascunho["name"])
         avisos.append(AVISO_PROMPT)

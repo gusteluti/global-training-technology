@@ -58,6 +58,8 @@ export class CourseAdminComponent implements OnInit {
   private loadedMaterials: any[] = [];
   private loadedMaterialsText = '';
 
+  conteudosDe: any = null;
+
   constructor(private api: ApiService) { }
 
   ngOnInit(): void {

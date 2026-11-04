@@ -23,6 +23,30 @@ interface AcaoWhatsapp {
 
 const PREFIXO_WHATSAPP = 'https://wa.me/';
 
+type NotaFeedback = 'up' | 'down';
+
+interface MensagemChat {
+  role: string;
+  content: string;
+  fontes?: string[];
+  piiMasked?: boolean;
+  replyId?: string;
+  feedback?: NotaFeedback | null;
+  enviandoFeedback?: boolean;
+}
+
+// Ação de atalho devolvida pelo chat (GR4): abre uma seção da Área do aluno como os atalhos da D2.
+type AlvoAbrir = 'financeiro' | 'cursos' | 'perfil';
+interface AcaoAbrir {
+  target: AlvoAbrir;
+  label: string;
+}
+
+// Só estes alvos e só os campos type/target/label; qualquer outro campo (ex.: `url`) descarta a ação inteira.
+const SECOES_ABRIR: { [alvo: string]: string } = { financeiro: 'secao-financeiro', cursos: 'secao-cursos' };
+const ALVOS_ABRIR = ['financeiro', 'cursos', 'perfil'];
+const CAMPOS_ABRIR = ['type', 'target', 'label'];
+
 // Rótulos e cores dos status de matrícula (conjunto fechado, D28).
 const ROTULOS_STATUS: { [status: string]: string } = {
   pending: 'Pendente',
@@ -87,12 +111,18 @@ export class StudentDashboardComponent implements OnInit {
   erroFinanceiro = '';
   receipt: any = null;
   baixandoPdf = new Set<number>();
-  chatMessages: { role: string; content: string }[] = [];
+  // `fontes`: títulos de `sources` da resposta (GR1). Só nesta sessão de tela; o histórico do servidor não traz fonte.
+  // `piiMasked`: a resposta veio com `pii_masked: true` (GR3); mostra AVISO_PII abaixo da resposta. Também só na sessão.
+  // `replyId`/`feedback`/`enviandoFeedback` (GR5): só respostas desta sessão com reply_id ganham 👍/👎; o histórico
+  // do servidor não traz reply_id, então não mostra botões.
+  chatMessages: MensagemChat[] = [];
   chatInput = '';
   chatEnviando = false;
   // Ações de matrícula da última resposta (F5b, D76). Montadas pelo servidor e não persistidas no histórico.
   chatAcoes: AcaoChat[] = [];
   chatWhatsapp: AcaoWhatsapp | null = null;
+  // Atalhos da última resposta (GR4); o `label` aparece só como texto.
+  chatAbrir: AcaoAbrir[] = [];
   erroChat = '';
   email = '';
   // Primeiro nome do próprio aluno (GET /api/student/me, D80); vazio mantém a saudação genérica.
@@ -109,7 +139,7 @@ export class StudentDashboardComponent implements OnInit {
     this.email = auth.decodeToken()?.email || '';
     // Dados vindos do EnrollmentsResolver (rota /student).
     const painel: PainelMatriculas | undefined = this.route.snapshot.data['painel'];
-    this.enrollments = painel?.enrollments || [];
+    this.enrollments = this.ativasPrimeiro(painel?.enrollments || []);
     if (painel && !painel.ok) {
       this.erro = 'Não foi possível carregar suas matrículas.';
     }
@@ -284,7 +314,7 @@ export class StudentDashboardComponent implements OnInit {
   private recarregarMatriculas(): void {
     this.api.getMyEnrollments().subscribe({
       next: (res: any) => {
-        this.enrollments = res.enrollments || [];
+        this.enrollments = this.ativasPrimeiro(res.enrollments || []);
         this.erro = '';
       },
       error: () => this.erro = 'Não foi possível carregar suas matrículas.'
@@ -336,6 +366,13 @@ export class StudentDashboardComponent implements OnInit {
     return !this.chatEnviando && this.chatInput.trim().length > 0;
   }
 
+  // O curso em andamento vem antes dos pendentes, e os encerrados ficam por último.
+  private ativasPrimeiro(matriculas: any[]): any[] {
+    const ordem: { [status: string]: number } = { active: 0, pending: 1 };
+    const posicao = (m: any) => ordem[m.status] ?? 2;
+    return [...matriculas].sort((a, b) => posicao(a) - posicao(b));
+  }
+
   enviarChat(): void {
     if (!this.podeEnviarChat()) {
       return;
@@ -345,16 +382,21 @@ export class StudentDashboardComponent implements OnInit {
     this.erroChat = '';
     this.chatAcoes = [];
     this.chatWhatsapp = null;
+    this.chatAbrir = [];
     this.api.sendChatMessage(texto).subscribe({
       next: (res: any) => {
         this.chatMessages = [
           ...this.chatMessages,
-          { role: 'user', content: texto },
-          { role: 'assistant', content: res.message }
+          { role: 'user', content: res.masked_message || texto },
+          { role: 'assistant', content: res.message, fontes: this.titulosDasFontes(res.sources),
+            piiMasked: res.pii_masked === true,
+            replyId: typeof res.reply_id === 'string' && res.reply_id ? res.reply_id : undefined,
+            feedback: null, enviandoFeedback: false }
         ];
         this.chatAcoes = (Array.isArray(res.actions) ? res.actions : [])
           .filter((a: any) => a && a.type === 'enroll' && a.course_id && a.label);
         this.chatWhatsapp = this.acaoWhatsapp(res.actions);
+        this.chatAbrir = this.acoesAbrir(res.actions);
         this.chatInput = '';
         this.chatEnviando = false;
       },
@@ -366,6 +408,34 @@ export class StudentDashboardComponent implements OnInit {
     });
   }
 
+  // Feedback 👍/👎 (GR5): aceito (200) trava o par e marca o escolhido; falha libera para tentar de novo.
+  enviarFeedback(msg: MensagemChat, nota: NotaFeedback): void {
+    if (!msg.replyId || msg.feedback || msg.enviandoFeedback) {
+      return;
+    }
+    msg.enviandoFeedback = true;
+    this.api.sendChatFeedback(msg.replyId, nota).subscribe({
+      next: () => {
+        msg.feedback = nota;
+        msg.enviandoFeedback = false;
+      },
+      error: () => {
+        msg.feedback = null;
+        msg.enviandoFeedback = false;
+      }
+    });
+  }
+
+  // Títulos de `sources` (GR1): só strings não vazias; sem fonte, lista vazia e nada aparece na tela.
+  private titulosDasFontes(sources: any): string[] {
+    if (!Array.isArray(sources)) {
+      return [];
+    }
+    return sources
+      .map((f: any) => (f && typeof f.title === 'string' ? f.title.trim() : ''))
+      .filter((t: string) => t.length > 0);
+  }
+
   // Só aceita link que aponte para https://wa.me/ (defesa, D77).
   private acaoWhatsapp(actions: any): AcaoWhatsapp | null {
     if (!Array.isArray(actions)) {
@@ -374,6 +444,31 @@ export class StudentDashboardComponent implements OnInit {
     const acao = actions.find((a: any) => a && a.type === 'handoff' && typeof a.url === 'string'
       && a.url.startsWith(PREFIXO_WHATSAPP) && typeof a.label === 'string' && a.label);
     return acao ? { type: acao.type, url: acao.url, label: acao.label } : null;
+  }
+
+  // Ações `open` do servidor (GR4): alvo da lista fechada, label texto não vazio e nenhum campo a mais.
+  private acoesAbrir(actions: any): AcaoAbrir[] {
+    if (!Array.isArray(actions)) {
+      return [];
+    }
+    return actions
+      .filter((a: any) => a && typeof a === 'object' && a.type === 'open'
+        && Object.keys(a).every(k => CAMPOS_ABRIR.includes(k))
+        && typeof a.target === 'string' && ALVOS_ABRIR.includes(a.target)
+        && typeof a.label === 'string' && a.label.trim().length > 0)
+      .map((a: any) => ({ target: a.target as AlvoAbrir, label: a.label }));
+  }
+
+  // Mesma navegação dos atalhos da D2: seção da página com irPara, perfil pela rota /student/perfil.
+  abrirAtalho(acao: AcaoAbrir): void {
+    if (acao.target === 'perfil') {
+      this.router.navigate(['/student/perfil']);
+      return;
+    }
+    const secao = SECOES_ABRIR[acao.target];
+    if (secao) {
+      this.irPara(secao);
+    }
   }
 
   // Leva ao catálogo com o curso e, se houver, a turma pré-selecionada (D75/D76).

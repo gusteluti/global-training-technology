@@ -10,6 +10,8 @@ Este arquivo é para quem nunca viu o projeto: uma pessoa ou outro agente de IA 
 5. `docs/tdd/papeis_tdd.md` (charter original do gerente de projeto).
 6. `Escopo_Fase2_Global_Training_Technology.pdf` (documento de escopo, na raiz).
 
+Para mexer em qualquer tela, siga também `docs/DESIGN.md` (sistema visual da landing e da SPA, D106).
+
 Em caso de conflito entre documentos, valem as decisões de número mais alto no `decisoes_tdd.md`. Algumas regras antigas foram revogadas (ver "Regras revogadas" abaixo).
 
 ---
@@ -136,7 +138,7 @@ Todos os comandos assumem a raiz do repo como diretório de trabalho e Windows c
 ### 6.1 Variáveis de ambiente
 Nomes lidos pelo backend (valores **nunca** no repo):
 
-`ACCESS_TOKEN_EXPIRE_MINUTES`, `ADMIN_PASSWORD`, `ADMIN_TOKEN_SECRET`, `API_BASE_URL`, `APP_ENV`, `BACKUP_DIR`, `BACKUP_KEEP`, `CORS_ALLOWED_ORIGINS`, `FINANCIAL_PASSWORD`, `FRONTEND_BASE_URL`, `GROQ_API_KEY`, `GROQ_MODEL`, `GROQ_PRICE_INPUT_PER_1M_USD`, `GROQ_PRICE_OUTPUT_PER_1M_USD`, `JWT_SECRET_KEY`, `MERCADO_PAGO_ACCESS_TOKEN`, `MERCADO_PAGO_WEBHOOK_SECRET`, `PASSWORD_LINK_OUTBOX`, `PAYMENTS_MOCK`, `SMTP_FROM`, `SMTP_HOST`, `SMTP_PASSWORD`, `SMTP_PORT`, `SMTP_USER`, `SUPPORT_PASSWORD`, `WHATSAPP_HANDOFF_NUMBER`.
+`ACCESS_TOKEN_EXPIRE_MINUTES`, `ADMIN_PASSWORD`, `ADMIN_TOKEN_SECRET`, `API_BASE_URL`, `APP_ENV`, `BACKUP_DIR`, `BACKUP_KEEP`, `CONTENTS_DIR`, `CORS_ALLOWED_ORIGINS`, `FINANCIAL_PASSWORD`, `FRONTEND_BASE_URL`, `GROQ_API_KEY`, `GROQ_MODEL`, `GROQ_PRICE_INPUT_PER_1M_USD`, `GROQ_PRICE_OUTPUT_PER_1M_USD`, `JWT_SECRET_KEY`, `MERCADO_PAGO_ACCESS_TOKEN`, `MERCADO_PAGO_WEBHOOK_SECRET`, `PASSWORD_LINK_OUTBOX`, `PAYMENTS_MOCK`, `SMTP_FROM`, `SMTP_HOST`, `SMTP_PASSWORD`, `SMTP_PORT`, `SMTP_USER`, `SUPPORT_PASSWORD`, `WHATSAPP_HANDOFF_NUMBER`.
 
 Os e2e não precisam de variável nenhuma (D58): os helpers definem valores fabricados no processo do backend de teste.
 
@@ -175,6 +177,7 @@ py -3 -m pytest frontend/e2e/test_d1_design_landing_angular.py -s  # 10 checks (
 py -3 -m pytest frontend/e2e/test_d2_area_aluno_angular.py -s      # 10 checks (área do aluno, D67)
 py -3 -m pytest frontend/e2e/test_d3_ajustes_design_angular.py -s  # 10 checks (ajustes de design, D93)
 py -3 -m pytest frontend/e2e/test_d3_landing_vitrine.py -s         # 5 testes (landing: APP_URL e curso no login, D93)
+py -3 -m pytest frontend/e2e/test_d4_polimento_visual.py -s     # 2 testes, 17 checks (polimento visual, D106)
 py -3 -m pytest frontend/e2e/test_x5_atualizacao_paineis_angular.py -s # 10 checks (atualização automática dos painéis, D87)
 py -3 -m pytest frontend/e2e/test_o0_catalogo_angular.py -s  # 7 checks (catálogo do aluno, O0)
 py -3 -m pytest frontend/e2e/test_f1_trava_exclusao_angular.py -s  # 11 checks (arquivar curso, F1)
@@ -198,9 +201,17 @@ py -3 -m pytest frontend/e2e/test_u7_lgpd_angular.py -s  # LGPD (U7)
 py -3 -m pytest frontend/e2e/test_x1_progresso_angular.py -s  # progresso e certificado (X1)
 py -3 -m pytest frontend/e2e/test_x2_avaliacao_angular.py -s  # avaliação (X2)
 py -3 -m pytest frontend/e2e/test_x4_saude_angular.py -s  # saúde do sistema (X4)
+py -3 -m pytest frontend/e2e/test_c_sala_curso_angular.py -s  # sala do curso (D103)
+py -3 -m pytest frontend/e2e/test_video_real_angular.py -s  # videoaula com vídeo real, precisa de internet (D105)
+py -3 -m pytest frontend/e2e/test_qa_istqb.py -q  # suíte de QA, 518 casos (D104)
 ```
 Portas e esperas podem ser fixadas com `E2E_BACKEND_PORT`, `E2E_FRONT_PORT` e `E2E_NG_TIMEOUT`. Se houver um `ng serve` seu na
 porta 4200, ele não é usado nem encerrado. Cada e2e leva de 20 a 90 s. Contagens validadas em 21/10/2026: os 37 e2e passaram, um por vez (~25 min).
+
+### 6.3.1 Dados de demonstração
+Para testar à mão, sem dados reais, rode a partir de `backend/`: `python seed_demo.py`. Cria contas de teste (a senha é impressa
+no final), turmas, matrículas e conteúdos no curso Excel Profissional. Pode rodar mais de uma vez e não roda com
+`APP_ENV=production`. Para a compra sair aprovada na hora, use `APP_ENV=development` e `PAYMENTS_MOCK=1` no `backend/.env`.
 
 ### 6.4 Build do Angular
 ```

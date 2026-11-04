@@ -4,8 +4,8 @@
 .catalogo-titulo { font-size: 42px; line-height: 1.05; margin-bottom: 8px; }
 .catalogo-voltar { font-weight: 600; text-decoration: none; }
 
-.catalogo-card { transition: all .25s; }
-.catalogo-card:hover { border-color: #9fd3e4; transform: translateY(-3px); box-shadow: 0 12px 32px rgba(20, 35, 50, 0.10); }
+.catalogo-card { transition: border-color .2s, box-shadow .2s; }
+.catalogo-card:hover { border-color: #9fd3e4; box-shadow: 0 12px 32px rgba(20, 35, 50, 0.08); }
 .catalogo-icone {
   width: 48px; height: 48px; border-radius: 12px;
   background: #eaf8fc; border: 1.5px solid #b8e7f1; color: #0096c7;

@@ -2,6 +2,8 @@
 
 Documento escrito para quem nunca viu a sessão original. Estado verificado por leitura do git e dos arquivos em 05/10/2026, depois do resgate do log de decisões.
 
+**Atualização de 04/11/2026 (D4, polimento visual, D102):** landing e SPA seguem `docs/DESIGN.md`; e2e novo `frontend/e2e/test_d4_polimento_visual.py`. Branch `claude/project-thread-97ett2`, commits `0b53ef6`, `7806080`, `7caf8c3`.
+
 **Atualização de 06/10/2026 (noite autônoma D40, entregas D37 a D59):** E5 a E9, dívidas de segurança, turmas, cadastro de cursos no Angular, interceptor e harness dos e2e entregues e publicadas; ver `docs/tdd/RELATORIO_NOITE.md`. Os comandos de e2e da seção 9 estão desatualizados: valem os do `AGENTS.md`, seção 6.3.
 
 **Atualização de 06/10/2026 (modo autônomo D40; E6 entregue, D41):** ver `docs/tdd/RELATORIO_NOITE.md`.
@@ -236,7 +238,8 @@ Notas de escopo lidas no PDF, para quem for pegar as próximas:
 | **D1** | Design da landing aplicado à SPA Angular | pedido do PM (07/10/2026), seção 3 do escopo (SPA) | **Entregue em 07/10/2026, aguardando validação do PM (D66).** e2e `34d846a`; frontend `b1ecf40`, `6702f56`, `07ba7e7`. D1 10/10; regressão e2e completa verde; build limpo. |
 | **D2** | Nova Área do Aluno no design da landing | item 1.1, RF21, RF22 (pedido do PM, 07/10/2026) | **Entregue em 07/10/2026, aguardando validação do PM (D67).** e2e `0b4b45e`; frontend `e5a2de5`. D2 10/10; E2, E3, E5 chat, B2 verdes; build limpo. |
 | **D3** | Ajustes de design das telas novas | pedido do PM (21/10/2026) | **Entregue em 21/10/2026, aguardando validação do PM (D93).** Branch `feature/fase2-ajustes-design`. |
-| **GR** | Guardrails do chatbot | escopo incluído pelo PM (21/10/2026, D94) | **A fazer.** Decisões do PM pendentes (D94). |
+| **D4** | Polimento visual (referências de design) | pedido do PM (04/11/2026) | **Entregue em 04/11/2026, aguardando validação do PM (D106).** Branch `claude/project-thread-97ett2`. |
+| **GR** | Guardrails do chatbot | escopo incluído pelo PM (21/10/2026, D94) | **Entregue pela série GR (D95 a D101).** |
 
 ### Backlog (fora das nove entregas)
 - Recuperação de senha do aluno. Fora do escopo, mas login em produção vai precisar.

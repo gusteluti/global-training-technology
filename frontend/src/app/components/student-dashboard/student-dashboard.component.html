@@ -63,7 +63,8 @@
           </p>
 
           <ng-container *ngIf="m.status === 'active'; else semAcesso">
-            <h6 class="curso-subtitulo">Materiais</h6>
+            <a class="btn btn-primary btn-sm mb-3 align-self-start" data-testid="curso-entrar" [routerLink]="['/student/curso', m.id]">Entrar no curso</a>
+            <h6 class="curso-subtitulo" *ngIf="m.materials?.length">Materiais</h6>
             <div class="list-group" *ngIf="m.materials?.length; else semMateriais">
               <a *ngFor="let mat of m.materials"
                  class="list-group-item list-group-item-action text-break"
@@ -72,7 +73,7 @@
                  rel="noopener noreferrer">{{ mat.title }}</a>
             </div>
             <ng-template #semMateriais>
-              <p class="text-muted small mb-0">Este curso ainda não tem materiais.</p>
+              <p class="text-muted small mb-0" *ngIf="!m.progress?.total">Este curso ainda não tem materiais.</p>
             </ng-template>
             <div class="mt-3" *ngIf="m.progress?.total">
               <div class="d-flex justify-content-between small mb-1">
@@ -82,12 +83,15 @@
               <div class="progress curso-progresso mb-2">
                 <div class="progress-bar" [style.width.%]="m.progress.percent"></div>
               </div>
+              <p class="small text-muted mb-2" data-testid="curso-progresso-sala" *ngIf="m.progress.total !== m.materials.length">Marque as aulas como concluídas dentro do curso.</p>
+              <ng-container *ngIf="m.progress.total === m.materials.length">
               <div class="form-check small" *ngFor="let mat of m.materials">
                 <input class="form-check-input" type="checkbox" data-testid="material-concluido"
                        [id]="'mat-' + m.id + '-' + mat.url" [checked]="m.progress.completed.includes(mat.url)"
                        (change)="marcarMaterial(m, mat.url, $any($event.target).checked)">
                 <label class="form-check-label" [for]="'mat-' + m.id + '-' + mat.url">{{ mat.title }}</label>
               </div>
+              </ng-container>
               <button type="button" class="btn btn-primary btn-sm mt-2" data-testid="curso-certificado"
                       *ngIf="m.progress.certificate_available" (click)="baixarCertificado(m)">Baixar certificado</button>
             </div>
@@ -190,12 +194,37 @@
   <div class="card mb-0 chat-card">
     <div class="chat-mensagens">
       <p *ngIf="chatMessages.length === 0" class="text-muted small mb-0">Nenhuma mensagem ainda. Pergunte algo ao assistente.</p>
-      <div *ngFor="let msg of chatMessages"
-           data-testid="chat-message"
-           [attr.data-role]="msg.role"
-           class="chat-bolha text-break"
-           [ngClass]="msg.role === 'user' ? 'chat-bolha-aluno' : 'chat-bolha-bot'">{{ msg.content }}</div>
-      <div *ngIf="chatAcoes.length || chatWhatsapp" class="chat-acoes">
+      <ng-container *ngFor="let msg of chatMessages">
+        <div data-testid="chat-message"
+             [attr.data-role]="msg.role"
+             class="chat-bolha text-break"
+             [ngClass]="msg.role === 'user' ? 'chat-bolha-aluno' : 'chat-bolha-bot'">
+          <ng-container *ngIf="msg.role === 'user'; else respostaFormatada">{{ msg.content }}</ng-container>
+          <ng-template #respostaFormatada><div class="chat-texto" [innerHTML]="msg.content | chatMarkdown"></div></ng-template>
+        </div>
+        <p *ngIf="msg.role === 'assistant' && msg.fontes?.length" class="chat-fonte"
+           data-testid="chat-fonte">Fonte: {{ msg.fontes?.join(', ') }}</p>
+        <p *ngIf="msg.role === 'assistant' && msg.piiMasked" class="chat-aviso-pii"
+           data-testid="chat-aviso-pii">Para sua segurança, removemos dados pessoais (CPF, cartão, telefone ou e-mail) da
+          sua mensagem antes de enviá-la ao assistente.</p>
+        <div *ngIf="msg.role === 'assistant' && msg.replyId" class="chat-feedback">
+          <button type="button" class="chat-feedback-btn" data-testid="chat-feedback-up"
+                  aria-label="Resposta útil" title="Resposta útil"
+                  [attr.aria-pressed]="msg.feedback === 'up' ? 'true' : 'false'"
+                  [class.ativo]="msg.feedback === 'up'"
+                  [disabled]="!!msg.feedback || msg.enviandoFeedback"
+                  (click)="enviarFeedback(msg, 'up')">👍</button>
+          <button type="button" class="chat-feedback-btn" data-testid="chat-feedback-down"
+                  aria-label="Resposta não útil" title="Resposta não útil"
+                  [attr.aria-pressed]="msg.feedback === 'down' ? 'true' : 'false'"
+                  [class.ativo]="msg.feedback === 'down'"
+                  [disabled]="!!msg.feedback || msg.enviandoFeedback"
+                  (click)="enviarFeedback(msg, 'down')">👎</button>
+        </div>
+      </ng-container>
+      <div *ngIf="chatAcoes.length || chatWhatsapp || chatAbrir.length" class="chat-acoes">
+        <button *ngFor="let acao of chatAbrir" type="button" class="btn btn-sm btn-outline-primary"
+                data-testid="chat-acao-abrir" (click)="abrirAtalho(acao)">{{ acao.label }}</button>
         <button *ngFor="let acao of chatAcoes" type="button" class="btn btn-sm btn-outline-primary"
                 data-testid="chat-acao-matricular" (click)="abrirMatricula(acao)">{{ acao.label }}</button>
         <a *ngIf="chatWhatsapp" class="btn btn-sm btn-whatsapp" data-testid="chat-acao-whatsapp"

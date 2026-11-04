@@ -414,6 +414,10 @@ async def dashboard_observabilidade_ia(request: Request, current_user: AuthConte
         usage.pop("cost_usd", None)
         per_day = [{chave: valor for chave, valor in dia.items() if chave != "cost_usd"} for dia in per_day]
 
+    guards = Database.get_ai_guard_stats()
+    feedback = Database.get_ai_feedback_counts()
+    avaliadas = feedback["up"] + feedback["down"]
+
     return {
         "status": "success",
         "metrics": {
@@ -427,5 +431,10 @@ async def dashboard_observabilidade_ia(request: Request, current_user: AuthConte
             "per_day": per_day,
             # F6 (D77): encaminhamentos ao WhatsApp; não é custo, vale para todos os perfis.
             "handoff": Database.get_ai_handoff_stats(),
+            # GR5 (D95): bloqueios por tipo do vocabulário fechado, o "não sei" da GR1 e o feedback 👍/👎. Não é custo:
+            # vale para todos os perfis internos. rate = up / (up + down); null sem feedback (0 seria "100% negativo").
+            "guards": guards,
+            "no_source": guards["by_type"]["no_source"],
+            "feedback": {**feedback, "rate": round(feedback["up"] / avaliadas, 4) if avaliadas else None},
         },
     }

@@ -19,7 +19,8 @@ from core.security import (
     TOKEN_TTL_SECONDS,
 )
 from core.audit import change, legacy_actor, record_audit
-from core import login_limit
+from core import conteudos, login_limit
+from core.emails import email_valido
 from core.notifications import send_password_setup_link
 from core.password_setup import emitir_token_definicao
 from admin import course_draft
@@ -49,8 +50,9 @@ class CourseInput(BaseModel):
     id: str
     name: str
     description: str
-    price: float
-    duration_hours: int
+    # D104: a regra da tela (preço e duração positivos) vale também para a API.
+    price: float = Field(gt=0, allow_inf_nan=False)
+    duration_hours: int = Field(gt=0)
     level: str
     target_audience: str
     objectives: List[str]
@@ -489,6 +491,7 @@ async def delete_course(course_id: str, request: Request, current_user: AuthCont
             )
             raise HTTPException(status_code=409, detail=ERR_CURSO_COM_MATRICULAS)
 
+        conteudos.remover_do_curso(course_id)
         loaded_courses = reload_manager_agent_courses(request, f"course deletion: {course_id}")
         record_audit(
             "course.delete",
@@ -837,8 +840,6 @@ async def reactivate_student(user_id: int, current_user: AuthContext = Depends(r
 # --- Matrícula manual pela Gestão (U4, D81) -----------------------------------------------------------------------
 
 MOTIVO_MIN, MOTIVO_MAX = 5, 300
-EMAIL_MAX = 254
-_PADRAO_EMAIL = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
 ERR_JA_MATRICULADO = "O aluno já está matriculado neste curso."
 ERR_EMAIL_FUNCIONARIO = "Este e-mail pertence a um funcionário."
 ERR_TURMA_NAO_ENCONTRADA = "Turma não encontrada"
@@ -860,7 +861,7 @@ class ManualEnrollmentInput(BaseModel):
     @classmethod
     def _email_valido(cls, valor: str) -> str:
         valor = (valor or "").strip()
-        if len(valor) > EMAIL_MAX or not _PADRAO_EMAIL.fullmatch(valor):
+        if not email_valido(valor):
             raise ValueError("Informe um e-mail válido.")
         return valor
 
