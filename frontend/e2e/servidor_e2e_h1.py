@@ -59,7 +59,7 @@ def _ambiente_h1(cors_origin: str) -> None:
 
 
 def _iniciar_cobertura_qa():
-    """Suíte de QA (D97): mede a cobertura do backend neste processo, gravando de 10 em 10 s (é encerrado à força)."""
+    """Suíte de QA (D104): mede a cobertura do backend neste processo, gravando de 10 em 10 s (é encerrado à força)."""
     destino = os.getenv("QA_COVERAGE")
     if not destino:
         return
@@ -80,7 +80,7 @@ def _iniciar_cobertura_qa():
 
 
 def _instrumentar_qa(app) -> None:
-    """Suíte de QA (D97): registra método, caminho e status de cada chamada para medir a cobertura de endpoints."""
+    """Suíte de QA (D104): registra método, caminho e status de cada chamada para medir a cobertura de endpoints."""
     destino = os.getenv("QA_LOG_ROTAS")
     if not destino:
         return

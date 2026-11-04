@@ -26,7 +26,11 @@
           <tr *ngFor="let c of conteudos; let i = index" data-testid="conteudo-linha">
             <td class="text-break">{{ c.is_extra ? 'Extra' : c.module }}</td>
             <td class="text-break">{{ c.title }}</td>
-            <td>{{ rotuloTipo(c) }}</td>
+            <td>
+              {{ rotuloTipo(c) }}
+              <small class="d-block text-muted" data-testid="conteudo-assistente" *ngIf="c.text_status === 'ok'">O assistente lê este arquivo</small>
+              <small class="d-block text-muted" data-testid="conteudo-assistente" *ngIf="c.text_status === 'empty'">Sem texto para o assistente</small>
+            </td>
             <td>{{ c.published ? 'Publicado' : 'Oculto' }}</td>
             <td class="text-end text-nowrap">
               <ng-container *ngIf="confirmandoId !== c.id">

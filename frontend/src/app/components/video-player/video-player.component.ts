@@ -40,7 +40,7 @@ function carregarScript(url: string): Promise<void> {
   return scripts[url];
 }
 
-// Player único da sala e da prévia da Gestão (D98). Mede o tempo realmente assistido: pulo na barra não conta.
+// Player único da sala e da prévia da Gestão (D105). Mede o tempo realmente assistido: pulo na barra não conta.
 @Component({
   selector: 'app-video-player',
   template: `<div class="ratio ratio-16x9 video-player" data-testid="sala-player"><div #alvo></div></div>`

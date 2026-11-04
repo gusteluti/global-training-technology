@@ -1,4 +1,4 @@
-"""Conteúdos da sala do curso na Gestão (C2/C4, D96). Só o perfil Gestão edita; toda alteração vai para a auditoria."""
+"""Conteúdos da sala do curso na Gestão (C2/C4, D103). Só o perfil Gestão edita; toda alteração vai para a auditoria."""
 
 from typing import Literal, Optional, Tuple
 
@@ -139,6 +139,7 @@ def enviar_arquivo(
         "module": module, "title": title, "kind": "file", "is_extra": is_extra, "published": published,
         "file_name": sanitizar_nome_arquivo(file.filename), "stored_name": conteudos.salvar_arquivo(extensao, dados),
     })
+    conteudo = conteudos.preparar_texto(conteudo)
     _auditar("course_content.create", "Arquivo enviado", conteudo, current_user)
     return {"status": "success", "content": _publico(conteudo)}
 
@@ -161,8 +162,8 @@ def trocar_arquivo(conteudo_id: int, file: UploadFile = File(...), current_user:
     if conteudo["kind"] != "file":
         raise HTTPException(status_code=422, detail=ERR_NAO_E_ARQUIVO)
     extensao, dados = _ler_arquivo(file)
-    atualizado = conteudos.trocar_arquivo(conteudo, sanitizar_nome_arquivo(file.filename),
-                                          conteudos.salvar_arquivo(extensao, dados))
+    atualizado = conteudos.preparar_texto(conteudos.trocar_arquivo(
+        conteudo, sanitizar_nome_arquivo(file.filename), conteudos.salvar_arquivo(extensao, dados)))
     _auditar("course_content.update", "Arquivo trocado", atualizado, current_user)
     return {"status": "success", "content": _publico(atualizado)}
 

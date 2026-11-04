@@ -1,15 +1,19 @@
-"""C1-C4 - Sala do curso (D96): processo enxuto da D84, caminho principal e segurança essencial."""
+"""C1-C4 - Sala do curso (D103): processo enxuto da D84, caminho principal e segurança essencial."""
 
+import io
 import json
 import sqlite3
 import time
 import uuid
+import zipfile
 
 import pytest
 from fastapi.testclient import TestClient
 
 import admin.routes as admin_routes
+from agents import rag
 from core import conteudos
+from core.receipt_pdf import gerar_pdf_de_linhas
 from core import progresso as progresso_core
 from core.security import create_access_token, get_password_hash
 from db import Database
@@ -439,3 +443,86 @@ def test_avanco_em_matricula_alheia_devolve_404(client, gestao):
 
 def test_gestao_recebe_o_player_da_previa(client, gestao):
     assert _video(client, gestao)["embed_url"].startswith("https://www.youtube-nocookie.com/embed/")
+
+
+# --- D107: o assistente lê os arquivos do curso ------------------------------------------------------------------
+
+TERMO = "fotossintese"
+
+
+def _pdf_com_texto(*linhas):
+    return gerar_pdf_de_linhas([("F1", linha) for linha in linhas])
+
+
+def _base():
+    return rag.BaseInstitucional()
+
+
+def _enviar(client, gestao, dados=None, nome="apostila.pdf", curso=CURSO, **extra):
+    resposta = _arquivo(client, gestao, nome=nome, dados=dados or _pdf_com_texto(f"Capitulo sobre {TERMO} aplicada"),
+                        curso=curso, **extra)
+    assert resposta.status_code == 201, resposta.text
+    return resposta.json()["content"]
+
+
+def test_arquivo_lido_informa_a_gestao(client, gestao):
+    assert _enviar(client, gestao)["text_status"] == "ok"
+    assert "extracted_text" not in json.dumps(client.get(f"/api/admin/courses/{CURSO}/contents", headers=gestao).json())
+
+
+def test_arquivo_sem_texto_informa_a_gestao(client, gestao):
+    assert _arquivo(client, gestao, dados=PDF).json()["content"]["text_status"] == "empty"
+
+
+@pytest.mark.parametrize("aluno, ativos, encontra", [
+    (True, [CURSO], True), (True, ["outro"], False), (True, [], False), (False, [CURSO], False),
+], ids=["matriculado", "outro-curso", "sem-matricula", "visitante"])
+def test_so_o_aluno_ativo_do_curso_recebe_o_trecho(client, gestao, aluno, ativos, encontra):
+    _enviar(client, gestao)
+    achados = _base().buscar(TERMO, aluno=aluno, cursos_ativos=ativos)
+    assert bool(achados) is encontra
+    if encontra:
+        assert achados[0].titulo == "Apostila" and achados[0].secao == "Página 1"
+
+
+def test_oculto_excluido_e_trocado_acompanham_o_indice(client, gestao):
+    item = _enviar(client, gestao)
+    base = _base()
+    assert base.buscar(TERMO, aluno=True, cursos_ativos=[CURSO])
+    client.put(f"/api/admin/contents/{item['id']}", json={**item, "published": False}, headers=gestao)
+    assert base.buscar(TERMO, aluno=True, cursos_ativos=[CURSO]) == []
+    client.put(f"/api/admin/contents/{item['id']}", json={**item, "published": True}, headers=gestao)
+    novo = _pdf_com_texto("Capitulo sobre mitocondria celular")
+    client.put(f"/api/admin/contents/{item['id']}/file", files={"file": ("n.pdf", novo)}, headers=gestao)
+    assert base.buscar(TERMO, aluno=True, cursos_ativos=[CURSO]) == []
+    assert base.buscar("mitocondria", aluno=True, cursos_ativos=[CURSO])
+    client.delete(f"/api/admin/contents/{item['id']}", headers=gestao)
+    assert base.buscar("mitocondria", aluno=True, cursos_ativos=[CURSO]) == []
+
+
+def test_arquivo_antigo_e_lido_ao_montar_o_indice(client, gestao):
+    item = _enviar(client, gestao)
+    conn = sqlite3.connect(Database.DB_PATH)
+    conn.execute("UPDATE course_contents SET extracted_text = NULL WHERE id = ?", (item["id"],))
+    conn.commit()
+    conn.close()
+    assert _base().buscar(TERMO, aluno=True, cursos_ativos=[CURSO])
+    assert conteudos.obter(item["id"])["text_status"] == "ok"
+
+
+@pytest.mark.parametrize("nome, parte, xml", [
+    ("a.docx", "word/document.xml", "<w:p><w:t>Texto sobre fotossintese</w:t></w:p>"),
+    ("a.pptx", "ppt/slides/slide1.xml", "<a:p><a:t>Slide sobre fotossintese</a:t></a:p>"),
+    ("a.xlsx", "xl/sharedStrings.xml", "<si><t>Planilha sobre fotossintese</t></si>"),
+], ids=["word", "powerpoint", "excel"])
+def test_arquivos_do_office_sao_lidos(client, gestao, nome, parte, xml):
+    pacote = io.BytesIO()
+    with zipfile.ZipFile(pacote, "w") as arquivo:
+        arquivo.writestr(parte, xml)
+    _enviar(client, gestao, dados=pacote.getvalue(), nome=nome)
+    assert _base().buscar(TERMO, aluno=True, cursos_ativos=[CURSO])
+
+
+def test_arquivo_corrompido_nao_impede_o_envio(client, gestao):
+    assert _arquivo(client, gestao, dados=b"%PDF-1.4 sem estrutura").json()["content"]["text_status"] == "empty"
+    assert _arquivo(client, gestao, nome="a.docx", dados=b"PK quebrado").json()["content"]["text_status"] == "empty"

@@ -305,7 +305,10 @@ def test_d3_ajustes_design_angular_e2e(servidores, browser):
         page.locator("ul.nav-tabs button", has_text="Financeiro").first.click()
         page.wait_for_load_state("networkidle")
         linha = page.locator("tbody tr").filter(has_text=cursos["ativo"]["nome"])
-        if linha.count() == 0:
+        # O Angular pode renderizar a tabela depois do networkidle: espera a linha em vez de contar (D101).
+        try:
+            linha.first.wait_for(state="visible", timeout=8000)
+        except sync_api.TimeoutError:
             raise Falha("a tabela de transações não mostra o nome do curso")
         if page.locator("tbody td", has_text=re.compile(rf"^\s*{re.escape(cursos['ativo']['id'])}\s*$")).count():
             raise Falha("a tabela de transações ainda mostra o id do curso")

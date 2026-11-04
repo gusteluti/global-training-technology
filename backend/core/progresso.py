@@ -29,14 +29,14 @@ def _conectar() -> sqlite3.Connection:
                PRIMARY KEY (enrollment_id, url)
            )"""
     )
-    # D96: último conteúdo aberto na sala, para retomar de onde o aluno parou.
+    # D103: último conteúdo aberto na sala, para retomar de onde o aluno parou.
     conn.execute(
         """CREATE TABLE IF NOT EXISTS room_last_seen (
                enrollment_id INTEGER PRIMARY KEY,
                content_key TEXT NOT NULL
            )"""
     )
-    # D98: tempo assistido por vídeo. last_beat (epoch) limita o crédito ao tempo que passou de verdade.
+    # D105: tempo assistido por vídeo. last_beat (epoch) limita o crédito ao tempo que passou de verdade.
     conn.execute(
         """CREATE TABLE IF NOT EXISTS video_progress (
                enrollment_id INTEGER NOT NULL,

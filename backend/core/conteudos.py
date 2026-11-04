@@ -1,17 +1,22 @@
-"""Conteúdos da sala do curso (C1-C4, D96): aulas e extras por curso, em módulos.
+"""Conteúdos da sala do curso (C1-C4, D103): aulas e extras por curso, em módulos.
 
 Vídeo é sempre incorporado do YouTube ou do Vimeo; o player nasce de um id validado aqui, nunca da URL colada.
 Arquivo fica em pasta privada, com nome gerado pelo servidor, e só sai pelo endpoint que confere a matrícula.
 Os `materials` do JSON do curso continuam como estão e aparecem na sala como o módulo "Materiais".
 """
 
+import html
+import io
 import os
 import re
 import sqlite3
 import uuid
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
+
+from pypdf import PdfReader
 
 from db import Database
 
@@ -88,11 +93,17 @@ def _conectar() -> sqlite3.Connection:
                created_at TEXT NOT NULL
            )"""
     )
+    # D107: texto do arquivo para o assistente. NULL = ainda não lido; vazio = arquivo sem texto (PDF escaneado, ZIP).
+    colunas = {linha["name"] for linha in conn.execute("PRAGMA table_info(course_contents)")}
+    if "extracted_text" not in colunas:
+        conn.execute("ALTER TABLE course_contents ADD COLUMN extracted_text TEXT")
     return conn
 
 
 def _para_dict(linha: sqlite3.Row) -> Dict:
     item = dict(linha)
+    texto = item.pop("extracted_text", None)
+    item["text_status"] = None if item["kind"] != "file" else "pending" if texto is None else "ok" if texto else "empty"
     item["is_extra"] = bool(item["is_extra"])
     item["published"] = bool(item["published"])
     return item
@@ -160,7 +171,7 @@ def trocar_arquivo(conteudo: Dict, file_name: str, stored_name: str) -> Dict:
     """Troca o arquivo mantendo o id: o progresso de quem já concluiu continua valendo."""
     conn = _conectar()
     try:
-        conn.execute("UPDATE course_contents SET file_name = ?, stored_name = ? WHERE id = ?",
+        conn.execute("UPDATE course_contents SET file_name = ?, stored_name = ?, extracted_text = NULL WHERE id = ?",
                      (file_name, stored_name, conteudo["id"]))
         conn.commit()
     finally:
@@ -231,6 +242,90 @@ def caminho_do_arquivo(conteudo: Dict) -> Optional[Path]:
 
 def media_type(conteudo: Dict) -> str:
     return TIPOS_DE_ARQUIVO[Path(conteudo["stored_name"]).suffix.lower()][0]
+
+
+# --- Texto dos arquivos para o assistente (D107) -----------------------------------------------------------------------
+
+SEPARADOR_DE_PAGINA = "\f"
+MAX_CARACTERES = 400_000
+MAX_BYTES_XML = 50 * 1024 * 1024  # teto por parte do Office, contra arquivo compactado malicioso
+
+
+def _paginas_do_pdf(dados: bytes) -> List[str]:
+    return [pagina.extract_text() or "" for pagina in PdfReader(io.BytesIO(dados)).pages]
+
+
+def _xml_para_texto(xml: str) -> str:
+    return html.unescape(re.sub(r"<[^>]+>", " ", re.sub(r"</(?:w:p|a:p|si)>", "\n", xml)))
+
+
+def _partes_do_office(dados: bytes, extensao: str) -> List[str]:
+    padrao = {".docx": r"word/document\.xml", ".pptx": r"ppt/slides/slide(\d+)\.xml",
+              ".xlsx": r"xl/sharedStrings\.xml"}[extensao]
+    with zipfile.ZipFile(io.BytesIO(dados)) as arquivo:
+        partes = [i for i in arquivo.infolist() if re.fullmatch(padrao, i.filename) and i.file_size <= MAX_BYTES_XML]
+        partes.sort(key=lambda i: [int(n) for n in re.findall(r"\d+", i.filename)])
+        return [_xml_para_texto(arquivo.read(i).decode("utf-8", "replace")) for i in partes]
+
+
+def _extrair(caminho: Path) -> str:
+    """Texto do arquivo, com as páginas separadas. Arquivo ilegível ou sem texto devolve vazio."""
+    extensao = caminho.suffix.lower()
+    try:
+        dados = caminho.read_bytes()
+        paginas = _paginas_do_pdf(dados) if extensao == ".pdf" else _partes_do_office(dados, extensao) \
+            if extensao in (".docx", ".pptx", ".xlsx") else []
+    except Exception as erro:  # arquivo corrompido não pode impedir o cadastro nem derrubar o chat
+        print(f"[AVISO] Conteúdo sem texto legível: {type(erro).__name__}")
+        return ""
+    texto = SEPARADOR_DE_PAGINA.join(" ".join(p.split(" ")).strip() for p in paginas)
+    return texto[:MAX_CARACTERES] if texto.replace(SEPARADOR_DE_PAGINA, "").strip() else ""
+
+
+def preparar_texto(conteudo: Dict) -> Dict:
+    """Lê o texto do arquivo e guarda para o assistente. Chamado no envio e, para arquivos antigos, ao montar o índice."""
+    caminho = caminho_do_arquivo(conteudo)
+    conn = _conectar()
+    try:
+        conn.execute("UPDATE course_contents SET extracted_text = ? WHERE id = ?",
+                     (_extrair(caminho) if caminho else "", conteudo["id"]))
+        conn.commit()
+    finally:
+        conn.close()
+    return obter(conteudo["id"])
+
+
+def assinatura_para_o_assistente() -> Tuple:
+    """Muda quando um arquivo publicado entra, sai, é trocado ou é renomeado: o índice do RAG se reconstrói."""
+    conn = _conectar()
+    try:
+        return tuple(tuple(linha) for linha in conn.execute(
+            """SELECT id, course_id, title, stored_name FROM course_contents
+               WHERE kind = 'file' AND published = 1 ORDER BY id"""))
+    finally:
+        conn.close()
+
+
+def documentos_para_o_assistente() -> List[Dict]:
+    """Arquivos publicados com texto: {id, course_id, title, pages}. Quem pode ler cada um é decidido no RAG."""
+    conn = _conectar()
+    try:
+        linhas = [dict(l) for l in conn.execute(
+            """SELECT id, course_id, title, stored_name, extracted_text FROM course_contents
+               WHERE kind = 'file' AND published = 1 ORDER BY id""")]
+    finally:
+        conn.close()
+    documentos = []
+    for linha in linhas:
+        texto = linha["extracted_text"]
+        if texto is None:  # arquivo enviado antes desta leitura existir
+            caminho = caminho_do_arquivo(linha)
+            texto = _extrair(caminho) if caminho else ""
+            preparar_texto(linha)
+        if texto:
+            documentos.append({"id": linha["id"], "course_id": linha["course_id"], "title": linha["title"],
+                               "pages": texto.split(SEPARADOR_DE_PAGINA)})
+    return documentos
 
 
 def _apagar_arquivo(nome: Optional[str]) -> None:

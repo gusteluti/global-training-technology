@@ -1,4 +1,4 @@
-"""E2E da videoaula com vídeo real (D98): precisa de internet. Harness D58.
+"""E2E da videoaula com vídeo real (D105): precisa de internet. Harness D58.
 
 Tudo pela tela e com cliques reais no player. Para ver o navegador abrindo: E2E_VER=1.
 G1 Gestão cadastra vídeos pela tela; a prévia toca o vídeo bom e avisa sobre o vídeo inexistente.

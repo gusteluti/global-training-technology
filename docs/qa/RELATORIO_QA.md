@@ -49,7 +49,7 @@ O frontend não tem medição de cobertura de código: a cobertura dele é de te
 | CANC | Cancelamento em 7 dias (D82) | 12 | 12 | CT-CAN-01, CT-CAN-02, CT-CAN-03, CT-CAN-04, CT-CAN-05, CT-CAN-06 |
 | CAD | Cadastro, arquivamento e exclusão de cursos (D51, D68) | 29 | 29 | CT-CUR-01, CT-CUR-02, CT-CUR-03, CT-CUR-05, CT-CUR-06, CT-CUR-07, CT-CUR-08, CT-UI-16 |
 | TUR | Turmas e matrícula manual (D53, D83) | 14 | 14 | CT-TUR-01, CT-TUR-02, CT-TUR-03, CT-TUR-04 |
-| SALA | Sala do curso e certificado (D91, D96) | 43 | 43 | CT-SAL-01, CT-SAL-02, CT-SAL-03, CT-SAL-04, CT-SAL-05, CT-SAL-06, CT-SAL-07, CT-SAL-08, CT-SAL-11, CT-SAL-09, CT-SAL-10, CT-UI-14, CT-UI-15 |
+| SALA | Sala do curso e certificado (D91, D103) | 43 | 43 | CT-SAL-01, CT-SAL-02, CT-SAL-03, CT-SAL-04, CT-SAL-05, CT-SAL-06, CT-SAL-07, CT-SAL-08, CT-SAL-11, CT-SAL-09, CT-SAL-10, CT-UI-14, CT-UI-15 |
 
 ## Defeitos encontrados
 

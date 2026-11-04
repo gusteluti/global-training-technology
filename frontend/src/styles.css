@@ -145,7 +145,7 @@ a:hover { color: var(--gt-teal-dark); }
 .nav-tabs .nav-link.active {
   color: var(--gt-teal); background: transparent; border-bottom-color: var(--gt-teal);
 }
-/* D95: com o indicador deslizante, a aba ativa não desenha a própria borda; o indicador vai até ela. */
+/* D102: com o indicador deslizante, a aba ativa não desenha a própria borda; o indicador vai até ela. */
 .nav-tabs.gt-abas { position: relative; }
 .nav-tabs.gt-abas .nav-link.active { border-bottom-color: transparent; }
 .gt-abas-indicador {
@@ -154,7 +154,7 @@ a:hover { color: var(--gt-teal-dark); }
   transition: transform .3s cubic-bezier(.3, .7, .2, 1), width .3s cubic-bezier(.3, .7, .2, 1);
 }
 
-/* D95: foco por teclado sempre visível. */
+/* D102: foco por teclado sempre visível. */
 :focus-visible { outline: 2px solid var(--gt-teal); outline-offset: 2px; }
 .btn:focus-visible, .nav-link:focus-visible { outline: 2px solid var(--gt-teal); outline-offset: 2px; box-shadow: none; }
 .gt-nav :focus-visible { outline-color: #7fd8f0; }
@@ -172,12 +172,12 @@ a:hover { color: var(--gt-teal-dark); }
 
 .list-group-item-action:hover { background: var(--gt-soft-blue); color: var(--gt-teal-dark); }
 
-/* Rótulo da área (D95): informação de contexto, sem caixa alta espaçada nem versalete (sinal de página genérica). */
+/* Rótulo da área (D102): informação de contexto, sem caixa alta espaçada nem versalete (sinal de página genérica). */
 .gt-tag {
   font-size: 15px; font-weight: 600; color: var(--gt-muted); margin-bottom: 4px;
 }
 
-/* KPIs dos painéis (D95): número na cor do texto; a cor fica para gráficos e status. */
+/* KPIs dos painéis (D102): número na cor do texto; a cor fica para gráficos e status. */
 .gt-kpi {
   font-family: var(--gt-font-title); font-weight: 900; font-size: 32px; line-height: 1.1;
   color: var(--gt-text); font-variant-numeric: tabular-nums;
@@ -206,7 +206,7 @@ a:hover { color: var(--gt-teal-dark); }
   .gt-main { padding: 24px 0 40px; }
 }
 
-/* Sala do curso (D96): seleção na paleta do site; o cabeçalho fixo não cobre o conteúdo ao rolar. */
+/* Sala do curso (D103): seleção na paleta do site; o cabeçalho fixo não cobre o conteúdo ao rolar. */
 .sala-lista .list-group-item.active,
 .sala-lista .list-group-item.active:hover,
 .sala-lista .list-group-item.active:focus {

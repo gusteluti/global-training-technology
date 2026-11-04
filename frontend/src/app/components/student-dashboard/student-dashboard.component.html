@@ -194,12 +194,34 @@
   <div class="card mb-0 chat-card">
     <div class="chat-mensagens">
       <p *ngIf="chatMessages.length === 0" class="text-muted small mb-0">Nenhuma mensagem ainda. Pergunte algo ao assistente.</p>
-      <div *ngFor="let msg of chatMessages"
-           data-testid="chat-message"
-           [attr.data-role]="msg.role"
-           class="chat-bolha text-break"
-           [ngClass]="msg.role === 'user' ? 'chat-bolha-aluno' : 'chat-bolha-bot'">{{ msg.content }}</div>
-      <div *ngIf="chatAcoes.length || chatWhatsapp" class="chat-acoes">
+      <ng-container *ngFor="let msg of chatMessages">
+        <div data-testid="chat-message"
+             [attr.data-role]="msg.role"
+             class="chat-bolha text-break"
+             [ngClass]="msg.role === 'user' ? 'chat-bolha-aluno' : 'chat-bolha-bot'">{{ msg.content }}</div>
+        <p *ngIf="msg.role === 'assistant' && msg.fontes?.length" class="chat-fonte"
+           data-testid="chat-fonte">Fonte: {{ msg.fontes?.join(', ') }}</p>
+        <p *ngIf="msg.role === 'assistant' && msg.piiMasked" class="chat-aviso-pii"
+           data-testid="chat-aviso-pii">Para sua segurança, removemos dados pessoais (CPF, cartão, telefone ou e-mail) da
+          sua mensagem antes de enviá-la ao assistente.</p>
+        <div *ngIf="msg.role === 'assistant' && msg.replyId" class="chat-feedback">
+          <button type="button" class="chat-feedback-btn" data-testid="chat-feedback-up"
+                  aria-label="Resposta útil" title="Resposta útil"
+                  [attr.aria-pressed]="msg.feedback === 'up' ? 'true' : 'false'"
+                  [class.ativo]="msg.feedback === 'up'"
+                  [disabled]="!!msg.feedback || msg.enviandoFeedback"
+                  (click)="enviarFeedback(msg, 'up')">👍</button>
+          <button type="button" class="chat-feedback-btn" data-testid="chat-feedback-down"
+                  aria-label="Resposta não útil" title="Resposta não útil"
+                  [attr.aria-pressed]="msg.feedback === 'down' ? 'true' : 'false'"
+                  [class.ativo]="msg.feedback === 'down'"
+                  [disabled]="!!msg.feedback || msg.enviandoFeedback"
+                  (click)="enviarFeedback(msg, 'down')">👎</button>
+        </div>
+      </ng-container>
+      <div *ngIf="chatAcoes.length || chatWhatsapp || chatAbrir.length" class="chat-acoes">
+        <button *ngFor="let acao of chatAbrir" type="button" class="btn btn-sm btn-outline-primary"
+                data-testid="chat-acao-abrir" (click)="abrirAtalho(acao)">{{ acao.label }}</button>
         <button *ngFor="let acao of chatAcoes" type="button" class="btn btn-sm btn-outline-primary"
                 data-testid="chat-acao-matricular" (click)="abrirMatricula(acao)">{{ acao.label }}</button>
         <a *ngIf="chatWhatsapp" class="btn btn-sm btn-whatsapp" data-testid="chat-acao-whatsapp"

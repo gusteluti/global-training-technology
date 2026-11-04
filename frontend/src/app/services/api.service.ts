@@ -56,6 +56,11 @@ export class ApiService {
     return this.http.post(`${BASE}/api/student/chat`, { message }, this.authHeaders());
   }
 
+  // Feedback 👍/👎 de uma resposta do chat (GR5, D95). Só reply_id e rating: o aluno vem do JWT.
+  public sendChatFeedback(replyId: string, rating: 'up' | 'down') {
+    return this.http.post(`${BASE}/api/student/chat/feedback`, { reply_id: replyId, rating }, this.authHeaders());
+  }
+
   public getChatHistory() {
     return this.http.get(`${BASE}/api/student/chat/history`, this.authHeaders());
   }
