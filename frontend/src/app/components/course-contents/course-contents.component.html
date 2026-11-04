@@ -26,7 +26,11 @@
           <tr *ngFor="let c of conteudos; let i = index" data-testid="conteudo-linha">
             <td class="text-break">{{ c.is_extra ? 'Extra' : c.module }}</td>
             <td class="text-break">{{ c.title }}</td>
-            <td>{{ rotuloTipo(c) }}</td>
+            <td>
+              {{ rotuloTipo(c) }}
+              <small class="d-block text-muted" data-testid="conteudo-assistente" *ngIf="c.text_status === 'ok'">O assistente lê este arquivo</small>
+              <small class="d-block text-muted" data-testid="conteudo-assistente" *ngIf="c.text_status === 'empty'">Sem texto para o assistente</small>
+            </td>
             <td>{{ c.published ? 'Publicado' : 'Oculto' }}</td>
             <td class="text-end text-nowrap">
               <ng-container *ngIf="confirmandoId !== c.id">
@@ -86,10 +90,6 @@
           <label class="form-label" for="conteudo-arquivo">{{ editandoId ? 'Trocar arquivo (opcional; o progresso dos alunos é mantido)' : 'Arquivo (PDF, Word, Excel, PowerPoint ou ZIP, até 20 MB)' }}</label>
           <input id="conteudo-arquivo" type="file" class="form-control" data-testid="conteudo-arquivo"
                  accept=".pdf,.docx,.xlsx,.pptx,.zip" (change)="escolherArquivo($event)">
-        </div>
-        <div class="col-md-3" *ngIf="form.kind === 'video'">
-          <label class="form-label" for="conteudo-duracao">Duração (min)</label>
-          <input id="conteudo-duracao" type="number" min="0" class="form-control" name="duration" [(ngModel)]="form.duration_minutes">
         </div>
       </div>
       <div class="form-check mt-2">

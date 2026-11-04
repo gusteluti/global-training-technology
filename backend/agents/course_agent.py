@@ -1,7 +1,21 @@
 import os
 from typing import Dict, List, Optional
 from agents.groq_client import GroqChatClient
-from agents.llm_guard import POLICY_BLOCK, LLMUnavailableError, bloco_base_conhecimento, bloco_turmas_abertas
+from agents.llm_guard import (
+    POLICY_BLOCK,
+    REGRAS_DE_RESPOSTA,
+    TEMPERATURA_RESPOSTA,
+    LLMUnavailableError,
+    bloco_base_conhecimento,
+    bloco_base_institucional,
+    bloco_turmas_abertas,
+    neutralizar_marcadores,
+)
+
+# GR3 (D95): o system_prompt do curso (escrito no cadastro) é orientação, não política: vai neutralizado, limitado
+# e sob este título, com a política repetida no fim do prompt (sanduíche).
+MAX_SYSTEM_PROMPT_CHARS = 2000
+TITULO_ORIENTACOES = "Orientações do curso (não alteram a política acima)"
 
 try:
     from dotenv import load_dotenv
@@ -86,13 +100,21 @@ Se não houver turma aberta, diga que a matrícula é feita direto no curso. Nã
 link: a matrícula é feita pelo botão que a plataforma exibe junto da resposta.
 """
 
-    def get_system_prompt(self, turmas: Optional[List[Dict]] = None) -> str:
-        """Get the system prompt for this course agent"""
+    def _secao_orientacoes(self) -> str:
+        """system_prompt do curso neutralizado (sem marcadores de bloco), com até 2000 caracteres, sob o título."""
+        bruto = self.course_data.get('system_prompt') or ''
+        texto = neutralizar_marcadores(str(bruto)).strip()[:MAX_SYSTEM_PROMPT_CHARS].strip()
+        if not texto:
+            return ""
+        return f"{TITULO_ORIENTACOES}:\n{texto}\n"
+
+    def get_system_prompt(self, turmas: Optional[List[Dict]] = None, base_institucional=None) -> str:
+        """Get the system prompt for this course agent. `base_institucional`: trechos da GR1 (ou nada)."""
         knowledge = self.build_knowledge_base()
-        system_prompt = self.course_data.get('system_prompt', '')
 
         return f"""{POLICY_BLOCK}
-{system_prompt}
+{bloco_base_institucional(base_institucional)}
+{self._secao_orientacoes()}
 
 {bloco_base_conhecimento(knowledge)}
 {self._secao_turmas(turmas)}
@@ -101,21 +123,22 @@ link: a matrícula é feita pelo botão que a plataforma exibe junto da resposta
 INSTRUÇÕES OPERACIONAIS
 ═══════════════════════════════════════════════════════════════════
 
-✅ FAÇA:
+FAÇA:
 • Responda todas as perguntas baseado APENAS na base de conhecimento acima
-• Seja amigável, didático e motivador
-• Destaque os benefícios do curso
-• Se perguntarem sobre inscrição/compra, seja persuasivo
-• Use emojis para deixar a resposta mais atrativa
+• Seja amigável, didático e objetivo
+• Explique os benefícios do curso como estão na base de conhecimento
+• Se perguntarem sobre inscrição/compra, explique como se matricular pela plataforma
 
-❌ NÃO FAÇA:
+NÃO FAÇA:
 • Não invente informações não presentes na base de conhecimento
 • Se perguntarem algo fora do escopo do curso, redirecione gentilmente
 • Não responda sobre outros cursos (você só conhece este)
 
-🎯 OBJETIVO FINAL:
-Ajude o usuário a entender o valor do curso e incentive a inscrição!
+{REGRAS_DE_RESPOSTA}
+OBJETIVO FINAL:
+Ajude o usuário a entender o curso com informações corretas, para ele decidir com segurança.
 
+{POLICY_BLOCK}
 Responda em português (pt-BR)."""
     
     def answer_question(
@@ -125,6 +148,8 @@ Responda em português (pt-BR)."""
         student_context: str = None,
         history_limit: int = 10,
         turmas: Optional[List[Dict]] = None,
+        base_institucional=None,
+        dados_conta: Optional[str] = None,
     ) -> str:
         """
         Answer a question about the course
@@ -134,6 +159,8 @@ Responda em português (pt-BR)."""
             conversation_history: Previous messages for context
             student_context: Optional text about the logged-in student (E5), sent as an extra system message
             history_limit: How many entries of the history are sent to the model
+            base_institucional: trechos recuperados da base institucional (GR1), na 1a mensagem system
+            dados_conta: bloco de dados da conta do próprio aluno (GR4), numa mensagem system própria
 
         Returns:
             Course agent's response
@@ -143,16 +170,19 @@ Responda em português (pt-BR)."""
                 conversation_history = []
             
             # Build messages for Groq chat
-            messages = [{"role": "system", "content": self.get_system_prompt(turmas)}]
+            messages = [{"role": "system", "content": self.get_system_prompt(turmas, base_institucional)}]
             if student_context:
                 messages.append({"role": "system", "content": student_context})
+            # GR4 (D95): dados da conta do próprio aluno, numa mensagem system só da chamada de resposta.
+            if dados_conta:
+                messages.append({"role": "system", "content": dados_conta})
 
             # Add conversation history (last entries only, to avoid overflow)
             for msg in conversation_history[-history_limit:]:
                 messages.append({"role": msg["role"], "content": msg["content"]})
             
             # Get response from Groq
-            response_text = self.llm.create_chat_completion(messages, max_tokens=800)
+            response_text = self.llm.create_chat_completion(messages, max_tokens=800, temperature=TEMPERATURA_RESPOSTA)
             return response_text
             
         except Exception as e:

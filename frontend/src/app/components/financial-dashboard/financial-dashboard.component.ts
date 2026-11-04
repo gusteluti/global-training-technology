@@ -170,10 +170,15 @@ export class FinancialDashboardComponent implements OnInit, OnDestroy {
     this.chart?.destroy();
   }
 
+  private mesBr(mes: string): string {
+    const [ano, numero] = String(mes).split('-');
+    return numero ? `${numero}/${ano}` : mes;
+  }
+
   private renderRevenueChart(monthly: any[]): void {
     if (this.chart) {
       // Atualização automática (X5): troca os dados no lugar, sem redesenhar o gráfico do zero.
-      this.chart.data.labels = monthly.map(m => m.month);
+      this.chart.data.labels = monthly.map(m => this.mesBr(m.month));
       this.chart.data.datasets[0].data = monthly.map(m => m.revenue);
       this.chart.update();
       return;
@@ -181,7 +186,7 @@ export class FinancialDashboardComponent implements OnInit, OnDestroy {
     this.chart = new Chart(this.revenueChart.nativeElement, {
       type: 'bar',
       data: {
-        labels: monthly.map(m => m.month),
+        labels: monthly.map(m => this.mesBr(m.month)),
         datasets: [{
           label: 'Receita aprovada (R$)',
           data: monthly.map(m => m.revenue),

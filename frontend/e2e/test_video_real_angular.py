@@ -1,4 +1,4 @@
-"""E2E da videoaula com vídeo real (D98): precisa de internet. Harness D58.
+"""E2E da videoaula com vídeo real (D105): precisa de internet. Harness D58.
 
 Tudo pela tela e com cliques reais no player. Para ver o navegador abrindo: E2E_VER=1.
 G1 Gestão cadastra vídeos pela tela; a prévia toca o vídeo bom e avisa sobre o vídeo inexistente.
@@ -176,6 +176,38 @@ def test_videoaula_real():
             if destino:
                 aluno.screenshot(path=destino)
             raise
+        finally:
+            navegador.close()
+
+
+def test_video_assistido_uma_vez_conclui():
+    """Uma única assistida, do início ao fim, conclui a aula e o percentual acompanha."""
+    with ambiente_isolado("video1") as alvo, sync_api.sync_playwright() as p:
+        (alvo["cursos_tmp"] / "curso_video.json").write_text(json.dumps(CURSO), encoding="utf-8")
+        Database = abrir_banco(alvo["db_path"])
+        from core.security import get_password_hash  # noqa: PLC0415
+
+        aluno_id = Database.add_user(ALUNO, "Aluno Vídeo", get_password_hash(SENHA), role="student")
+        conn = sqlite3.connect(alvo["db_path"])
+        conn.execute("INSERT INTO enrollments (user_id, course_id, status) VALUES (?, 'curso_video', 'active')", (aluno_id,))
+        conn.commit()
+        conn.close()
+        token = p.request.new_context(base_url=alvo["api"]).post("/api/admin/login", data={"password": "admin123"}).json()["token"]
+        contexto = p.request.new_context(base_url=alvo["api"], extra_http_headers={"Authorization": f"Bearer {token}"})
+        contexto.post("/api/admin/courses/curso_video/contents",
+                      data={"module": "M", "title": "Aula única", "kind": "video", "url": VIDEO_CURTO})
+        navegador = p.chromium.launch(headless=os.getenv("E2E_VER") != "1", channel="chrome")
+        try:
+            aluno = navegador.new_page(viewport={"width": 1280, "height": 900})
+            aluno.set_default_timeout(TIMEOUT)
+            _entrar(aluno, alvo["base"], ALUNO, "student")
+            aluno.click('[data-testid="curso-entrar"]')
+            aluno.wait_for_url("**/student/curso/*", timeout=TIMEOUT)
+            _tocar(aluno)
+            aluno.wait_for_timeout(9000)
+            parcial = int(re.search(r"assistiu (\d+)%", _status(aluno)).group(1))
+            assert parcial >= 20, _status(aluno)
+            aluno.locator('[data-testid="sala-video-status"]', has_text="Aula concluída").wait_for(timeout=30000)
         finally:
             navegador.close()
 

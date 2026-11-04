@@ -13,7 +13,7 @@ export interface AvancoDoVideo {
 const SCRIPT_YOUTUBE = 'https://www.youtube.com/iframe_api';
 const SCRIPT_VIMEO = 'https://player.vimeo.com/api/player.js';
 const INTERVALO_MS = 1000;
-const ENVIO_A_CADA_SEGUNDOS = 10;
+const ENVIO_A_CADA_SEGUNDOS = 5;
 const SALTO_MAXIMO_SEGUNDOS = 2.5; // acima disso foi um pulo na barra, não tempo assistido
 const ESPERA_DO_PLAYER_MS = 15000;
 const YOUTUBE_TOCANDO = 1;
@@ -40,7 +40,7 @@ function carregarScript(url: string): Promise<void> {
   return scripts[url];
 }
 
-// Player único da sala e da prévia da Gestão (D98). Mede o tempo realmente assistido: pulo na barra não conta.
+// Player único da sala e da prévia da Gestão (D105). Mede o tempo realmente assistido: pulo na barra não conta.
 @Component({
   selector: 'app-video-player',
   template: `<div class="ratio ratio-16x9 video-player" data-testid="sala-player"><div #alvo></div></div>`
@@ -210,6 +210,7 @@ export class VideoPlayerComponent implements AfterViewInit, OnChanges, OnDestroy
         return;
       }
       this.duracao = duracao || this.duracao;
+      const comecou = tocando && !this.jaTocou;
       this.jaTocou = this.jaTocou || tocando;
       const passo = this.ultimaPosicao === null ? 0 : posicao - this.ultimaPosicao;
       if (tocando && passo > 0 && passo <= SALTO_MAXIMO_SEGUNDOS) {
@@ -218,6 +219,10 @@ export class VideoPlayerComponent implements AfterViewInit, OnChanges, OnDestroy
       const mudou = this.ultimaPosicao !== null && this.ultimaPosicao !== posicao;
       this.ultimaPosicao = posicao;
       const vencido = Date.now() - this.ultimoEnvio >= ENVIO_A_CADA_SEGUNDOS * 1000;
+      if (comecou) {
+        // O servidor só credita tempo depois de um primeiro envio: ele marca o início no relógio.
+        this.enviar();
+      }
       const parouEmOutroPonto = this.jaTocou && !tocando && posicao !== this.ultimaEnviada;
       if ((vencido && mudou && this.jaTocou) || parouEmOutroPonto) {
         this.enviar();

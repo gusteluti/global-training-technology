@@ -1,4 +1,4 @@
-"""Regra única de e-mail: formato aceito e forma normalizada usada para gravar e procurar contas (D97)."""
+"""Regra única de e-mail: formato aceito e forma normalizada usada para gravar e procurar contas (D104)."""
 
 import re
 from typing import Optional

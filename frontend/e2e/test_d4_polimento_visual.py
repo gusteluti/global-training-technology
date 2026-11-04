@@ -1,6 +1,6 @@
-"""E2E da D4 (D99) — polimento visual: landing sem os sinais de página genérica, acessibilidade e movimento pontual.
+"""E2E da D4 (D106) — polimento visual: landing sem os sinais de página genérica, acessibilidade e movimento pontual.
 
-Contrato (D99), verificado por estilo COMPUTADO no Chromium:
+Contrato (D106), verificado por estilo COMPUTADO no Chromium:
 Landing (servida estática, backend da F5b sem Angular):
   L1 nenhum rótulo em maiúsculas espaçadas (text-transform uppercase com letter-spacing >= 2 px) no conteúdo
   L2 o h1 não destaca uma palavra com outra cor; há um único h1 e os títulos de seção são h2

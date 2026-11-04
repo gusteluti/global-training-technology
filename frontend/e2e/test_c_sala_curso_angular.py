@@ -1,4 +1,4 @@
-"""E2E da sala do curso (D96). Harness D58.
+"""E2E da sala do curso (D103). Harness D58.
 
 G1 Gestão cadastra vídeo, extra e arquivo pela tela; link que não é de vídeo é recusado.
 A1 aluno entra pelo botão do cartão, vê módulos, extras e o player.

@@ -68,6 +68,11 @@ export class CoursesDashboardComponent implements OnInit, OnDestroy {
     this.loadCourses();
   }
 
+  // Cancelada e reembolsada não contam como inscrito.
+  private inscritos(curso: any): number {
+    return (curso.approved_enrollments || 0) + (curso.pending_enrollments || 0);
+  }
+
   ngOnDestroy(): void {
     this.chart?.destroy();
   }
@@ -351,7 +356,7 @@ export class CoursesDashboardComponent implements OnInit, OnDestroy {
     if (this.chart) {
       // Atualização automática (X5): troca os dados no lugar, sem redesenhar o gráfico do zero.
       this.chart.data.labels = this.courses.map(c => c.name || c.id);
-      this.chart.data.datasets[0].data = this.courses.map(c => c.total_enrollments);
+      this.chart.data.datasets[0].data = this.courses.map(c => this.inscritos(c));
       this.chart.update();
       return;
     }
@@ -361,7 +366,7 @@ export class CoursesDashboardComponent implements OnInit, OnDestroy {
         labels: this.courses.map(c => c.name || c.id),
         datasets: [{
           label: 'Inscritos',
-          data: this.courses.map(c => c.total_enrollments),
+          data: this.courses.map(c => this.inscritos(c)),
           backgroundColor: '#0096c7'
         }]
       },

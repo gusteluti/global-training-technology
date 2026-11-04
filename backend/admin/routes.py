@@ -50,7 +50,7 @@ class CourseInput(BaseModel):
     id: str
     name: str
     description: str
-    # D97: a regra da tela (preço e duração positivos) vale também para a API.
+    # D104: a regra da tela (preço e duração positivos) vale também para a API.
     price: float = Field(gt=0, allow_inf_nan=False)
     duration_hours: int = Field(gt=0)
     level: str

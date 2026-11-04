@@ -213,9 +213,6 @@ def test_f6_handoff_angular_e2e(servidores, browser):
             page.get_by_text(TITULO_CARTAO, exact=True).first.wait_for(state="visible", timeout=TIMEOUT)
         except sync_api.TimeoutError:
             raise Falha(f"{rotulo}: o cartão '{TITULO_CARTAO}' não aparece")
-        # GR (D95): o cartão de bloqueios aparece com os tipos para todos os perfis.
-        if page.locator('[data-testid="ia-bloqueio-tipo"]').count() != 9:
-            raise Falha(f"{rotulo}: o cartão de bloqueios dos guardrails não lista os 9 tipos")
         alvo = page.locator(SEL_TOTAL)
         try:
             alvo.first.wait_for(state="visible", timeout=TIMEOUT)

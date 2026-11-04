@@ -279,6 +279,13 @@
   .chat-messages { padding: 16px; display: flex; flex-direction: column; gap: 12px; max-height: 280px; overflow-y: auto; }
   .msg { max-width: 80%; padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.5; }
   .msg-bot { background: #f0f4f7; color: var(--text); align-self: flex-start; border-bottom-left-radius: 4px; }
+  .chat-fonte { max-width: 80%; margin: -8px 0 0; padding: 0 4px; align-self: flex-start; font-size: 11px; color: var(--muted); }
+  .chat-aviso-pii { max-width: 80%; margin: -4px 0 0; padding: 6px 10px; align-self: flex-start; font-size: 11px; color: var(--muted); background: var(--soft-blue); border-left: 3px solid var(--teal); border-radius: 6px; }
+  .chat-feedback { display: flex; gap: 6px; margin: -6px 0 0; align-self: flex-start; }
+  .chat-feedback-btn { background: #ffffff; border: 1px solid var(--card-border); border-radius: 14px; padding: 1px 9px; font-size: 12px; line-height: 1.5; cursor: pointer; }
+  .chat-feedback-btn:hover:not(:disabled) { border-color: var(--teal); }
+  .chat-feedback-btn:disabled { cursor: default; opacity: 0.55; }
+  .chat-feedback-btn[aria-pressed="true"] { opacity: 1; border-color: var(--teal); background: var(--soft-blue); }
   .msg-user { background: var(--teal); color: #ffffff; align-self: flex-end; border-bottom-right-radius: 4px; font-weight: 600; }
   .msg-processando { color: var(--muted); animation: pulsa 1.2s ease-in-out infinite; }
   @keyframes pulsa { 50% { opacity: .45; } }
@@ -675,8 +682,8 @@ function escapeHTML(value) {
 }
 function markdownToHtml(text) {
   const escaped = escapeHTML(text);
-  const linkified = escaped.replace(/\[(.*?)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
-  const codeInline = linkified.replace(/`([^`]+)`/g, '<code>$1</code>');
+  const semLinks = escaped.replace(/\[(.*?)\]\((https?:\/\/[^\s)]+)\)/g, '$1').replace(/&lt;br\s*\/?&gt;/gi, ' ');
+  const codeInline = semLinks.replace(/`([^`]+)`/g, '<code>$1</code>');
   const bolded = codeInline.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/__(.*?)__/g, '<strong>$1</strong>');
   const italicized = bolded.replace(/\*(.*?)\*/g, '<em>$1</em>').replace(/_(.*?)_/g, '<em>$1</em>');
   const lines = italicized.split('\n');
@@ -775,6 +782,95 @@ function addHandoffAction(actions) {
   msgs.appendChild(box);
   msgs.scrollTop = msgs.scrollHeight;
 }
+// Login da Área do aluno (GR4): só `{type: "login", label}` do servidor; qualquer campo a mais (ex.: `url`) descarta a
+// ação. O destino é sempre o login do aluno no APP_URL, nunca um endereço vindo da resposta. Só textContent.
+function addLoginAction(actions) {
+  if (!Array.isArray(actions)) return;
+  const acao = actions.find(a => a && typeof a === 'object' && a.type === 'login'
+    && Object.keys(a).every(k => k === 'type' || k === 'label')
+    && typeof a.label === 'string' && a.label.trim());
+  if (!acao) return;
+  const msgs = document.getElementById('chat-messages');
+  const box = document.createElement('div');
+  box.className = 'chat-acoes';
+  const link = document.createElement('a');
+  link.className = 'quick-btn';
+  link.setAttribute('data-testid', 'chat-acao-login');
+  link.href = `${APP_URL}/login?area=aluno`;
+  link.textContent = acao.label;
+  box.appendChild(link);
+  msgs.appendChild(box);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+// Fonte da resposta (GR1): títulos de `sources` do servidor, logo depois do balão do bot. Só textContent.
+function addSourceNote(sources) {
+  if (!Array.isArray(sources)) return;
+  const titulos = sources.map(f => (f && typeof f.title === 'string') ? f.title.trim() : '').filter(t => t);
+  if (!titulos.length) return;
+  const msgs = document.getElementById('chat-messages');
+  const nota = document.createElement('p');
+  nota.className = 'chat-fonte';
+  nota.setAttribute('data-testid', 'chat-fonte');
+  nota.textContent = `Fonte: ${titulos.join(', ')}`;
+  msgs.appendChild(nota);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+// Aviso de dados pessoais removidos (GR3): só quando o servidor devolve `pii_masked: true`. Só textContent.
+const AVISO_PII = 'Para sua segurança, removemos dados pessoais (CPF, cartão, telefone ou e-mail) da sua mensagem antes de enviá-la ao assistente.';
+function addPiiNotice(piiMasked) {
+  if (piiMasked !== true) return;
+  const msgs = document.getElementById('chat-messages');
+  const aviso = document.createElement('p');
+  aviso.className = 'chat-aviso-pii';
+  aviso.setAttribute('data-testid', 'chat-aviso-pii');
+  aviso.textContent = AVISO_PII;
+  msgs.appendChild(aviso);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+// Feedback 👍/👎 da resposta (GR5): só quando o servidor devolve `reply_id`. Aceito (200) trava o par e marca o
+// escolhido; falha (rede ou HTTP) libera para tentar de novo. Só createElement/textContent.
+function addFeedbackButtons(replyId, sessionId) {
+  if (typeof replyId !== 'string' || !replyId) return;
+  const msgs = document.getElementById('chat-messages');
+  const box = document.createElement('div');
+  box.className = 'chat-feedback';
+  const botoes = {};
+  const opcoes = [['up', '👍', 'Resposta útil'], ['down', '👎', 'Resposta não útil']];
+  const travar = (valor) => { Object.values(botoes).forEach(b => { b.disabled = valor; }); };
+  opcoes.forEach(([nota, icone, rotulo]) => {
+    const botao = document.createElement('button');
+    botao.type = 'button';
+    botao.className = 'chat-feedback-btn';
+    botao.setAttribute('data-testid', `chat-feedback-${nota}`);
+    botao.setAttribute('aria-label', rotulo);
+    botao.setAttribute('aria-pressed', 'false');
+    botao.title = rotulo;
+    botao.textContent = icone;
+    botao.addEventListener('click', async () => {
+      travar(true);
+      let aceito = false;
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/chat/feedback`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: sessionId, reply_id: replyId, rating: nota })
+        });
+        aceito = response.ok;
+      } catch (e) {
+        aceito = false;
+      }
+      if (aceito) {
+        botao.setAttribute('aria-pressed', 'true');
+      } else {
+        travar(false);
+      }
+    });
+    botoes[nota] = botao;
+    box.appendChild(botao);
+  });
+  msgs.appendChild(box);
+  msgs.scrollTop = msgs.scrollHeight;
+}
 function setChatStatus(text) {
   const status = document.querySelector('.chat-header-info span');
   if (status) status.textContent = text;
@@ -809,6 +905,10 @@ async function sendMsg() {
     if (data && typeof data.session_id === 'string' && data.session_id) saveChatSessionId(data.session_id);
     const botMsg = data.status === 'success' ? data.message : `Erro: ${data.message || 'não foi possível responder'}`;
     const msgs = document.getElementById('chat-messages');
+    if (data.masked_message) {
+      const baloes = msgs.querySelectorAll('.msg-user');
+      if (baloes.length) baloes[baloes.length - 1].textContent = data.masked_message;
+    }
     const lastMsg = msgs.lastElementChild;
     if (lastMsg && lastMsg.classList.contains('msg-processando')) {
       lastMsg.innerHTML = markdownToHtml(botMsg);
@@ -816,7 +916,11 @@ async function sendMsg() {
     } else {
       addMsg(botMsg, 'bot', 'msg-revelar');
     }
+    if (data.status === 'success') addSourceNote(data.sources);
+    if (data.status === 'success') addPiiNotice(data.pii_masked);
+    if (data.status === 'success') addFeedbackButtons(data.reply_id, (typeof data.session_id === 'string' && data.session_id) ? data.session_id : getChatSessionId());
     if (data.status === 'success') addEnrollActions(data.actions);
+    if (data.status === 'success') addLoginAction(data.actions);
     if (data) addHandoffAction(data.actions);
     setChatStatus('Online agora');
   } catch (error) {

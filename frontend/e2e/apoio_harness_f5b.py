@@ -5,6 +5,8 @@
   se `angular`, o `ng serve` com proxy temporário /api -> backend. Sem `angular`, o CORS do backend libera
   `cors_origin` (a landing estática). Derruba tudo e apaga o diretório temporário ao final.
   Devolve {"base", "api", "tmp", "db_path", "cursos_tmp", "llm_log"}.
+  GR1 (D95): `knowledge` opcional ({nome_do_arquivo: conteúdo}) grava a base institucional em <tmp>/knowledge e
+  passa KNOWLEDGE_DIR só ao processo do backend de teste. Sem `knowledge` nada muda (retrocompatível).
 - `semear_cursos_f5b(api, db_path)`: cria pela API da Gestão os cursos "Omega Analytics" (turmas: lotada, Alfa,
   Beta, Gama, Delta sem data e uma já iniciada) e "Sigma Design" (sem turmas), e as turmas por Database.create_class
   no banco temporário. Devolve os ids e as ações esperadas (ordem D75, até 3, com vaga).
@@ -42,7 +44,7 @@ __all__ = ["ambiente_f5b", "semear_cursos_f5b", "semear_aluno", "GESTAO_EMAIL", 
 
 
 @contextlib.contextmanager
-def ambiente_f5b(prefixo, cors_origin=None, angular=True):
+def ambiente_f5b(prefixo, cors_origin=None, angular=True, knowledge=None):
     tmp = Path(tempfile.mkdtemp(prefix=f"gt_e2e_{prefixo}_"))
     porta_api = _porta_livre("E2E_BACKEND_PORT")
     api = f"http://127.0.0.1:{porta_api}"
@@ -61,11 +63,18 @@ def ambiente_f5b(prefixo, cors_origin=None, angular=True):
     try:
         arq_api = open(log_api, "wb")
         arquivos.append(arq_api)
+        env_api = None  # herda o ambiente, como antes
+        if knowledge is not None:
+            base_tmp = tmp / "knowledge"
+            base_tmp.mkdir()
+            for nome, conteudo in knowledge.items():
+                (base_tmp / nome).write_text(conteudo, encoding="utf-8")
+            env_api = dict(os.environ, KNOWLEDGE_DIR=str(base_tmp))
         backend = _iniciar(
             [sys.executable, str(E2E_DIR / "servidor_e2e_f5b.py"), "--port", str(porta_api),
              "--db-path", str(db_path), "--outbox", str(tmp / "outbox.jsonl"),
              "--courses-dir", str(cursos_tmp), "--cors-origin", cors_origin, "--log-llm", str(llm_log)],
-            arq_api, REPO / "backend",
+            arq_api, REPO / "backend", env=env_api,
         )
         processos.append(backend)
         _esperar_http(api + "/health", 90, backend, "backend de teste", log_api)

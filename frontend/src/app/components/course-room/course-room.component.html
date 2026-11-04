@@ -54,7 +54,7 @@
             <label class="form-check-label" for="sala-concluido">Marcar como concluído</label>
           </div>
           <button type="button" class="btn btn-primary btn-sm mt-3" data-testid="sala-proxima" *ngIf="proxima"
-                  (click)="escolher(proxima)">Próxima aula</button>
+                  (click)="escolher(proxima)">Próximo conteúdo</button>
         </div>
       </div>
     </div>
@@ -67,7 +67,7 @@
                   class="list-group-item list-group-item-action d-flex justify-content-between gap-2 text-start"
                   [class.active]="atual === item" (click)="escolher(item)">
             <span class="text-break">{{ item.done ? '✓ ' : '' }}{{ item.title }}</span>
-            <small class="text-nowrap">{{ rotuloTipo(item) }}<ng-container *ngIf="item.duration_minutes"> · {{ item.duration_minutes }} min</ng-container><ng-container *ngIf="item.watched_percent && !item.done"> · {{ item.watched_percent }}%</ng-container></small>
+            <small class="text-nowrap">{{ rotuloTipo(item) }}<ng-container *ngIf="item.watched_percent && !item.done"> · {{ item.watched_percent }}%</ng-container></small>
           </button>
         </div>
       </div>
@@ -85,4 +85,5 @@
       </div>
     </div>
   </div>
+  <app-chat-sala [cursoId]="sala.course_id" [cursoNome]="sala.course_name"></app-chat-sala>
 </ng-container>

@@ -2,7 +2,7 @@
 
 Sistema visual da landing (`frontend/landing_global_training.html`) e da SPA Angular (`frontend/src`). Serve para pessoas e
 agentes de IA que forem mexer em qualquer tela: siga este arquivo para que as duas partes continuem parecendo um produto só.
-Os valores abaixo são os mesmos de `frontend/src/styles.css` (tokens `--gt-*`) e do `:root` da landing. Decisões: D66, D93, D99.
+Os valores abaixo são os mesmos de `frontend/src/styles.css` (tokens `--gt-*`) e do `:root` da landing. Decisões: D66, D93, D106.
 
 ## Assunto e público
 
@@ -79,7 +79,7 @@ Fora isso, só transições curtas (0,2 s) de cor, borda e sombra no hover. Nunc
 - Descrever o fluxo real (a matrícula acontece na área do aluno, o pagamento é pelo Mercado Pago, os materiais aparecem
   quando o pagamento é confirmado). Não prometer o que o sistema não faz.
 - Erros dizem o que houve e como resolver, sem pedir desculpa vaga.
-- Os números do hero (10k+, 500+, 100%) são ilustrativos do protótipo, mantidos por decisão do PM (D99).
+- Os números do hero (10k+, 500+, 100%) são ilustrativos do protótipo, mantidos por decisão do PM (D106).
 
 ## Como verificar
 
