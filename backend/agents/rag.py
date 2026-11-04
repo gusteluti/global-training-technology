@@ -50,7 +50,7 @@ curso cursos
 """.split())
 
 PEDIDO_DE_MATERIAL = frozenset("""material materiais conteudo conteudos apostila apostilas aula aulas video videos
-modulo modulos""".split())
+modulo modulos pdf pdfs arquivo arquivos""".split())
 
 _TOKEN = re.compile(r"[a-z0-9]+")
 _CABECALHO = re.compile(r"\A﻿?---[ \t]*\r?\n(.*?)\r?\n---[ \t]*(?:\r?\n|\Z)", re.S)
@@ -182,7 +182,7 @@ def trechos_dos_arquivos() -> List[Trecho]:
                 trechos.append(Trecho(f"conteudo:{documento['id']}", documento["title"], f"Página {numero}", "aluno",
                                       documento["course_id"], pedaco))
     for sumario in conteudos.sumarios_para_o_assistente():
-        for pedaco in _partir(sumario["text"]):
+        for pedaco in _partir(mascarar_pii(sumario["text"])[0]):
             trechos.append(Trecho(f"sala:{sumario['course_id']}", sumario["title"], "", "aluno", sumario["course_id"], pedaco))
     return trechos
 

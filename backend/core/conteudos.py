@@ -249,6 +249,7 @@ def media_type(conteudo: Dict) -> str:
 
 SEPARADOR_DE_PAGINA = "\f"
 MAX_CARACTERES = 400_000
+MAX_ASSUNTO = 280  # início do arquivo que acompanha o título na lista do curso
 MAX_BYTES_XML = 50 * 1024 * 1024  # teto por parte do Office, contra arquivo compactado malicioso
 
 
@@ -330,12 +331,14 @@ def sumarios_para_o_assistente() -> List[Dict]:
     """Lista do que cada curso oferece na sala: {course_id, title, text}. Responde "quais materiais tem?", que não está
     no texto de nenhuma apostila. Curso sem conteúdo fica de fora."""
     rotulos = {"video": "Vídeo", "file": "Apostila ou arquivo", "link": "Link"}
+    assuntos = {d["id"]: " ".join(" ".join(d["pages"]).split())[:MAX_ASSUNTO] for d in documentos_para_o_assistente()}
     sumarios = []
     for curso in _cursos():
         linhas = [f"- Material: {m.get('title')}" for m in curso["materials"] if m.get("title")]
         for conteudo in listar(curso["id"], so_publicados=True):
             grupo = "Conteúdo extra" if conteudo["is_extra"] else conteudo["module"]
-            linhas.append(f"- {grupo}: {rotulos[conteudo['kind']]}: {conteudo['title']}")
+            assunto = f". Assunto: {assuntos[conteudo['id']]}" if conteudo["id"] in assuntos else ""
+            linhas.append(f"- {grupo}: {rotulos[conteudo['kind']]}: {conteudo['title']}{assunto}")
         if linhas:
             titulo = f"Conteúdos do curso {curso['name']}"
             texto = (f"Materiais, aulas, apostilas, vídeos e conteúdos disponíveis na sala do curso {curso['name']}, "

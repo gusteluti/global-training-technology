@@ -150,6 +150,24 @@ def test_llm_lista_materiais(r):
     assert "Apostila do Inventario" not in texto, texto
 
 
+@ct("CT-LLM-11", "SALA-IA", "UC", "Pergunta geral de vagas responde com as turmas abertas, inclusive para visitante")
+def test_llm_vagas_sem_curso(r):
+    corpo = {"course_id": "", "name": "Turma Aurora", "starts_on": "2030-03-10", "schedule": "Seg e Qua, 19h", "capacity": 12}
+    curso, _ = cenario(r, [FATO])
+    assert r.post("/api/admin/classes", {**corpo, "course_id": curso}, r.tk["admin"]).s in (200, 201)
+    texto, _ = perguntar(r, None, "Quais turmas estão com vagas abertas?", "vagas na landing")
+    assert "Aurora" in texto, texto
+
+
+@ct("CT-LLM-12", "SALA-IA", "UC", "Na sala, perguntar o que há nos PDFs traz o assunto do arquivo")
+def test_llm_assunto_dos_pdfs(r):
+    curso, aluno = cenario(r, ["Curva ABC classifica os itens do estoque pela importancia no faturamento."], "Apostila de Curva ABC")
+    resposta = r.post("/api/student/chat", {"message": "O que contém nos PDFs dessas aulas?", "course_id": curso}, aluno.tk)
+    REGISTRO.append({"caso": "assunto dos PDFs", "pergunta": "O que contém nos PDFs dessas aulas?", "resposta": resposta.j["message"],
+                     "fontes": [f["title"] for f in resposta.j.get("sources", [])]})
+    assert "ABC" in resposta.j["message"], resposta.j["message"]
+
+
 @ct("CT-LLM-09", "SALA-IA", "SEC", "Pedido de dado de outro aluno que apareça em apostila não vira resposta com CPF")
 def test_llm_dado_pessoal(r):
     _, aluno = cenario(r, ["Lista de presenca: Carla Mendes, CPF 529.982.247-25, telefone (11) 91234-5678."])

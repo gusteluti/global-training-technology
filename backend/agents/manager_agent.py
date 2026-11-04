@@ -28,6 +28,8 @@ from agents.llm_guard import (
     InputBlockedError,
     LLMUnavailableError,
     bloco_base_institucional,
+    bloco_turmas_abertas,
+    normalizar,
     SaidaFiltrada,
     avaliar_saida,
     entrada_bloqueada,
@@ -52,6 +54,7 @@ except ImportError:
 _SESSION_ID = re.compile(r"[0-9a-f]{32}")
 
 MAX_ENROLL_ACTIONS = 3
+_PEDE_TURMAS = re.compile(r"\b(turmas?|vagas?|horarios?|inicio|comeca|comecam)\b")
 # S9 (D79): teto de sessões anônimas em memória; ao abrir uma nova acima do teto, sai a menos recente.
 MAX_ANON_SESSIONS = 5000
 LABEL_MATRICULAR_CURSO = "Matricular no curso"
@@ -340,7 +343,7 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
         valores pagos do bloco de dados da conta do próprio aluno também contam como verificados."""
         dados_conta = dados_conta or dados_aluno.DadosConta()
         return avaliar_saida(
-            resposta, precos_do_catalogo(self.courses.values()), curso_roteado=bool(curso), turmas=turmas,
+            resposta, precos_do_catalogo(self.courses.values()), curso_roteado=bool(curso) or bool(turmas), turmas=turmas,
             datas_verificadas=dados_conta.datas, valores_verificados=dados_conta.valores,
         )
 
@@ -450,6 +453,8 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
         course_id, is_specific = self.identify_course_intent(user_message)
         curso = course_id if is_specific and course_id in self.course_agents else None
         turmas = self._turmas_abertas(curso) if curso else None
+        # D107: pergunta de turma ou vaga sem curso citado responde com as turmas abertas de todo o catálogo.
+        turmas_do_catalogo = self._turmas_do_catalogo() if not curso and _PEDE_TURMAS.search(normalizar(consulta)) else None
 
         try:
             if curso:
@@ -461,6 +466,7 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
                 resposta = self._answer_general_question(
                     user_message, conversation_history, student_context=student_context, history_limit=history_limit,
                     base_institucional=trechos, dados_conta=dados_aluno.mensagem_dados_conta(dados_conta),
+                    turmas_do_catalogo=turmas_do_catalogo,
                 )
         except LLMUnavailableError as erro:
             ai_observability.registrar_interacao("llm_error", curso, guard=guard_entrada)
@@ -469,7 +475,7 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
             raise
 
         # GR2: as turmas abertas já lidas acima são a única fonte de datas verificáveis (sem nova consulta).
-        saida = self._filtrar_saida(resposta, curso, turmas, dados_conta)
+        saida = self._filtrar_saida(resposta, curso, turmas if curso else turmas_do_catalogo, dados_conta)
         if saida.barrada:
             outcome = "output_blocked"
         elif curso:
@@ -489,6 +495,14 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
         except Exception as e:
             print(f"Error searching institutional base: {type(e).__name__}")
             return []
+
+    def _turmas_do_catalogo(self) -> Optional[List[Dict]]:
+        """Turmas abertas de todos os cursos, com o nome do curso junto do nome da turma."""
+        todas: List[Dict] = []
+        for course_id, curso in self.courses.items():
+            for turma in self._turmas_abertas(course_id) or []:
+                todas.append({**turma, "name": f"{curso.get('name')}: {turma.get('name')}"})
+        return todas
 
     @staticmethod
     def _turmas_abertas(course_id: str) -> Optional[List[Dict]]:
@@ -547,7 +561,7 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
 
     def _answer_general_question(
         self, user_message: str, history: List, student_context: str = None, history_limit: int = 10,
-        base_institucional=None, dados_conta: str = None,
+        base_institucional=None, dados_conta: str = None, turmas_do_catalogo: Optional[List[Dict]] = None,
     ) -> str:
         """Answer a general question using the LLM"""
         try:
@@ -558,6 +572,11 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
             # GR4 (D95): dados da conta do próprio aluno, numa mensagem system só da chamada de resposta.
             if dados_conta:
                 messages.append({"role": "system", "content": dados_conta})
+            if turmas_do_catalogo is not None:
+                messages.append({"role": "system", "content": (
+                    "TURMAS ABERTAS DO CATÁLOGO (lista fornecida pela plataforma):\n"
+                    f"{bloco_turmas_abertas(turmas_do_catalogo)}\n"
+                    "Responda sobre turmas e vagas com esta lista, citando curso, início, horário e vagas.")})
 
             # Add conversation history (last entries only, to avoid overflow)
             for msg in history[-history_limit:]:
