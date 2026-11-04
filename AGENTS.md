@@ -208,6 +208,11 @@ py -3 -m pytest frontend/e2e/test_qa_istqb.py -q  # suíte de QA, 518 casos (D10
 Portas e esperas podem ser fixadas com `E2E_BACKEND_PORT`, `E2E_FRONT_PORT` e `E2E_NG_TIMEOUT`. Se houver um `ng serve` seu na
 porta 4200, ele não é usado nem encerrado. Cada e2e leva de 20 a 90 s. Contagens validadas em 21/10/2026: os 37 e2e passaram, um por vez (~25 min).
 
+### 6.3.1 Dados de demonstração
+Para testar à mão, sem dados reais, rode a partir de `backend/`: `python seed_demo.py`. Cria contas de teste (a senha é impressa
+no final), turmas, matrículas e conteúdos no curso Excel Profissional. Pode rodar mais de uma vez e não roda com
+`APP_ENV=production`. Para a compra sair aprovada na hora, use `APP_ENV=development` e `PAYMENTS_MOCK=1` no `backend/.env`.
+
 ### 6.4 Build do Angular
 ```
 cd frontend

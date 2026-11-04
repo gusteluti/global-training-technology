@@ -43,6 +43,12 @@ export class ChatMarkdownPipe implements PipeTransform {
         continue;
       }
       fecharTabela();
+      const titulo = /^#{1,6}\s+(.*)$/.exec(linha);
+      if (titulo) {
+        fecharLista();
+        html += `<p><strong>${titulo[1]}</strong></p>`;
+        continue;
+      }
       const marcador = /^[*+-]\s+(.*)$/.exec(linha);
       const numero = /^\d+\.\s+(.*)$/.exec(linha);
       const item = marcador || numero;

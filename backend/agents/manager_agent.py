@@ -54,6 +54,7 @@ except ImportError:
 _SESSION_ID = re.compile(r"[0-9a-f]{32}")
 
 MAX_ENROLL_ACTIONS = 3
+_SEM_RESPOSTA = re.compile(r"\bnao (?:tenho|temos|disponho de) (?:essa |esta )?informac")
 _PEDE_TURMAS = re.compile(r"\b(turmas?|vagas?|horarios?|inicio|comeca|comecam)\b")
 # S9 (D79): teto de sessões anônimas em memória; ao abrir uma nova acima do teto, sai a menos recente.
 MAX_ANON_SESSIONS = 5000
@@ -484,7 +485,9 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
             outcome = "unresolved"
         ai_observability.registrar_interacao(outcome, curso, user_message, guard=saida.guard or guard_entrada)
         return RespostaChat(
-            texto=saida.texto, curso=curso, barrada=saida.barrada, turmas=turmas, fontes=rag.fontes(trechos),
+            texto=saida.texto, curso=curso, barrada=saida.barrada, turmas=turmas,
+            # D107: resposta que admite não saber não tem fonte para citar.
+            fontes=[] if _SEM_RESPOSTA.search(normalizar(saida.texto)) else rag.fontes(trechos),
             mensagem=user_message, pii_masked=pii, intencoes=intencoes,
         )
 

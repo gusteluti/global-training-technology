@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { Component, ElementRef, Input, ViewChild } from '@angular/core';
 import { ApiService } from '../../services/api.service';
 
 const MSG_ERRO = 'Não foi possível enviar a mensagem. Tente novamente.';
@@ -23,6 +23,7 @@ export class ChatSalaComponent {
   texto = '';
   enviando = false;
   erro = '';
+  @ViewChild('lista') private lista?: ElementRef<HTMLElement>;
 
   constructor(private api: ApiService) { }
 
@@ -47,6 +48,13 @@ export class ChatSalaComponent {
         ];
         this.texto = '';
         this.enviando = false;
+        // A resposta nova fica à vista, mesmo depois de várias perguntas.
+        setTimeout(() => {
+          const caixa = this.lista?.nativeElement;
+          if (caixa) {
+            caixa.scrollTop = caixa.scrollHeight;
+          }
+        });
       },
       error: () => {
         this.erro = MSG_ERRO;

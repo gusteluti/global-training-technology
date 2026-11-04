@@ -3,7 +3,7 @@
     <h5 class="mb-1">Dúvidas sobre este curso</h5>
     <p class="small text-muted">O assistente responde com base nas apostilas e nos conteúdos de {{ cursoNome }}. Não envie dados sensíveis.</p>
 
-    <div class="sala-chat-mensagens" *ngIf="mensagens.length">
+    <div class="sala-chat-mensagens" #lista *ngIf="mensagens.length">
       <ng-container *ngFor="let m of mensagens">
         <div class="sala-chat-bolha" data-testid="sala-chat-msg" [attr.data-role]="m.role"
              [class.sala-chat-aluno]="m.role === 'user'">

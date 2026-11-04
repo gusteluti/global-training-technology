@@ -208,6 +208,11 @@ def test_video_assistido_uma_vez_conclui():
             parcial = int(re.search(r"assistiu (\d+)%", _status(aluno)).group(1))
             assert parcial >= 20, _status(aluno)
             aluno.locator('[data-testid="sala-video-status"]', has_text="Aula concluída").wait_for(timeout=30000)
+            aluno.wait_for_timeout(6000)  # até o vídeo terminar e sair o último envio
+            conn = sqlite3.connect(alvo["db_path"])
+            assistido, duracao = conn.execute("SELECT watched, duration FROM video_progress").fetchone()
+            conn.close()
+            assert assistido >= 0.95 * duracao, (assistido, duracao)
         finally:
             navegador.close()
 

@@ -6,12 +6,14 @@ import sqlite3
 import time
 import uuid
 import zipfile
+from decimal import Decimal
 
 import pytest
 from fastapi.testclient import TestClient
 
 import admin.routes as admin_routes
 from agents import rag
+from agents.llm_guard import cita_valor_fora_do_catalogo
 from core import conteudos
 from core.receipt_pdf import gerar_pdf_de_linhas
 from core import progresso as progresso_core
@@ -556,3 +558,12 @@ def test_conteudo_oculto_nao_entra_na_lista_do_curso(client, gestao):
     _video(client, gestao, title="Aula rascunho", published=False)
     achados = _base().buscar("Quais materiais tem no Curso Sala?", aluno=True, cursos_ativos=[CURSO])
     assert "Aula rascunho" not in achados[0].texto
+
+
+@pytest.mark.parametrize("valor", ["R$\u202f1\u202f290,00", "R$ 1 290,00", "R$\u00a01.290,00", "R$ 1.290,00"], ids=["fino", "espaco", "nbsp", "ponto"])
+def test_preco_com_espaco_no_milhar_nao_vira_oferta(valor):
+    assert not cita_valor_fora_do_catalogo(f"Preço: {valor}", {Decimal("1290.00")})
+
+
+def test_preco_errado_com_espaco_continua_barrado():
+    assert cita_valor_fora_do_catalogo("Preço: R$ 1 190,00", {Decimal("1290.00")})

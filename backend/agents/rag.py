@@ -83,10 +83,16 @@ def tokens(texto: Optional[str]) -> List[str]:
     return _TOKEN.findall(_sem_acento(texto or ""))
 
 
+# D107: a busca não tem radical; os verbos que o aluno usa precisam chegar ao substantivo dos documentos.
+_SINONIMOS = {"cancelo": "cancelamento", "cancelar": "cancelamento", "cancela": "cancelamento", "reembolsar": "reembolso",
+              "parcelar": "parcelamento", "parcela": "parcelamento"}
+
+
 def termos_da_consulta(texto: Optional[str]) -> List[str]:
     """Termos da consulta sem stopwords e sem repetição, na ordem em que aparecem."""
     vistos: List[str] = []
     for token in tokens(texto):
+        token = _SINONIMOS.get(token, token)
         if token in STOPWORDS or token in vistos:
             continue
         vistos.append(token)
@@ -315,9 +321,11 @@ class BaseInstitucional:
             trechos = self._trechos
         achados: List[Trecho] = []
         for rowid, nota in linhas:
-            if nota > CORTE_BM25:
-                continue
             trecho = trechos[rowid]
+            # D107: o corte vale só para a base institucional. A nota considera todos os cursos, então um assunto comum a
+            # vários deles derrubaria a apostila do próprio aluno.
+            if nota > CORTE_BM25 and trecho.curso is None:
+                continue
             if not _visivel(trecho, aluno, ativos) or not _aderente(trecho, termos):
                 continue
             achados.append(trecho)

@@ -136,6 +136,22 @@ def test_rag_chat_na_sala(s):
     assert s.post("/api/student/chat", {**pergunta, "course_id": 123}, aluno.tk).s == 422
 
 
+@ct("CT-RAG-26", "SALA-IA", "EP", "Verbo da pergunta acha a política: 'como eu cancelo' cita Cancelamento")
+@pytest.mark.parametrize("pergunta", ["como eu cancelo?", "quero cancelar", "da pra parcelar?"])
+def test_rag_verbos(s, pergunta):
+    assert fontes(s.post("/api/student/chat", {"message": pergunta}, s.aluno().tk))
+
+
+@ct("CT-RAG-27", "SALA-IA", "BVA", "Assunto presente em muitos cursos continua achando a apostila do próprio aluno")
+def test_rag_assunto_comum(s):
+    for _ in range(4):
+        curso_com_apostila(s, "contabilidade", "Apostila de Outro Curso")
+    curso, _ = curso_com_apostila(s, "contabilidade", "Apostila do Meu Curso")
+    aluno = s.aluno()
+    s.matricula(aluno.id, curso=curso)
+    assert "Apostila do Meu Curso" in perguntar(s, aluno, "contabilidade")
+
+
 @ct("CT-RAG-07", "SALA-IA", "ST", "Oculto sai, republicado volta, trocado muda o texto, excluído some, sem reiniciar")
 def test_rag_ciclo(s):
     curso, item = curso_com_apostila(s)
@@ -209,7 +225,8 @@ def test_rag_video_e_link(s):
     s.post(rota, {"module": "M", "title": "Mais harpa", "kind": "link", "url": "https://materiais.test/h"}, s.tk["admin"])
     aluno = s.aluno()
     s.matricula(aluno.id, curso=corpo["id"])
-    assert perguntar(s, aluno, "harpa") == []
+    # Os títulos entram só na lista do curso; vídeo e link não viram documento próprio.
+    assert all(titulo.startswith("Conteúdos do curso") for titulo in perguntar(s, aluno, "harpa"))
 
 
 # ===================================================================== Limites e busca

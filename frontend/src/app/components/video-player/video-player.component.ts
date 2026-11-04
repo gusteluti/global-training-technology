@@ -213,7 +213,9 @@ export class VideoPlayerComponent implements AfterViewInit, OnChanges, OnDestroy
       const comecou = tocando && !this.jaTocou;
       this.jaTocou = this.jaTocou || tocando;
       const passo = this.ultimaPosicao === null ? 0 : posicao - this.ultimaPosicao;
-      if (tocando && passo > 0 && passo <= SALTO_MAXIMO_SEGUNDOS) {
+      // Conta em qualquer estado: o início (carregando) e o fim (terminado) também são tempo assistido. O vídeo só avança
+      // sozinho tocando; pulo na barra passa do limite e fica de fora.
+      if (passo > 0 && passo <= SALTO_MAXIMO_SEGUNDOS) {
         this.assistidoPendente += passo;
       }
       const mudou = this.ultimaPosicao !== null && this.ultimaPosicao !== posicao;
@@ -221,7 +223,7 @@ export class VideoPlayerComponent implements AfterViewInit, OnChanges, OnDestroy
       const vencido = Date.now() - this.ultimoEnvio >= ENVIO_A_CADA_SEGUNDOS * 1000;
       if (comecou) {
         // O servidor só credita tempo depois de um primeiro envio: ele marca o início no relógio.
-        this.enviar();
+        this.enviar(0);
       }
       const parouEmOutroPonto = this.jaTocou && !tocando && posicao !== this.ultimaEnviada;
       if ((vencido && mudou && this.jaTocou) || parouEmOutroPonto) {
@@ -232,14 +234,15 @@ export class VideoPlayerComponent implements AfterViewInit, OnChanges, OnDestroy
     }
   }
 
-  private enviar(): void {
+  // `credito` 0 marca o início sem gastar o tempo pendente, que o servidor não creditaria no primeiro envio.
+  private enviar(credito = this.assistidoPendente): void {
     if (!this.duracao || this.ultimaPosicao === null) {
       return;
     }
     const dados = {
-      key: this.chaveAtiva, position: this.ultimaPosicao, watched_delta: this.assistidoPendente, duration: this.duracao
+      key: this.chaveAtiva, position: this.ultimaPosicao, watched_delta: credito, duration: this.duracao
     };
-    this.assistidoPendente = 0;
+    this.assistidoPendente -= credito;
     this.ultimoEnvio = Date.now();
     this.ultimaEnviada = this.ultimaPosicao;
     this.zona.run(() => this.avanco.emit(dados));

@@ -702,6 +702,13 @@ function markdownToHtml(text) {
       closeList();
       continue;
     }
+    const titulo = line.match(/^#{1,6}\s+(.*)$/);
+    if (titulo) {
+      closeList();
+      html += `<p><strong>${titulo[1]}</strong></p>`;
+      continue;
+    }
+    if (/^\|[\s:|-]+\|$/.test(line)) continue;
     const unorderedMatch = line.match(/^(?:\*|\+|\-)\s+(.*)$/);
     const orderedMatch = line.match(/^(\d+)\.\s+(.*)$/);
     if (unorderedMatch) {
