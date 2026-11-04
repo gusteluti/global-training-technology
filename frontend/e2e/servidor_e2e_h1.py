@@ -58,6 +58,17 @@ def _ambiente_h1(cors_origin: str) -> None:
     })
 
 
+def _usar_groq_real() -> None:
+    """test_qa_chat_llm_real (D107): usa a chave do backend/.env só neste processo; ela nunca vai a arquivo nem a log."""
+    from dotenv import dotenv_values  # noqa: PLC0415
+
+    valores = dotenv_values(base.BACKEND / ".env")
+    os.environ["GROQ_API_KEY"] = valores.get("GROQ_API_KEY") or ""
+    os.environ.pop("GROQ_MODEL", None)  # sem valor no .env, vale o padrão do GroqChatClient
+    if valores.get("GROQ_MODEL"):
+        os.environ["GROQ_MODEL"] = valores["GROQ_MODEL"]
+
+
 def _iniciar_cobertura_qa():
     """Suíte de QA (D104): mede a cobertura do backend neste processo, gravando de 10 em 10 s (é encerrado à força)."""
     destino = os.getenv("QA_COVERAGE")
@@ -107,7 +118,10 @@ def main() -> None:
     _ambiente_h1(args.cors_origin)
     app = base._importar_app_com_banco_isolado(Path(args.db_path))
     e8._isolar_cursos(Path(args.courses_dir))
-    e7._instalar_groq_falso()
+    if os.getenv("QA_GROQ_REAL"):
+        _usar_groq_real()
+    else:
+        e7._instalar_groq_falso()
     e7._instalar_mercado_pago_falso()
     _instrumentar_qa(app)
 

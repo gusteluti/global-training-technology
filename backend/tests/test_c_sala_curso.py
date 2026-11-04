@@ -523,6 +523,12 @@ def test_arquivos_do_office_sao_lidos(client, gestao, nome, parte, xml):
     assert _base().buscar(TERMO, aluno=True, cursos_ativos=[CURSO])
 
 
+def test_dado_pessoal_do_arquivo_nao_entra_no_indice(client, gestao):
+    _enviar(client, gestao, dados=_pdf_com_texto("Presenca: Carla, CPF 529.982.247-25, fone (11) 91234-5678"))
+    trecho = _base().buscar("Carla presenca", aluno=True, cursos_ativos=[CURSO])[0]
+    assert "529.982.247-25" not in trecho.texto and "91234" not in trecho.texto and "[cpf]" in trecho.texto
+
+
 def test_arquivo_corrompido_nao_impede_o_envio(client, gestao):
     assert _arquivo(client, gestao, dados=b"%PDF-1.4 sem estrutura").json()["content"]["text_status"] == "empty"
     assert _arquivo(client, gestao, nome="a.docx", dados=b"PK quebrado").json()["content"]["text_status"] == "empty"

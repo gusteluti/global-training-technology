@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 
+from agents.llm_guard import mascarar_pii
 from core import conteudos
 
 VAR_BASE = "KNOWLEDGE_DIR"
@@ -169,11 +170,12 @@ def trechos_do_documento(conteudo: str) -> List[Trecho]:
 
 def trechos_dos_arquivos() -> List[Trecho]:
     """Apostilas e demais arquivos publicados dos cursos (D107). São conteúdo pago: sempre `aluno` do curso, ou seja,
-    só chegam a quem tem matrícula ativa nele (`_visivel`)."""
+    só chegam a quem tem matrícula ativa nele (`_visivel`). Dado pessoal escrito no arquivo, como uma lista de presença,
+    é mascarado aqui: o modelo nunca recebe o CPF de outra pessoa."""
     trechos: List[Trecho] = []
     for documento in conteudos.documentos_para_o_assistente():
         for numero, pagina in enumerate(documento["pages"], 1):
-            for pedaco in _partir(pagina):
+            for pedaco in _partir(mascarar_pii(pagina)[0]):
                 trechos.append(Trecho(f"conteudo:{documento['id']}", documento["title"], f"Página {numero}", "aluno",
                                       documento["course_id"], pedaco))
     return trechos

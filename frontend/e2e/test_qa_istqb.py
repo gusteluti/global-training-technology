@@ -1220,7 +1220,7 @@ def test_chat_historico(s):
     dono, outro = s.aluno(), s.aluno()
     s.post("/api/student/chat", {"message": "meu cpf é 123.456.789-09"}, dono.tk)
     historico = s.get("/api/student/chat/history", dono.tk).t
-    assert "123.456.789-09" not in historico and "CPF oculto" in historico
+    assert "123.456.789-09" not in historico and "[cpf]" in historico
     assert s.get("/api/student/chat/history", outro.tk).j["messages"] == []
 
 
@@ -1252,6 +1252,21 @@ def test_chat_apostila(s):
     for tk in (outro.tk, cancelado.tk):
         assert "Apostila Secreta" not in s.post("/api/student/chat", pergunta, tk).t
     assert "Apostila Secreta" not in s.post("/api/chat", pergunta).t
+
+
+@ct("CT-IA-08", "RF24", "EP", "Feedback do chat: nota válida entra; nota inválida é 422; resposta de outra pessoa não aceita")
+def test_chat_feedback(s):
+    dono, outro = s.aluno(), s.aluno()
+    reply = s.post("/api/student/chat", {"message": "Quais cursos vocês têm?"}, dono.tk).j["reply_id"]
+    rota = "/api/student/chat/feedback"
+    assert s.post(rota, {"reply_id": reply, "rating": "regular"}, dono.tk).s == 422
+    assert s.post(rota, {"reply_id": reply, "rating": "up"}, outro.tk).s >= 400
+    assert s.post(rota, {"reply_id": reply, "rating": "up"}, dono.tk).s == 200
+    assert s.post(rota, {"reply_id": "x", "rating": "up"}).s == 401
+    anonimo = s.post("/api/chat", {"message": "Quais cursos vocês têm?"}).j
+    corpo = {"session_id": anonimo["session_id"], "reply_id": anonimo["reply_id"], "rating": "down"}
+    assert s.post("/api/chat/feedback", corpo).s == 200
+    assert s.post("/api/chat/feedback", {**corpo, "session_id": "f" * 32}).s >= 400
 
 
 @ct("CT-IA-06", "E4-LLM", "BVA", "Limite do chat: 30 por minuto passam e a 31ª recebe 429")
@@ -1524,7 +1539,7 @@ def test_ui_observabilidade(s, navegador):
     pagina = tela(navegador)
     entrar(pagina, s, *GESTAO, "admin")
     pagina.get_by_role("button", name="Observabilidade de IA", exact=True).click()
-    pagina.locator('[data-testid="ia-bloqueios-total"]').wait_for()
+    pagina.locator('[data-testid="obs-guard-total"]').wait_for()
     assert pagina.locator("canvas").count() >= 1
 
 

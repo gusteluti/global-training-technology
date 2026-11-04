@@ -38,6 +38,7 @@ REQUISITOS = {
     "CAD": "Cadastro, arquivamento e exclusão de cursos (D51, D68)",
     "TUR": "Turmas e matrícula manual (D53, D83)",
     "SALA": "Sala do curso e certificado (D91, D103)",
+    "SALA-IA": "Assistente com os arquivos do curso (D107)",
 }
 
 

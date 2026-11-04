@@ -39,6 +39,16 @@ class GroqChatClient:
         if modelo == self.model:
             # reasoning_effort é do modelo de resposta; um classificador dedicado pode não aceitar o parâmetro.
             parametros["reasoning_effort"] = "medium"
+        texto = self._chamar(parametros, modelo)
+        if not texto.strip():
+            # D107: o raciocínio do modelo pode consumir todo o limite e deixar a resposta vazia. Tenta uma vez com o
+            # dobro; vazia de novo, vira falha do provedor e o usuário nunca recebe um balão em branco.
+            texto = self._chamar({**parametros, "max_completion_tokens": max_tokens * 2}, modelo)
+            if not texto.strip():
+                raise ValueError("Resposta vazia do modelo")
+        return texto
+
+    def _chamar(self, parametros: Dict, modelo: str) -> str:
         inicio = time.perf_counter()
         try:
             response = self.client.chat.completions.create(**parametros)
@@ -49,7 +59,7 @@ class GroqChatClient:
         ai_observability.registrar_uso(
             modelo, "ok", self._latencia_ms(inicio), prompt_tokens, completion_tokens, total_tokens
         )
-        return self._extract_text(response)
+        return self._extract_text(response) or ""
 
     @staticmethod
     def _latencia_ms(inicio: float) -> int:
