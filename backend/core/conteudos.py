@@ -327,17 +327,25 @@ def _cursos() -> List[Dict]:
     return cursos
 
 
+def _amostra(paginas: List[str]) -> str:
+    """Texto real do arquivo, dizendo se é o arquivo inteiro: o modelo não deve deduzir o conteúdo pelo título."""
+    texto = " ".join(" ".join(paginas).split())
+    if len(texto) <= MAX_ASSUNTO:
+        return f'O arquivo inteiro diz apenas isto, e nada mais: "{texto}"'
+    return f'Início do arquivo, que continua depois: "{texto[:MAX_ASSUNTO]}"'
+
+
 def sumarios_para_o_assistente() -> List[Dict]:
     """Lista do que cada curso oferece na sala: {course_id, title, text}. Responde "quais materiais tem?", que não está
     no texto de nenhuma apostila. Curso sem conteúdo fica de fora."""
     rotulos = {"video": "Vídeo", "file": "Apostila ou arquivo", "link": "Link"}
-    assuntos = {d["id"]: " ".join(" ".join(d["pages"]).split())[:MAX_ASSUNTO] for d in documentos_para_o_assistente()}
+    assuntos = {d["id"]: _amostra(d["pages"]) for d in documentos_para_o_assistente()}
     sumarios = []
     for curso in _cursos():
         linhas = [f"- Material: {m.get('title')}" for m in curso["materials"] if m.get("title")]
         for conteudo in listar(curso["id"], so_publicados=True):
             grupo = "Conteúdo extra" if conteudo["is_extra"] else conteudo["module"]
-            assunto = f". Assunto: {assuntos[conteudo['id']]}" if conteudo["id"] in assuntos else ""
+            assunto = f". {assuntos[conteudo['id']]}" if conteudo["id"] in assuntos else ""
             linhas.append(f"- {grupo}: {rotulos[conteudo['kind']]}: {conteudo['title']}{assunto}")
         if linhas:
             titulo = f"Conteúdos do curso {curso['name']}"

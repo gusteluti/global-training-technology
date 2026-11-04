@@ -682,7 +682,7 @@ function escapeHTML(value) {
 }
 function markdownToHtml(text) {
   const escaped = escapeHTML(text);
-  const semLinks = escaped.replace(/\[(.*?)\]\((https?:\/\/[^\s)]+)\)/g, '$1');
+  const semLinks = escaped.replace(/\[(.*?)\]\((https?:\/\/[^\s)]+)\)/g, '$1').replace(/&lt;br\s*\/?&gt;/gi, ' ');
   const codeInline = semLinks.replace(/`([^`]+)`/g, '<code>$1</code>');
   const bolded = codeInline.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/__(.*?)__/g, '<strong>$1</strong>');
   const italicized = bolded.replace(/\*(.*?)\*/g, '<em>$1</em>').replace(/_(.*?)_/g, '<em>$1</em>');

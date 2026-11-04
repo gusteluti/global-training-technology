@@ -13,18 +13,36 @@ export class ChatMarkdownPipe implements PipeTransform {
       .replace(/\[(.*?)\]\((https?:\/\/[^\s)]+)\)/g, '$1')
       .replace(/`([^`]+)`/g, '<code>$1</code>')
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(\S(?:.*?\S)?)\*/g, '<em>$1</em>');
+      .replace(/\*(\S(?:.*?\S)?)\*/g, '<em>$1</em>')
+      .replace(/&lt;br\s*\/?&gt;/gi, '<br>');
 
     let html = '';
     let lista: string | null = null;
+    let tabela = false;
     const fecharLista = () => {
       if (lista) {
         html += `</${lista}>`;
         lista = null;
       }
     };
+    const fecharTabela = () => {
+      if (tabela) {
+        html += '</table>';
+        tabela = false;
+      }
+    };
     for (const bruta of formatado.split('\n')) {
       const linha = bruta.trim();
+      if (/^\|.*\|$/.test(linha)) {
+        fecharLista();
+        if (!/^\|[\s:|-]+\|$/.test(linha)) {
+          const celulas = linha.slice(1, -1).split('|').map(celula => `<td>${celula.trim()}</td>`).join('');
+          html += `${tabela ? '' : '<table class="table table-sm">'}<tr>${celulas}</tr>`;
+          tabela = true;
+        }
+        continue;
+      }
+      fecharTabela();
       const marcador = /^[*+-]\s+(.*)$/.exec(linha);
       const numero = /^\d+\.\s+(.*)$/.exec(linha);
       const item = marcador || numero;
@@ -44,6 +62,7 @@ export class ChatMarkdownPipe implements PipeTransform {
       }
     }
     fecharLista();
+    fecharTabela();
     return html;
   }
 }

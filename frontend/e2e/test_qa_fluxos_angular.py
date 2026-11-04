@@ -338,7 +338,7 @@ def test_fluxo_chat_markdown(s, navegador):
     aluno = s.aluno("Rita Markdown")
     pagina = tela(navegador)
     entrar(pagina, s, aluno.email, SENHA, "student")
-    resposta = json.dumps({"status": "success", "message": "Temos **Excel** e:\n- Aula 1\n- Aula 2\n<img src=x onerror=window.__xss=1>",
+    resposta = json.dumps({"status": "success", "message": "Temos **Excel** e:\n- Aula 1\n- Aula 2\n| PDF | Tema |\n|---|---|\n| Guia | a<br>b |\n<img src=x onerror=window.__xss=1>",
                            "actions": [], "sources": []})
     pagina.route("**/api/student/chat", lambda rota: rota.fulfill(status=200, content_type="application/json", body=resposta)
                  if rota.request.method == "POST" else rota.continue_())
@@ -347,6 +347,7 @@ def test_fluxo_chat_markdown(s, navegador):
     bolha = pagina.locator('[data-role="assistant"]').last
     bolha.locator("strong", has_text="Excel").wait_for()
     assert bolha.locator("li").count() == 2 and "**" not in bolha.inner_text()
+    assert bolha.locator("td").count() == 4 and "|" not in bolha.inner_text() and "<br>" not in bolha.inner_text()
     assert pagina.evaluate("window.__xss") is None and bolha.locator("img").count() == 0
     foto(pagina, "Segurança do chat", "Resposta com formatação e HTML malicioso", "Negrito e lista aparecem; o HTML vira texto")
 

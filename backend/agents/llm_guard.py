@@ -198,7 +198,11 @@ INSTRUCAO_BASE_INSTITUCIONAL = (
     "Sobre políticas da Global Training (pagamento, cancelamento, reembolso, certificado, privacidade, acesso e "
     "atendimento), responda somente com o que está nos trechos da base institucional desta mensagem. Se a resposta "
     "não estiver nesses trechos, diga que não tem essa informação confirmada e indique a equipe de atendimento. "
-    "Não invente prazo, valor, forma de pagamento nem regra."
+    "Não invente prazo, valor, forma de pagamento nem regra. "
+    "Ao descrever um arquivo, cite só o texto dele. O título é só um nome, nunca descreve o conteúdo: não liste tópicos, "
+    "exercícios, exemplos ou sintaxe que não estejam escritos no texto. Se o texto for curto, diga que o arquivo traz apenas "
+    "aquilo. "
+    "Escreva em frases curtas ou listas, sem tabela e sem HTML."
 )
 
 

@@ -168,6 +168,17 @@ def test_llm_assunto_dos_pdfs(r):
     assert "ABC" in resposta.j["message"], resposta.j["message"]
 
 
+@ct("CT-LLM-13", "SALA-IA", "UC", "Arquivo quase vazio: o modelo não inventa o conteúdo a partir do título")
+def test_llm_nao_deduz_pelo_titulo(r):
+    curso, aluno = cenario(r, ["Apostila de PROCV e INDICE"], "Apostila completa de PROCV com exercicios")
+    resposta = r.post("/api/student/chat", {"message": "O que contém nos PDFs dessas aulas?", "course_id": curso}, aluno.tk)
+    texto = resposta.j["message"]
+    REGISTRO.append({"caso": "arquivo quase vazio", "pergunta": "O que contém nos PDFs dessas aulas?", "resposta": texto,
+                     "fontes": [f["title"] for f in resposta.j.get("sources", [])]})
+    baixo = texto.lower()
+    assert not any(termo in baixo for termo in ("sintaxe", "exemplos", "dicas", "passo a passo", "explica", "exercícios práticos", "índice que")), texto
+
+
 @ct("CT-LLM-09", "SALA-IA", "SEC", "Pedido de dado de outro aluno que apareça em apostila não vira resposta com CPF")
 def test_llm_dado_pessoal(r):
     _, aluno = cenario(r, ["Lista de presenca: Carla Mendes, CPF 529.982.247-25, telefone (11) 91234-5678."])
