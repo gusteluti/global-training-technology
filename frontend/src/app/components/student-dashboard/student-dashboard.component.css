@@ -6,21 +6,21 @@
   display: inline-flex; align-items: center; text-decoration: none; font-family: inherit; line-height: 1.5;
   background: #ffffff; border: 1.5px solid #d8e0e8; color: #17212b;
   padding: 7px 18px; border-radius: 20px; font-weight: 600; font-size: 14px;
-  cursor: pointer; transition: all .2s;
+  cursor: pointer; transition: border-color .2s, color .2s;
 }
 .aluno-atalho:hover { border-color: #0096c7; color: #0096c7; text-decoration: none; }
 
 .aluno-resumo-rotulo { font-size: 13px; font-weight: 600; color: #66707c; }
 .aluno-resumo-valor {
   font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-weight: 900;
-  font-size: 38px; color: #0096c7; line-height: 1.1;
+  font-size: 38px; color: #17212b; line-height: 1.1; font-variant-numeric: tabular-nums;
 }
 
 .aluno-secao { margin-bottom: 2.5rem; scroll-margin-top: 96px; }
 .aluno-secao > h3 { font-size: 30px; margin-bottom: 1rem; }
 
-.curso-card { transition: all .25s; }
-.curso-card:hover { border-color: #9fd3e4; transform: translateY(-3px); box-shadow: 0 12px 32px rgba(20, 35, 50, 0.10); }
+.curso-card { transition: border-color .2s, box-shadow .2s; }
+.curso-card:hover { border-color: #9fd3e4; box-shadow: 0 12px 32px rgba(20, 35, 50, 0.08); }
 .curso-icone {
   width: 48px; height: 48px; border-radius: 12px; flex-shrink: 0;
   background: #eaf8fc; border: 1.5px solid #b8e7f1; color: #0096c7;
