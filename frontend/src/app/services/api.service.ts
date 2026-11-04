@@ -183,6 +183,10 @@ export class ApiService {
     return this.http.get(`${BASE}/api/student/enrollments/${enrollmentId}/room`, this.authHeaders());
   }
 
+  public markContentSeen(enrollmentId: number, key: string) {
+    return this.http.post(`${BASE}/api/student/enrollments/${enrollmentId}/room/last-seen`, { key }, this.authHeaders());
+  }
+
   public downloadContent(enrollmentId: number, contentId: number) {
     return this.http.get(`${BASE}/api/student/enrollments/${enrollmentId}/contents/${contentId}/file`,
       { ...this.authHeaders(), responseType: 'blob', observe: 'response' });
@@ -209,6 +213,13 @@ export class ApiService {
 
   public updateCourseContent(id: number, conteudo: any) {
     return this.http.put(`${BASE}/api/admin/contents/${id}`, conteudo, this.authHeaders());
+  }
+
+  // Multipart: sem Content-Type fixo; o token vai pelo interceptor (rota /api/admin/).
+  public replaceCourseContentFile(id: number, arquivo: File) {
+    const corpo = new FormData();
+    corpo.append('file', arquivo);
+    return this.http.put(`${BASE}/api/admin/contents/${id}/file`, corpo);
   }
 
   public moveCourseContent(id: number, direction: 'up' | 'down') {

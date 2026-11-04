@@ -28,6 +28,13 @@ def _conectar() -> sqlite3.Connection:
                PRIMARY KEY (enrollment_id, url)
            )"""
     )
+    # D96: último conteúdo aberto na sala, para retomar de onde o aluno parou.
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS room_last_seen (
+               enrollment_id INTEGER PRIMARY KEY,
+               content_key TEXT NOT NULL
+           )"""
+    )
     return conn
 
 
@@ -50,6 +57,29 @@ def marcar(enrollment_id: int, url: str, feito: bool) -> None:
         else:
             conn.execute("DELETE FROM material_progress WHERE enrollment_id = ? AND url = ?", (enrollment_id, url))
         conn.commit()
+    finally:
+        conn.close()
+
+
+def marcar_visto(enrollment_id: int, chave: str) -> None:
+    conn = _conectar()
+    try:
+        conn.execute(
+            """INSERT INTO room_last_seen (enrollment_id, content_key) VALUES (?, ?)
+               ON CONFLICT(enrollment_id) DO UPDATE SET content_key = excluded.content_key""",
+            (enrollment_id, chave),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def ultimo_visto(enrollment_id: int) -> Optional[str]:
+    conn = _conectar()
+    try:
+        linha = conn.execute("SELECT content_key FROM room_last_seen WHERE enrollment_id = ?",
+                             (enrollment_id,)).fetchone()
+        return linha["content_key"] if linha else None
     finally:
         conn.close()
 

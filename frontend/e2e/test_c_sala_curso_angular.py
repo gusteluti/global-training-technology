@@ -92,9 +92,10 @@ def test_sala_do_curso():
             gestao.set_input_files('[data-testid="conteudo-arquivo"]', str(arquivo))
             _salvar(gestao, 2)
 
-            _preencher(gestao, "Módulo 1", "Leitura extra", "link")
-            gestao.fill('[data-testid="conteudo-url"]', "https://materiais.test/extra")
             gestao.check('[data-testid="conteudo-extra"]')
+            gestao.fill('[data-testid="conteudo-titulo"]', "Leitura extra")
+            gestao.select_option('[data-testid="conteudo-tipo"]', "link")
+            gestao.fill('[data-testid="conteudo-url"]', "https://materiais.test/extra")
             _salvar(gestao, 3)
 
             aluno = navegador.new_context(accept_downloads=True).new_page()
@@ -111,7 +112,8 @@ def test_sala_do_curso():
             aluno.check('[data-testid="sala-concluido"]')
             aluno.locator('[data-testid="sala-progresso"]', has_text="1 de 2").wait_for(timeout=TIMEOUT)
 
-            aluno.locator('[data-testid="sala-item"]').nth(1).click()
+            aluno.click('[data-testid="sala-proxima"]')
+            aluno.locator('[data-testid="sala-titulo"]', has_text="Apostila").wait_for(timeout=TIMEOUT)
             with aluno.expect_download(timeout=TIMEOUT) as baixado:
                 aluno.click('[data-testid="sala-baixar"]')
             assert open(baixado.value.path(), "rb").read() == PDF
@@ -120,6 +122,15 @@ def test_sala_do_curso():
             with aluno.expect_download(timeout=TIMEOUT) as certificado:
                 aluno.click('[data-testid="sala-certificado"]')
             assert open(certificado.value.path(), "rb").read().startswith(b"%PDF-")
+
+            conn = sqlite3.connect(alvo["db_path"])
+            conn.execute("UPDATE enrollments SET status = 'refunded' WHERE user_id = ?", (aluno_id,))
+            conn.commit()
+            conn.close()
+            aluno.locator('[data-testid="sala-item"]').first.click()
+            encerrado = aluno.locator('[data-testid="sala-erro"]')
+            encerrado.wait_for(timeout=TIMEOUT)
+            assert "encerrado" in encerrado.inner_text()
 
             sem_acesso = navegador.new_context().new_page()
             _entrar(sem_acesso, alvo["base"], CANCELADO, "student")

@@ -183,3 +183,13 @@ a:hover { color: var(--gt-teal-dark); }
   .gt-logo-text span:last-child { display: none; }
   .gt-main { padding: 24px 0 40px; }
 }
+
+/* Sala do curso (D96): seleção na paleta do site; o cabeçalho fixo não cobre o conteúdo ao rolar. */
+.sala-lista .list-group-item.active {
+  background-color: var(--gt-teal-dark);
+  border-color: var(--gt-teal-dark);
+}
+
+.sala-atual {
+  scroll-margin-top: 96px;
+}

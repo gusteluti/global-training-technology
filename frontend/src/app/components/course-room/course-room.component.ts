@@ -8,6 +8,10 @@ import { salvarArquivo } from '../../services/salvar-arquivo';
 const PLAYERS = ['https://www.youtube-nocookie.com/embed/', 'https://player.vimeo.com/video/'];
 const MSG_ERRO = 'Não foi possível abrir este curso. Ele só fica disponível com a matrícula ativa.';
 const MSG_ARQUIVO = 'Não foi possível baixar o arquivo. Tente novamente.';
+const MSG_ACESSO_ENCERRADO = 'Seu acesso a este curso foi encerrado.';
+const TIPOS_DE_MATERIAL: { [tipo: string]: string } = {
+  pdf: 'PDF', xls: 'Planilha', xlsx: 'Planilha', doc: 'Documento', docx: 'Documento', ppt: 'Slides', pptx: 'Slides'
+};
 
 @Component({
   selector: 'app-course-room',
@@ -30,7 +34,7 @@ export class CourseRoomComponent implements OnInit {
       next: (sala: any) => {
         this.sala = sala;
         this.carregando = false;
-        this.abrir(this.itemDaChave(sala.next_key) || this.aulas()[0] || sala.extras[0] || null);
+        this.abrir(this.itemDaChave(sala.resume_key) || this.aulas()[0] || sala.extras[0] || null);
       },
       error: () => {
         this.erro = MSG_ERRO;
@@ -47,6 +51,31 @@ export class CourseRoomComponent implements OnInit {
     return [...this.aulas(), ...this.sala.extras].find(item => item.key === chave);
   }
 
+  // Só uma escolha do aluno grava a posição e leva ao conteúdo; a abertura da página não muda nada.
+  escolher(item: any): void {
+    this.abrir(item);
+    this.api.markContentSeen(this.matriculaId, item.key).subscribe({ error: err => this.verificarAcesso(err) });
+    setTimeout(() => document.querySelector('.sala-atual')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  }
+
+  get proxima(): any {
+    const aulas = this.aulas();
+    const posicao = aulas.indexOf(this.atual);
+    return posicao >= 0 ? aulas[posicao + 1] : undefined;
+  }
+
+  // 409: a matrícula deixou de estar ativa com a página aberta. A sala sai da tela.
+  private verificarAcesso(err: any): boolean {
+    if (err && err.status === 409) {
+      this.sala = null;
+      this.atual = null;
+      this.player = null;
+      this.erro = MSG_ACESSO_ENCERRADO;
+      return true;
+    }
+    return false;
+  }
+
   abrir(item: any): void {
     this.atual = item;
     this.erroArquivo = '';
@@ -59,7 +88,10 @@ export class CourseRoomComponent implements OnInit {
     item.done = feito;
     this.api.markMaterial(this.matriculaId, item.key, feito).subscribe({
       next: (r: any) => this.sala.progress = r.progress,
-      error: () => item.done = !feito
+      error: err => {
+        item.done = !feito;
+        this.verificarAcesso(err);
+      }
     });
   }
 
@@ -67,7 +99,7 @@ export class CourseRoomComponent implements OnInit {
     this.erroArquivo = '';
     this.api.downloadContent(this.matriculaId, item.content_id).subscribe({
       next: resposta => salvarArquivo(resposta, item.file_name || 'arquivo'),
-      error: () => this.erroArquivo = MSG_ARQUIVO
+      error: err => this.falhaNoArquivo(err)
     });
   }
 
@@ -80,17 +112,23 @@ export class CourseRoomComponent implements OnInit {
           aba.location.href = URL.createObjectURL(new Blob([resposta.body], { type: 'application/pdf' }));
         }
       },
-      error: () => {
+      error: err => {
         aba?.close();
-        this.erroArquivo = MSG_ARQUIVO;
+        this.falhaNoArquivo(err);
       }
     });
+  }
+
+  private falhaNoArquivo(err: any): void {
+    if (!this.verificarAcesso(err)) {
+      this.erroArquivo = MSG_ARQUIVO;
+    }
   }
 
   baixarCertificado(): void {
     this.api.downloadCertificate(this.matriculaId).subscribe({
       next: resposta => salvarArquivo(resposta, 'certificado.pdf'),
-      error: () => this.erroArquivo = MSG_ARQUIVO
+      error: err => this.falhaNoArquivo(err)
     });
   }
 
@@ -99,6 +137,10 @@ export class CourseRoomComponent implements OnInit {
   }
 
   rotuloTipo(item: any): string {
-    return { video: 'Vídeo', file: 'Arquivo', link: 'Link' }[item.kind as string] || '';
+    if (item.kind === 'file' && this.ePdf(item)) {
+      return 'PDF';
+    }
+    const material = TIPOS_DE_MATERIAL[String(item.material_type || '').toLowerCase()];
+    return material || { video: 'Vídeo', file: 'Arquivo', link: 'Link' }[item.kind as string] || '';
   }
 }

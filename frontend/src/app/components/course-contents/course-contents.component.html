@@ -4,10 +4,18 @@
       <h5 class="text-break mb-0">Conteúdos de {{ curso.name }}</h5>
       <button type="button" class="btn btn-sm btn-outline-secondary" data-testid="conteudos-fechar" (click)="fechar.emit()">Fechar</button>
     </div>
-    <p class="small text-muted">Os alunos veem estes conteúdos na sala do curso. Os materiais do cadastro continuam aparecendo no módulo "Materiais".</p>
+    <p class="small text-muted">Os alunos veem estes conteúdos na sala do curso.</p>
 
     <div class="alert alert-danger" *ngIf="erro" data-testid="conteudo-erro">{{ erro }}</div>
     <div class="alert alert-success" *ngIf="aviso" data-testid="conteudo-aviso">{{ aviso }}</div>
+
+    <div class="mb-3" *ngIf="materiais.length" data-testid="conteudos-materiais">
+      <h6>Materiais do cadastro</h6>
+      <p class="small text-muted mb-1">Aparecem primeiro na sala, no módulo "Materiais". Para alterá-los, use Editar na lista de cursos.</p>
+      <ul class="small mb-0">
+        <li class="text-break" *ngFor="let m of materiais">{{ m.title }}</li>
+      </ul>
+    </div>
 
     <div class="table-responsive mb-3" *ngIf="conteudos.length; else semConteudos">
       <table class="table table-sm align-middle">
@@ -37,16 +45,16 @@
         </tbody>
       </table>
     </div>
-    <ng-template #semConteudos><p class="text-muted" data-testid="conteudos-vazio">Nenhum conteúdo cadastrado.</p></ng-template>
+    <ng-template #semConteudos><p class="text-muted" data-testid="conteudos-vazio" *ngIf="!materiais.length">Nenhum conteúdo cadastrado.</p></ng-template>
 
     <h6>{{ editandoId ? 'Editar conteúdo' : 'Novo conteúdo' }}</h6>
     <form (ngSubmit)="salvar()">
       <div class="row g-2">
-        <div class="col-md-4">
+        <div class="col-md-4" *ngIf="!form.is_extra">
           <label class="form-label" for="conteudo-modulo">Módulo</label>
           <input id="conteudo-modulo" class="form-control" name="module" maxlength="120" data-testid="conteudo-modulo" [(ngModel)]="form.module">
         </div>
-        <div class="col-md-5">
+        <div class="col-md-5" [class.col-md-9]="form.is_extra">
           <label class="form-label" for="conteudo-titulo">Título</label>
           <input id="conteudo-titulo" class="form-control" name="title" maxlength="200" data-testid="conteudo-titulo" [(ngModel)]="form.title">
         </div>
@@ -62,8 +70,8 @@
           <label class="form-label" for="conteudo-url">{{ form.kind === 'video' ? 'Link do YouTube ou do Vimeo' : 'Link' }}</label>
           <input id="conteudo-url" class="form-control" name="url" data-testid="conteudo-url" [(ngModel)]="form.url">
         </div>
-        <div class="col-md-9" *ngIf="form.kind === 'file' && !editandoId">
-          <label class="form-label" for="conteudo-arquivo">Arquivo (PDF, Word, Excel, PowerPoint ou ZIP, até 20 MB)</label>
+        <div class="col-md-9" *ngIf="form.kind === 'file'">
+          <label class="form-label" for="conteudo-arquivo">{{ editandoId ? 'Trocar arquivo (opcional; o progresso dos alunos é mantido)' : 'Arquivo (PDF, Word, Excel, PowerPoint ou ZIP, até 20 MB)' }}</label>
           <input id="conteudo-arquivo" type="file" class="form-control" data-testid="conteudo-arquivo"
                  accept=".pdf,.docx,.xlsx,.pptx,.zip" (change)="escolherArquivo($event)">
         </div>
