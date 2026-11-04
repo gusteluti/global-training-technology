@@ -1,4 +1,5 @@
-import { Component, EventEmitter, Input, OnInit, Output } from '@angular/core';
+import { Component, ElementRef, EventEmitter, Input, OnChanges, Output } from '@angular/core';
+import { switchMap } from 'rxjs/operators';
 import { ApiService } from '../../services/api.service';
 
 const FORM_VAZIO = { module: '', title: '', kind: 'video', url: '', duration_minutes: null as number | null, is_extra: false, published: true };
@@ -8,11 +9,12 @@ const MSG_ERRO = 'Não foi possível salvar o conteúdo.';
   selector: 'app-course-contents',
   templateUrl: './course-contents.component.html'
 })
-export class CourseContentsComponent implements OnInit {
+export class CourseContentsComponent implements OnChanges {
   @Input() curso: any;
   @Output() fechar = new EventEmitter<void>();
 
   conteudos: any[] = [];
+  materiais: any[] = [];
   form = { ...FORM_VAZIO };
   arquivo: File | null = null;
   editandoId: number | null = null;
@@ -21,15 +23,26 @@ export class CourseContentsComponent implements OnInit {
   aviso = '';
   salvando = false;
 
-  constructor(private api: ApiService) { }
+  constructor(private api: ApiService, private elemento: ElementRef<HTMLElement>) { }
 
-  ngOnInit(): void {
+  // Vale também ao trocar de curso com o painel aberto.
+  ngOnChanges(): void {
+    this.conteudos = [];
+    this.erro = '';
+    this.aviso = '';
+    this.limpar();
     this.carregar();
+    setTimeout(() => this.elemento.nativeElement.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   }
 
   private carregar(): void {
     this.api.getCourseContents(this.curso.id).subscribe({
       next: (r: any) => this.conteudos = r.contents || [],
+      error: err => this.erro = this.mensagem(err)
+    });
+    // A lista de cursos não traz os materiais; eles vêm do detalhe do curso.
+    this.api.getAdminCourse(this.curso.id).subscribe({
+      next: (r: any) => this.materiais = (r.course && r.course.materials) || [],
       error: err => this.erro = this.mensagem(err)
     });
   }
@@ -46,7 +59,7 @@ export class CourseContentsComponent implements OnInit {
   salvar(): void {
     this.erro = '';
     this.aviso = '';
-    if (!this.form.module.trim() || !this.form.title.trim()) {
+    if ((!this.form.is_extra && !this.form.module.trim()) || !this.form.title.trim()) {
       this.erro = 'Informe o módulo e o título.';
       return;
     }
@@ -71,7 +84,10 @@ export class CourseContentsComponent implements OnInit {
 
   private requisicao() {
     if (this.editandoId) {
-      return this.api.updateCourseContent(this.editandoId, this.form);
+      const id = this.editandoId;
+      const arquivo = this.arquivo;
+      const edicao = this.api.updateCourseContent(id, this.form);
+      return arquivo ? edicao.pipe(switchMap(() => this.api.replaceCourseContentFile(id, arquivo))) : edicao;
     }
     if (this.form.kind === 'file') {
       return this.api.uploadCourseContent(this.curso.id, this.arquivo as File, this.form);
@@ -87,6 +103,7 @@ export class CourseContentsComponent implements OnInit {
       module: item.module, title: item.title, kind: item.kind, url: item.url || '',
       duration_minutes: item.duration_minutes, is_extra: item.is_extra, published: item.published
     };
+    this.arquivo = null;
   }
 
   limpar(): void {

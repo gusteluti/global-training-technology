@@ -83,12 +83,15 @@
               <div class="progress curso-progresso mb-2">
                 <div class="progress-bar" [style.width.%]="m.progress.percent"></div>
               </div>
+              <p class="small text-muted mb-2" data-testid="curso-progresso-sala" *ngIf="m.progress.total !== m.materials.length">Marque as aulas como concluídas dentro do curso.</p>
+              <ng-container *ngIf="m.progress.total === m.materials.length">
               <div class="form-check small" *ngFor="let mat of m.materials">
                 <input class="form-check-input" type="checkbox" data-testid="material-concluido"
                        [id]="'mat-' + m.id + '-' + mat.url" [checked]="m.progress.completed.includes(mat.url)"
                        (change)="marcarMaterial(m, mat.url, $any($event.target).checked)">
                 <label class="form-check-label" [for]="'mat-' + m.id + '-' + mat.url">{{ mat.title }}</label>
               </div>
+              </ng-container>
               <button type="button" class="btn btn-primary btn-sm mt-2" data-testid="curso-certificado"
                       *ngIf="m.progress.certificate_available" (click)="baixarCertificado(m)">Baixar certificado</button>
             </div>

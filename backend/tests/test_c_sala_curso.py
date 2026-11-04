@@ -81,7 +81,10 @@ def _sala(client, enrollment_id, headers):
     ("https://youtu.be/dQw4w9WgXcQ?t=10", "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ"),
     ("https://vimeo.com/123456789/abcdef1234", "https://player.vimeo.com/video/123456789?h=abcdef1234"),
     ("https://youtube.com.golpe.example/watch?v=dQw4w9WgXcQ", None),
-    ("http://www.youtube.com/watch?v=dQw4w9WgXcQ", None),
+    ("www.youtube.com/watch?v=dQw4w9WgXcQ", "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ"),
+    ("https://www.youtube.com/live/dQw4w9WgXcQ", "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ"),
+    ("https://player.vimeo.com/video/123456789", "https://player.vimeo.com/video/123456789"),
+    ("https://www.youtube.com/playlist?list=PLabc", None),
     ("https://vimeo.com/abc", None),
 ])
 def test_so_youtube_e_vimeo_viram_player(url, esperado):
@@ -249,3 +252,75 @@ def test_matricula_ativa_recebe_progresso_com_as_aulas(client, gestao):
     _matricula(user_id)
     item = client.get("/api/student/enrollments", headers=headers).json()["enrollments"][0]
     assert item["progress"]["total"] == 2
+
+
+def test_playlist_recebe_mensagem_propria(client, gestao):
+    corpo = {"module": "M", "title": "T", "kind": "video", "url": "https://www.youtube.com/playlist?list=PLabc"}
+    resposta = client.post(f"/api/admin/courses/{CURSO}/contents", json=corpo, headers=gestao)
+    assert resposta.status_code == 422 and "playlist" in resposta.json()["detail"]
+
+
+def test_extra_nao_precisa_de_modulo_e_aula_precisa(client, gestao):
+    rota = f"/api/admin/courses/{CURSO}/contents"
+    extra = {"title": "Bônus", "kind": "link", "url": "https://materiais.test/b", "is_extra": True}
+    assert client.post(rota, json=extra, headers=gestao).json()["content"]["module"] == "Extras"
+    aula = {"title": "Aula", "kind": "video", "url": VIDEO}
+    assert client.post(rota, json=aula, headers=gestao).status_code == 422
+
+
+def test_trocar_arquivo_mantem_progresso_e_apaga_o_antigo(client, gestao):
+    conteudo = _arquivo(client, gestao).json()["content"]
+    antigo = conteudos.caminho_do_arquivo(conteudos.obter(conteudo["id"]))
+    enrollment_id, headers = _aluno_ativo()
+    chave = conteudos.chave(conteudo)
+    client.post(f"/api/student/enrollments/{enrollment_id}/progress", json={"url": chave}, headers=headers)
+
+    rota = f"/api/admin/contents/{conteudo['id']}/file"
+    novo = b"%PDF-1.4 nova"
+    assert client.put(rota, files={"file": ("nova.pdf", novo)}, headers=gestao).status_code == 200
+    assert not antigo.exists()
+    baixado = client.get(f"/api/student/enrollments/{enrollment_id}/contents/{conteudo['id']}/file", headers=headers)
+    assert baixado.content == novo
+    assert chave in _sala(client, enrollment_id, headers).json()["progress"]["completed"]
+    assert client.put(rota, files={"file": ("x.exe", b"MZ")}, headers=gestao).status_code == 415
+    _, suporte = _conta("support")
+    assert client.put(rota, files={"file": ("nova.pdf", novo)}, headers=suporte).status_code == 403
+
+
+def test_trocar_arquivo_recusa_conteudo_que_nao_e_arquivo(client, gestao):
+    video = _video(client, gestao)
+    resposta = client.put(f"/api/admin/contents/{video['id']}/file", files={"file": ("a.pdf", PDF)}, headers=gestao)
+    assert resposta.status_code == 422
+
+
+def test_sala_retoma_o_ultimo_conteudo_aberto(client, gestao):
+    aula = _video(client, gestao)
+    _video(client, gestao, title="Aula 2")
+    enrollment_id, headers = _aluno_ativo()
+    chave = conteudos.chave(aula)
+    assert _sala(client, enrollment_id, headers).json()["resume_key"] == MATERIAL
+    rota = f"/api/student/enrollments/{enrollment_id}/room/last-seen"
+    assert client.post(rota, json={"key": chave}, headers=headers).status_code == 200
+    assert _sala(client, enrollment_id, headers).json()["resume_key"] == chave
+    client.post(f"/api/student/enrollments/{enrollment_id}/progress", json={"url": chave}, headers=headers)
+    assert _sala(client, enrollment_id, headers).json()["resume_key"] == MATERIAL
+
+
+def test_marcar_visto_valida_acesso_e_conteudo(client, gestao):
+    aula = _video(client, gestao)
+    chave = conteudos.chave(aula)
+    enrollment_id, headers = _aluno_ativo()
+    rota = f"/api/student/enrollments/{enrollment_id}/room/last-seen"
+    assert client.post(rota, json={"key": "conteudo:999"}, headers=headers).status_code == 422
+    _, outro = _conta()
+    assert client.post(rota, json={"key": chave}, headers=outro).status_code == 404
+    user_id, cancelado = _conta()
+    cancelada = _matricula(user_id, "cancelled")
+    rota_cancelada = f"/api/student/enrollments/{cancelada}/room/last-seen"
+    assert client.post(rota_cancelada, json={"key": chave}, headers=cancelado).status_code == 409
+
+
+def test_material_antigo_informa_o_tipo(client):
+    enrollment_id, headers = _aluno_ativo()
+    item = _sala(client, enrollment_id, headers).json()["modules"][0]["items"][0]
+    assert item["material_type"] == "pdf"

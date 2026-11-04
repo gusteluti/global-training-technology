@@ -24,7 +24,7 @@
 
   <div class="row g-4" *ngIf="sala.modules.length || sala.extras.length">
     <div class="col-12 col-lg-8">
-      <div class="card" *ngIf="atual">
+      <div class="card sala-atual" *ngIf="atual">
         <div class="ratio ratio-16x9" *ngIf="player">
           <iframe [src]="player" [title]="atual.title" data-testid="sala-player" allowfullscreen
                   allow="encrypted-media; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin"></iframe>
@@ -47,6 +47,8 @@
                    [checked]="atual.done" (change)="alternarConcluido(atual, $any($event.target).checked)">
             <label class="form-check-label" for="sala-concluido">Marcar como concluído</label>
           </div>
+          <button type="button" class="btn btn-primary btn-sm mt-3" data-testid="sala-proxima" *ngIf="proxima"
+                  (click)="escolher(proxima)">Próxima aula</button>
         </div>
       </div>
     </div>
@@ -54,10 +56,10 @@
     <div class="col-12 col-lg-4">
       <div class="mb-3" *ngFor="let modulo of sala.modules">
         <h6 class="curso-subtitulo text-break">{{ modulo.title }}</h6>
-        <div class="list-group">
+        <div class="list-group sala-lista">
           <button type="button" *ngFor="let item of modulo.items" data-testid="sala-item"
                   class="list-group-item list-group-item-action d-flex justify-content-between gap-2 text-start"
-                  [class.active]="atual === item" (click)="abrir(item)">
+                  [class.active]="atual === item" (click)="escolher(item)">
             <span class="text-break">{{ item.done ? '✓ ' : '' }}{{ item.title }}</span>
             <small class="text-nowrap">{{ rotuloTipo(item) }}<ng-container *ngIf="item.duration_minutes"> · {{ item.duration_minutes }} min</ng-container></small>
           </button>
@@ -66,10 +68,10 @@
 
       <div class="mb-3" *ngIf="sala.extras.length" data-testid="sala-extras">
         <h6 class="curso-subtitulo">Conteúdos extras</h6>
-        <div class="list-group">
+        <div class="list-group sala-lista">
           <button type="button" *ngFor="let item of sala.extras" data-testid="sala-extra"
                   class="list-group-item list-group-item-action d-flex justify-content-between gap-2 text-start"
-                  [class.active]="atual === item" (click)="abrir(item)">
+                  [class.active]="atual === item" (click)="escolher(item)">
             <span class="text-break">{{ item.done ? '✓ ' : '' }}{{ item.title }}</span>
             <small class="text-nowrap">{{ rotuloTipo(item) }}</small>
           </button>

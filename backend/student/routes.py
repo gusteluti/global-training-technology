@@ -90,6 +90,12 @@ def _chaves_das_aulas(course_id: str, curso: Optional[Dict]) -> List[str]:
     return urls + [conteudos.chave(c) for c in conteudos.listar(course_id, so_publicados=True) if not c["is_extra"]]
 
 
+def _chaves_da_sala(course_id: str, curso: Optional[Dict]) -> List[str]:
+    """Tudo o que o aluno pode abrir na sala: aulas e extras publicados."""
+    extras = [conteudos.chave(c) for c in conteudos.listar(course_id, so_publicados=True) if c["is_extra"]]
+    return _chaves_das_aulas(course_id, curso) + extras
+
+
 def _montar_item(matricula: Dict, cancelamento: Optional[Dict] = None) -> Dict:
     curso = _carregar_curso(matricula["course_id"])
     cancelamento = cancelamento or {}
@@ -562,9 +568,8 @@ async def marcar_material(enrollment_id: int, corpo: ProgressoInput,
                           current_user: AuthContext = Depends(require_roles(Role.STUDENT))):
     """Marca (ou desmarca) um material do curso como concluído. Matrícula alheia = o mesmo 404 da E3."""
     matricula, curso = _matricula_ativa_do_aluno(enrollment_id, current_user.id)
-    extras = [conteudos.chave(c) for c in conteudos.listar(matricula["course_id"], so_publicados=True) if c["is_extra"]]
     aulas = _chaves_das_aulas(matricula["course_id"], curso)
-    if corpo.url not in aulas + extras:
+    if corpo.url not in _chaves_da_sala(matricula["course_id"], curso):
         raise HTTPException(status_code=422, detail=ERRO_MATERIAL_INEXISTENTE)
     progresso.marcar(matricula["id"], corpo.url, corpo.done)
     return {"status": "success", "progress": progresso.resumo(matricula["id"], aulas)}
@@ -588,7 +593,7 @@ def _item_da_sala(conteudo: Dict, feitos: Dict) -> Dict:
 def _item_de_material(material: Dict, feitos: Dict) -> Dict:
     embed = conteudos.embed_do_video(material["url"])
     item = {"key": material["url"], "title": material["title"], "kind": "video" if embed else "link",
-            "duration_minutes": None, "done": material["url"] in feitos}
+            "duration_minutes": None, "done": material["url"] in feitos, "material_type": material["type"]}
     item.update({"embed_url": embed} if embed else {"url": material["url"]})
     return item
 
@@ -611,14 +616,33 @@ async def sala_do_curso(enrollment_id: int, current_user: AuthContext = Depends(
         else:
             modulos.setdefault(conteudo["module"], []).append(item)
     aulas = [item for itens in modulos.values() for item in itens]
+    proxima = next((item["key"] for item in aulas if not item["done"]), None)
+    visto = next((item for item in aulas + extras if item["key"] == progresso.ultimo_visto(matricula["id"])), None)
     return {
         "status": "success",
         "course_name": (curso or {}).get("name") or course_id,
         "modules": [{"title": titulo, "items": itens} for titulo, itens in modulos.items()],
         "extras": extras,
         "progress": progresso.resumo(matricula["id"], [item["key"] for item in aulas]),
-        "next_key": next((item["key"] for item in aulas if not item["done"]), None),
+        "next_key": proxima,
+        "resume_key": visto["key"] if visto and not visto["done"] else proxima,
     }
+
+
+class VistoInput(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    key: str
+
+
+@router.post("/enrollments/{enrollment_id}/room/last-seen")
+async def marcar_visto(enrollment_id: int, corpo: VistoInput,
+                       current_user: AuthContext = Depends(require_roles(Role.STUDENT))):
+    """Guarda o último conteúdo aberto (D96). Também avisa a sala aberta de que o acesso acabou (409)."""
+    matricula, curso = _matricula_ativa_do_aluno(enrollment_id, current_user.id)
+    if corpo.key not in _chaves_da_sala(matricula["course_id"], curso):
+        raise HTTPException(status_code=422, detail=ERRO_MATERIAL_INEXISTENTE)
+    progresso.marcar_visto(matricula["id"], corpo.key)
+    return {"status": "success"}
 
 
 @router.get("/enrollments/{enrollment_id}/contents/{conteudo_id}/file")

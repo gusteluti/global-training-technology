@@ -1,6 +1,6 @@
 """Conteúdos da sala do curso na Gestão (C2/C4, D96). Só o perfil Gestão edita; toda alteração vai para a auditoria."""
 
-from typing import Literal, Optional
+from typing import Literal, Optional, Tuple
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -16,6 +16,8 @@ router = APIRouter()
 ERR_CURSO = "Curso não encontrado."
 ERR_CONTEUDO = "Conteúdo não encontrado."
 ERR_VIDEO = "Use um link do YouTube ou do Vimeo."
+ERR_VIDEO_ESPECIFICO = "Este link não aponta para um vídeo. Abra o vídeo, não a playlist ou o canal, e copie o link dele."
+ERR_NAO_E_ARQUIVO = "Este conteúdo não é um arquivo."
 ERR_LINK = "O link deve começar com http:// ou https://."
 ERR_TAMANHO = "Arquivo maior que 20 MB."
 ERR_TIPO = "Formato não suportado. Envie PDF, Word, Excel, PowerPoint ou ZIP."
@@ -26,7 +28,7 @@ _so_gestao = require_roles(Role.ADMIN)
 
 class ConteudoBase(BaseModel):
     model_config = ConfigDict(extra="ignore")
-    module: str = Field(min_length=1, max_length=120)
+    module: str = Field(default="", max_length=120)
     title: str = Field(min_length=1, max_length=200)
     url: Optional[str] = None
     duration_minutes: Optional[int] = Field(default=None, ge=0, le=6000)
@@ -62,10 +64,30 @@ def _exigir_conteudo(conteudo_id: int) -> dict:
 def _validar_endereco(kind: str, url: Optional[str]) -> str:
     url = (url or "").strip()
     if kind == "video" and not conteudos.embed_do_video(url):
-        raise HTTPException(status_code=422, detail=ERR_VIDEO)
+        raise HTTPException(status_code=422,
+                            detail=ERR_VIDEO_ESPECIFICO if conteudos.e_servico_de_video(url) else ERR_VIDEO)
     if kind == "link" and not url.startswith(("http://", "https://")):
         raise HTTPException(status_code=422, detail=ERR_LINK)
     return url
+
+
+def _modulo(module: str, is_extra: bool) -> str:
+    """Extra não pertence a um módulo; aula precisa de um."""
+    if is_extra:
+        return module or conteudos.MODULO_EXTRAS
+    if not module:
+        raise HTTPException(status_code=422, detail=ERR_TITULO)
+    return module
+
+
+def _ler_arquivo(file: UploadFile) -> Tuple[str, bytes]:
+    dados = file.file.read(conteudos.MAX_BYTES_ARQUIVO + 1)
+    if len(dados) > conteudos.MAX_BYTES_ARQUIVO:
+        raise HTTPException(status_code=413, detail=ERR_TAMANHO)
+    extensao = conteudos.extensao_aceita(file.filename, dados)
+    if extensao is None:
+        raise HTTPException(status_code=415, detail=ERR_TIPO)
+    return extensao, dados
 
 
 def _publico(conteudo: dict) -> dict:
@@ -88,6 +110,7 @@ async def listar_conteudos(course_id: str, current_user: AuthContext = Depends(_
 async def criar_conteudo(course_id: str, corpo: ConteudoInput, current_user: AuthContext = Depends(_so_gestao)):
     _exigir_curso(course_id)
     dados = corpo.model_dump()
+    dados["module"] = _modulo(corpo.module, corpo.is_extra)
     dados["url"] = _validar_endereco(corpo.kind, corpo.url)
     conteudo = conteudos.criar(course_id, dados)
     _auditar("course_content.create", "Conteúdo criado", conteudo, current_user)
@@ -98,22 +121,17 @@ async def criar_conteudo(course_id: str, corpo: ConteudoInput, current_user: Aut
 def enviar_arquivo(
     course_id: str,
     file: UploadFile = File(...),
-    module: str = Form(...),
+    module: str = Form(""),
     title: str = Form(...),
     is_extra: bool = Form(False),
     published: bool = Form(True),
     current_user: AuthContext = Depends(_so_gestao),
 ):
     _exigir_curso(course_id)
-    module, title = module.strip()[:120], title.strip()[:200]
-    if not module or not title:
+    module, title = _modulo(module.strip()[:120], is_extra), title.strip()[:200]
+    if not title:
         raise HTTPException(status_code=422, detail=ERR_TITULO)
-    dados = file.file.read(conteudos.MAX_BYTES_ARQUIVO + 1)
-    if len(dados) > conteudos.MAX_BYTES_ARQUIVO:
-        raise HTTPException(status_code=413, detail=ERR_TAMANHO)
-    extensao = conteudos.extensao_aceita(file.filename, dados)
-    if extensao is None:
-        raise HTTPException(status_code=415, detail=ERR_TIPO)
+    extensao, dados = _ler_arquivo(file)
     conteudo = conteudos.criar(course_id, {
         "module": module, "title": title, "kind": "file", "is_extra": is_extra, "published": published,
         "file_name": sanitizar_nome_arquivo(file.filename), "stored_name": conteudos.salvar_arquivo(extensao, dados),
@@ -126,9 +144,23 @@ def enviar_arquivo(
 async def editar_conteudo(conteudo_id: int, corpo: ConteudoBase, current_user: AuthContext = Depends(_so_gestao)):
     conteudo = _exigir_conteudo(conteudo_id)
     dados = corpo.model_dump()
+    dados["module"] = _modulo(corpo.module, corpo.is_extra)
     dados["url"] = None if conteudo["kind"] == "file" else _validar_endereco(conteudo["kind"], corpo.url)
     atualizado = conteudos.atualizar(conteudo_id, dados)
     _auditar("course_content.update", "Conteúdo alterado", atualizado, current_user)
+    return {"status": "success", "content": _publico(atualizado)}
+
+
+@router.put("/contents/{conteudo_id}/file")
+def trocar_arquivo(conteudo_id: int, file: UploadFile = File(...), current_user: AuthContext = Depends(_so_gestao)):
+    """Troca o arquivo sem perder o progresso de quem já concluiu."""
+    conteudo = _exigir_conteudo(conteudo_id)
+    if conteudo["kind"] != "file":
+        raise HTTPException(status_code=422, detail=ERR_NAO_E_ARQUIVO)
+    extensao, dados = _ler_arquivo(file)
+    atualizado = conteudos.trocar_arquivo(conteudo, sanitizar_nome_arquivo(file.filename),
+                                          conteudos.salvar_arquivo(extensao, dados))
+    _auditar("course_content.update", "Arquivo trocado", atualizado, current_user)
     return {"status": "success", "content": _publico(atualizado)}
 
 

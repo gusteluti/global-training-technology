@@ -16,6 +16,7 @@ from typing import Dict, List, Optional
 from db import Database
 
 MODULO_MATERIAIS = "Materiais"
+MODULO_EXTRAS = "Extras"
 MAX_BYTES_ARQUIVO = 20 * 1024 * 1024
 PASTA_PADRAO = Path(__file__).parent.parent / "uploads" / "conteudos"
 
@@ -29,18 +30,33 @@ TIPOS_DE_ARQUIVO = {
 }
 
 _YOUTUBE = re.compile(
-    r"https://(?:www\.|m\.)?(?:youtube\.com/(?:watch\?(?:[^#]*&)?v=|embed/|shorts/)|youtu\.be/)([\w-]{11})(?:[?&#/].*)?"
+    r"https://(?:www\.|m\.)?(?:youtube\.com/(?:watch\?(?:[^#]*&)?v=|embed/|shorts/|live/)|youtu\.be/)([\w-]{11})"
+    r"(?:[?&#/].*)?"
 )
 _VIMEO = re.compile(r"https://(?:www\.)?vimeo\.com/(\d{6,12})(?:/([0-9a-f]{6,20}))?(?:[?#].*)?")
+_VIMEO_PLAYER = re.compile(r"https://player\.vimeo\.com/video/(\d{6,12})(?:\?h=([0-9a-f]{6,20}))?(?:[&#].*)?")
+_SERVICO_DE_VIDEO = re.compile(r"https://(?:[\w-]+\.)?(?:youtube\.com|youtu\.be|vimeo\.com)(?:[/?#]|$)")
+
+
+def _com_https(url: Optional[str]) -> str:
+    """Aceita o link colado sem esquema ou com http; o resto da validação vale para https."""
+    url = (url or "").strip()
+    if url.startswith("http://"):
+        return "https://" + url[len("http://"):]
+    return url if "://" in url else f"https://{url}"
+
+
+def e_servico_de_video(url: Optional[str]) -> bool:
+    return _SERVICO_DE_VIDEO.match(_com_https(url)) is not None
 
 
 def embed_do_video(url: Optional[str]) -> Optional[str]:
     """Endereço do player para uma URL do YouTube ou do Vimeo; None para qualquer outra."""
-    url = (url or "").strip()
+    url = _com_https(url)
     youtube = _YOUTUBE.fullmatch(url)
     if youtube:
         return f"https://www.youtube-nocookie.com/embed/{youtube.group(1)}"
-    vimeo = _VIMEO.fullmatch(url)
+    vimeo = _VIMEO.fullmatch(url) or _VIMEO_PLAYER.fullmatch(url)
     if vimeo:
         sufixo = f"?h={vimeo.group(2)}" if vimeo.group(2) else ""
         return f"https://player.vimeo.com/video/{vimeo.group(1)}{sufixo}"
@@ -138,6 +154,19 @@ def atualizar(conteudo_id: int, dados: Dict) -> Dict:
     finally:
         conn.close()
     return obter(conteudo_id)
+
+
+def trocar_arquivo(conteudo: Dict, file_name: str, stored_name: str) -> Dict:
+    """Troca o arquivo mantendo o id: o progresso de quem já concluiu continua valendo."""
+    conn = _conectar()
+    try:
+        conn.execute("UPDATE course_contents SET file_name = ?, stored_name = ? WHERE id = ?",
+                     (file_name, stored_name, conteudo["id"]))
+        conn.commit()
+    finally:
+        conn.close()
+    _apagar_arquivo(conteudo.get("stored_name"))
+    return obter(conteudo["id"])
 
 
 def mover(conteudo: Dict, direcao: str) -> None:
