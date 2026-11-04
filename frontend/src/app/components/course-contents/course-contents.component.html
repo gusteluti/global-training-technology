@@ -32,6 +32,7 @@
               <ng-container *ngIf="confirmandoId !== c.id">
                 <button type="button" class="btn btn-sm btn-outline-secondary me-1" aria-label="Subir" [disabled]="i === 0" data-testid="conteudo-subir" (click)="mover(c, 'up')">&uarr;</button>
                 <button type="button" class="btn btn-sm btn-outline-secondary me-1" aria-label="Descer" [disabled]="i === conteudos.length - 1" (click)="mover(c, 'down')">&darr;</button>
+                <button type="button" class="btn btn-sm btn-outline-primary me-1" data-testid="conteudo-previa" *ngIf="c.embed_url" (click)="alternarPrevia(c)">{{ previaId === c.id ? 'Fechar prévia' : 'Prévia' }}</button>
                 <button type="button" class="btn btn-sm btn-outline-primary me-1" data-testid="conteudo-editar" (click)="editar(c)">Editar</button>
                 <button type="button" class="btn btn-sm btn-outline-secondary me-1" data-testid="conteudo-publicar" (click)="alternarPublicacao(c)">{{ c.published ? 'Ocultar' : 'Publicar' }}</button>
                 <button type="button" class="btn btn-sm btn-outline-danger" data-testid="conteudo-excluir" (click)="confirmandoId = c.id">Excluir</button>
@@ -45,6 +46,17 @@
         </tbody>
       </table>
     </div>
+    <ng-container *ngFor="let c of conteudos">
+      <div class="mb-3" *ngIf="previaId === c.id && c.embed_url" data-testid="conteudo-previa-painel">
+        <h6 class="text-break">Prévia: {{ c.title }}</h6>
+        <div class="previa-video">
+          <app-video-player *ngIf="!previaComFalha" [embedUrl]="c.embed_url" [titulo]="c.title" (falha)="previaComFalha = true"></app-video-player>
+        </div>
+        <div class="alert alert-warning mb-0" data-testid="conteudo-previa-falha" *ngIf="previaComFalha">
+          Este vídeo não pode ser exibido na plataforma. Confira se ele existe, se não é privado e se permite incorporação.
+        </div>
+      </div>
+    </ng-container>
     <ng-template #semConteudos><p class="text-muted" data-testid="conteudos-vazio" *ngIf="!materiais.length">Nenhum conteúdo cadastrado.</p></ng-template>
 
     <h6>{{ editandoId ? 'Editar conteúdo' : 'Novo conteúdo' }}</h6>

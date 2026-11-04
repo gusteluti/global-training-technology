@@ -2,6 +2,7 @@
 
 import json
 import sqlite3
+import time
 import uuid
 
 import pytest
@@ -9,6 +10,7 @@ from fastapi.testclient import TestClient
 
 import admin.routes as admin_routes
 from core import conteudos
+from core import progresso as progresso_core
 from core.security import create_access_token, get_password_hash
 from db import Database
 
@@ -152,14 +154,16 @@ def test_arquivo_de_outro_curso_e_oculto_devolvem_404(client, gestao):
 
 def test_extras_nao_contam_para_o_certificado(client, gestao):
     aula = _video(client, gestao)
-    extra = _video(client, gestao, title="Bônus", is_extra=True)
     enrollment_id, headers = _aluno_ativo()
     rota = f"/api/student/enrollments/{enrollment_id}/progress"
     certificado = f"/api/student/enrollments/{enrollment_id}/certificate.pdf"
-    assert client.post(rota, json={"url": conteudos.chave(extra)}, headers=headers).json()["progress"]["done"] == 0
+    extra_link = client.post(f"/api/admin/courses/{CURSO}/contents", headers=gestao, json={
+        "module": "M", "title": "Link", "kind": "link", "url": "https://materiais.test/l", "is_extra": True}).json()["content"]
+    assert client.post(rota, json={"url": conteudos.chave(extra_link)}, headers=headers).json()["progress"]["done"] == 0
     assert client.get(certificado, headers=headers).status_code == 409
     client.post(rota, json={"url": MATERIAL}, headers=headers)
-    progresso = client.post(rota, json={"url": conteudos.chave(aula)}, headers=headers).json()["progress"]
+    progresso_core.marcar(enrollment_id, conteudos.chave(aula), True)
+    progresso = client.get("/api/student/enrollments", headers=headers).json()["enrollments"][0]["progress"]
     assert progresso["certificate_available"] is True
     assert client.get(certificado, headers=headers).status_code == 200
     assert _sala(client, enrollment_id, headers).json()["next_key"] is None
@@ -302,7 +306,7 @@ def test_sala_retoma_o_ultimo_conteudo_aberto(client, gestao):
     rota = f"/api/student/enrollments/{enrollment_id}/room/last-seen"
     assert client.post(rota, json={"key": chave}, headers=headers).status_code == 200
     assert _sala(client, enrollment_id, headers).json()["resume_key"] == chave
-    client.post(f"/api/student/enrollments/{enrollment_id}/progress", json={"url": chave}, headers=headers)
+    progresso_core.marcar(enrollment_id, chave, True)
     assert _sala(client, enrollment_id, headers).json()["resume_key"] == MATERIAL
 
 
@@ -324,3 +328,114 @@ def test_material_antigo_informa_o_tipo(client):
     enrollment_id, headers = _aluno_ativo()
     item = _sala(client, enrollment_id, headers).json()["modules"][0]["items"][0]
     assert item["material_type"] == "pdf"
+
+
+def _avanco(client, enrollment_id, headers, chave, **campos):
+    corpo = {"key": chave, "position": 10, "watched_delta": 10, "duration": 100, **campos}
+    return client.post(f"/api/student/enrollments/{enrollment_id}/room/video", json=corpo, headers=headers)
+
+
+def _recuar_relogio(segundos, monkeypatch):
+    agora = time.time()
+    monkeypatch.setattr(progresso_core.time, "time", lambda: agora + segundos)
+
+
+def test_primeiro_envio_nao_credita_tempo_nenhum(client, gestao):
+    chave = conteudos.chave(_video(client, gestao))
+    enrollment_id, headers = _aluno_ativo()
+    corpo = _avanco(client, enrollment_id, headers, chave, watched_delta=100, position=100).json()
+    assert corpo["video"]["watched"] == 0 and corpo["video"]["complete"] is False
+
+
+def test_tempo_assistido_e_limitado_ao_tempo_real(client, gestao, monkeypatch):
+    chave = conteudos.chave(_video(client, gestao))
+    enrollment_id, headers = _aluno_ativo()
+    _avanco(client, enrollment_id, headers, chave, watched_delta=0)
+    _recuar_relogio(10, monkeypatch)
+    corpo = _avanco(client, enrollment_id, headers, chave, watched_delta=95).json()
+    assert corpo["video"]["watched"] <= 20.5, "em 10 s reais, no máximo 20 s em velocidade 2x"
+    assert corpo["video"]["complete"] is False
+
+
+def test_pausa_longa_nao_vira_credito(client, gestao, monkeypatch):
+    chave = conteudos.chave(_video(client, gestao))
+    enrollment_id, headers = _aluno_ativo()
+    _avanco(client, enrollment_id, headers, chave, watched_delta=0, duration=1000)
+    _recuar_relogio(3600, monkeypatch)
+    assert _avanco(client, enrollment_id, headers, chave, watched_delta=900, duration=1000).json()["video"]["watched"] <= 120
+
+
+def test_noventa_por_cento_conclui_e_libera_certificado(client, gestao, monkeypatch):
+    aula = _video(client, gestao)
+    chave = conteudos.chave(aula)
+    enrollment_id, headers = _aluno_ativo()
+    client.post(f"/api/student/enrollments/{enrollment_id}/progress", json={"url": MATERIAL}, headers=headers)
+    _avanco(client, enrollment_id, headers, chave, watched_delta=0)
+    _recuar_relogio(44, monkeypatch)
+    corpo = _avanco(client, enrollment_id, headers, chave, watched_delta=88).json()
+    assert corpo["video"]["complete"] is False and corpo["video"]["percent"] == 88
+    _recuar_relogio(46, monkeypatch)
+    corpo = _avanco(client, enrollment_id, headers, chave, watched_delta=2, position=90).json()
+    assert corpo["video"]["complete"] is True and corpo["progress"]["certificate_available"] is True
+    sala = _sala(client, enrollment_id, headers).json()
+    assert sala["modules"][1]["items"][0]["position"] == 90
+
+
+def test_parar_no_fim_recomeca_do_inicio(client, gestao):
+    chave = conteudos.chave(_video(client, gestao))
+    enrollment_id, headers = _aluno_ativo()
+    _avanco(client, enrollment_id, headers, chave, position=97, watched_delta=0)
+    assert _sala(client, enrollment_id, headers).json()["modules"][1]["items"][0]["position"] == 0
+
+
+def test_video_nao_pode_ser_concluido_a_mao(client, gestao):
+    chave = conteudos.chave(_video(client, gestao))
+    enrollment_id, headers = _aluno_ativo()
+    rota = f"/api/student/enrollments/{enrollment_id}/progress"
+    assert client.post(rota, json={"url": chave}, headers=headers).status_code == 409
+
+
+def test_material_antigo_em_video_tambem_conta_por_tempo(client):
+    arquivo = admin_routes.COURSES_DIR / f"{CURSO}.json"
+    dados = json.loads(arquivo.read_text(encoding="utf-8"))
+    dados["materials"] = [{"title": "Vídeo antigo", "url": VIDEO, "type": "video"}]
+    arquivo.write_text(json.dumps(dados), encoding="utf-8")
+    enrollment_id, headers = _aluno_ativo()
+    assert _avanco(client, enrollment_id, headers, VIDEO).status_code == 200
+    rota = f"/api/student/enrollments/{enrollment_id}/progress"
+    assert client.post(rota, json={"url": VIDEO}, headers=headers).status_code == 409
+
+
+@pytest.mark.parametrize("campos, codigo", [
+    ({"key": "conteudo:999"}, 422), ({"position": -1}, 422), ({"watched_delta": -1}, 422), ({"duration": 0}, 422),
+    ({"duration": 86401}, 422), ({"watched_delta": 3601}, 422),
+], ids=lambda v: str(v)[:24])
+def test_avanco_recusa_valores_invalidos(client, gestao, campos, codigo):
+    chave = conteudos.chave(_video(client, gestao))
+    enrollment_id, headers = _aluno_ativo()
+    assert _avanco(client, enrollment_id, headers, campos.pop("key", chave), **campos).status_code == codigo
+
+
+def test_avanco_de_link_e_recusado(client, gestao):
+    link = client.post(f"/api/admin/courses/{CURSO}/contents", headers=gestao, json={
+        "module": "M", "title": "L", "kind": "link", "url": "https://materiais.test/l"}).json()["content"]
+    enrollment_id, headers = _aluno_ativo()
+    assert _avanco(client, enrollment_id, headers, conteudos.chave(link)).status_code == 422
+
+
+@pytest.mark.parametrize("status", ["pending", "cancelled", "refunded"])
+def test_avanco_exige_matricula_ativa(client, gestao, status):
+    chave = conteudos.chave(_video(client, gestao))
+    user_id, headers = _conta()
+    assert _avanco(client, _matricula(user_id, status), headers, chave).status_code == 409
+
+
+def test_avanco_em_matricula_alheia_devolve_404(client, gestao):
+    chave = conteudos.chave(_video(client, gestao))
+    enrollment_id, _ = _aluno_ativo()
+    _, outro = _conta()
+    assert _avanco(client, enrollment_id, outro, chave).status_code == 404
+
+
+def test_gestao_recebe_o_player_da_previa(client, gestao):
+    assert _video(client, gestao)["embed_url"].startswith("https://www.youtube-nocookie.com/embed/")

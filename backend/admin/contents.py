@@ -91,8 +91,11 @@ def _ler_arquivo(file: UploadFile) -> Tuple[str, bytes]:
 
 
 def _publico(conteudo: dict) -> dict:
-    """Sem o nome interno do arquivo."""
-    return {campo: valor for campo, valor in conteudo.items() if campo != "stored_name"}
+    """Sem o nome interno do arquivo; o vídeo leva o player da prévia."""
+    publico = {campo: valor for campo, valor in conteudo.items() if campo != "stored_name"}
+    if conteudo["kind"] == "video":
+        publico["embed_url"] = conteudos.embed_do_video(conteudo["url"])
+    return publico
 
 
 def _auditar(acao: str, detalhe: str, conteudo: dict, current_user: AuthContext) -> None:

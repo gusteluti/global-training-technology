@@ -19,6 +19,8 @@ export class CourseContentsComponent implements OnChanges {
   arquivo: File | null = null;
   editandoId: number | null = null;
   confirmandoId: number | null = null;
+  previaId: number | null = null;
+  previaComFalha = false;
   erro = '';
   aviso = '';
   salvando = false;
@@ -104,6 +106,11 @@ export class CourseContentsComponent implements OnChanges {
       duration_minutes: item.duration_minutes, is_extra: item.is_extra, published: item.published
     };
     this.arquivo = null;
+  }
+
+  alternarPrevia(item: any): void {
+    this.previaId = this.previaId === item.id ? null : item.id;
+    this.previaComFalha = false;
   }
 
   limpar(): void {

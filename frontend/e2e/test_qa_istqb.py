@@ -470,7 +470,8 @@ def test_idor_get(s, modelo):
 
 @ct("CT-ALU-03", "RF22", "SEC", "IDOR em escrita: progresso, avaliação, cancelamento e posição na sala")
 @pytest.mark.parametrize("sufixo, corpo", [("progress", {"url": "x"}), ("review", {"rating": 5}),
-                                           ("cancel-request", {"reason": "x"}), ("room/last-seen", {"key": "x"})])
+                                           ("cancel-request", {"reason": "x"}), ("room/last-seen", {"key": "x"}),
+                                           ("room/video", {"key": "x", "position": 0, "watched_delta": 0, "duration": 9})])
 def test_idor_post(s, sufixo, corpo):
     dono, outro = s.aluno(), s.aluno()
     enrollment, _ = s.matricula(dono.id)
@@ -1145,11 +1146,26 @@ def test_certificado_decisoes(s):
     aula = _conteudo(s, corpo["id"])
     pendente = _conteudo(s, corpo["id"], title="Pendente")
     extra = _conteudo(s, corpo["id"], title="Extra", is_extra=True)
-    for item in (aula, extra):
-        s.post(f"/api/student/enrollments/{enrollment}/progress", {"url": f"conteudo:{item['id']}"}, aluno.tk)
+    s.sql("INSERT INTO material_progress (enrollment_id, url, completed_at) VALUES (?, ?, datetime('now'))",
+          enrollment, f"conteudo:{aula['id']}")
+    s.sql("INSERT INTO material_progress (enrollment_id, url, completed_at) VALUES (?, ?, datetime('now'))",
+          enrollment, f"conteudo:{extra['id']}")
     assert s.get(rota, aluno.tk).s == 409
     s.put(f"/api/admin/contents/{pendente['id']}", {**pendente, "published": False}, admin)
     assert s.get(rota, aluno.tk).s == 200
+
+
+@ct("CT-SAL-11", "SALA", "SEC", "Vídeo não se conclui à mão nem com tempo informado de uma vez só")
+def test_video_sem_atalho(s):
+    aluno = s.aluno()
+    _, corpo = novo_curso(s, s.tk["admin"])
+    enrollment, _ = s.matricula(aluno.id, curso=corpo["id"])
+    chave = f"conteudo:{_conteudo(s, corpo['id'])['id']}"
+    assert s.post(f"/api/student/enrollments/{enrollment}/progress", {"url": chave}, aluno.tk).s == 409
+    rota = f"/api/student/enrollments/{enrollment}/room/video"
+    for _ in range(3):
+        resposta = s.post(rota, {"key": chave, "position": 100, "watched_delta": 3600, "duration": 100}, aluno.tk)
+    assert resposta.s == 200 and resposta.j["video"]["complete"] is False
 
 
 @ct("CT-SAL-09", "SALA", "SEC", "Arquivo removido do disco devolve 404, sem expor caminho interno")
@@ -1445,7 +1461,7 @@ def test_ui_sala_320(s, navegador):
     pagina = tela(navegador, 320, 640)
     entrar(pagina, s, aluno.email, SENHA, "student")
     pagina.goto(f"{s.alvo['base']}/student/curso/{enrollment}", wait_until="networkidle")
-    pagina.locator('[data-testid="sala-player"]').wait_for()
+    pagina.locator('[data-testid="sala-player"]').wait_for(state="attached")
     assert pagina.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth") <= 0
 
 
@@ -1459,7 +1475,7 @@ def test_ui_sala_reembolso(s, navegador):
     pagina = tela(navegador)
     entrar(pagina, s, aluno.email, SENHA, "student")
     pagina.goto(f"{s.alvo['base']}/student/curso/{enrollment}", wait_until="networkidle")
-    pagina.locator('[data-testid="sala-player"]').wait_for()
+    pagina.locator('[data-testid="sala-player"]').wait_for(state="attached")
     s.post(f"/api/payments/refund/{pagamento}", tk=s.tk["financial"])
     pagina.click('[data-testid="sala-proxima"]')
     assert "encerrado" in pagina.locator('[data-testid="sala-erro"]').inner_text()

@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel, ConfigDict, StrictInt, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_validator
 
 import admin.routes as admin_routes
 import payments.routes as payments_routes
@@ -545,7 +545,16 @@ async def excluir_minha_conta(corpo: ExclusaoInput,
 ERRO_MATERIAL_SO_ATIVA = "O material só fica disponível com a matrícula ativa."
 ERRO_MATERIAL_INEXISTENTE = "Material não encontrado neste curso."
 ERRO_CONTEUDO_NAO_ENCONTRADO = "Conteúdo não encontrado."
+ERRO_VIDEO_AUTOMATICO = "A aula em vídeo é concluída ao assistir."
+SEGUNDOS_FINAIS_DO_VIDEO = 5
 ERRO_CERTIFICADO_INCOMPLETO = "Conclua todos os materiais para emitir o certificado."
+
+
+def _chaves_de_video(course_id: str, curso: Optional[Dict]) -> List[str]:
+    """Vídeos publicados na sala, incluindo materiais antigos que são link do YouTube ou do Vimeo."""
+    materiais = [m["url"] for m in _materiais(curso) if conteudos.embed_do_video(m["url"])]
+    return materiais + [conteudos.chave(c) for c in conteudos.listar(course_id, so_publicados=True)
+                        if c["kind"] == "video"]
 
 
 class ProgressoInput(BaseModel):
@@ -571,11 +580,24 @@ async def marcar_material(enrollment_id: int, corpo: ProgressoInput,
     aulas = _chaves_das_aulas(matricula["course_id"], curso)
     if corpo.url not in _chaves_da_sala(matricula["course_id"], curso):
         raise HTTPException(status_code=422, detail=ERRO_MATERIAL_INEXISTENTE)
+    if corpo.url in _chaves_de_video(matricula["course_id"], curso):
+        raise HTTPException(status_code=409, detail=ERRO_VIDEO_AUTOMATICO)
     progresso.marcar(matricula["id"], corpo.url, corpo.done)
     return {"status": "success", "progress": progresso.resumo(matricula["id"], aulas)}
 
 
-def _item_da_sala(conteudo: Dict, feitos: Dict) -> Dict:
+def _com_video(item: Dict, videos: Dict) -> Dict:
+    """Soma à aula em vídeo a posição e o percentual assistido."""
+    estado = videos.get(item["key"]) or {}
+    posicao = estado.get("position", 0)
+    # Quem parou nos últimos segundos recomeça do início; senão o vídeo terminaria ao abrir.
+    if posicao >= estado.get("duration", 0) - SEGUNDOS_FINAIS_DO_VIDEO:
+        posicao = 0
+    item.update({"position": posicao, "watched_percent": estado.get("percent", 0)})
+    return item
+
+
+def _item_da_sala(conteudo: Dict, feitos: Dict, videos: Dict) -> Dict:
     chave = conteudos.chave(conteudo)
     item = {
         "key": chave, "title": conteudo["title"], "kind": conteudo["kind"],
@@ -583,6 +605,7 @@ def _item_da_sala(conteudo: Dict, feitos: Dict) -> Dict:
     }
     if conteudo["kind"] == "video":
         item["embed_url"] = conteudos.embed_do_video(conteudo["url"])
+        _com_video(item, videos)
     elif conteudo["kind"] == "link":
         item["url"] = conteudo["url"]
     else:
@@ -590,11 +613,14 @@ def _item_da_sala(conteudo: Dict, feitos: Dict) -> Dict:
     return item
 
 
-def _item_de_material(material: Dict, feitos: Dict) -> Dict:
+def _item_de_material(material: Dict, feitos: Dict, videos: Dict) -> Dict:
     embed = conteudos.embed_do_video(material["url"])
     item = {"key": material["url"], "title": material["title"], "kind": "video" if embed else "link",
             "duration_minutes": None, "done": material["url"] in feitos, "material_type": material["type"]}
-    item.update({"embed_url": embed} if embed else {"url": material["url"]})
+    if embed:
+        item["embed_url"] = embed
+        return _com_video(item, videos)
+    item["url"] = material["url"]
     return item
 
 
@@ -604,13 +630,14 @@ async def sala_do_curso(enrollment_id: int, current_user: AuthContext = Depends(
     matricula, curso = _matricula_ativa_do_aluno(enrollment_id, current_user.id)
     course_id = matricula["course_id"]
     feitos = progresso.concluidos(matricula["id"])
+    videos = progresso.videos(matricula["id"])
     modulos: Dict[str, List[Dict]] = {}
-    materiais = [_item_de_material(m, feitos) for m in _materiais(curso)]
+    materiais = [_item_de_material(m, feitos, videos) for m in _materiais(curso)]
     if materiais:
         modulos[conteudos.MODULO_MATERIAIS] = materiais
     extras = []
     for conteudo in conteudos.listar(course_id, so_publicados=True):
-        item = _item_da_sala(conteudo, feitos)
+        item = _item_da_sala(conteudo, feitos, videos)
         if conteudo["is_extra"]:
             extras.append(item)
         else:
@@ -627,6 +654,26 @@ async def sala_do_curso(enrollment_id: int, current_user: AuthContext = Depends(
         "next_key": proxima,
         "resume_key": visto["key"] if visto and not visto["done"] else proxima,
     }
+
+
+class AvancoVideoInput(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    key: str
+    position: float = Field(ge=0, le=86400, allow_inf_nan=False)
+    watched_delta: float = Field(ge=0, le=3600, allow_inf_nan=False)
+    duration: float = Field(gt=0, le=86400, allow_inf_nan=False)
+
+
+@router.post("/enrollments/{enrollment_id}/room/video")
+async def registrar_avanco_do_video(enrollment_id: int, corpo: AvancoVideoInput,
+                                    current_user: AuthContext = Depends(require_roles(Role.STUDENT))):
+    """Tempo assistido de uma aula em vídeo (D98). Só matrícula ativa; alheia = o mesmo 404 da E3."""
+    matricula, curso = _matricula_ativa_do_aluno(enrollment_id, current_user.id)
+    if corpo.key not in _chaves_de_video(matricula["course_id"], curso):
+        raise HTTPException(status_code=422, detail=ERRO_MATERIAL_INEXISTENTE)
+    estado = progresso.registrar_video(matricula["id"], corpo.key, corpo.position, corpo.watched_delta, corpo.duration)
+    aulas = _chaves_das_aulas(matricula["course_id"], curso)
+    return {"status": "success", "video": estado, "progress": progresso.resumo(matricula["id"], aulas)}
 
 
 class VistoInput(BaseModel):
