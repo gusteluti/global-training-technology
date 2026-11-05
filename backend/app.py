@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import os
 import json
 from pathlib import Path
@@ -326,6 +327,10 @@ app.include_router(dashboard_router, prefix="/api/dashboard", tags=["dashboard"]
 app.include_router(auth_router)
 # Área do aluno (E3, D28): /api/student/enrollments (só perfil student; IDOR bloqueado no SQL).
 app.include_router(student_router, prefix="/api/student", tags=["student"])
+
+# Serve frontend pages (Mercado Pago back_urls point to /frontend/landing_global_training.html)
+FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
+app.mount("/frontend", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
 
 @app.get("/")
 async def root():

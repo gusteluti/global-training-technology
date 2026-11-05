@@ -16,9 +16,12 @@ import { AuthService } from './services/auth.service';
           <span>Technology</span>
         </div>
       </a>
-      <div class="gt-nav-actions" *ngIf="auth.isAuthenticated()">
-        <span class="gt-nav-role">{{ auth.getRoleLabel() }}</span>
-        <button class="gt-nav-cta" type="button" (click)="logout()">Sair</button>
+      <div class="gt-nav-actions">
+        <a class="gt-nav-link" data-testid="app-voltar-site" [href]="landingUrl">Voltar ao site</a>
+        <ng-container *ngIf="auth.isAuthenticated()">
+          <span class="gt-nav-role">{{ auth.getRoleLabel() }}</span>
+          <button class="gt-nav-cta" type="button" (click)="logout()">Sair</button>
+        </ng-container>
       </div>
     </nav>
     <main class="gt-main">
@@ -32,6 +35,20 @@ import { AuthService } from './services/auth.service';
   `
 })
 export class AppComponent {
+  // Landing (vitrine) fica fora da SPA, servida pelo backend em /frontend/. Em desenvolvimento a SPA roda
+  // no ng serve (porta 4200) e o backend na 8000; em qualquer outro host as duas dividem a mesma origem.
+  // A meta "gtt-landing-url" do index.html, se preenchida, tem prioridade.
+  readonly landingUrl = AppComponent.calcularLandingUrl();
+
+  static calcularLandingUrl(): string {
+    const meta = document.querySelector('meta[name="gtt-landing-url"]') as HTMLMetaElement | null;
+    const configurada = meta && meta.content.trim();
+    if (configurada) return configurada;
+    const caminho = '/frontend/landing_global_training.html';
+    const { protocol, hostname, port } = window.location;
+    return port === '4200' ? `${protocol}//${hostname}:8000${caminho}` : caminho;
+  }
+
   constructor(public auth: AuthService, private router: Router) { }
 
   // D93: o logo leva à área de quem está logado (funcionário -> /admin, aluno -> /student); sem sessão, ao login.

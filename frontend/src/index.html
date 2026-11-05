@@ -6,6 +6,9 @@
     <title>Global Training Technology</title>
     <!-- Raiz da SPA: sem ela, rota com dois segmentos (/student/perfil) aberta direto carrega os scripts do lugar errado. -->
     <base href="/">
+    <!-- Endereço da landing (link "Voltar ao site" da barra). Vazio: porta 8000 em dev (ng serve na 4200)
+         e /frontend/landing_global_training.html na própria origem nos demais casos. -->
+    <meta name="gtt-landing-url" content="">
     <!-- Bootstrap e as fontes da landing (Barlow / Barlow Condensed, via @fontsource) vêm do node_modules (angular.json):
          a SPA não depende de CDN nem do Google Fonts. -->
   </head>

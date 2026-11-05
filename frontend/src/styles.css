@@ -85,6 +85,8 @@ a:hover { color: var(--gt-teal-dark); }
   border: 1.5px solid rgba(255, 255, 255, 0.75); transition: border-color .2s, color .2s; cursor: pointer;
 }
 .gt-nav-cta:hover { border-color: #00b7df; color: #00b7df; }
+.gt-nav-link { color: #ffffff; font-size: 14px; font-weight: 600; text-decoration: none; transition: color .2s; }
+.gt-nav-link:hover { color: #00b7df; }
 
 .gt-main { flex: 1 0 auto; padding: 40px 0 56px; }
 .gt-container { max-width: 1180px; }
