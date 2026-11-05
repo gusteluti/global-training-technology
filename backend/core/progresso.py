@@ -13,8 +13,7 @@ import time
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
-from core.fuso import formatar_utc_em_sao_paulo
-from core.receipt_pdf import gerar_pdf_de_linhas
+from core import certificado_pdf
 from db import Database
 
 
@@ -171,23 +170,7 @@ def codigo_validacao(enrollment_id: int, user_id: int) -> str:
     return hmac.new(chave, f"certificado:{enrollment_id}:{user_id}".encode(), hashlib.sha256).hexdigest()[:12].upper()
 
 
-def gerar_certificado_pdf(nome_aluno: str, nome_curso: str, horas: Optional[int], concluido_em: Optional[str],
-                          codigo: str) -> bytes:
-    data = (formatar_utc_em_sao_paulo(concluido_em) or "")[:10] if concluido_em else ""
-    linhas = [
-        ("F2", "CERTIFICADO DE CONCLUSÃO"),
-        ("F1", "Global Training Technology"),
-        ("F1", ""),
-        ("F1", "Certificamos que"),
-        ("F2", nome_aluno or "Aluno"),
-        ("F1", "concluiu o curso"),
-        ("F2", nome_curso),
-    ]
-    if horas:
-        linhas.append(("F1", f"com carga horária de {horas} horas."))
-    linhas += [
-        ("F1", ""),
-        ("F1", f"Data de conclusão: {data}"),
-        ("F1", f"Código de validação: {codigo}"),
-    ]
-    return gerar_pdf_de_linhas(linhas)
+def gerar_certificado_pdf(nome_aluno: str, nome_curso: str, iniciado_em: Optional[str], concluido_em: Optional[str],
+                          codigo: str, horas: Optional[int] = None) -> bytes:
+    """PDF no layout do Canva (core/certificado_pdf.py): início = matrícula, fim = última aula concluída."""
+    return certificado_pdf.gerar(nome_aluno, nome_curso, iniciado_em, concluido_em, codigo, horas=horas)

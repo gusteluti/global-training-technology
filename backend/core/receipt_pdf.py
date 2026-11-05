@@ -67,7 +67,7 @@ def gerar_recibo_pdf(recibo: Dict, nome_aluno: Optional[str]) -> bytes:
 
 
 def gerar_pdf_de_linhas(linhas: List[Tuple[str, str]]) -> bytes:
-    """PDF de uma página a partir de (fonte, texto); F2 = título em negrito. Usado pelo recibo e pelo certificado."""
+    """PDF de uma página a partir de (fonte, texto); F2 = título em negrito. Usado pelo recibo (o certificado usa core/certificado_pdf.py)."""
     conteudo = _conteudo(linhas)
     objetos = [
         b"<< /Type /Catalog /Pages 2 0 R >>",

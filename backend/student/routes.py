@@ -770,8 +770,9 @@ async def baixar_certificado(enrollment_id: int, current_user: AuthContext = Dep
     perfil = Database.get_student_profile(current_user.id) or {}
     pdf = progresso.gerar_certificado_pdf(
         perfil.get("name") or "", (curso or {}).get("name") or matricula["course_id"],
-        (curso or {}).get("duration_hours"), resumo["completed_at"],
+        matricula.get("enrolled_at"), resumo["completed_at"],
         progresso.codigo_validacao(matricula["id"], current_user.id),
+        horas=(curso or {}).get("duration_hours"),
     )
     return Response(content=pdf, media_type="application/pdf",
                     headers={"Content-Disposition": f'attachment; filename="certificado-{matricula["course_id"]}.pdf"'})
