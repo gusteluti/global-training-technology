@@ -29,6 +29,23 @@ export class LoginComponent {
       this.aviso = params.get('sessao') === 'expirada' ? MSG_SESSAO_EXPIRADA
         : (params.get('conta') === 'excluida' ? 'Sua conta foi excluída.' : '');
     });
+    // Quem já tem sessão válida (ex.: voltou da landing pelo "Área do aluno") não precisa entrar de novo.
+    if (this.auth.hasValidSession()) {
+      this.irParaArea(true);
+    }
+  }
+
+  // Gestão, Financeiro e Suporte vão para a área administrativa; o restante, para a área do aluno.
+  private irParaArea(replaceUrl = false) {
+    const role = this.auth.getRole();
+    const isStaff = ['admin', 'financial', 'support'].includes(role || '');
+    if (isStaff) {
+      this.router.navigate(['/admin'], { replaceUrl });
+    } else {
+      // Aluno volta à rota pedida (D76) só se for caminho interno; senão, /student (sem redirecionamento aberto).
+      const next = this.route.snapshot.queryParamMap.get('next');
+      this.router.navigateByUrl(caminhoInternoSeguro(next) ? next : '/student', { replaceUrl });
+    }
   }
 
   submit() {
@@ -37,16 +54,7 @@ export class LoginComponent {
     this.auth.login(this.email, this.password).subscribe({
       next: ok => {
         if (ok) {
-          // Gestão, Financeiro e Suporte vão para a área administrativa; o restante, para a área do aluno.
-          const role = this.auth.getRole();
-          const isStaff = ['admin', 'financial', 'support'].includes(role || '');
-          if (isStaff) {
-            this.router.navigate(['/admin']);
-          } else {
-            // Aluno volta à rota pedida (D76) só se for caminho interno; senão, /student (sem redirecionamento aberto).
-            const next = this.route.snapshot.queryParamMap.get('next');
-            this.router.navigateByUrl(caminhoInternoSeguro(next) ? next : '/student');
-          }
+          this.irParaArea();
         } else {
           this.error = 'Credenciais inválidas';
         }

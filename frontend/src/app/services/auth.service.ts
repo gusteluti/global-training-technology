@@ -70,6 +70,13 @@ export class AuthService {
     }
   }
 
+  // Sessão ainda utilizável: token presente, legível e com "exp" no futuro (sem "exp", vale o que o backend disser).
+  hasValidSession(): boolean {
+    const data = this.decodeToken();
+    if (!data) return false;
+    return typeof data.exp !== 'number' || data.exp * 1000 > Date.now();
+  }
+
   getRole(): string | null {
     const data = this.decodeToken();
     if (!data) return null;

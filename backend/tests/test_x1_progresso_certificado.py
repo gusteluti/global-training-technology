@@ -1,12 +1,17 @@
 """X1 — progresso nos materiais e certificado de conclusão (D91, processo enxuto D84)."""
 
+import io
 import json
 import sqlite3
+from datetime import datetime, timezone
 
 import pytest
 from fastapi.testclient import TestClient
+from pypdf import PdfReader
 
 import admin.routes as admin_routes
+from core import progresso
+from core.fuso import dia_sao_paulo
 from core.security import get_password_hash
 from db import Database
 
@@ -86,7 +91,76 @@ def test_certificado_so_com_tudo_concluido(client):
     assert _item(client, auth, matricula)["progress"]["certificate_available"] is True
     r = client.get(url, headers=auth)
     assert r.status_code == 200 and r.headers["content-type"] == "application/pdf"
-    assert r.content.startswith(b"%PDF-") and b"Joana Certificada" in r.content and b"20 horas" in r.content
+    assert r.content.startswith(b"%PDF-") and "Joana Certificada" in _texto_do_pdf(r.content)
+
+
+# --- Layout do Canva (backend/assets/certificado): fundo, nome em script, frases com curso e datas ----------------
+
+def _texto_do_pdf(conteudo: bytes) -> str:
+    """Texto extraído do PDF, com os espaços normalizados (o extrator pode quebrar a linha em pedaços)."""
+    paginas = PdfReader(io.BytesIO(conteudo)).pages
+    return " ".join(" ".join(p.extract_text() or "" for p in paginas).split())
+
+
+def _concluir(client, auth, matricula):
+    for m in (M1, M2):
+        client.post(f"/api/student/enrollments/{matricula}/progress", json={"url": m}, headers=auth)
+    r = client.get(f"/api/student/enrollments/{matricula}/certificate.pdf", headers=auth)
+    assert r.status_code == 200
+    return r.content
+
+
+def test_certificado_segue_o_layout(client):
+    matricula, auth = _aluno(client, "f.x1@teste.com")
+    # 01:00 UTC de 02/03 ainda é 01/03 em São Paulo: a data de início sai no horário de SP (F2).
+    conn = sqlite3.connect(Database.DB_PATH)
+    conn.execute("UPDATE enrollments SET enrolled_at = '2026-03-02 01:00:00' WHERE id = ?", (matricula,))
+    conn.commit()
+    conn.close()
+    conteudo = _concluir(client, auth, matricula)
+    hoje = dia_sao_paulo(datetime.now(timezone.utc)).strftime("%d/%m/%Y")
+    texto = _texto_do_pdf(conteudo)
+    assert "Joana Certificada" in texto
+    # Carga horária (duration_hours do curso) entra na frase, a pedido do PM depois do layout.
+    assert (f"CONCLUIU COM ÊXITO O CURSO CURSO DE GESTÃO X1, COM CARGA HORÁRIA DE 20 HORAS, "
+            f"ENTRE 01/03/2026 E {hoje}.") in texto
+    assert f"EMITIDO EM {hoje} PELA GLOBAL TRAINING TECHNOLOGY." in texto
+    assert f"Código de validação: {progresso.codigo_validacao(matricula, _id_do_aluno(matricula))}" in texto
+    assert "{" not in texto  # nenhum marcador do modelo sobra no PDF
+
+    pagina = PdfReader(io.BytesIO(conteudo)).pages[0]
+    largura, altura = float(pagina.mediabox.width), float(pagina.mediabox.height)
+    assert (round(largura), round(altura)) == (842, 595)  # A4 deitado, como o modelo
+    assert len(pagina.images) == 1  # a arte do Canva vai de fundo
+
+
+def test_curso_de_nome_longo_quebra_em_linhas_sem_perder_texto():
+    nome_curso = "Formação Completa em Gestão de Projetos Ágeis, Liderança de Equipes e Indicadores de Desempenho"
+    conteudo = progresso.gerar_certificado_pdf(
+        "Maria Aparecida dos Santos de Oliveira Albuquerque", nome_curso,
+        "2026-01-10 12:00:00", "2026-02-20 12:00:00", "ABC123DEF456",
+    )
+    leitor = PdfReader(io.BytesIO(conteudo))
+    assert len(leitor.pages) == 1
+    texto = _texto_do_pdf(conteudo)
+    assert "Maria Aparecida dos Santos de Oliveira Albuquerque" in texto
+    # Curso sem carga horária cadastrada: a frase sai sem o trecho, em vez de "0 HORAS" ou "NONE HORAS".
+    assert f"CONCLUIU COM ÊXITO O CURSO {nome_curso.upper()} ENTRE 10/01/2026 E 20/02/2026." in texto
+
+
+@pytest.mark.parametrize("horas, trecho", [(1, ", COM CARGA HORÁRIA DE 1 HORA,"), (40, ", COM CARGA HORÁRIA DE 40 HORAS,")])
+def test_carga_horaria_no_singular_e_no_plural(horas, trecho):
+    conteudo = progresso.gerar_certificado_pdf("Ana", "Excel", "2026-01-10 12:00:00", "2026-02-20 12:00:00",
+                                               "ABC123DEF456", horas=horas)
+    assert f"O CURSO EXCEL{trecho} ENTRE" in _texto_do_pdf(conteudo)
+
+
+def _id_do_aluno(matricula):
+    conn = sqlite3.connect(Database.DB_PATH)
+    try:
+        return conn.execute("SELECT user_id FROM enrollments WHERE id = ?", (matricula,)).fetchone()[0]
+    finally:
+        conn.close()
 
 
 def test_sem_token_401(client):
