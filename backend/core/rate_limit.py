@@ -4,6 +4,8 @@
 - POST /api/student/chat (GR3, D95): 30 mensagens por minuto por aluno (id do JWT, em qualquer IP) -> 429 ERRO_CHAT.
   Não consome o limite por IP do chat anônimo.
 - Checkouts (aluno logado e landing): 10 por minuto por IP e, no fluxo logado, também por aluno -> 429 ERRO_CHECKOUT.
+- POST /api/auth/password-token/check (D108): 30 checagens por minuto por IP -> 429 com o texto do limite de login
+  (`login_limit.ERRO_LOGIN`).
 
 Janela deslizante de 1 minuto. Tentativa barrada não conta. O estado é zerado no startup do app
 (`redefinir_limites()`). O IP é `request.client.host`; X-Forwarded-For não é considerado.
@@ -22,6 +24,7 @@ JANELA_SEGUNDOS = 60.0
 LIMITE_CHAT_POR_IP = 30
 LIMITE_CHAT_POR_ALUNO = 30
 LIMITE_CHECKOUT = 10
+LIMITE_CHECAGEM_TOKEN_SENHA = 30
 _MAX_CHAVES = 10_000  # acima disso, chaves sem registro na janela são descartadas
 
 _trava = threading.Lock()
@@ -85,3 +88,11 @@ def permitir_checkout(request: Request, user_id: Optional[int] = None) -> bool:
     if user_id is not None:
         chaves.append(("checkout", "user", user_id))
     return _consumir(chaves, LIMITE_CHECKOUT)
+
+
+def permitir_checagem_token_senha(request: Request) -> bool:
+    """Checagem do link de senha (D108): limite por IP, para não virar oráculo de força bruta de tokens."""
+    ip = _ip(request)
+    if ip is None:
+        return True
+    return _consumir([("token-senha", "ip", ip)], LIMITE_CHECAGEM_TOKEN_SENHA)

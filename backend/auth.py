@@ -6,12 +6,13 @@ from datetime import timedelta
 from pydantic import BaseModel, ConfigDict
 
 from core.audit import record_audit
-from core import login_limit
+from core import login_limit, rate_limit
 from core.security import create_account_token, verify_password, get_password_hash
 from core.emails import email_valido, normalizar_email
 from core.password_setup import (
     definir_senha_pelo_token,
     emitir_token_com_limite,
+    finalidade_do_token,
     redefinir_senha_pelo_token,
     senha_aceitavel,
 )
@@ -45,6 +46,8 @@ RESPOSTA_PEDIDO_REDEFINICAO = {
     "message": "Se o e-mail estiver cadastrado, enviaremos um link para redefinir a senha.",
 }
 RESPOSTA_REDEFINICAO = {"status": "success", "message": "Senha redefinida. Faça login para entrar."}
+# Checagem do link de senha (D108): o mesmo corpo para inválido, expirado, usado, substituído ou vazio.
+ERRO_LINK_SENHA = "Link inválido ou expirado."
 # Login de aluno desativado com a senha certa (S4, D80).
 ERRO_CONTA_DESATIVADA = "Sua conta está desativada. Fale com o suporte."
 
@@ -83,6 +86,12 @@ class PasswordResetInput(BaseModel):
     password: str
 
 
+class PasswordTokenCheckInput(BaseModel):
+    # user_id/email extras são ignorados: a resposta depende só do token (D108).
+    model_config = ConfigDict(extra="ignore")
+    token: str = ""
+
+
 @router.post("/api/auth/register")
 async def register(dados: RegisterInput):
     """Cadastro direto de aluno (D15). Papel fixo 'student'."""
@@ -118,6 +127,19 @@ async def password_setup(dados: PasswordSetupInput):
     if not definir_senha_pelo_token(dados.token, dados.password):
         raise HTTPException(status_code=400, detail=ERRO_DEFINICAO_SENHA)
     return {"status": "success", "message": "Senha definida. Faça login para entrar."}
+
+
+@router.post("/api/auth/password-token/check")
+async def password_token_check(request: Request, dados: PasswordTokenCheckInput):
+    """Diz se o link de senha ainda vale, SEM consumi-lo (D108). Resposta sem e-mail, id ou validade.
+
+    Inválido, expirado, usado, substituído ou vazio: 400 com o mesmo corpo. Limite por IP (rate_limit)."""
+    if not rate_limit.permitir_checagem_token_senha(request):
+        raise HTTPException(status_code=429, detail=login_limit.ERRO_LOGIN)
+    purpose = finalidade_do_token(dados.token)
+    if purpose is None:
+        raise HTTPException(status_code=400, detail=ERRO_LINK_SENHA)
+    return {"valid": True, "purpose": purpose}
 
 
 @router.post("/api/auth/password-reset/request")
