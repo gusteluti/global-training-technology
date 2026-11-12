@@ -316,5 +316,6 @@ virou correção ou decisão do PM.
 | J-GES-02 / J-SUP-01 | Conversas no detalhe do aluno | Só na linha da lista (a API do detalhe já tinha o dado) | Corrigido na D108 (pedido do PM) |
 | J-VIS-03 2N | Link inválido avisa ao abrir | Formulário aparece e só recusa no envio | Corrigido na D108 (pedido do PM) |
 | (QA antigo) | Arquivo enviado pela API sem `published` fica visível | Ficava oculto (o FastAPI trata bool de formulário ausente como `False`) | Defeito: corrigido em `22fc08f` |
+| J-ALU-04 5N | Aviso de sessão expirada ao recarregar depois da desativação | Às vezes ia ao login sem o aviso (corrida entre a página antiga e a nova) | Defeito: corrigido na D108 |
 | J-VIS-02 3N-c | Erro para e-mail já cadastrado | Resposta neutra da D21 | Documento corrigido (a D21 vale) |
 | J-ALU-05 1N-a | Motivo obrigatório | Motivo opcional (D82) | Documento corrigido (a D82 vale) |

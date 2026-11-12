@@ -1783,6 +1783,10 @@ opcional (D82); textos reais ("Ativa", "Dados atualizados.", "Criar conta e matr
 - `/redefinir-senha` e `/definir-senha` checam o link ao abrir (`POST /api/auth/password-token/check`, 200 `{"valid": true,
   "purpose"}` ou 200 `{"valid": false}` igual para todo caso inválido, sem consumir o token, 30/min por IP) e, se inválido,
   mostram o aviso sem formulário, com "Pedir um novo link". Responder 200 em vez de 400 evita erro de console no navegador.
+- sessão invalidada pelo servidor sempre mostra "Sua sessão expirou." (`bb497ad`): o 401 das chamadas da página antiga
+  apagava o token e a carga nova caía no guard só com `next`; agora o interceptor grava uma marca de expiração que o guard
+  consome uma vez (CT-UI-09 falhava 1 em 4 na `main`; passou 10/10);
+- caso ISTQB CT-AUT-19 cobre a rota de checagem do link (`f48e04c`), para a cobertura de endpoints da D104 continuar completa.
 **Ajustes mecânicos (4.3):** D60 → D108 em `test_b1_recuperacao_senha_angular.py` B4; D16 → D108 em
 `test_e2_conta_aluno_angular.py` C5, C6 e C8 (C8 deixa de aceitar o 400 de `password-setup`); D56 → D108 em
 `test_l2_cadastro_cursos_angular.py` N4 e K1 (K1 deixa de aceitar o 400 de `password-setup`). Intenção mantida: link inválido
