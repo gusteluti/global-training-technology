@@ -51,10 +51,10 @@ acesso indevido, regra de negócio que barra). Cada jornada tem um teste E2E em 
 
 | # | Passo | Resultado esperado |
 |---|---|---|
-| 1 | No login, clica em "Criar conta" | Formulário de cadastro com links para Termos e Privacidade |
+| 1 | No login, clica em "Criar conta e matricular-se" | Formulário de cadastro com links para Termos e Privacidade |
 | 2 | Abre Termos e Privacidade | Documentos legíveis e caminho de volta ao cadastro |
 | 3 | Preenche nome, e-mail, senha e marca o aceite | Botão de cadastro liberado |
-| 4 | Envia | Entra na Área do aluno com "Olá, <nome>!" e resumo zerado (nenhum curso ativo) |
+| 4 | Envia e segue em "Ir para o login" | "Conta criada. Você já pode entrar."; depois do login, Área do aluno com "Olá, <primeiro nome>!" e nenhum curso ativo. Quem veio de um curso ou turma escolhidos no chat volta ao catálogo com eles já selecionados |
 | 5 | Sai e entra de novo com o mesmo e-mail em maiúsculas | Entra normalmente (e-mail normalizado) |
 
 **Negativos**
@@ -62,7 +62,7 @@ acesso indevido, regra de negócio que barra). Cada jornada tem um teste E2E em 
 |---|---|---|
 | 3N-a | Não marca o aceite | Não consegue enviar |
 | 3N-b | E-mail sem formato válido | Envio recusado com mensagem, nada é criado |
-| 3N-c | E-mail já cadastrado | Mensagem de erro, sem criar segunda conta |
+| 3N-c | E-mail já cadastrado | A mesma resposta do cadastro novo (D21, para não revelar quem tem conta); não cria segunda conta, mantém a senha original e o titular recebe aviso por e-mail |
 | 3N-d | Senha abaixo do mínimo | Mensagem de erro, nada é criado |
 | 6N | Sem login, digita `/student`, `/catalogo` ou `/admin` na barra | Cai no login; nenhuma tela protegida aparece |
 
@@ -80,7 +80,7 @@ acesso indevido, regra de negócio que barra). Cada jornada tem um teste E2E em 
 | # | Situação | Resultado esperado |
 |---|---|---|
 | 1N | Informa e-mail que não existe | A mesma mensagem neutra (não revela se a conta existe) |
-| 2N | Abre link com token inválido ou já usado | Aviso de link inválido ou expirado, sem formulário útil |
+| 2N | Abre link com token inválido ou já usado | Aviso de link inválido ou expirado logo ao abrir, sem formulário de senha |
 | 4N | Tenta entrar com a senha antiga | Login recusado |
 | 4N-b | Erra a senha 6 vezes seguidas | Na 6ª: "Muitas tentativas. Tente novamente em alguns minutos." |
 
@@ -96,8 +96,8 @@ acesso indevido, regra de negócio que barra). Cada jornada tem um teste E2E em 
 | 1 | Na Área do aluno, atalho "Comprar cursos" | Catálogo com cartões, preço e seletor de turma |
 | 2 | Abre o seletor de turma | Turma lotada aparece marcada "(lotada)" e não pode ser escolhida |
 | 3 | Escolhe a turma com vaga e compra | Pagamento abre em nova aba e o catálogo explica o próximo passo |
-| 4 | Pagamento é aprovado (webhook) e o aluno volta à Área do aluno | Curso "Ativo", com turma, início, horário e término; total investido atualizado |
-| 5 | Na seção Financeiro, baixa o recibo | PDF do recibo com valor, curso e forma de pagamento |
+| 4 | Pagamento é aprovado (webhook) e o aluno volta à Área do aluno | Curso "Ativa", com turma, início, horário e término; total investido atualizado |
+| 5 | Na seção Financeiro, baixa o recibo | PDF do recibo com valor, curso, forma de pagamento e status em português ("Mercado Pago", "Aprovado") |
 
 **Negativos**
 | # | Situação | Resultado esperado |
@@ -141,7 +141,7 @@ acesso indevido, regra de negócio que barra). Cada jornada tem um teste E2E em 
 |---|---|---|
 | 1N | Envia um id de outro aluno no corpo (pela API, simulando cliente adulterado) | A resposta continua só com os dados do próprio aluno |
 | 2N | Escreve o número do cartão na mensagem | Aviso de dados pessoais removidos; o número não volta no histórico ao recarregar |
-| 3N | Manda mais de 30 mensagens em um minuto | A 31ª é recusada com o aviso de limite, sem quebrar a tela |
+| 3N | Manda mais de 30 mensagens em um minuto | A 31ª é recusada mostrando o aviso de limite do servidor, sem quebrar a tela |
 | 4N | Tenta injeção de instrução | Recusa fixa |
 
 ### J-ALU-04 — Cuidar da própria conta
@@ -149,7 +149,7 @@ acesso indevido, regra de negócio que barra). Cada jornada tem um teste E2E em 
 
 | # | Passo | Resultado esperado |
 |---|---|---|
-| 1 | "Meu perfil": altera nome e telefone | "Dados salvos" e o cabeçalho mostra o novo nome |
+| 1 | "Meu perfil": altera nome e telefone | "Dados atualizados." e a saudação da Área do aluno usa o novo nome |
 | 2 | Troca a senha com a senha atual certa | "Senha alterada." e continua logado |
 | 3 | Exporta os dados (LGPD) | Download de arquivo com os dados da conta |
 | 4 | Exclui a conta confirmando a senha | Sai do sistema; o login com a conta excluída é recusado |
@@ -174,7 +174,7 @@ acesso indevido, regra de negócio que barra). Cada jornada tem um teste E2E em 
 **Negativos**
 | # | Situação | Resultado esperado |
 |---|---|---|
-| 1N-a | Envia o pedido sem motivo | Não envia; pede o motivo |
+| 1N-a | Envia o pedido sem motivo | Aceito: o motivo é opcional (D82) e o pedido fica em análise |
 | 1N-b | Compra aprovada há mais de 7 dias | Não há como pedir cancelamento pela tela |
 | 1N-c | Já existe pedido em análise | Não há segundo pedido |
 
@@ -196,7 +196,7 @@ acesso indevido, regra de negócio que barra). Cada jornada tem um teste E2E em 
 **Negativos**
 | # | Situação | Resultado esperado |
 |---|---|---|
-| 1N | Preço zero ou negativo | Recusado com mensagem; nada é salvo |
+| 1N | Preço zero ou negativo | "Salvar curso" fica desabilitado; nada é salvo |
 | 3N | Término antes do início | "A data de término não pode ser anterior ao início." e nada muda |
 | 6N | Excluir turma com aluno | Não pode ser removida; a turma continua |
 | 7N | Excluir curso com aluno | Exclusão bloqueada com o motivo; oferece Arquivar |
@@ -226,7 +226,7 @@ acesso indevido, regra de negócio que barra). Cada jornada tem um teste E2E em 
 | 1 | Equipe → convida uma pessoa como Suporte | Convite listado e link de senha enviado |
 | 2 | A pessoa define a senha e entra | Vê só as abas do Suporte |
 | 3 | Gestão troca o perfil para Financeiro; a pessoa recarrega | Precisa entrar de novo e passa a ver o Financeiro |
-| 4 | Auditoria → busca pelas ações feitas | Eventos com quem fez, em horário de Brasília |
+| 4 | Auditoria → busca pelo e-mail de quem fez as ações | Eventos (convite, "Conta de funcionário <id> alterada") com quem fez, em horário de Brasília |
 | 5 | Observabilidade de IA | Números do chat, custo, encaminhamentos e o cartão "Guardrails" |
 
 **Negativos**
@@ -310,4 +310,11 @@ virou correção ou decisão do PM.
 
 | Jornada | Esperado | Observado | Encaminhamento |
 |---|---|---|---|
-| — | — | — | — |
+| J-ALU-03 3N | Aviso de limite na 31ª mensagem | Erro genérico "Não foi possível enviar a mensagem." (o servidor manda o aviso) | Defeito: corrigido na D108 |
+| J-INT-01 / J-VIS-02 | Curso e turma escolhidos no chat continuam após criar a conta | Perdidos no caminho Criar conta → login; aluno cai em `/student` | Corrigido na D108 (pedido do PM) |
+| J-ALU-01 passo 5 | Recibo com forma e status legíveis | PDF com `mercado_pago` e `approved` | Corrigido na D108 (pedido do PM) |
+| J-GES-02 / J-SUP-01 | Conversas no detalhe do aluno | Só na linha da lista (a API do detalhe já tinha o dado) | Corrigido na D108 (pedido do PM) |
+| J-VIS-03 2N | Link inválido avisa ao abrir | Formulário aparece e só recusa no envio | Corrigido na D108 (pedido do PM) |
+| (QA antigo) | Arquivo enviado pela API sem `published` fica visível | Ficava oculto (o FastAPI trata bool de formulário ausente como `False`) | Defeito: corrigido em `22fc08f` |
+| J-VIS-02 3N-c | Erro para e-mail já cadastrado | Resposta neutra da D21 | Documento corrigido (a D21 vale) |
+| J-ALU-05 1N-a | Motivo obrigatório | Motivo opcional (D82) | Documento corrigido (a D82 vale) |
