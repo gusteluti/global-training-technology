@@ -338,6 +338,28 @@ def test_token_senha_invalido(s, rota):
     assert 400 <= s.post(rota, {"token": "invalido", "password": SENHA}).s < 500
 
 
+@ct("CT-AUT-19", "RF21", "EP", "Checagem do link de senha: válido não consome o token; inválido e usado respondem igual, sem e-mail")
+def test_checagem_link_senha(s):
+    conta = s.aluno()
+    antes = set(s.outbox_tokens())
+    assert s.post("/api/auth/password-reset/request", {"email": conta.email}).s == 200
+    novos = set(s.outbox_tokens()) - antes
+    assert len(novos) == 1
+    token = novos.pop()
+    checagem = s.post("/api/auth/password-token/check", {"token": token})
+    assert (checagem.s, checagem.j) == (200, {"valid": True, "purpose": "reset"})
+    assert conta.email not in checagem.t
+    novo = "senha-nova-qa-2026"
+    assert s.post("/api/auth/password-reset", {"token": token, "password": novo}).s == 200
+    for invalido in ("invalido", token):
+        checagem = s.post("/api/auth/password-token/check", {"token": invalido})
+        assert (checagem.s, checagem.j) == (200, {"valid": False})
+        assert conta.email not in checagem.t
+    s.limpar_limites()
+    assert s.login(conta.email, novo).s == 200
+    s.limpar_limites()
+
+
 @ct("CT-AUT-14", "RF21", "UC", "Login legado do funcionário: senha certa entra, errada recebe 401 e vai à auditoria")
 def test_login_legado(s):
     s.limpar_limites()
