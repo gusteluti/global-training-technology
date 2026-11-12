@@ -46,8 +46,9 @@ RESPOSTA_PEDIDO_REDEFINICAO = {
     "message": "Se o e-mail estiver cadastrado, enviaremos um link para redefinir a senha.",
 }
 RESPOSTA_REDEFINICAO = {"status": "success", "message": "Senha redefinida. Faça login para entrar."}
-# Checagem do link de senha (D108): o mesmo corpo para inválido, expirado, usado, substituído ou vazio.
-ERRO_LINK_SENHA = "Link inválido ou expirado."
+# Checagem do link de senha (D108): 200 com o mesmo corpo para inválido, expirado, usado, substituído, vazio ou
+# ausente (contrato 200, para a checagem ao abrir a tela não gerar erro de console no navegador).
+RESPOSTA_LINK_INVALIDO = {"valid": False}
 # Login de aluno desativado com a senha certa (S4, D80).
 ERRO_CONTA_DESATIVADA = "Sua conta está desativada. Fale com o suporte."
 
@@ -133,12 +134,13 @@ async def password_setup(dados: PasswordSetupInput):
 async def password_token_check(request: Request, dados: PasswordTokenCheckInput):
     """Diz se o link de senha ainda vale, SEM consumi-lo (D108). Resposta sem e-mail, id ou validade.
 
-    Inválido, expirado, usado, substituído ou vazio: 400 com o mesmo corpo. Limite por IP (rate_limit)."""
+    Inválido, expirado, usado, substituído, vazio ou ausente: 200 {"valid": false}, o mesmo corpo em todos os casos.
+    Limite por IP (rate_limit): a resposta inválida também conta."""
     if not rate_limit.permitir_checagem_token_senha(request):
         raise HTTPException(status_code=429, detail=login_limit.ERRO_LOGIN)
     purpose = finalidade_do_token(dados.token)
     if purpose is None:
-        raise HTTPException(status_code=400, detail=ERRO_LINK_SENHA)
+        return dict(RESPOSTA_LINK_INVALIDO)
     return {"valid": True, "purpose": purpose}
 
 
