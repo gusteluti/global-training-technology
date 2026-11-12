@@ -1,5 +1,7 @@
 import { Component } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import { ApiService } from '../../services/api.service';
+import { caminhoInternoSeguro } from '../login/login.component';
 
 @Component({
   selector: 'app-cadastro',
@@ -13,8 +15,13 @@ export class CadastroComponent {
   error = '';
   success = false;
   enviando = false;
+  // D108: `next` interno vindo do login (ex.: catálogo com curso e turma do chat); volta ao login nos links.
+  nextInterno: string | null = null;
 
-  constructor(private api: ApiService) { }
+  constructor(private api: ApiService, route: ActivatedRoute) {
+    const next = route.snapshot.queryParamMap.get('next');
+    this.nextInterno = caminhoInternoSeguro(next) ? next : null;
+  }
 
   submit() {
     if (this.enviando) return;

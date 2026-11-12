@@ -383,6 +383,11 @@ export class ApiService {
     return this.http.post(`${BASE}/api/auth/password-reset/request`, dados, this.publicHeaders());
   }
 
+  // D108: diz se o link de senha ainda vale, sem consumi-lo (400 = inválido, expirado ou usado).
+  public checkPasswordToken(token: string) {
+    return this.http.post<{ valid: boolean; purpose: string }>(`${BASE}/api/auth/password-token/check`, { token }, this.publicHeaders());
+  }
+
   public resetPassword(dados: { token: string; password: string }) {
     return this.http.post(`${BASE}/api/auth/password-reset`, dados, this.publicHeaders());
   }

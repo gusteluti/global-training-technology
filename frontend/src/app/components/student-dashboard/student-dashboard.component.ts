@@ -5,6 +5,7 @@ import { salvarArquivo } from '../../services/salvar-arquivo';
 import { ApiService } from '../../services/api.service';
 import { AuthService } from '../../services/auth.service';
 import { formatarDataSP } from '../../pipes/data-sp.pipe';
+import { mensagemDeErroDoChat } from '../../services/erro-chat';
 
 // Ação de matrícula devolvida pelo chat (D76).
 interface AcaoChat {
@@ -401,7 +402,7 @@ export class StudentDashboardComponent implements OnInit {
         this.chatEnviando = false;
       },
       error: (err: any) => {
-        this.erroChat = 'Não foi possível enviar a mensagem. Tente novamente.';
+        this.erroChat = mensagemDeErroDoChat(err);
         this.chatWhatsapp = this.acaoWhatsapp(err?.error?.actions);
         this.chatEnviando = false;
       }
