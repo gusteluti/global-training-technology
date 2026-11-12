@@ -10,8 +10,11 @@ export class AuthGuard implements CanActivate {
     if (this.auth.isAuthenticated()) {
       return true;
     }
-    // Quem não está logado vai ao login e volta à rota pedida depois (D76).
-    this.router.navigate(['/login'], { queryParams: { next: state.url } });
+    // Quem não está logado vai ao login e volta à rota pedida depois (D76). Se a sessão foi recusada pelo
+    // servidor (D108), o aviso de expirada vai junto, mesmo que outra carga da página tenha recebido o 401.
+    const queryParams: { [k: string]: string } = this.auth.consumirSessaoExpirada()
+      ? { sessao: 'expirada', next: state.url } : { next: state.url };
+    this.router.navigate(['/login'], { queryParams });
     return false;
   }
 }

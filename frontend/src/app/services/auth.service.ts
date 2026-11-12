@@ -15,6 +15,9 @@ const ROLE_LABELS: { [role: string]: string } = {
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   tokenKey = 'gtt_token';
+  // D108: marca que o servidor recusou a sessão (401). Outra carga da página (recarregar a aba enquanto uma
+  // chamada antiga ainda recebia o 401) vê a marca no guard e mantém o aviso de sessão expirada.
+  sessaoExpiradaKey = 'gtt_sessao_expirada';
 
   constructor(private http: HttpClient) { }
 
@@ -29,6 +32,7 @@ export class AuthService {
       map(res => {
         if (res && res.access_token) {
           localStorage.setItem(this.tokenKey, res.access_token);
+          localStorage.removeItem(this.sessaoExpiradaKey);
           return true;
         }
         return false;
@@ -43,6 +47,20 @@ export class AuthService {
 
   logout() {
     localStorage.removeItem(this.tokenKey);
+    localStorage.removeItem(this.sessaoExpiradaKey);
+  }
+
+  // U9 (D80, D108): sessão invalidada pelo servidor; apaga o token e deixa a marca para o guard.
+  expirarSessao() {
+    localStorage.removeItem(this.tokenKey);
+    localStorage.setItem(this.sessaoExpiradaKey, '1');
+  }
+
+  // Lê e apaga a marca: o aviso aparece uma vez, no próximo bloqueio do guard.
+  consumirSessaoExpirada(): boolean {
+    const expirada = localStorage.getItem(this.sessaoExpiradaKey) === '1';
+    localStorage.removeItem(this.sessaoExpiradaKey);
+    return expirada;
   }
 
   getToken(): string | null {
