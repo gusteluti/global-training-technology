@@ -762,11 +762,13 @@ def test_j_vis_03_2n_link_invalido(s, navegador, caso):
     s.limpar_limites()
     aluno = s.aluno("Lia Link")
     token = "token-invalido-qa"
+    senha_atual = SENHA
     if caso == "usado":
         antes = s.outbox_tokens()
         s.post("/api/auth/password-reset/request", {"email": aluno.email})
         token = novo_token(s, antes)
-        assert s.post("/api/auth/password-reset", {"token": token, "password": "senha-ja-usada-1"}).s == 200
+        senha_atual = "senha-ja-usada-1"  # a pré-condição troca a senha ao usar o link
+        assert s.post("/api/auth/password-reset", {"token": token, "password": senha_atual}).s == 200
     elif caso == "outra-finalidade":
         _, token = _convite_de_equipe(s)  # token 'setup' válido, que /redefinir-senha não aceita (D60)
     pagina = tela(navegador)
@@ -783,7 +785,7 @@ def test_j_vis_03_2n_link_invalido(s, navegador, caso):
     novo.click()
     pagina.wait_for_url("**/esqueci-senha")
     campo(pagina, "esqueci-email").wait_for()
-    assert s.login(aluno.email, SENHA).s == 200, "a senha continua a mesma"
+    assert s.login(aluno.email, senha_atual).s == 200, "abrir o link não muda a senha"
     s.limpar_limites()
 
 

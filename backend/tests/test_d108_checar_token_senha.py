@@ -8,14 +8,17 @@ Rota proposta (contrato novo; forma decidida aqui, ver relatório):
   POST /api/auth/password-token/check   corpo {"token": str}   (pública, como as outras rotas de senha)
     - token válido (existe, não usado, não expirado): 200 {"valid": true, "purpose": "reset" | "setup"}.
       Nada mais no corpo: nem e-mail, nem id da conta, nem validade.
-    - inválido, expirado, já usado, substituído por um mais novo ou vazio: 400 e o MESMO corpo em todos os casos
-      (sugestão: {"detail": "Link inválido ou expirado."}), sem e-mail nem dado da conta.
+    - inválido, expirado, já usado, substituído por um mais novo, vazio ou ausente: 200 {"valid": false}, exatamente
+      esse corpo em todos os casos, sem e-mail nem dado da conta. Mudança de contrato do orquestrador (D108, depois do
+      frontend 0811300): antes era 400; passou a 200 para a checagem ao abrir a tela não gerar erro de console no
+      navegador (os e2e B1/B9, E2/C8 e L2/K1 contam erros de console).
+    - limite por IP: 429 (core/rate_limit, 30 checagens por minuto); a resposta 200 {"valid": false} conta no limite.
     - A checagem NÃO consome o token: depois de checar (mais de uma vez), o token continua valendo na rota própria
       (/api/auth/password-reset para 'reset', /api/auth/password-setup para 'setup').
     - Campos extras (user_id, email) são ignorados; um bearer forjado não muda nada.
   POST em vez de GET: o token não vai para a query string (logs de acesso e de proxy).
-  Limite de taxa: as rotas de senha de hoje NÃO têm limite por requisição (só o de 3 tokens emitidos por conta por
-  hora, B1/D60); por isso este arquivo não testa limite na checagem. Ver riscos no relatório.
+  Limite de taxa: a implementação (77bbf09) pôs 30 checagens por minuto por IP com 429; T7 fixa que o 429 continua
+  depois da troca do 400 pelo 200.
 
 Fixtures e helpers: os da B1 (banco temporário, outbox em tmp_path, rotas HTTP reais).
 
@@ -24,8 +27,9 @@ Testes:
   T2  token 'setup' válido: 200 {"valid": true, "purpose": "setup"}
   T3  checar (duas vezes) não consome: o reset funciona depois e o token fica usado só então
   T4  checar não consome o 'setup': a definição de senha funciona depois
-  T5  inválido, expirado, usado, substituído e vazio: 400 com o mesmo corpo, sem e-mail
+  T5  inexistente, expirado, usado, substituído, vazio e ausente: 200 {"valid": false} (o mesmo corpo), sem e-mail
   T6  campos extras e bearer forjado não mudam a resposta
+  T7  limite: 30 checagens inválidas respondem 200 {"valid": false}; a 31ª responde 429, mesmo com token válido
 """
 
 from datetime import timedelta
@@ -55,6 +59,8 @@ from test_b1_recuperacao_senha import (  # noqa: F401  (fixtures da B1 reaprovei
 from core.password_setup import hash_token
 
 URL_CHECAR = "/api/auth/password-token/check"
+INVALIDO = {"valid": False}  # corpo exato para qualquer link que não vale (D108, contrato 200)
+LIMITE_CHECAGENS = 30  # core/rate_limit.LIMITE_CHECAGEM_TOKEN_SENHA (por IP, janela de 1 minuto)
 
 
 def _checar(client, token, **extra):
@@ -67,6 +73,12 @@ def _valido(r, purpose):
     assert {chave: corpo.get(chave) for chave in ("valid", "purpose")} == {"valid": True, "purpose": purpose}, corpo
     assert set(corpo) - {"status"} == {"valid", "purpose"}, f"campos a mais na checagem: {corpo}"
     return corpo
+
+
+def _invalido(r, nome="caso"):
+    assert r.status_code == 200, f"{nome}: HTTP {r.status_code} {r.text[:200]} (esperado 200 {INVALIDO})"
+    assert r.json() == INVALIDO, f"{nome}: corpo {r.text[:200]} (esperado exatamente {INVALIDO})"
+    return r.json()
 
 
 def _registro(token):
@@ -138,11 +150,11 @@ def _casos_invalidos(client, outbox):
     }
 
 
-def test_t5_invalido_expirado_usado_substituido_e_vazio_tem_a_mesma_resposta(client, outbox):
+def test_t5_invalido_expirado_usado_substituido_vazio_e_ausente_tem_a_mesma_resposta(client, outbox):
     respostas = {nome: _checar(client, token) for nome, token in _casos_invalidos(client, outbox).items()}
+    respostas["ausente"] = client.post(URL_CHECAR, json={})  # corpo sem o campo token
     for nome, r in respostas.items():
-        assert r.status_code == 400, f"{nome}: HTTP {r.status_code} {r.text[:200]}"
-        assert r.json().get("valid") is not True, f"{nome}: {r.text}"
+        _invalido(r, nome)
         for email in EMAILS_T5:
             assert email not in r.text, f"{nome}: a resposta revelou {email}"
     corpos = {nome: r.json() for nome, r in respostas.items()}
@@ -158,8 +170,21 @@ def test_t6_campos_extras_e_bearer_forjado_nao_mudam_a_resposta(client, outbox, 
     token = _novo_reset(client, outbox, email)
     _valido(client.post(URL_CHECAR, json={"token": token, **extra},
                         headers={"Authorization": "Bearer forjado.d108.x"}), "reset")
-    invalido = _checar(client, "token-falso-d108", **extra)
+    invalido = client.post(URL_CHECAR, json={"token": "token-falso-d108", **extra},
+                           headers={"Authorization": "Bearer forjado.d108.x"})
     referencia = _checar(client, "outro-falso-d108")
     assert (invalido.status_code, invalido.json()) == (referencia.status_code, referencia.json())
-    assert invalido.status_code == 400
+    _invalido(invalido, "falso com extras")
     assert _login(client, email, SENHA_ANTIGA).status_code == 200
+
+
+def test_t7_limite_conta_as_checagens_invalidas_e_responde_429(client, outbox):
+    email = "t7@d108.test"
+    _aluno(email)
+    token = _novo_reset(client, outbox, email)
+    for numero in range(1, LIMITE_CHECAGENS + 1):
+        _invalido(_checar(client, f"token-falso-d108-{numero}"), f"checagem {numero}")
+    barrada = _checar(client, token)
+    assert barrada.status_code == 429, f"checagem {LIMITE_CHECAGENS + 1}: HTTP {barrada.status_code} {barrada.text[:200]}"
+    assert barrada.json().get("valid") is not True and email not in barrada.text
+    assert _registro(token)["used_at"] is None, "a checagem barrada consumiu o token"

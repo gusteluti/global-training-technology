@@ -7,18 +7,20 @@ Cenários (cada um é um check numerado, C1-C8):
      de e-mail novo (.alert-success, D21); não aparece erro; e-mail e "já cadastrado" ausentes da
      tela; a senha antiga da conta existente continua valendo
   C4 /definir-senha?token=<válido> -> sucesso; login por API com e-mail + nova senha funciona
-  C5 mesmo token reaberto e enviado -> erro genérico (uso único)
-  C6 /definir-senha?token=xyz -> erro genérico visível; sucesso nunca aparece
+  C5 mesmo token reaberto (já usado) -> aviso de link inválido ao abrir, sem formulário; a senha do primeiro uso
+     continua valendo (uso único). D16 -> D108: antes o formulário aparecia e o envio recebia o erro genérico
+  C6 /definir-senha?token=xyz -> aviso de link inválido ao abrir, sem formulário; sucesso nunca aparece (D16 -> D108)
   C7 login existente em / : conta sem senha é recusada; conta com senha entra e chega a /student
   C8 nenhum erro de console (nem exceção de página) nas telas acima
 
-Filtro estreito do C8 (ignora SOMENTE os três 400 esperados, um par rota + tela por vez, D15/D16/D21/D24):
+Filtro estreito do C8 (ignora SOMENTE os dois 400 esperados, um par rota + tela por vez, D15/D21/D24):
   1) POST /api/auth/register com 400, na tela /cadastro. Mantido porque a validação de senha curta
      (C2) continua devolvendo 400 no cadastro. Isso NÃO é enumeração: o tamanho da senha não depende
      de existir conta. O e-mail existente não devolve 400 (D21); isso é verificado pelo C3.
-  2) POST /api/auth/password-setup com 400, na tela /definir-senha (token inválido, usado ou
-     expirado, e senha curta).
-  3) POST /api/token com 400, na tela / (login sem senha, conta sem senha recusada no C7, D24).
+  2) POST /api/token com 400, na tela / (login sem senha, conta sem senha recusada no C7, D24).
+  O antigo item "POST /api/auth/password-setup com 400, na tela /definir-senha" (D16) saiu com a D108: C5 e C6
+  não enviam mais o formulário, e a checagem do link ao abrir (POST /api/auth/password-token/check) responde
+  200 {"valid": false} para link inválido ou usado, sem erro de console.
      Tolerância por PAR rota + tela, um item por vez: cada novo 400 legítimo entra na lista
      explicitamente, e nunca por rota solta nem por status solto.
 A associação é feita pela resposta HTTP real (page.on("response")): cada erro de console
@@ -83,11 +85,12 @@ ERRO_HTTP = re.compile(r"status of (\d{3})")
 # Únicos 400 de console tolerados: (método, caminho da API, tela onde ocorre). Lista exata.
 # ("POST", "/api/token", "/") entrou por D24: login sem senha é recusada com 400 na tela de login.
 # Tolerância por PAR rota + tela, um item por vez; cada novo 400 legítimo entra aqui explicitamente.
+# D108: ("POST", "/api/auth/password-setup", "/definir-senha") saiu; C5 e C6 não enviam mais o formulário.
 ROTAS_400_ESPERADO = {
     ("POST", "/api/auth/register", "/cadastro"),
-    ("POST", "/api/auth/password-setup", "/definir-senha"),
     ("POST", "/api/token", "/"),
 }
+AVISO_LINK = re.compile(r"inválido|expirado|expirou", re.IGNORECASE)  # aviso de link inválido ao abrir (D108)
 
 
 class Falha(Exception):
@@ -191,6 +194,21 @@ def esperar_alerta(page, classe, rotulo):
     except sync_api.TimeoutError:
         raise Falha(f"{rotulo}: mensagem .alert-{classe} não ficou visível")
     return page.locator(f".alert-{classe}").first.inner_text().strip()
+
+
+def exigir_aviso_de_link_invalido(page, rotulo):
+    """D108: /definir-senha com link inválido ou usado mostra o aviso ao abrir e não mostra o formulário de senha."""
+    aviso = page.locator('[data-testid="definir-link-invalido"]').first
+    try:
+        aviso.wait_for(state="visible", timeout=TIMEOUT)
+    except sync_api.TimeoutError:
+        raise Falha(f"{rotulo}: o aviso de link inválido (definir-link-invalido) não apareceu ao abrir")
+    texto = aviso.inner_text().strip()
+    if not AVISO_LINK.search(texto):
+        raise Falha(f"{rotulo}: definir-link-invalido é {texto!r}, esperado o aviso de link inválido ou expirado")
+    for seletor in ("input[name=password]", "button[type=submit]"):
+        if page.locator(seletor).count() != 0:
+            raise Falha(f"{rotulo}: o formulário de senha ({seletor}) aparece para link inválido ou usado")
 
 
 def alerta_visivel(page, classe):
@@ -395,7 +413,9 @@ def test_e2_conta_aluno_angular_e2e(servidores, browser):
 
     # --- C5 -------------------------------------------------------------------------
     def c5():
-        _, token = semear_token_definicao("reuso")
+        # D16 -> D108 (ajuste mecânico, intenção preservada: o token é de uso único). Antes o link usado mostrava o
+        # formulário e o envio recebia o erro genérico; agora o aviso aparece ao abrir, sem formulário.
+        email, token = semear_token_definicao("reuso")
         primeiro = nova_pagina("C5")
         exigir_rota(primeiro, f"/definir-senha?token={token}", "C5 token usado")
         preencher(primeiro, "input[name=password]", SENHA_NOVA, "C5 token usado")
@@ -404,25 +424,25 @@ def test_e2_conta_aluno_angular_e2e(servidores, browser):
         atual["page"] = None
         segundo = nova_pagina("C5")
         exigir_rota(segundo, f"/definir-senha?token={token}", "C5 token usado")
-        preencher(segundo, "input[name=password]", "outra-senha-forte-1", "C5 token usado")
-        enviar(segundo, "C5 token usado")
-        esperar_alerta(segundo, "danger", "C5 token usado (reuso)")
+        exigir_aviso_de_link_invalido(segundo, "C5 token usado (reuso)")
         if alerta_visivel(segundo, "success"):
-            raise Falha("C5 token usado: token já usado aceitou nova senha")
+            raise Falha("C5 token usado: a tela mostrou sucesso para token já usado")
+        if login_api(email, SENHA_NOVA)[0] != 200:
+            raise Falha("C5 token usado: a senha definida no primeiro uso deixou de valer")
 
-    cenario("C5", "token de uso único: reabrir e enviar mostra erro genérico", c5)
+    cenario("C5", "token de uso único: reabrir o link usado mostra o aviso, sem formulário", c5)
 
     # --- C6 -------------------------------------------------------------------------
     def c6():
+        # D16 -> D108 (ajuste mecânico, intenção preservada: token inválido não define senha). Antes o envio recebia
+        # o erro genérico; agora o aviso aparece ao abrir e não há formulário para enviar.
         page = nova_pagina("C6")
         exigir_rota(page, "/definir-senha?token=xyz", "C6 token inválido")
-        preencher(page, "input[name=password]", SENHA_NOVA, "C6 token inválido")
-        enviar(page, "C6 token inválido")
-        esperar_alerta(page, "danger", "C6 token inválido")
+        exigir_aviso_de_link_invalido(page, "C6 token inválido")
         if alerta_visivel(page, "success"):
             raise Falha("C6 token inválido: a tela mostrou sucesso para token inválido")
 
-    cenario("C6", "token inválido mostra erro genérico e não aceita a senha", c6)
+    cenario("C6", "token inválido mostra o aviso ao abrir, sem formulário, e não aceita a senha", c6)
 
     # --- C7 -------------------------------------------------------------------------
     def c7():
