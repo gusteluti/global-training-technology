@@ -16,18 +16,23 @@ Regras desta suíte:
 - Esperas explícitas (`expect`, `wait_for`); nada é contado logo depois de `networkidle` (D101).
 - Cada teste cria as próprias contas e cursos (uuid), roda sozinho e em qualquer ordem.
 - Divergência do documento: comentário `D108:` no ponto e entrada no relatório do agente-testes.
+- Correções pedidas pelo PM na D108 (testes vermelhos até a implementação): aviso de limite do chat (J-ALU-03/3N-aviso),
+  `next` do chat sobrevivendo ao cadastro (J-VIS-02/4-next, J-INT-01), recibo em PDF com os rótulos da tela
+  (J-ALU-01 passo 5), conversas no detalhe do aluno (J-GES-02 passo 1, J-SUP-01 passo 2) e link de senha inválido
+  avisando ao abrir (J-VIS-03/2N e J-VIS-03/2N-definir). Comentário `D108 (correção):` em cada ponto.
 
 Rodar da raiz do repo:  python3 -m pytest frontend/e2e/test_jornadas_usabilidade.py -q -p no:cacheprovider
 """
 
 import json
 import os
+import re
 import tempfile
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
 import pytest
 from playwright import sync_api
@@ -87,7 +92,8 @@ MSG_INJECAO = "Não posso atender esse tipo de pedido. Posso ajudar com dúvidas
 MSG_FORA_DO_ASSUNTO = ("Posso ajudar só com assuntos da Global Training: cursos, turmas, matrícula, pagamento e "
                        "certificado. Sobre o que você quer saber?")
 MSG_LOGIN_NECESSARIO = "Para consultar seus dados (pagamentos, turmas e progresso), entre na Área do aluno."
-MSG_LIMITE_CHAT = "Muitas mensagens em pouco tempo. Aguarde um instante."
+MSG_LIMITE_CHAT = "Muitas mensagens em pouco tempo. Aguarde um instante."  # backend/core/rate_limit.py ERRO_CHAT
+MSG_CHAT_GENERICO = "Não foi possível enviar a mensagem."
 MSG_SALA_SEM_ACESSO = "Não foi possível abrir este curso. Ele só fica disponível com a matrícula ativa."
 MSG_TERMINO = "A data de término não pode ser anterior ao início."
 MSG_TURMA_COM_ALUNO = "A turma tem matrículas e não pode ser removida."
@@ -220,6 +226,46 @@ def cartao_do_curso(pagina, nome):
     return cartao
 
 
+def no_catalogo_com_a_turma(pagina, curso_id, turma_id, nome):
+    """Depois do login com `next=/catalogo?curso=..&turma=..`: o aluno está no catálogo com a turma escolhida no cartão
+    do curso (D75/D76). Espera o primeiro destino (Área do aluno ou catálogo) para o red dizer onde o aluno caiu."""
+    pagina.wait_for_url(lambda url: urlparse(url).path in ("/student", "/catalogo"))
+    destino = urlparse(pagina.url)
+    assert destino.path == "/catalogo", f"depois do login o aluno caiu em {pagina.url}, não no catálogo do next"
+    consulta = parse_qs(destino.query)
+    assert consulta.get("curso") == [curso_id] and consulta.get("turma") == [str(turma_id)], pagina.url
+    cartao = campo(pagina, "catalogo-card").filter(has_text=nome)
+    expect(cartao.locator('[data-testid="catalogo-turma"]')).to_have_value(str(turma_id))
+    expect(cartao.locator('[data-testid="catalogo-comprar"]')).to_be_enabled()
+    return cartao
+
+
+def login_com_next(s, proximo):
+    """Login da Área do aluno como a landing abre (D93): `area=aluno` e o `next` codificado."""
+    return f"{s.alvo['base']}/login?area=aluno&next={quote(proximo, safe='')}"
+
+
+def cadastrar_pela_tela(pagina, nome, email):
+    """No login, "Criar conta e matricular-se", preenche o cadastro e segue em "Ir para o login"."""
+    campo(pagina, "cadastro-link").click()
+    pagina.wait_for_url(lambda url: urlparse(url).path == "/cadastro")
+    pagina.fill("input[name=name]", nome)
+    pagina.fill("input[name=email]", email)
+    pagina.fill("input[name=password]", SENHA)
+    campo(pagina, "cadastro-aceite").check()
+    pagina.click("button[type=submit]")
+    expect(pagina.locator(".alert-success")).to_contain_text(MSG_CADASTRO_OK)
+    pagina.get_by_role("link", name="Ir para o login").click()
+    pagina.locator("input[name=password]").wait_for()
+
+
+def entrar_aqui(pagina, email):
+    """Login na tela de login já aberta (sem navegar, para não perder a URL atual)."""
+    pagina.fill("input[name=email]", email)
+    pagina.fill("input[name=password]", SENHA)
+    pagina.click("button[type=submit]")
+
+
 # --- chat da Área do aluno
 
 def perguntar(pagina, mensagem):
@@ -326,6 +372,30 @@ def ui_criar_turma(pagina, ident, nome, inicio="2030-03-10", fim="2030-06-10", h
     campo(pagina, "turma-new-schedule").fill(horario)
     campo(pagina, "turma-new-capacity").fill(capacidade)
     campo(pagina, "turma-create").click()
+
+
+QUEM_FALOU = {"user": "Aluno", "assistant": "Assistente"}
+
+
+def conversas_no_detalhe(pagina, total, ultima, do_aluno):
+    """D108 (correção): o detalhe do aluno no painel mostra as conversas do chat. Testids propostos:
+    `aluno-detalhe-conversas` (bloco), `aluno-detalhe-conversas-total` (quantidade, como a coluna da lista),
+    `aluno-detalhe-conversas-ultima` (data da última, como a coluna da lista) e `aluno-detalhe-mensagem` com
+    `data-role` = user | assistant e o rótulo de quem falou (Aluno / Assistente) no texto.
+    `do_aluno`: [(role, trecho)] que precisam aparecer; a ordem das mensagens na tela não é fixada aqui."""
+    bloco = campo(pagina, "aluno-detalhe-conversas")
+    expect(bloco).to_be_visible()
+    expect(bloco.locator('[data-testid="aluno-detalhe-conversas-total"]')).to_have_text(total)
+    expect(bloco.locator('[data-testid="aluno-detalhe-conversas-ultima"]')).to_have_text(ultima)
+    mensagens = bloco.locator('[data-testid="aluno-detalhe-mensagem"]')
+    for papel, trecho in do_aluno:
+        mensagem = mensagens.filter(has_text=trecho)
+        expect(mensagem).to_have_count(1)
+        expect(mensagem).to_have_attribute("data-role", papel)
+        expect(mensagem).to_contain_text(QUEM_FALOU[papel])
+    respostas = bloco.locator('[data-testid="aluno-detalhe-mensagem"][data-role="assistant"]')
+    expect(respostas.first).to_contain_text(QUEM_FALOU["assistant"])
+    return bloco
 
 
 def creditar_video(s, aluno, enrollment, content_id, duracao=600.0):
@@ -494,6 +564,49 @@ def test_j_vis_02_criar_conta(s, navegador):
     assert s.sql("SELECT COUNT(*) FROM users WHERE LOWER(email) = ?", email)[0][0] == 1
 
 
+@ct("J-VIS-02/4-next", "RF21", "UC", "Quem vem do chat com curso e turma no next e entra (com ou sem criar a conta) cai no catálogo com a turma escolhida")
+@pytest.mark.parametrize("caminho", ["so-login", "com-cadastro"])
+def test_j_vis_02_4_next_sobrevive_ao_cadastro(s, navegador, caminho):
+    """D108 (correção): o `next` do chat da landing precisa sobreviver ao caminho login -> cadastro -> login.
+    "so-login" é o controle (já funciona, D76/F5b); "com-cadastro" é o pedido do PM."""
+    s.limpar_limites()
+    c = curso(s, "Geodesia")
+    turma_id = turma(s, c["id"], f"Noite {_hex(4)}", starts_on="2030-03-10", capacity=20)
+    proximo = f"/catalogo?curso={c['id']}&turma={turma_id}"
+    pagina = tela(navegador)
+    pagina.goto(login_com_next(s, proximo), wait_until="networkidle")
+    if caminho == "com-cadastro":
+        email = f"vemdochat{_hex(8)}@qa.test"
+        cadastrar_pela_tela(pagina, "Caio Chat", email)
+    else:
+        email = s.aluno("Caio Conta").email
+    entrar_aqui(pagina, email)
+    no_catalogo_com_a_turma(pagina, c["id"], turma_id, c["name"])
+    foto(pagina, "J-VIS-02 Criar a conta", f"4: entra vindo do chat ({caminho})",
+         "Catálogo com o curso e a turma do chat já escolhidos")
+    s.limpar_limites()
+
+
+@ct("J-VIS-02/4N-next", "RF21", "SEC", "next externo no caminho login -> cadastro -> login continua ignorado: o aluno cai na Área do aluno")
+@pytest.mark.parametrize("externo", ["https://golpe.test", "//golpe.test"], ids=["https", "barra-dupla"])
+def test_j_vis_02_4n_next_externo_no_cadastro(s, navegador, externo):
+    """D108 (guarda da correção): levar o `next` pelo cadastro não pode abrir redirecionamento para fora (D76)."""
+    s.limpar_limites()
+    pagina = tela(navegador)
+    fora = []
+    pagina.context.route(re.compile(r"^https?://golpe\.test"),
+                         lambda rota: (fora.append(rota.request.url), rota.abort()))
+    pagina.goto(login_com_next(s, externo), wait_until="networkidle")
+    email = f"golpe{_hex(8)}@qa.test"
+    cadastrar_pela_tela(pagina, "Gil Golpe", email)
+    entrar_aqui(pagina, email)
+    pagina.wait_for_url("**/student")
+    assert urlparse(pagina.url).netloc == urlparse(s.alvo["base"]).netloc, pagina.url
+    campo(pagina, "secao-cursos").wait_for()
+    assert fora == [], fora
+    s.limpar_limites()
+
+
 def _cadastro_preenchido(s, navegador, email, senha, aceite=True):
     pagina = tela(navegador)
     pagina.goto(s.alvo["base"] + "/cadastro", wait_until="networkidle")
@@ -583,10 +696,11 @@ def test_j_vis_03_recuperar_acesso(s, navegador):
     expect(campo(pagina, "esqueci-mensagem")).to_have_text(MSG_PEDIDO_LINK)
     foto(pagina, fluxo, "Pede o link com o e-mail", MSG_PEDIDO_LINK)
 
-    # 2. Abre o link recebido: tela de nova senha.
+    # 2. Abre o link recebido: tela de nova senha (a checagem do link ao abrir não o consome, D108).
     pagina.goto(f"{s.alvo['base']}/redefinir-senha?token={novo_token(s, antes)}", wait_until="networkidle")
     expect(campo(pagina, "redefinir-senha")).to_be_visible()
     expect(campo(pagina, "redefinir-enviar")).to_be_enabled()
+    expect(campo(pagina, "redefinir-link-invalido")).to_have_count(0)
 
     # 3. Define a nova senha: confirmação e caminho para o login.
     campo(pagina, "redefinir-senha").fill(nova)
@@ -617,8 +731,33 @@ def test_j_vis_03_1n_email_inexistente(s, navegador):
     assert s.outbox_tokens() == antes  # o backend grava o outbox antes de responder
 
 
-@ct("J-VIS-03/2N", "RF21", "SEC", "Link de redefinição inválido ou já usado não troca a senha e avisa sobre o link")
-@pytest.mark.parametrize("caso", ["invalido", "usado"])
+AVISO_LINK = re.compile(r"inválido|expirado|expirou", re.IGNORECASE)
+
+
+def _convite_de_equipe(s):
+    """Token 'setup' novo de um convite de equipe (pré-condição pela API); devolve (email, token)."""
+    email = f"convite{_hex(8)}@qa.test"
+    antes = s.outbox_tokens()
+    resposta = s.post("/api/admin/staff", {"email": email, "name": "Convite QA", "role": "support"}, s.tk["admin"])
+    assert resposta.s in (200, 201), resposta.t
+    return email, novo_token(s, antes)
+
+
+def _link_invalido_ao_abrir(pagina, prefixo, campos_do_formulario):
+    """D108 (correção): aviso de link inválido ou expirado logo ao abrir, sem formulário de senha e com caminho para
+    pedir um novo link. Testids propostos: `<prefixo>-link-invalido` e `<prefixo>-pedir-novo`."""
+    aviso = campo(pagina, f"{prefixo}-link-invalido")
+    expect(aviso).to_be_visible()
+    expect(aviso).to_contain_text(AVISO_LINK)
+    for seletor in campos_do_formulario:
+        expect(pagina.locator(seletor)).to_have_count(0)
+    novo = campo(pagina, f"{prefixo}-pedir-novo")
+    expect(novo).to_be_visible()
+    return novo
+
+
+@ct("J-VIS-03/2N", "RF21", "SEC", "Link de redefinição inválido, já usado ou de outra finalidade avisa ao abrir, sem formulário, com caminho para novo link")
+@pytest.mark.parametrize("caso", ["invalido", "usado", "outra-finalidade"])
 def test_j_vis_03_2n_link_invalido(s, navegador, caso):
     s.limpar_limites()
     aluno = s.aluno("Lia Link")
@@ -628,17 +767,41 @@ def test_j_vis_03_2n_link_invalido(s, navegador, caso):
         s.post("/api/auth/password-reset/request", {"email": aluno.email})
         token = novo_token(s, antes)
         assert s.post("/api/auth/password-reset", {"token": token, "password": "senha-ja-usada-1"}).s == 200
+    elif caso == "outra-finalidade":
+        _, token = _convite_de_equipe(s)  # token 'setup' válido, que /redefinir-senha não aceita (D60)
     pagina = tela(navegador)
+    pedidos = []
+    pagina.on("request", lambda pedido: pedidos.append(pedido.url) if "/api/auth/password-reset" in pedido.url else None)
     pagina.goto(f"{s.alvo['base']}/redefinir-senha?token={token}", wait_until="networkidle")
-    campo(pagina, "redefinir-senha").fill("tentativa-nova-1")
-    campo(pagina, "redefinir-confirmar").fill("tentativa-nova-1")
-    campo(pagina, "redefinir-enviar").click()
-    # D108: o documento espera o aviso já ao abrir, "sem formulário útil"; a tela mostra o formulário e só recusa no
-    # envio, com a mensagem genérica da D60 que manda verificar o link. O formulário não tem efeito (senha intacta).
-    expect(campo(pagina, "redefinir-erro")).to_have_text(MSG_LINK_INVALIDO)
-    assert campo(pagina, "redefinir-mensagem").count() == 0
-    assert s.login(aluno.email, "tentativa-nova-1").s != 200
-    foto(pagina, "J-VIS-03 Negativos", f"2N: link {caso}", MSG_LINK_INVALIDO)
+    # D108 (correção): antes a tela mostrava o formulário e só recusava no envio (MSG_LINK_INVALIDO). Agora o aviso
+    # vem ao abrir, sem os campos de senha, e oferece pedir um novo link (Esqueci minha senha).
+    novo = _link_invalido_ao_abrir(pagina, "redefinir", ['[data-testid="redefinir-senha"]',
+                                                         '[data-testid="redefinir-confirmar"]',
+                                                         '[data-testid="redefinir-enviar"]'])
+    assert pedidos == [], "abrir o link não pode tentar redefinir a senha"
+    foto(pagina, "J-VIS-03 Negativos", f"2N: abre link {caso}", "Aviso de link inválido ou expirado, sem formulário")
+    novo.click()
+    pagina.wait_for_url("**/esqueci-senha")
+    campo(pagina, "esqueci-email").wait_for()
+    assert s.login(aluno.email, SENHA).s == 200, "a senha continua a mesma"
+    s.limpar_limites()
+
+
+@ct("J-VIS-03/2N-definir", "RF21", "SEC", "Link de definição de senha inválido ou já usado avisa ao abrir, sem formulário de senha")
+@pytest.mark.parametrize("caso", ["invalido", "usado"])
+def test_j_vis_03_2n_definir_link_invalido(s, navegador, caso):
+    """D108 (correção): /definir-senha usa o mesmo mecanismo de token (purpose 'setup') e ganha o mesmo aviso."""
+    s.limpar_limites()
+    token = "token-invalido-qa-definir"
+    if caso == "usado":
+        email, token = _convite_de_equipe(s)
+        assert s.post("/api/auth/password-setup", {"token": token, "password": SENHA}).s == 200
+    pagina = tela(navegador)
+    pagina.goto(f"{s.alvo['base']}/definir-senha?token={token}", wait_until="networkidle")
+    _link_invalido_ao_abrir(pagina, "definir", ["input[name=password]", "button[type=submit]"])
+    foto(pagina, "J-VIS-03 Negativos", f"2N: abre link de definição {caso}", "Aviso de link inválido, sem formulário")
+    if caso == "usado":
+        assert s.login(email, SENHA).s == 200, "a senha definida antes continua valendo"
     s.limpar_limites()
 
 
@@ -732,10 +895,13 @@ def test_j_alu_01_comprar_com_turma(s, navegador):
         campo(pagina, "recibo-pdf").first.click()
     conteudo = Path(baixado.value.path()).read_bytes()
     assert conteudo.startswith(b"%PDF-")
-    # D108 (observação): o PDF traz a forma e o status em código cru ("mercado_pago", "approved"), não o rótulo
-    # da tela ("Mercado Pago", "Aprovado"); o teste confere só que os três dados estão no PDF.
-    for trecho in (f"Curso: {c['name']}".encode(), b"Valor: R$ 349,90", b"Forma de pagamento: "):
-        assert trecho in conteudo, trecho
+    # D108 (correção): o PDF traz a forma e o status com os rótulos da tela ("Mercado Pago", "Aprovado", D67),
+    # não os códigos crus ("mercado_pago", "approved"). O PDF é sem compressão (B2): o texto está nos bytes.
+    for trecho in (f"Curso: {c['name']}".encode(), b"Valor: R$ 349,90", b"Forma de pagamento: Mercado Pago",
+                   b"Status: Aprovado"):
+        assert trecho in conteudo, (trecho, re.findall(rb"\((?:Status|Forma de pagamento): [^)]*\)", conteudo))
+    for cru in (b"mercado_pago", b"approved"):
+        assert cru not in conteudo, cru
     foto(pagina, fluxo, "Abre o recibo e baixa o PDF", "Recibo com curso, valor e forma de pagamento Mercado Pago")
 
 
@@ -1026,14 +1192,16 @@ def test_j_alu_03_3n_limite_de_mensagens(s, navegador):
     foto(pagina, "J-ALU-03 Negativos", "3N: 31ª mensagem no minuto", texto(alerta))
 
 
-@pytest.mark.xfail(strict=True, reason="D108: a 31ª mensagem recebe 429 com o aviso de limite (ERRO_CHAT), mas a Área "
-                                       "do aluno mostra só o erro genérico 'Não foi possível enviar a mensagem.'")
-@ct("J-ALU-03/3N-aviso", "E4-LLM", "BVA", "A recusa da 31ª mensagem mostra o aviso de limite ao aluno")
+@ct("J-ALU-03/3N-aviso", "E4-LLM", "BVA", "A recusa da 31ª mensagem mostra ao aluno o aviso de limite que o servidor mandou")
 def test_j_alu_03_3n_aviso_de_limite(s, navegador):
+    # D108 (correção): era xfail(strict). A 31ª mensagem recebe 429 com ERRO_CHAT (backend/core/rate_limit.py) e a
+    # Área do aluno mostrava só o erro genérico; agora mostra o texto do servidor.
     pagina = _chat_no_limite(s, navegador)
     alerta = campo(pagina, "chat-panel").locator(".alert-danger")
-    expect(alerta).to_be_visible()
-    assert MSG_LIMITE_CHAT in texto(alerta), texto(alerta)
+    expect(alerta).to_contain_text(MSG_LIMITE_CHAT)
+    assert MSG_CHAT_GENERICO not in texto(alerta), texto(alerta)
+    expect(campo(pagina, "chat-input")).to_be_editable()
+    foto(pagina, "J-ALU-03 Negativos", "3N: 31ª mensagem no minuto (aviso)", MSG_LIMITE_CHAT)
 
 
 @ct("J-ALU-03/4N", "E4-LLM", "SEC", "Injeção de instrução no chat do aluno recebe a recusa fixa")
@@ -1447,15 +1615,18 @@ def test_j_ges_02_acompanhar_aluno(s, navegador):
     campo(gestao, "alunos-busca").fill(joao.email)
     campo(gestao, "alunos-busca").press("Enter")
     linha = gestao.locator("tr", has_text=joao.email)
-    # D108: as conversas aparecem na linha do aluno (mensagens e última conversa), não no detalhe.
     expect(linha.locator('[data-testid="aluno-chat-count"]')).to_have_text("1")
+    ultima = texto(linha.locator('[data-testid="aluno-last-chat"]'))
     gestao.get_by_role("button", name="João Ação Teste").click()
     matricula = campo(gestao, "aluno-detalhe-matricula").filter(has_text=c["name"])
     expect(matricula).to_contain_text(t1)
     expect(matricula).to_contain_text("Ativa")
     expect(campo(gestao, "aluno-detalhe-pagamento").first).to_contain_text("Aprovado")
     expect(campo(gestao, "aluno-detalhe-pagamento").first).to_contain_text("R$\xa0412,50")
-    foto(gestao, fluxo, "Busca o aluno e abre o detalhe", "Curso, turma, Ativa, pagamento Aprovado e mensagens no chat")
+    # D108 (correção): as conversas também no detalhe (antes só na linha da lista).
+    conversas_no_detalhe(gestao, "1", ultima, [("user", "Quais cursos vocês têm?")])
+    foto(gestao, fluxo, "Busca o aluno e abre o detalhe",
+         "Curso, turma, Ativa, pagamento Aprovado e as conversas do chat com quem falou")
 
     # 2. Cursos: filtra por status e turma e exporta CSV com acentos corretos.
     aba(gestao, "Cursos")
@@ -1796,6 +1967,9 @@ def test_j_sup_01_atender_sem_valores(s, navegador):
     aluno = s.aluno("Helena Suporte")
     s.matricula(aluno.id, curso=c["id"], turma=turma_id, valor=987.65)
     assert s.post("/api/student/chat", {"message": "Quais cursos vocês têm?"}, aluno.tk).s == 200
+    # D108 (correção): uma mensagem com cartão, gravada mascarada pela GR3, para conferir que o detalhe mostra o texto
+    # gravado ([cartao]) e nunca o número.
+    assert s.post("/api/student/chat", {"message": f"Posso pagar com o cartão {CARTAO}?"}, aluno.tk).s == 200
     fluxo = "J-SUP-01 Atender um aluno sem ver valores"
     pagina = tela(navegador)
     entrar(pagina, s, *SUP, "admin")
@@ -1809,15 +1983,22 @@ def test_j_sup_01_atender_sem_valores(s, navegador):
     aba(pagina, "Alunos")
     campo(pagina, "alunos-busca").fill(aluno.email)
     campo(pagina, "alunos-busca").press("Enter")
-    expect(pagina.locator("tr", has_text=aluno.email).locator('[data-testid="aluno-chat-count"]')).to_have_text("1")
+    linha = pagina.locator("tr", has_text=aluno.email)
+    expect(linha.locator('[data-testid="aluno-chat-count"]')).to_have_text("2")
+    ultima = texto(linha.locator('[data-testid="aluno-last-chat"]'))
     pagina.get_by_role("button", name="Helena Suporte").click()
     matricula = campo(pagina, "aluno-detalhe-matricula").filter(has_text=c["name"])
     expect(matricula).to_contain_text(nome_turma)
     expect(matricula).to_contain_text("Ativa")
     expect(campo(pagina, "aluno-detalhe-pagamento").first).to_contain_text("Aprovado")
+    # D108 (correção): o Suporte também vê as conversas no detalhe, com o texto gravado (mascarado pela GR3).
+    bloco = conversas_no_detalhe(pagina, "2", ultima, [("user", "Quais cursos vocês têm?"),
+                                                       ("user", "Posso pagar com o cartão [cartao]?")])
+    assert "4111" not in texto(bloco)
     corpo = pagina.locator("body").inner_text()
     assert "R$" not in corpo and "987" not in corpo
-    foto(pagina, fluxo, "Abre o detalhe do aluno", "Curso, turma, Ativa e pagamento Aprovado, sem valores")
+    foto(pagina, fluxo, "Abre o detalhe do aluno",
+         "Curso, turma, Ativa, pagamento Aprovado e as conversas (cartão mascarado), sem valores")
 
     # 3. Observabilidade de IA: números e encaminhamentos, sem custo.
     aba(pagina, "Observabilidade de IA")
@@ -1907,16 +2088,13 @@ def test_j_int_01_do_curso_ao_reembolso(s, navegador, tmp_path):
     campo(visitante, "cadastro-aceite").check()
     visitante.click("button[type=submit]")
     expect(visitante.locator(".alert-success")).to_contain_text(MSG_CADASTRO_OK)
-    # O "Ir para o login" do cadastro não carrega o `next` da landing: depois do login, o aluno volta ao catálogo pelo
-    # atalho e escolhe a turma de novo (observação de usabilidade no relatório da D108).
+    # D108 (correção): o `next` da landing sobrevive ao caminho login -> cadastro -> login. Depois do login o aluno
+    # cai no catálogo com o curso e a turma do chat já escolhidos e compra sem escolher de novo.
     visitante.get_by_role("link", name="Ir para o login").click()
-    visitante.fill("input[name=email]", email)
-    visitante.fill("input[name=password]", SENHA)
-    visitante.click("button[type=submit]")
-    visitante.wait_for_url("**/student")
-    campo(visitante, "atalho-catalogo").click()
-    cartao = campo(visitante, "catalogo-card").filter(has_text=nome)
-    cartao.locator('[data-testid="catalogo-turma"]').select_option(str(turma_id))
+    visitante.locator("input[name=password]").wait_for()
+    entrar_aqui(visitante, email)
+    cartao = no_catalogo_com_a_turma(visitante, ident, turma_id, nome)
+    foto(visitante, fluxo, "3. Cria a conta e entra", "Catálogo com o curso e a turma do chat já escolhidos")
     with visitante.context.expect_page():
         cartao.locator('[data-testid="catalogo-comprar"]').click()
     campo(visitante, "catalogo-mensagem").wait_for()
