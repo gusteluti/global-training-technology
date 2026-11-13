@@ -12,14 +12,18 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from core.audit import record_audit
 from core.csv_export import data_sp, decimal_br, resposta_csv, rotulo_matricula, rotulo_pagamento
 from core.security import AuthContext, Role, require_roles, require_staff
-from core import avaliacoes
+from core import avaliacoes, operacao
 from db import Database
 from admin.routes import id_curso_valido, list_course_summaries
+from payments.routes import pagamento_mockado_efetivo
 
 router = APIRouter()
 
 # Exportação em massa de dado pessoal: só Gestão e Financeiro (D74). Suporte e aluno recebem 403.
 require_exportacao = require_roles(Role.ADMIN, Role.FINANCIAL)
+
+# SG1 (D109, P2): detalhe de saúde do sistema só para a Gestão.
+require_gestao = require_roles(Role.ADMIN)
 
 PAGE_SIZE_PADRAO = 50
 PAGE_SIZE_MAXIMO = 200
@@ -140,6 +144,24 @@ def _registrar_exportacao(current_user: AuthContext, relatorio: str, linhas: int
         entity_type="report",
         entity_id=relatorio,
     )
+
+
+@router.get("/saude")
+async def dashboard_saude(request: Request, current_user: AuthContext = Depends(require_gestao)):
+    """Estado das dependências (SG1, D109, antes no /health público): diz se cada serviço está configurado, nunca o
+    valor de um segredo. Só a Gestão (401 sem token, 403 nos demais perfis)."""
+    manager_agent = getattr(request.app.state, "manager_agent", None)
+    if manager_agent:
+        manager_agent.refresh_courses_if_changed()
+    servicos = operacao.verificar_servicos()
+    return {
+        "status": "ok" if servicos["database"] == "ok" else "degraded",
+        "services": servicos,
+        "courses_loaded": len(manager_agent.courses) if manager_agent else 0,
+        "llm": "groq",
+        "available_models": ["mixtral-8x7b-32768"],
+        "payments_mock": pagamento_mockado_efetivo(),
+    }
 
 
 @router.get("/alunos.csv")
