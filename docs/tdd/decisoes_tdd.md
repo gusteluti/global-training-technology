@@ -1903,3 +1903,28 @@ Entregue conforme o plano SG e a decisão P4 da D109 (revisa a D79):
 reescrever `request.client` antes da regra do projeto. O deploy deve rodar com `proxy_headers=False` (o `uvicorn.run` do `app.py`
 ainda não foi alterado). Não testado: IPv4 mapeado em IPv6, host bits em CIDR, execução real atrás de nginx/Caddy.
 Os limites de chat e checkout continuam em memória: o serviço roda com **um** worker.
+
+## D114 — SG4: teto de custo e de abuso do chat anônimo (13/11/2026)
+Entregue conforme o plano SG e a decisão P5 da D109 (todos os tetos **desligados por padrão**; valores de produção sugeridos ficam
+na documentação):
+- `CHAT_ANON_DAILY_TOKEN_BUDGET`: soma de `ai_usage` do canal anônimo no dia de São Paulo; ao atingir o teto, a próxima mensagem do
+  chat anônimo recebe `CHAT_INDISPONIVEL` ("O assistente está com muitas conversas agora. Fale com a nossa equipe pelo WhatsApp ou
+  tente de novo amanhã.") com 200, sem nenhuma chamada ao LLM, `outcome='unresolved'`, `guard='budget'` (valor novo do vocabulário
+  fechado) e a ação de handoff da F6 quando há número. O chat do aluno logado não é afetado. Falha ao ler o banco para o teto:
+  o chat segue (fail-open).
+- `CHAT_ANON_DAILY_MESSAGES_PER_IP` (janela deslizante de 24 h) e `CHAT_ANON_NEW_SESSIONS_PER_IP_HOUR` (1 h): 429 com `ERRO_CHAT`,
+  pelo IP efetivo da SG3; mensagem barrada não conta nem estende a janela; estado em memória (um worker), zerado por
+  `redefinir_limites()`.
+- Ordem no `POST /api/chat`: 429 por IP (minuto, diário, sessões novas) → mensagem vazia/longa → sessão → **teto de tokens** →
+  guardrails de entrada e LLM. Escolha do dev: o teto vem antes dos guardrails de entrada para garantir zero chamadas (o
+  classificador externo `GUARD_MODEL` gasta tokens). Consequência para o PM: com o teto estourado, injeção, fora do assunto e
+  pedido de dado pessoal também recebem `CHAT_INDISPONIVEL` e contam como `budget`. Toda mensagem que passa o limite por minuto
+  conta nos tetos diários, inclusive a resposta fixa.
+- Painel: o cartão "Guardrails" ganha a linha "Teto diário atingido" (`budget`; `guards.by_type` passa a 11 chaves).
+**Ajustes mecânicos (4.3, D109 → D114):** `test_gr5_avaliacao_feedback.py` (P1/P2, `GUARDS_PAINEL`) e
+`test_gr5_painel_guardrails_angular.py` (`GUARDS` ganha `budget`); `conftest.py` isola as três variáveis.
+**Ciclo:** red `04c0109`; backend `ff5c2fe`; frontend `053468e`. Backend SG4 100/100; regressão completa 3152 passed e as 13
+falhas conhecidas da D107; e2e SG4 6/6, GR5 painel 10/10, GR5 feedback, E7, SG1, F6 (landing e Angular) verdes; builds limpos.
+**Para revisão do PM:** o texto `CHAT_INDISPONIVEL`; o rótulo "Teto diário atingido"; a ordem acima; valores de produção
+(300.000 tokens/dia, 200 msgs/IP/dia, 20 sessões novas/IP/hora). **Não verificado:** mais de um worker; custo do `SUM` em
+`ai_usage` grande (índice só em `created_at`); comportamento no uvicorn real.

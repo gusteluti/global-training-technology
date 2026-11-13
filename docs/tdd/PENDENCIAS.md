@@ -171,7 +171,8 @@ Tomadas pelo PM. Anteriores às D21 a D26 do log. Cobrem o que o documento de es
 | SG1 — descoberta e cabeçalhos | Entregue (D111). Aberto: `GET /` e README ainda citam `/docs` e o `/health` antigo (SG5). `test_gr5_feedback_chat` A3 intermitente. |
 | SG2 — config de produção | Entregue (D112). Aberto: destino do `admin.html` (login legado), placeholders do `.env.example`. |
 | SG3 — IP confiável | Entregue (D113). Aberto (SG5): `proxy_headers=False` no uvicorn e um worker. |
-| SG4 | Em andamento (onda 1) |
+| SG4 — teto do chat anônimo | Entregue (D114). Aberto: confirmar valores de produção com o PM. |
+| Onda 1 (SG1–SG4) | Regressão completa e e2e em andamento |
 | SG5, SG6 | Onda 2 |
 | SG7 | Onda 3 |
 | SG8, SG9, SG10 | Opcionais, aguardam decisão do PM |
