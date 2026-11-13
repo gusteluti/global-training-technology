@@ -1833,3 +1833,26 @@ placeholders; sem exceção por caminho. **Ciclo:** red `a457c9b`; workflow `d25
 e token do GitHub; ativar Secret scanning, Push protection e Dependabot; branch protection em `main` (PR obrigatório, 1
 aprovação, sem force-push). **Pendência registrada:** tornar `pip-audit`, `npm audit` e a suíte completa obrigatórios depois de
 corrigir as falhas da D107 e as vulnerabilidades apontadas.
+
+## D111 — SG1: superfície de descoberta e cabeçalhos da API (13/11/2026)
+Entregue conforme o plano SG e as decisões P1/P2 da D109:
+- `/docs`, `/redoc` e `/openapi.json` só existem com `APP_ENV` = `development` ou `test` (ausente conta como produção: 404);
+- `GET /api/chat/courses-debug` removido (404);
+- `/health` e `/api/health` públicos devolvem só `{"status": "ok"|"degraded"}` (`{"status": "error"}` sem texto de exceção);
+  o detalhe (`services`, `courses_loaded`, `llm`, `available_models`, `payments_mock`) está em `GET /api/dashboard/saude`, só Gestão;
+- toda resposta da API (inclusive 401/404/405/422/429, preflight CORS e 500 tratado) leva `nosniff`, `X-Frame-Options: DENY`,
+  `Referrer-Policy: no-referrer` e `Permissions-Policy`; respostas JSON (inclusive o download `meus-dados.json`) levam
+  `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`; PDF e CSV não levam CSP (quebraria o visualizador);
+  `Cache-Control: no-store` em `/api/token`, `/api/auth/*`, `/api/admin/*`, `/api/dashboard/*`, `/api/student/*`;
+  HSTS só com `APP_ENV=production`. Código em `core/cabecalhos.py` (middleware ASGI puro + handler de `Exception`).
+- **Tela (decisão do orquestrador, para revisão do PM):** o cartão "Saúde do sistema" da aba Observabilidade de IA agora só
+  aparece para a Gestão e lê `/api/dashboard/saude`; Financeiro e Suporte deixam de vê-lo (consequência direta da P2).
+**Ajustes mecânicos (4.3, D109 → D111):** `test_x3_x4_operacao.py` e `test_o0_checkout_aluno.py` (leem `payments_mock` da rota
+nova com token da Gestão); `test_qa_istqb.py` (courses-debug agora afirma 404; matriz RBAC ganhou `/api/dashboard/saude`);
+`test_x4_saude_angular.py` (entra como Gestão).
+**Ciclo:** red `9763a3a`, `272f298`, `f3be491`; backend `0694f24`; frontend `db78039`. Suítes da entrega 283 passed;
+regressão completa do backend 2793 passed e as 13 falhas conhecidas da D107; e2e SG1 5/5, X4, E7, GR5 painel, F6, X5 e admin
+verdes; builds de desenvolvimento e produção limpos. **Observado:** `test_gr5_feedback_chat` (A3, POST de feedback) é
+intermitente, falhou também com a mudança guardada, então não é desta entrega.
+**Fora do escopo, aberto:** `GET /` ainda lista `/docs` e `/health`; README, `backend/README.md` e a documentação técnica ainda
+descrevem o `/health` antigo (atualizar na entrega de documentação do deploy, SG5).
