@@ -1803,3 +1803,19 @@ dois casos de UI da sala no QA falham só neste ambiente, que bloqueia o YouTube
 **Para revisão do PM:** "Link inválido ou expirado. Peça um novo link para continuar.", "Pedir um novo link", "Conversas no
 chat"; para funcionário com convite expirado, "Pedir um novo link" leva à recuperação de senha do aluno (talvez devesse ser
 "peça novo convite à Gestão").
+
+## D109 — Plano SG: segurança da superfície pública (13/11/2026, pedido do PM)
+O PM pediu uma solução para a landing pública compartilhar banco com dados de alunos e funcionários e um levantamento das
+demais aberturas. Plano completo em `docs/tdd/PLANO_SG.md` (entregas SG0 a SG10). O PM aprovou o plano em 13/11/2026
+("implemente o plano") sem alterar as recomendações P1 a P10; vale o que está lá:
+- P1 remover `GET /api/chat/courses-debug`; P2 `/health` público mínimo e detalhe em `GET /api/dashboard/saude` só para a
+  Gestão; P3 login legado `/api/admin/login` desligado em produção; P4 `TRUSTED_PROXIES` (padrão vazio = D79 intacta);
+  P5 tetos do chat anônimo (300.000 tokens/dia, 200 msgs/IP/dia, 20 sessões novas/IP/hora; padrão desligado); P8 SG7 entra;
+  P10 base na `main` depois do merge do PR #8 (`985e352`).
+- **Escopo desta rodada:** SG0 a SG7. SG8 (Turnstile), SG9 (TOTP) e SG10 (retenção e backup cifrado) são opcionais e ficam
+  para decisão do PM depois da onda 3.
+- **Risco aceito (SG0):** o histórico do repositório não é reescrito (decisão anterior do grupo); credenciais vazadas
+  precisam ser rotacionadas por Victor e Gustavo (manual).
+- **Processo:** branch de projeto `feature/fase2-seguranca` (a partir da `main` `985e352`); sub-branch `feature/sg<N>-...`
+  por entrega; regressão completa ao fim de cada onda (1: SG1–SG4; 2: SG5–SG6; 3: SG7); falhas conhecidas da D107 continuam
+  registradas e não bloqueiam.
