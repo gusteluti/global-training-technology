@@ -22,7 +22,8 @@
 
         <hr class="my-3" />
         <p class="mb-2 text-muted">Ainda não tem uma conta?</p>
-        <a routerLink="/cadastro" class="btn btn-outline-primary w-100" data-testid="cadastro-link">
+        <a routerLink="/cadastro" [queryParams]="nextInterno ? { next: nextInterno } : null"
+           class="btn btn-outline-primary w-100" data-testid="cadastro-link">
           Criar conta e matricular-se
         </a>
       </div>

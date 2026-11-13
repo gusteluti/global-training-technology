@@ -81,6 +81,14 @@ def validar_token(token: str) -> Optional[dict]:
     return registro
 
 
+def finalidade_do_token(token: str) -> Optional[str]:
+    """D108: 'reset' ou 'setup' se o token vale agora (mesma regra de `validar_token`), senão None. Não consome."""
+    registro = validar_token(token)
+    if registro is None or registro.get("purpose") not in VALIDADE_POR_FINALIDADE:
+        return None
+    return registro["purpose"]
+
+
 def definir_senha_pelo_token(token: str, senha: str) -> bool:
     """Define a senha da conta DONA do token. Nenhum user_id vindo do cliente é usado (D17)."""
     if not senha_aceitavel(senha):

@@ -2,7 +2,7 @@
 
 from typing import Literal, Optional, Tuple
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 import admin.routes as admin_routes
@@ -90,6 +90,11 @@ def _ler_arquivo(file: UploadFile) -> Tuple[str, bytes]:
     return extensao, dados
 
 
+async def _publicado(request: Request, published: bool = Form(True)) -> bool:
+    """Campo ausente = publicado (D108). O FastAPI trata bool de formulário ausente como checkbox desmarcado (False)."""
+    return published if "published" in await request.form() else True
+
+
 def _publico(conteudo: dict) -> dict:
     """Sem o nome interno do arquivo; o vídeo leva o player da prévia."""
     publico = {campo: valor for campo, valor in conteudo.items() if campo != "stored_name"}
@@ -127,7 +132,7 @@ def enviar_arquivo(
     module: str = Form(""),
     title: str = Form(...),
     is_extra: bool = Form(False),
-    published: bool = Form(True),
+    published: bool = Depends(_publicado),
     current_user: AuthContext = Depends(_so_gestao),
 ):
     _exigir_curso(course_id)

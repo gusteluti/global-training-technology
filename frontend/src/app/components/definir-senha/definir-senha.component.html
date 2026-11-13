@@ -11,7 +11,12 @@
 
         <div *ngIf="error" class="alert alert-danger">{{ error }}</div>
 
-        <form *ngIf="!success" (ngSubmit)="submit()">
+        <div *ngIf="linkInvalido" class="alert alert-warning" data-testid="definir-link-invalido">
+          {{ avisoLinkInvalido }}
+          <a routerLink="/esqueci-senha" class="alert-link ms-1" data-testid="definir-pedir-novo">Pedir um novo link</a>
+        </div>
+
+        <form *ngIf="!success && !verificando && !linkInvalido" (ngSubmit)="submit()">
           <div class="mb-3">
             <label class="form-label">Nova senha (mínimo 8 caracteres)</label>
             <input type="password" class="form-control" [(ngModel)]="password" name="password" required />

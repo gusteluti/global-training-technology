@@ -4,6 +4,7 @@ Dashboard de Alunos, Dashboard de Cursos, Dashboard Financeiro e o painel de
 Observabilidade do Chatbot (RF23/RF24), todos protegidos por RBAC (RF21).
 """
 
+import re
 from typing import Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -26,10 +27,38 @@ PAGE_SIZE_MAXIMO = 200
 ERRO_ALUNO_NAO_ENCONTRADO = "Aluno não encontrado"
 ERRO_CURSO_NAO_ENCONTRADO = "Course not found"
 
+# D108: mensagens recentes do chat no detalhe do aluno (as mais recentes, em ordem cronológica).
+LIMITE_CONVERSA_DETALHE = 20
+# D108 (K5): para o Suporte, valor em reais dentro do texto do chat vira "[valor]" (D68: Suporte não vê valor).
+# Casa "R$" com ou sem número logo depois ("R$ 487,30", "R$1.234,56", "R$ 0") e número seguido de "reais".
+_RE_VALOR_MONETARIO = re.compile(r"R\$\s*(?:\d+(?:[.,]\d+)*)?|\b\d+(?:[.,]\d+)*\s*reais\b", re.IGNORECASE)
+MARCA_VALOR = "[valor]"
+
 
 def _pode_ver_valores(current_user: AuthContext) -> bool:
     """Política D68: Gestão e Financeiro veem valores; Suporte vê só status (a chave `amount` nem aparece)."""
     return current_user.role in (Role.ADMIN, Role.FINANCIAL)
+
+
+def mascarar_valores_monetarios(texto: Optional[str]) -> Optional[str]:
+    """Troca valores em reais do texto por "[valor]" (D108, Suporte). Texto vazio ou None volta igual."""
+    if not texto:
+        return texto
+    return _RE_VALOR_MONETARIO.sub(MARCA_VALOR, texto)
+
+
+def _conversa_recente(user_id: int, ver_valores: bool) -> List[Dict]:
+    """Últimas mensagens do aluno (filtro por user_id no SQL), como gravadas (já mascaradas pela GR3).
+    Sem permissão de ver valores (Suporte), o texto passa por `mascarar_valores_monetarios`."""
+    mensagens = Database.list_chat_messages(user_id, limit=LIMITE_CONVERSA_DETALHE)
+    return [
+        {
+            "role": m["role"],
+            "content": m["content"] if ver_valores else mascarar_valores_monetarios(m["content"]),
+            "created_at": m["created_at"],
+        }
+        for m in mensagens
+    ]
 
 
 def _sem_amount(itens):
@@ -172,6 +201,8 @@ async def dashboard_aluno_detalhe(user_id: int, current_user: AuthContext = Depe
     """
     Detalhe de um aluno (F3, D73): matrículas com turma, pagamentos e resumo do chat. Id que não é de
     aluno (inexistente, funcionário, fora do intervalo) responde o mesmo 404. Suporte não recebe `amount`.
+    D108: `chat.recent` traz as últimas mensagens (até 20, ordem cronológica); para o Suporte, valores em
+    reais no texto saem como "[valor]".
     """
     Database.expirar_pendentes()  # S6 (D81)
     detalhe = Database.get_student_detail(user_id)
@@ -185,7 +216,8 @@ async def dashboard_aluno_detalhe(user_id: int, current_user: AuthContext = Depe
         for item in detalhe["enrollments"]
     ]
     payments = detalhe["payments"]
-    if not _pode_ver_valores(current_user):
+    ver_valores = _pode_ver_valores(current_user)
+    if not ver_valores:
         payments = _sem_amount(payments)
 
     return {
@@ -199,7 +231,11 @@ async def dashboard_aluno_detalhe(user_id: int, current_user: AuthContext = Depe
         },
         "enrollments": enrollments,
         "payments": payments,
-        "chat": {"messages": aluno["chat_messages"] or 0, "last_chat_at": aluno["last_chat_at"]},
+        "chat": {
+            "messages": aluno["chat_messages"] or 0,
+            "last_chat_at": aluno["last_chat_at"],
+            "recent": _conversa_recente(aluno["id"], ver_valores),
+        },
     }
 
 

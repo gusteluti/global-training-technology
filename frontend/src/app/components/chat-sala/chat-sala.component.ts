@@ -1,7 +1,6 @@
 import { Component, ElementRef, Input, ViewChild } from '@angular/core';
 import { ApiService } from '../../services/api.service';
-
-const MSG_ERRO = 'Não foi possível enviar a mensagem. Tente novamente.';
+import { mensagemDeErroDoChat } from '../../services/erro-chat';
 
 interface MensagemDaSala {
   role: 'user' | 'assistant';
@@ -56,8 +55,8 @@ export class ChatSalaComponent {
           }
         });
       },
-      error: () => {
-        this.erro = MSG_ERRO;
+      error: (err: any) => {
+        this.erro = mensagemDeErroDoChat(err);
         this.enviando = false;
       }
     });

@@ -196,4 +196,14 @@ export class StudentsDashboardComponent implements OnInit {
   rotuloPagamento(status: string): string {
     return ROTULOS_PAGAMENTO[status] || status;
   }
+
+  // D108: últimas mensagens do chat do aluno (`chat.recent`, ordem cronológica, já mascaradas pelo servidor).
+  get conversaRecente(): any[] {
+    const recentes = this.detalhe?.chat?.recent;
+    return Array.isArray(recentes) ? recentes.filter((m: any) => m && (m.role === 'user' || m.role === 'assistant')) : [];
+  }
+
+  quemFalou(role: string): string {
+    return role === 'user' ? 'Aluno' : 'Assistente';
+  }
 }

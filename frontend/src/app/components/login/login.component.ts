@@ -23,9 +23,13 @@ export class LoginComponent {
   password = '';
   error = '';
   aviso = '';
+  // D108: o `next` interno segue para o cadastro e volta ao login ("Criar conta e matricular-se").
+  nextInterno: string | null = null;
 
   constructor(private auth: AuthService, private router: Router, private route: ActivatedRoute) {
     this.route.queryParamMap.subscribe(params => {
+      const next = params.get('next');
+      this.nextInterno = caminhoInternoSeguro(next) ? next : null;
       this.aviso = params.get('sessao') === 'expirada' ? MSG_SESSAO_EXPIRADA
         : (params.get('conta') === 'excluida' ? 'Sua conta foi excluída.' : '');
     });

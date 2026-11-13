@@ -53,7 +53,7 @@ export class AuthInterceptor implements HttpInterceptor {
     if (this.auth.getToken() !== tokenEnviado) {
       return;
     }
-    this.auth.logout();
+    this.auth.expirarSessao();
     const router = this.injector.get(Router);
     const navegacao = router.getCurrentNavigation();
     const atual = navegacao ? router.serializeUrl(navegacao.extractedUrl) : router.url;

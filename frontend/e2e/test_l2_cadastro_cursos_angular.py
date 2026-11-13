@@ -46,11 +46,14 @@ Cenários (checks numerados):
      /api/admin/* e /api/dashboard/* com Bearer
   N2 interceptor, aluno logado: /api/student/* com Bearer
   N3 /cadastro com token no navegador: /api/auth/register sem Authorization
-  N4 /definir-senha?token=x com token no navegador: /api/auth/password-setup sem Authorization (400 esperado)
+  N4 /definir-senha?token=x com token no navegador: a tela confere o link ao abrir (POST /api/auth/password-token/check)
+     sem Authorization, mostra o aviso de link inválido sem formulário e não chama /api/auth/password-setup.
+     D56 -> D108: antes o formulário aparecia e o envio a /api/auth/password-setup (400) era a chamada conferida
   N5 regra geral: nenhuma chamada a /api/ fora dos quatro prefixos (inclui /api/courses, se alguma tela chamar)
      levou Authorization; as dos quatro prefixos levaram Bearer
-  K1 sem erros de console (400, 404 em /api, 5xx) nem exceções de página, sem window.confirm; os ÚNICOS 400
-     permitidos são os dois provocados (D1: POST /api/admin/create-course; N4: POST /api/auth/password-setup)
+  K1 sem erros de console (400, 404 em /api, 5xx) nem exceções de página, sem window.confirm; o ÚNICO 400
+     permitido é o provocado no D1 (POST /api/admin/create-course). D56 -> D108: o 400 de password-setup do N4 saiu
+     da lista; a checagem do link responde 200 {"valid": false}, sem erro de console
   Z1 isolamento: os cursos só foram gravados no diretório temporário; backend/courses não mudou
 
 Harness (o teste sobe e derruba os próprios servidores; nada fica rodando ao terminar):
@@ -141,6 +144,8 @@ SEL_AUDIT_ROW = '[data-testid="audit-row"]'
 
 PREFIXOS_COM_TOKEN = ("/api/admin/", "/api/dashboard/", "/api/student/", "/api/payments/refund/")
 TOKEN_VELHO = "token-velho.de-outra-sessao.xyz"
+URL_CHECAR_LINK = "/api/auth/password-token/check"  # checagem do link de senha ao abrir a tela (D108)
+AVISO_LINK = re.compile(r"inválido|expirado|expirou", re.IGNORECASE)  # aviso de link inválido ao abrir (D108)
 
 # Curso do seed A (com dois materiais). Nenhum texto tem "|" nem espaços sobrando.
 SEED_A = {
@@ -466,8 +471,9 @@ def test_l2_cadastro_cursos_angular_e2e(servidores, browser):
     contextos = []
     estado = {"page": None}
     paginas = {}
-    PERMITIDOS = {("POST", "/api/admin/create-course", 400), ("POST", "/api/auth/password-setup", 400)}
-    CAMINHOS_PERMITIDOS = {"/api/admin/create-course", "/api/auth/password-setup"}
+    # D56 -> D108: ("POST", "/api/auth/password-setup", 400) saiu; o N4 não envia mais o formulário.
+    PERMITIDOS = {("POST", "/api/admin/create-course", 400)}
+    CAMINHOS_PERMITIDOS = {"/api/admin/create-course"}
 
     # --- seed pela API pública/administrativa do backend de teste ------------------------
     seed = {"ok": False, "erro": ""}
@@ -1155,23 +1161,31 @@ def test_l2_cadastro_cursos_angular_e2e(servidores, browser):
 
     # --- N4 ---------------------------------------------------------------------------
     def n4():
+        # D56 -> D108 (ajuste mecânico, intenção preservada: a chamada pública da tela /definir-senha sai sem
+        # Authorization mesmo com token no navegador, e link inválido não define senha). Antes o formulário aparecia
+        # e a chamada conferida era o envio a /api/auth/password-setup (400); agora a tela confere o link ao abrir e
+        # mostra o aviso, sem formulário. O token velho entra antes da abertura conferida (recarga), para a checagem
+        # já sair com ele no navegador.
         page = nova_pagina("N4-definir-senha")
-        try:
-            abrir_pagina_com_token_velho(page, base, "/definir-senha?token=x")
-            page.locator("input[name=password]").first.fill("senha-qualquer-123", timeout=TIMEOUT)
-            with page.expect_response(lambda r: urllib.parse.urlparse(r.url).path == "/api/auth/password-setup",
-                                      timeout=TIMEOUT * 2):
-                page.locator("button[type=submit]").first.click(timeout=TIMEOUT)
-        except sync_api.TimeoutError:
-            raise Falha("N4: formulário de /definir-senha não encontrado ou a tela não chamou /api/auth/password-setup")
-        esperar(lambda: None if desde("N4-definir-senha", caminho="/api/auth/password-setup")
-                else "a tela não chamou /api/auth/password-setup", "N4")
-        page.wait_for_load_state("networkidle")
-        chamada = desde("N4-definir-senha", caminho="/api/auth/password-setup")[0]
+        abrir_pagina_com_token_velho(page, base, "/definir-senha?token=x")
+        antes = len(desde("N4-definir-senha", caminho=URL_CHECAR_LINK))
+        page.reload(wait_until="networkidle")
+        aguardar_visivel(page.locator('[data-testid="definir-link-invalido"]'), "N4", "aviso de link inválido")
+        aviso = page.locator('[data-testid="definir-link-invalido"]').first.inner_text().strip()
+        if not AVISO_LINK.search(aviso):
+            raise Falha(f"N4: definir-link-invalido é {aviso!r}, esperado o aviso de link inválido ou expirado")
+        for seletor in ("input[name=password]", "button[type=submit]"):
+            if page.locator(seletor).count() != 0:
+                raise Falha(f"N4: o formulário de senha ({seletor}) aparece para link inválido")
+        esperar(lambda: None if len(desde("N4-definir-senha", caminho=URL_CHECAR_LINK)) > antes
+                else f"a tela não chamou {URL_CHECAR_LINK} depois da recarga", "N4")
+        chamada = desde("N4-definir-senha", caminho=URL_CHECAR_LINK)[-1]
         if chamada["auth"] is not None:
-            raise Falha(f"N4: /api/auth/password-setup levou Authorization ({chamada['auth'][:25]}...) com token no navegador")
+            raise Falha(f"N4: {URL_CHECAR_LINK} levou Authorization ({chamada['auth'][:25]}...) com token no navegador")
+        if desde("N4-definir-senha", caminho="/api/auth/password-setup"):
+            raise Falha("N4: a tela chamou /api/auth/password-setup com link inválido")
 
-    cenario("N4", "/definir-senha?token=x com token no navegador: password-setup sem Authorization (400 esperado)", n4)
+    cenario("N4", "/definir-senha?token=x com token no navegador: checagem do link sem Authorization, aviso sem formulário", n4)
 
     # --- N5 ---------------------------------------------------------------------------
     def n5():
@@ -1197,7 +1211,7 @@ def test_l2_cadastro_cursos_angular_e2e(servidores, browser):
         if obtidos != sorted(PERMITIDOS):
             raise Falha(f"K1: respostas 400 provocadas {obtidos}; esperado exatamente {sorted(PERMITIDOS)}")
 
-    cenario("K1", "sem erros de console/exceção/diálogo; só os dois 400 provocados (D1 e N4)", k1)
+    cenario("K1", "sem erros de console/exceção/diálogo; só o 400 provocado no D1", k1)
 
     # --- Z1 ---------------------------------------------------------------------------
     def z1():

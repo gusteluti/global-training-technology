@@ -59,7 +59,8 @@ def _ambiente_h1(cors_origin: str) -> None:
 
 
 def _bot_le_o_catalogo_isolado(pasta: Path) -> None:
-    """Com o modelo real, o assistente responde pelo mesmo catálogo isolado do teste, não por backend/courses."""
+    """O assistente responde pelo mesmo catálogo isolado do teste, não por backend/courses: com o modelo real
+    (QA_GROQ_REAL) e, com o dublê, quando QA_BOT_CATALOGO_ISOLADO estiver definida (jornadas da D108)."""
     from agents.manager_agent import ManagerAgent  # noqa: PLC0415
 
     construtor = ManagerAgent.__init__
@@ -138,6 +139,8 @@ def main() -> None:
         _bot_le_o_catalogo_isolado(Path(args.courses_dir))
     else:
         e7._instalar_groq_falso()
+        if os.getenv("QA_BOT_CATALOGO_ISOLADO"):  # jornadas da D108: o dublê também roteia pelo catálogo do teste
+            _bot_le_o_catalogo_isolado(Path(args.courses_dir))
     e7._instalar_mercado_pago_falso()
     _instrumentar_qa(app)
 

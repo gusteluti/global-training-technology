@@ -6,11 +6,18 @@ Formato: PDF 1.4, Helvetica com WinAnsiEncoding (cp1252; o que não cabe vira '?
 
 from typing import Dict, List, Optional, Tuple
 
+from core.csv_export import rotulo_pagamento
 from core.fuso import formatar_utc_em_sao_paulo
 
 MAX_LINHA = 90  # limite de caracteres por linha para não estourar a largura da página
-# Rótulo da forma de pagamento no PDF (D81); as demais saem como gravadas. O JSON continua com o valor bruto.
-ROTULO_FORMA_PAGAMENTO = {"manual": "Matrícula manual"}
+# Rótulos da forma de pagamento no PDF, os mesmos da Área do aluno (FORMAS_PAGAMENTO, D67/D81; D108).
+# O status usa `rotulo_pagamento` (ROTULOS_PAGAMENTO da tela). O recibo JSON continua com os valores brutos.
+ROTULO_FORMA_PAGAMENTO = {"mercado_pago": "Mercado Pago", "manual": "Matrícula manual"}
+
+
+def rotulo_forma_pagamento(forma: Optional[str]) -> str:
+    """Como a tela (`rotuloForma`): forma conhecida pelo rótulo; outra forma, "Outra"; sem forma, "-"."""
+    return ROTULO_FORMA_PAGAMENTO.get(forma or "") or ("Outra" if forma else "-")
 
 
 def formatar_valor(valor) -> str:
@@ -35,8 +42,8 @@ def _linhas_do_recibo(recibo: Dict, nome_aluno: str) -> List[Tuple[str, str]]:
         ("F1", f"Aluno: {nome_aluno}"),
         ("F1", f"Curso: {recibo['course_name']}"),
         ("F1", f"Valor: {formatar_valor(recibo['amount'])}"),
-        ("F1", f"Status: {recibo['status']}"),
-        ("F1", f"Forma de pagamento: {ROTULO_FORMA_PAGAMENTO.get(recibo['payment_method'], recibo['payment_method'])}"),
+        ("F1", f"Status: {rotulo_pagamento(recibo['status'])}"),
+        ("F1", f"Forma de pagamento: {rotulo_forma_pagamento(recibo.get('payment_method'))}"),
     ]
     if recibo.get("transaction_id"):
         linhas.append(("F1", f"Transação: {recibo['transaction_id']}"))

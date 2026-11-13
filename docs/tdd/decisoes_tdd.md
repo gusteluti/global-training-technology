@@ -1761,3 +1761,45 @@ tempo do vídeo conta desde o play, com envio a cada 5 s; a duração digitada s
 **Limite:** a instrução reduz, mas não elimina, o modelo deduzir o conteúdo de um arquivo pelo título.
 **Verificação:** antes destes ajustes, backend 2.580, QA 520, assistente 48, fluxos 16, modelo real 9 e e2e 48. Depois deles, só testes
 das áreas tocadas; a regressão completa precisa ser repetida.
+
+## D108 — Fluxos de usabilidade por perfil e jornadas E2E (12/11/2026, pedido do PM)
+`docs/qa/FLUXOS_USABILIDADE.md` descreve 15 jornadas (visitante, aluno, Gestão, Financeiro, Suporte e uma integrada entre
+todos), cada uma com objetivo, pré-condição, caminho principal e caminhos negativos. `frontend/e2e/test_jornadas_usabilidade.py`
+percorre cada jornada pela tela em Chromium sobre o harness QA da D104 (74 casos). Pré-condições que a tela não oferece em tempo
+razoável (aprovar pagamento pelo webhook, envelhecer compra, `video_progress` a 1 s dos 90%) vão por API/SQL; quem conclui a
+aula continua sendo o servidor. O chat da landing é servido na mesma origem da SPA; o harness ganhou
+`QA_BOT_CATALOGO_ISOLADO` para o modelo dublê rotear pelo catálogo do teste.
+**Documento corrigido pela execução:** cadastro com e-mail existente segue a D21 (resposta neutra); motivo do cancelamento é
+opcional (D82); textos reais ("Ativa", "Dados atualizados.", "Criar conta e matricular-se").
+**Correções feitas (as quatro últimas a pedido do PM):**
+- arquivo enviado pela API sem `published` ficava oculto (o FastAPI trata `bool` de formulário ausente como `False`): ausente
+  agora é publicado (`22fc08f`; destravou 4 testes de QA da `main`);
+- o chat da Área do aluno e o da sala mostram o texto do 429 ("Muitas mensagens em pouco tempo…") em vez do erro genérico;
+- o `next` interno (curso e turma escolhidos no chat da landing) sobrevive a login → cadastro → login; `next` externo segue
+  descartado;
+- o recibo em PDF usa os rótulos da tela (D67) para forma de pagamento e status; o recibo JSON mantém os códigos;
+- o detalhe do aluno mostra as 20 conversas mais recentes (`chat.recent`), para Gestão, Financeiro e Suporte; para o Suporte,
+  valores em R$ dentro do texto viram "[valor]";
+- `/redefinir-senha` e `/definir-senha` checam o link ao abrir (`POST /api/auth/password-token/check`, 200 `{"valid": true,
+  "purpose"}` ou 200 `{"valid": false}` igual para todo caso inválido, sem consumir o token, 30/min por IP) e, se inválido,
+  mostram o aviso sem formulário, com "Pedir um novo link". Responder 200 em vez de 400 evita erro de console no navegador.
+- sessão invalidada pelo servidor sempre mostra "Sua sessão expirou." (`bb497ad`): o 401 das chamadas da página antiga
+  apagava o token e a carga nova caía no guard só com `next`; agora o interceptor grava uma marca de expiração que o guard
+  consome uma vez (CT-UI-09 falhava 1 em 4 na `main`; passou 10/10);
+- caso ISTQB CT-AUT-19 cobre a rota de checagem do link (`f48e04c`), para a cobertura de endpoints da D104 continuar completa.
+**Ajustes mecânicos (4.3):** D60 → D108 em `test_b1_recuperacao_senha_angular.py` B4; D16 → D108 em
+`test_e2_conta_aluno_angular.py` C5, C6 e C8 (C8 deixa de aceitar o 400 de `password-setup`); D56 → D108 em
+`test_l2_cadastro_cursos_angular.py` N4 e K1 (K1 deixa de aceitar o 400 de `password-setup`). Intenção mantida: link inválido
+ou usado nunca define senha.
+**Ciclo:** fluxos `a4fa6fc`; jornadas `da0d86a`; correção do `published` `22fc08f`; documento `a9a53e8`; red `129eae4` e
+`2daffc6`; backend `77bbf09` e `52a2780`; frontend `0811300`. Jornadas 74/74; backend 2602 passed e 13 falhas que já existiam
+na `main` (abaixo).
+**Achados fora do escopo, ainda abertos:** depois da D107, (1) a bateria da GR5 caiu para 34/35 ataques contidos e 3/15
+legítimas bloqueadas (`lpa-01`, `lpa-03`, `lce-03` viram "não sei"; `lnk-01` vira "não sei" em vez de remover o link): a regra
+"com 3 ou mais termos, o trecho casa ao menos 2" deixou a busca exigente demais; (2) os testes de isolamento da GR4 (i1–i3, n3,
+g6) acham no prompt de A nomes de turmas em que B está matriculado, porque as turmas abertas do catálogo entram no prompt — é
+dado público, sem quem está matriculado, então o teste precisa separar dado público de pessoal. `test_c_sala_curso_angular.py` e
+dois casos de UI da sala no QA falham só neste ambiente, que bloqueia o YouTube.
+**Para revisão do PM:** "Link inválido ou expirado. Peça um novo link para continuar.", "Pedir um novo link", "Conversas no
+chat"; para funcionário com convite expirado, "Pedir um novo link" leva à recuperação de senha do aluno (talvez devesse ser
+"peça novo convite à Gestão").

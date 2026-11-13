@@ -6,7 +6,7 @@
 
         <div *ngIf="success" class="alert alert-success">
           Conta criada. Você já pode entrar.
-          <a routerLink="/" class="alert-link">Ir para o login</a>
+          <a routerLink="/" [queryParams]="nextInterno ? { next: nextInterno } : null" class="alert-link">Ir para o login</a>
         </div>
 
         <div *ngIf="error" class="alert alert-danger">{{ error }}</div>
@@ -33,7 +33,7 @@
             </label>
           </div>
           <button class="btn btn-primary" type="submit" [disabled]="enviando || !aceite">Criar conta</button>
-          <a routerLink="/" class="btn btn-link">Já tenho conta</a>
+          <a routerLink="/" [queryParams]="nextInterno ? { next: nextInterno } : null" class="btn btn-link">Já tenho conta</a>
         </form>
       </div>
     </div>

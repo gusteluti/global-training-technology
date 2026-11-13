@@ -34,15 +34,19 @@ Cenários (checks numerados):
   B3 abrir o link do outbox: senhas diferentes mostram "As senhas não coincidem." e não enviam nada; senha curta
      mostra o `detail` da API em redefinir-erro; senha válida mostra a mensagem exata de sucesso com link para o
      login; senha antiga falha e a nova entra em /student; "Sua senha foi alterada" no outbox (sem senha, sem token)
-  B4 reusar o mesmo link mostra o erro genérico exato do backend e não troca a senha
+  B4 reabrir o mesmo link (já usado) mostra ao abrir o aviso de link inválido (redefinir-link-invalido), sem o
+     formulário de senha, nada é enviado a /api/auth/password-reset e a senha não muda (D60 -> D108: antes o
+     formulário aparecia e o envio recebia o erro genérico; ajuste mecânico, intenção preservada)
   B5 sem token (e com token vazio): mensagem exata e envio bloqueado (nenhuma requisição password-reset)
   B6 aluno sem senha (link de compra expirado): pede o link, recebe o de definição (/definir-senha?token=),
      define a senha pela tela já existente e entra em /student
   B7 limite: 4 pedidos seguidos pela tela, só 3 registros no outbox e a mesma mensagem nos 4
   B8 com token de sessão antigo no navegador (localStorage gtt_token): as rotas ficam públicas (sem redirecionar) e
      /api/auth/password-reset/request e /api/auth/password-reset saem SEM Authorization
-  B9 sem erros de console (400, 404 em /api, 5xx) nem exceções de página; os ÚNICOS 400 permitidos são os provocados
-     de propósito: POST /api/auth/password-reset na tela /redefinir-senha (senha curta, B3; reuso, B4)
+  B9 sem erros de console (400, 404 em /api, 5xx) nem exceções de página; o ÚNICO 400 permitido é o provocado
+     de propósito: POST /api/auth/password-reset na tela /redefinir-senha (senha curta, B3). Desde a D108 o reuso
+     (B4) não envia o formulário, e a checagem do link (POST /api/auth/password-token/check) responde 200
+     {"valid": false} para link inválido, sem erro de console
 
 Harness isolado (D58, H1): o teste sobe e derruba os próprios servidores; nada precisa estar de pé antes.
   - Backend: frontend/e2e/servidor_e2e_h1.py em processo próprio, porta livre, SQLite temporário, diretório de cursos
@@ -102,6 +106,7 @@ SENHA_NOVA = "senha-nova-forte-2026"
 SENHA_OUTRA = "outra-senha-forte-2027"
 SENHA_CURTA = "curta1"  # 6 caracteres (mínimo 8)
 TIMEOUT = 5000
+AVISO_LINK = re.compile(r"inválido|expirado|expirou", re.IGNORECASE)  # aviso de link inválido ao abrir (D108)
 ERRO_HTTP = re.compile(r"status of (\d{3})")
 URL_PEDIDO = "/api/auth/password-reset/request"
 URL_REDEFINIR = "/api/auth/password-reset"
@@ -598,25 +603,28 @@ def test_b1_recuperacao_senha_angular_e2e(servidores, browser):
 
     # --- B4 -------------------------------------------------------------------------------------------------
     def b4():
+        # D60 -> D108 (ajuste mecânico, intenção preservada: link já usado não define senha). Antes o formulário
+        # aparecia e o envio recebia o erro genérico; agora a tela confere o link ao abrir e mostra o aviso, sem
+        # formulário.
         if "link" not in referencias:
             raise Falha("B4: sem o link do B3 (o B3 não chegou a obter o link do outbox)")
         email, link = referencias["email"], referencias["link"]
         page = nova_pagina("B4")  # outro contexto do navegador, sem sessão
         abrir_link_do_email(page, link, "B4")
-        preencher_id(page, "redefinir-senha", SENHA_OUTRA, "B4 reuso")
-        preencher_id(page, "redefinir-confirmar", SENHA_OUTRA, "B4 reuso")
-        status, corpo = enviar_e_esperar(page, "redefinir-enviar", URL_REDEFINIR, "B4 reuso")
-        if status != 400:
-            raise Falha(f"B4 reuso: o link já usado devolveu HTTP {status} (esperado 400)")
-        erro = texto_id(page, "redefinir-erro", "B4 reuso")
-        if erro != ERRO_DEFINICAO_SENHA or (corpo or {}).get("detail") != ERRO_DEFINICAO_SENHA:
-            raise Falha(f"B4 reuso: redefinir-erro é {erro!r}, esperado exatamente {ERRO_DEFINICAO_SENHA!r}")
+        aviso = texto_id(page, "redefinir-link-invalido", "B4 reuso")
+        if not AVISO_LINK.search(aviso):
+            raise Falha(f"B4 reuso: redefinir-link-invalido é {aviso!r}, esperado o aviso de link inválido ou expirado")
+        for testid in ("redefinir-senha", "redefinir-confirmar", "redefinir-enviar"):
+            if page.get_by_test_id(testid).count() != 0:
+                raise Falha(f"B4 reuso: o formulário de senha ({testid}) aparece para link já usado")
         if id_visivel(page, "redefinir-mensagem"):
             raise Falha("B4 reuso: o sucesso apareceu para link já usado")
+        if requisicoes_password_reset(page.requisicoes):
+            raise Falha(f"B4 reuso: abrir o link enviou {requisicoes_password_reset(page.requisicoes)}")
         if login_api(email, SENHA_OUTRA)[0] == 200 or login_api(email, SENHA_NOVA)[0] != 200:
             raise Falha("B4 reuso: o link já usado alterou a senha")
 
-    cenario("B4", "reusar o mesmo link mostra o erro genérico exato e não troca a senha", b4)
+    cenario("B4", "reabrir o link já usado mostra o aviso sem formulário e não troca a senha", b4)
 
     # --- B5 ---------------------------------------------------------------------------------------------------
     def b5():
