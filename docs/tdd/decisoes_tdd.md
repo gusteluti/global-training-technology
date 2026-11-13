@@ -1819,3 +1819,17 @@ demais aberturas. Plano completo em `docs/tdd/PLANO_SG.md` (entregas SG0 a SG10)
 - **Processo:** branch de projeto `feature/fase2-seguranca` (a partir da `main` `985e352`); sub-branch `feature/sg<N>-...`
   por entrega; regressão completa ao fim de cada onda (1: SG1–SG4; 2: SG5–SG6; 3: SG7); falhas conhecidas da D107 continuam
   registradas e não bloqueiam.
+
+## D110 — SG0: CI e higiene do repositório (13/11/2026)
+Entregue conforme o plano SG. `.github/workflows/ci.yml` (gatilhos `pull_request` e `push`, `permissions: contents: read`, sem
+`secrets.` e sem `pull_request_target`): suíte completa do backend **informativa** (`continue-on-error`, por causa das 13 falhas
+conhecidas da D107) e passo **obrigatório** `pytest tests/test_sg*.py`; `pip-audit` e `npm audit --omit=dev` **informativos**;
+gitleaks 8.21.2 (hash conferido) só no evento `pull_request` e só na faixa `origin/<base>..HEAD`, nunca no histórico.
+`pyyaml` entrou no `requirements-dev.txt`. Testes: `test_sg0_higiene.py` (36: 12 do workflow, 9 de padrões de segredo em
+arquivos rastreados, 17 de `.gitignore` e arquivos rastreados). Padrão de `SMTP_PASSWORD=` ajustado para ignorar prosa e
+placeholders; sem exceção por caminho. **Ciclo:** red `a457c9b`; workflow `d25abc5`; 36/36.
+**Não verificado (só dá para ver no GitHub):** `cache: pip/npm`, `pip install pip-audit`, `npm ci` do Angular 15 com Node 18 e
+`origin/<base>` com `fetch-depth: 0`. **Manual, com Victor e Gustavo:** rotacionar token do Mercado Pago, senha de app do Gmail
+e token do GitHub; ativar Secret scanning, Push protection e Dependabot; branch protection em `main` (PR obrigatório, 1
+aprovação, sem force-push). **Pendência registrada:** tornar `pip-audit`, `npm audit` e a suíte completa obrigatórios depois de
+corrigir as falhas da D107 e as vulnerabilidades apontadas.

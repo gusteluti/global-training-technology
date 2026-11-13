@@ -160,3 +160,15 @@ Tomadas pelo PM. Anteriores às D21 a D26 do log. Cobrem o que o documento de es
 - O `papeis_tdd.md` e a seção 5 do `HANDOFF_TDD.md` ainda carregam a frase "nunca fazer push" no texto original. Ela está **revogada pela D30**. O `HANDOFF_TDD.md` já aponta para o log.
 - A seção 9 do `HANDOFF_TDD.md` foi corrigida nesta versão. Os comandos completos, com variáveis de ambiente, estão no `AGENTS.md`, seção 6.
 - A árvore de trabalho de `feature/fase2-tdd` deve estar limpa no fim de cada entrega. Qualquer alteração de outra autoria encontrada na árvore precisa ser identificada antes de qualquer commit.
+
+---
+
+## Plano SG — segurança da superfície pública (D109)
+
+| Entrega | Estado |
+|---|---|
+| SG0 — CI e higiene | Entregue (D110). Manual aberto: rotação de credenciais e proteção da `main`. CI: auditorias e suíte completa informativas até corrigir a D107. |
+| SG1 a SG4 | Em andamento (onda 1) |
+| SG5, SG6 | Onda 2 |
+| SG7 | Onda 3 |
+| SG8, SG9, SG10 | Opcionais, aguardam decisão do PM |
