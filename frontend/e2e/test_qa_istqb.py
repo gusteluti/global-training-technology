@@ -401,6 +401,7 @@ MATRIZ = [
     ("GET", "/api/dashboard/cursos/qa_py/alunos", {"admin", "financial", "support"}),
     ("GET", "/api/dashboard/cursos/qa_py/alunos.csv", {"admin", "financial"}),
     ("GET", "/api/dashboard/observabilidade-ia", {"admin", "financial", "support"}),
+    ("GET", "/api/dashboard/saude", {"admin"}),  # SG1 (D109, P2): detalhe de saúde só para a Gestão
     ("GET", "/api/admin/audit-logs", {"admin"}),
     ("GET", "/api/admin/staff", {"admin"}),
     ("GET", "/api/admin/courses", {"admin", "financial", "support"}),
@@ -1341,6 +1342,10 @@ def test_rotas_publicas(s, rota):
 @pytest.mark.parametrize("rota", ["/api/chat/courses-debug", "/openapi.json"])
 def test_rota_depuracao(s, rota):
     resposta = s.get(rota)
+    if rota == "/api/chat/courses-debug":
+        # SG1 (D109, P1; ajuste mecânico 4.3, D109 -> D111): a rota de depuração foi removida; antes só se exigia
+        # que, se respondesse 200, não listasse o prompt dos cursos.
+        assert resposta.s == 404, resposta.t
     assert CURSO_BASE["objectives"][0] not in resposta.j.get("courses", []) if resposta.s == 200 else True
     assert '"system_prompt": "p"' not in resposta.t
 
