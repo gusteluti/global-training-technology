@@ -38,6 +38,8 @@ os.environ.update({
     "APP_ENV": "test",
     "WHATSAPP_HANDOFF_NUMBER": "",
     "CORS_ALLOWED_ORIGINS": "",
+    # SG3 (D109): sem proxy confiável por padrão (D79 intacta); um TRUSTED_PROXIES do backend/.env não muda as suítes.
+    "TRUSTED_PROXIES": "",
     "ADMIN_EMAIL": "",
     "FINANCIAL_EMAIL": "",
     "SUPPORT_EMAIL": "",
