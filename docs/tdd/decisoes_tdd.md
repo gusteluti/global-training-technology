@@ -1884,3 +1884,22 @@ as 13 falhas conhecidas da D107.
 5. `SENHAS_PUBLICAS_DO_SEED` está duplicada em `core/configuracao.py` (o `seed_demo` carrega `.env` e banco ao importar); trocar
    nos dois lugares se a senha do seed mudar.
 **Fora do escopo, aberto:** `DOCUMENTACAO_TECNICA_TCC*` e `README_PHASE2.md` ainda não descrevem a validação de produção.
+
+## D113 — SG3: IP real atrás de proxy confiável (13/11/2026)
+Entregue conforme o plano SG e a decisão P4 da D109 (revisa a D79):
+- `TRUSTED_PROXIES` (IPs e CIDRs, IPv4 e IPv6, lida a cada requisição; **padrão vazio = comportamento da D79**: `X-Forwarded-For`
+  ignorado). Função única `core/cliente_ip.py: ip_do_cliente(request)`, usada por `rate_limit` (chat, checkout, checagem de link
+  de senha) e `login_limit` (bloqueio por IP, `login_attempts`, evento `auth.locked`).
+- Regra (decisão do orquestrador): se o par TCP está na lista, lê o `X-Forwarded-For` **da direita para a esquerda**, pula os
+  proxies confiáveis, e o primeiro item que não é proxy é o cliente; se ele for malformado vale o par TCP; tudo à esquerda dele é
+  ignorado (controlado pelo atacante); se todos são proxies, o mais à esquerda. Par TCP fora da lista ignora o cabeçalho
+  (anti-spoof). Várias linhas do cabeçalho são juntadas na ordem. Só `X-Forwarded-For` conta. Entradas inválidas na lista são
+  ignoradas e nunca derrubam o app.
+- Testes: `test_sg3_ip_confiavel.py` (101 casos); `conftest.py` isola `TRUSTED_PROXIES`; ajuste mecânico 4.3 (D109 → D113) nos
+  docstrings e na fixture de `test_s2_limites_seguranca.py`.
+**Ciclo:** red `f1a0c03`, `20b2eb5`, `ae8c38e`; backend `ae9c41c`. SG3 101/101; S2 e relacionadas verdes; regressão completa do backend
+3052 passed e as 13 falhas conhecidas da D107.
+**Aberto, entra no SG5:** o uvicorn 0.24 liga `--proxy-headers` por padrão e confia em `127.0.0.1`; atrás de proxy local ele pode
+reescrever `request.client` antes da regra do projeto. O deploy deve rodar com `proxy_headers=False` (o `uvicorn.run` do `app.py`
+ainda não foi alterado). Não testado: IPv4 mapeado em IPv6, host bits em CIDR, execução real atrás de nginx/Caddy.
+Os limites de chat e checkout continuam em memória: o serviço roda com **um** worker.

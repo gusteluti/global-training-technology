@@ -170,7 +170,8 @@ Tomadas pelo PM. Anteriores às D21 a D26 do log. Cobrem o que o documento de es
 | SG0 — CI e higiene | Entregue (D110). Manual aberto: rotação de credenciais e proteção da `main`. CI: auditorias e suíte completa informativas até corrigir a D107. |
 | SG1 — descoberta e cabeçalhos | Entregue (D111). Aberto: `GET /` e README ainda citam `/docs` e o `/health` antigo (SG5). `test_gr5_feedback_chat` A3 intermitente. |
 | SG2 — config de produção | Entregue (D112). Aberto: destino do `admin.html` (login legado), placeholders do `.env.example`. |
-| SG3, SG4 | Em andamento (onda 1) |
+| SG3 — IP confiável | Entregue (D113). Aberto (SG5): `proxy_headers=False` no uvicorn e um worker. |
+| SG4 | Em andamento (onda 1) |
 | SG5, SG6 | Onda 2 |
 | SG7 | Onda 3 |
 | SG8, SG9, SG10 | Opcionais, aguardam decisão do PM |
