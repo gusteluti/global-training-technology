@@ -17,6 +17,8 @@ from admin.contents import router as contents_router
 from admin.staff import router as staff_router
 from dashboard.routes import router as dashboard_router
 from agents.llm_guard import (
+    CHAT_INDISPONIVEL,
+    GUARD_BUDGET,
     GUARD_LOGIN,
     LLM_UNAVAILABLE,
     MAX_MESSAGE_CHARS,
@@ -24,7 +26,9 @@ from agents.llm_guard import (
     InputBlockedError,
     LLMUnavailableError,
     mascarar_pii,
+    teto_diario_de_tokens,
 )
+from agents import ai_observability
 from agents.dados_aluno import acoes_login
 from agents.feedback import ERRO_RESPOSTA_NAO_ENCONTRADA, emitir_reply_id_anonimo, registrar_feedback_anonimo
 from agents.handoff import acoes_de_handoff
@@ -179,6 +183,20 @@ def _handoff_anonimo(manager_agent, mensagem: str, session_id: str, course_id: O
                             motivo_padrao=motivo_padrao)
 
 
+def _resposta_teto_diario(manager_agent, mensagem: str, session_id: str) -> dict:
+    """SG4: resposta fixa do teto diário (`CHAT_INDISPONIVEL`), registrada em `ai_interactions` como as demais respostas
+    fixas (outcome 'unresolved', guard 'budget'), com a ação de handoff da F6 quando há número válido. O motivo do
+    handoff é o das regras da D77 ou, na falta delas, 'unresolved' (coerente com o outcome). Sem texto cru gravado."""
+    with ai_observability.identidade_anonima(session_id):
+        ai_observability.registrar_interacao("unresolved", guard=GUARD_BUDGET)
+    mascarada, _ = mascarar_pii(mensagem)
+    return {
+        "status": "success", "message": CHAT_INDISPONIVEL, "session_id": session_id,
+        "actions": _handoff_anonimo(manager_agent, mascarada, session_id, None, motivo_padrao="unresolved"),
+        "sources": [], "reply_id": emitir_reply_id_anonimo(session_id),
+    }
+
+
 @app.post("/api/chat")
 async def chat(chat_msg: ChatMessage, request: Request):
     """
@@ -186,11 +204,15 @@ async def chat(chat_msg: ChatMessage, request: Request):
     Expected input: {"message": "user message", "session_id": "optional, emitido pelo servidor"}
     A resposta traz sempre o session_id efetivo; um id desconhecido abre uma sessão nova (E6, D38.1).
     S9 (D79): 30 mensagens por minuto por IP; acima disso, 429 sem chegar ao LLM.
+    SG4 (D109 P5): 429 também pelos tetos diário de mensagens e de sessões novas por hora por IP (desligados por
+    padrão), sempre antes de qualquer outra coisa; depois, o teto diário de tokens do canal anônimo produz a resposta
+    fixa CHAT_INDISPONIVEL (200, sem LLM), antes dos guardrails de entrada.
     """
-    if not rate_limit.permitir_chat(request):
+    manager_agent = getattr(request.app.state, "manager_agent", None)
+    sessao_nova = not (manager_agent and manager_agent.sessao_existe(chat_msg.session_id))
+    if not rate_limit.permitir_chat(request, sessao_nova=sessao_nova):
         return JSONResponse(status_code=429, content={"status": "error", "message": rate_limit.ERRO_CHAT})
     try:
-        manager_agent = getattr(request.app.state, "manager_agent", None)
         if not manager_agent:
             return {
                 "status": "error",
@@ -209,6 +231,11 @@ async def chat(chat_msg: ChatMessage, request: Request):
             return {"status": "error", "message": TOO_LONG}
 
         session_id = manager_agent.resolve_session(chat_msg.session_id)
+
+        # SG4 (D109 P5): teto diário de tokens do chat anônimo atingido -> resposta fixa, sem nenhuma chamada ao LLM
+        # (nem roteamento nem classificador), antes dos guardrails de entrada. Desligado por padrão.
+        if ai_observability.teto_diario_atingido(teto_diario_de_tokens()):
+            return _resposta_teto_diario(manager_agent, user_message, session_id)
 
         # Route message through manager agent
         try:

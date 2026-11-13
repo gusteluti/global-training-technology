@@ -15,6 +15,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Optional
 
+from core.fuso import intervalo_utc_do_dia_sao_paulo
 from db import Database
 
 CANAL_ANONIMO = "anonymous"
@@ -161,3 +162,16 @@ def registrar_interacao(outcome: str, course_id: Optional[str] = None, mensagem:
         )
     except Exception as e:
         print(f"Error recording ai_interaction: {type(e).__name__}")
+
+
+def teto_diario_atingido(teto: int) -> bool:
+    """SG4: a soma de tokens (`ai_usage`) do canal anônimo no dia de São Paulo já é >= `teto` (> 0). Falha ao ler o
+    banco vale como "não atingido" (fail-open): o chat segue e nenhum erro vai ao cliente; só o tipo vai ao log."""
+    if teto <= 0:
+        return False
+    try:
+        inicio, fim = intervalo_utc_do_dia_sao_paulo()
+        return Database.get_anonymous_tokens_between(inicio, fim) >= teto
+    except Exception as e:
+        print(f"Error reading daily token budget: {type(e).__name__}")
+        return False

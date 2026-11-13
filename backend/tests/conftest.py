@@ -40,6 +40,10 @@ os.environ.update({
     "CORS_ALLOWED_ORIGINS": "",
     # SG3 (D109): sem proxy confiável por padrão (D79 intacta); um TRUSTED_PROXIES do backend/.env não muda as suítes.
     "TRUSTED_PROXIES": "",
+    # SG4 (D109 P5): tetos do chat anonimo desligados por padrao; um valor do shell ou do backend/.env nao muda as suites.
+    "CHAT_ANON_DAILY_TOKEN_BUDGET": "",
+    "CHAT_ANON_DAILY_MESSAGES_PER_IP": "",
+    "CHAT_ANON_NEW_SESSIONS_PER_IP_HOUR": "",
     "ADMIN_EMAIL": "",
     "FINANCIAL_EMAIL": "",
     "SUPPORT_EMAIL": "",

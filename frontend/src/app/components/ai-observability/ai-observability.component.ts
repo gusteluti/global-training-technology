@@ -21,7 +21,8 @@ const TIPOS_GUARD: { key: string; label: string }[] = [
   { key: 'output_offer', label: 'Desconto ou preço não oficial' },
   { key: 'output_link', label: 'Link removido' },
   { key: 'output_promise', label: 'Promessa bloqueada' },
-  { key: 'output_unverified', label: 'Data ou turma não verificada' }
+  { key: 'output_unverified', label: 'Data ou turma não verificada' },
+  { key: 'budget', label: 'Teto diário atingido' }
 ];
 
 @Component({
