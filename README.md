@@ -76,6 +76,19 @@ das senhas públicas do `seed_demo`, `PAYMENTS_MOCK` desligado, `MERCADO_PAGO_WE
 produção o app sobe e registra `[AVISO]` para cada problema. Em produção o login legado por senha única
 (`POST /api/admin/login`) fica desligado (404) e o token legado de funcionário não vale.
 
+### IP real atrás de proxy (SG3)
+
+Atrás de nginx, Caddy ou NAT todos chegam com o IP do proxy, e os limites por IP (chat, checkout, checagem de token de
+senha e bloqueio de login) passariam a valer para todos juntos. A variável opcional `TRUSTED_PROXIES` (IPs e CIDRs
+separados por vírgula, IPv4 ou IPv6) diz quais pares TCP são proxies confiáveis. **Padrão vazio**: vale o par TCP e o
+cabeçalho `X-Forwarded-For` é ignorado. Com a lista preenchida e o par TCP nela, o IP do cliente é o primeiro item do
+cabeçalho, lendo da direita para a esquerda, que não seja um proxy confiável; cabeçalho malformado volta ao par TCP, e
+par fora da lista tem o cabeçalho ignorado. Entradas inválidas da lista são ignoradas.
+
+> **Aviso (uvicorn):** o uvicorn 0.24 liga `--proxy-headers` por padrão e confia em `127.0.0.1`. Em produção, atrás de
+> proxy, o app deve rodar com `proxy_headers=False` (`--no-proxy-headers`) para valer só a regra do projeto. Essa
+> mudança de execução será feita na SG5; por ora está apenas documentada.
+
 ## 🧭 Fase 2 - Área do Funcionário e Governança
 
 A Fase 2 evolui o MVP com o painel administrativo completo descrito no

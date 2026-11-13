@@ -104,6 +104,14 @@ senha pública do `seed_demo`; `PAYMENTS_MOCK` está ligado; `MERCADO_PAGO_WEBHO
 estão vazios; ou `CORS_ALLOWED_ORIGINS` está ausente, tem localhost ou origem `http://`. Fora de produção só há `[AVISO]`.
 Em produção o login legado `POST /api/admin/login` responde 404 e o token legado de funcionário é recusado.
 
+IP real atrás de proxy (SG3): a variável opcional `TRUSTED_PROXIES` (IPs e CIDRs, IPv4/IPv6, separados por vírgula)
+lista os proxies confiáveis. **Padrão vazio**: vale o par TCP e `X-Forwarded-For` é ignorado. Com o par TCP na lista, o
+IP do cliente é o primeiro item de `X-Forwarded-For`, da direita para a esquerda, que não seja proxy confiável
+(`core/cliente_ip.py`); malformado volta ao par TCP e par fora da lista tem o cabeçalho ignorado. Vale para os limites de
+chat, checkout, checagem de token de senha e para o bloqueio de login. O uvicorn 0.24 liga `--proxy-headers` por padrão e
+confia em `127.0.0.1`: em produção atrás de proxy o app deve rodar com `proxy_headers=False` (`--no-proxy-headers`) para
+valer só a regra do projeto (mudança de execução prevista na SG5; aqui só documentada).
+
 ### 4. Iniciar servidor
 ```bash
 python app.py

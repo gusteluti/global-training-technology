@@ -18,13 +18,13 @@ Contrato (D79, textos exatos):
   S9  POST /api/chat: 30 mensagens por minuto por IP -> 429 ERRO_CHAT; teto de 5000 sessoes anonimas (descarta a
       menos recente). Checkouts (aluno e landing): 10 por minuto por IP (e por aluno no fluxo logado) -> 429
       ERRO_CHECKOUT. Estado em memoria criado no startup do app.
-  IP = request.client.host (X-Forwarded-For nao e confiavel).
+  IP = request.client.host (sem TRUSTED_PROXIES, X-Forwarded-For nao e considerado; D109 -> D113, SG3).
 
 Grupos
   A  S10 create-course: ids invalidos -> 422 texto exato, nada gravado (nem no diretorio pai); ids validos criam
   B  S10 rotas com course_id na URL (e checkouts com course_id no corpo): id fora do padrao -> 404 de inexistente
   C  S2 login por e-mail (caixa/espacos, inexistente sem enumeracao, sucesso zera, janela, persistencia, staff)
-  D  S2 login por IP (/api/token e /api/admin/login legado), X-Forwarded-For ignorado
+  D  S2 login por IP (/api/token e /api/admin/login legado), X-Forwarded-For ignorado sem TRUSTED_PROXIES (SG3)
   E  S2 auditoria `auth.locked`
   F  S9 chat anonimo (30/min por IP, outro IP livre, XFF ignorado, teto de sessoes, reinicio no startup)
   G  S9 checkouts (10/min por IP e por aluno, nada criado no 429, reinicio no startup)
@@ -121,6 +121,7 @@ def ambiente_s2(monkeypatch, tmp_path):
     """Pagamento simulado desligado; token de gateway de teste; nada vem do backend/.env local."""
     monkeypatch.delenv("PAYMENTS_MOCK", raising=False)
     monkeypatch.delenv("APP_ENV", raising=False)
+    monkeypatch.delenv("TRUSTED_PROXIES", raising=False)  # SG3 (D109 -> D113): a premissa de D/F/G e "sem proxy confiavel"
     monkeypatch.setenv("MERCADO_PAGO_ACCESS_TOKEN", "TEST-fake-s2")
     monkeypatch.setenv("PASSWORD_LINK_OUTBOX", str(tmp_path / "outbox.jsonl"))
 
