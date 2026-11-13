@@ -607,6 +607,17 @@ def test_f7_csv_de_download_nao_leva_csp_e_mantem_os_demais_cabecalhos(client, c
     _assert_cabecalhos_base(r, "GET alunos.csv")
 
 
+def test_f8_json_de_download_leva_a_csp_pela_regra_do_content_type(client, contas):
+    """Decisao do orquestrador: vale o Content-Type. O export LGPD (meus-dados.json, JSON com Content-Disposition
+    attachment) e JSON: leva a CSP e todos os demais cabecalhos. So PDF, CSV e outros tipos nao JSON ficam sem CSP."""
+    r = client.get("/api/student/me/export", headers=_auth(contas.aluno.token))
+    assert r.status_code == 200, _resumo(r)
+    assert _eh_json(r), _resumo(r)
+    assert r.headers["content-disposition"] == 'attachment; filename="meus-dados.json"'
+    assert r.headers.get("content-security-policy") == CSP_JSON
+    _assert_cabecalhos_base(r, "GET /api/student/me/export")
+
+
 # =========================================================================================
 # Grupo G - Strict-Transport-Security so em producao
 # =========================================================================================
