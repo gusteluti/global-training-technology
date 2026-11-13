@@ -66,6 +66,16 @@ Crie um arquivo em `backend/courses/seu_curso.json` com a estrutura de `example_
 ✅ CORS configurado
 ✅ SQL Injection prevenido (prepared statements)
 
+### Configuração de produção (SG2)
+
+Defina `APP_ENV=production` explicitamente. No startup o app valida a configuração e **não sobe** se faltar ou estiver
+insegura (a mensagem lista as variáveis, nunca os valores): `JWT_SECRET_KEY` (mínimo de 32 caracteres),
+`ADMIN_TOKEN_SECRET` (próprio, diferente das senhas de perfil), senhas de perfil com 12 caracteres ou mais e diferentes
+das senhas públicas do `seed_demo`, `PAYMENTS_MOCK` desligado, `MERCADO_PAGO_WEBHOOK_SECRET` e
+`MERCADO_PAGO_ACCESS_TOKEN` preenchidos, e `CORS_ALLOWED_ORIGINS` só com origens `https://` (sem localhost). Fora de
+produção o app sobe e registra `[AVISO]` para cada problema. Em produção o login legado por senha única
+(`POST /api/admin/login`) fica desligado (404) e o token legado de funcionário não vale.
+
 ## 🧭 Fase 2 - Área do Funcionário e Governança
 
 A Fase 2 evolui o MVP com o painel administrativo completo descrito no
@@ -83,8 +93,10 @@ a Área do Funcionário:
   aplicação Angular (`frontend/`), que é a interface oficial: abas de
   Financeiro, Alunos, Cursos, Observabilidade de IA e Auditoria, filtradas
   pelo perfil do usuário logado.
-- **Legado**: `frontend/admin.html` continua funcionando, com o login por
-  senha de perfil (`/api/admin/login`), mas não é mais a tela de entrega.
+- **Legado**: `frontend/admin.html` continua funcionando fora de produção, com o login por
+  senha de perfil (`/api/admin/login`), mas não é mais a tela de entrega. Com
+  `APP_ENV=production` esse login responde 404 (SG2): em produção só entram contas
+  de funcionário (`POST /api/token`).
   Cadastro e edição de cursos ainda estão só nele.
 - **Trilhas de auditoria**: tabela `audit_logs` no SQLite; toda alteração
   de preço, criação/edição/remoção de curso e reembolso é registrada com

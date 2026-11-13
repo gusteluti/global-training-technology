@@ -33,6 +33,7 @@ from auth import router as auth_router
 from student.routes import router as student_router
 from core.security import get_password_hash, senha_excede_limite_bcrypt
 from core import operacao, rate_limit
+from core.configuracao import exigir_configuracao_segura
 from core.cabecalhos import CabecalhosSeguranca, documentacao_habilitada, erro_interno
 from db import Database
 
@@ -108,6 +109,10 @@ class FeedbackAnonimo(BaseModel):
 @app.on_event("startup")
 async def startup_event():
     """Load courses and initialize manager agent on startup"""
+    # SG2 (D109): em produção a configuração insegura impede a subida (RuntimeError, sem valor de segredo); fora de
+    # produção a subida segue e cada problema vira um [AVISO]. Fica no startup, não na importação do módulo.
+    for problema in exigir_configuracao_segura():
+        print(f"[AVISO] {problema}")
     # S9 (D79): estado em memória dos limites de taxa (chat e checkout) nasce zerado a cada startup.
     rate_limit.redefinir_limites()
     # X3 (D90): backup diário do banco quando BACKUP_DIR está definida. Falha não impede a subida.
