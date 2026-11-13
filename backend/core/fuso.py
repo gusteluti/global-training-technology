@@ -4,7 +4,7 @@ O Brasil não tem horário de verão desde 2019; por isso o deslocamento é fixo
 O banco e a API JSON continuam em UTC; este módulo só é usado onde o backend gera texto ou agrupa por dia.
 """
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 DESLOCAMENTO_SP = timedelta(hours=-3)
@@ -35,3 +35,13 @@ def formatar_utc_em_sao_paulo(texto_utc: Optional[str]) -> str:
     except ValueError:
         return texto
     return para_sao_paulo(instante).strftime("%d/%m/%Y %H:%M")
+
+
+def intervalo_utc_do_dia_sao_paulo() -> tuple:
+    """(início, fim) do dia corrente de São Paulo como texto UTC 'AAAA-MM-DD HH:MM:SS' (o formato do banco), com o fim
+    exclusivo. Usa o relógio Python, como a série diária da E7 (F2)."""
+    hoje = dia_sao_paulo(datetime.now(timezone.utc))
+    inicio_utc = datetime(hoje.year, hoje.month, hoje.day) - DESLOCAMENTO_SP
+    fim_utc = inicio_utc + timedelta(days=1)
+    formato = "%Y-%m-%d %H:%M:%S"
+    return inicio_utc.strftime(formato), fim_utc.strftime(formato)

@@ -315,6 +315,11 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
             courses_list.append(f"{course_id}: {name}")
         return "\n".join(courses_list)
     
+    def sessao_existe(self, session_id: Optional[str]) -> bool:
+        """True se `session_id` é uma sessão anônima emitida por este servidor que ainda existe (sem alterar nada).
+        É a mesma regra de `resolve_session`; quando False, a mensagem abre uma sessão nova (SG4)."""
+        return isinstance(session_id, str) and bool(_SESSION_ID.fullmatch(session_id)) and session_id in self.sessions
+
     def resolve_session(self, session_id: str = None) -> str:
         """Id de sessão anônima efetivo (E6, D38.1).
 
@@ -322,7 +327,7 @@ Responda com apenas o ID do curso ou "GENERAL" se for pergunta geral.
         em `self.sessions`. Qualquer outro valor (ausente, 'default', 'web-chat-session', inventado,
         truncado, sessão extinta) abre uma sessão nova com id novo; o valor do cliente nunca é ecoado.
         """
-        if isinstance(session_id, str) and _SESSION_ID.fullmatch(session_id) and session_id in self.sessions:
+        if self.sessao_existe(session_id):
             # Uso recente vai para o fim da ordem (a menos recente fica no começo).
             self.sessions[session_id] = self.sessions.pop(session_id)
             return session_id

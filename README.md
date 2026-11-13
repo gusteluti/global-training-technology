@@ -89,6 +89,23 @@ par fora da lista tem o cabeçalho ignorado. Entradas inválidas da lista são i
 > proxy, o app deve rodar com `proxy_headers=False` (`--no-proxy-headers`) para valer só a regra do projeto. Essa
 > mudança de execução será feita na SG5; por ora está apenas documentada.
 
+### Teto de custo e de abuso do chat anônimo (SG4)
+
+O chat da landing (`POST /api/chat`) é público e gasta a chave do Groq. Três variáveis opcionais, **desligadas por
+padrão** (ausente, vazia, `0`, inválida ou negativa = desligado) e lidas a cada requisição, limitam o custo e o abuso.
+Não afetam o chat do aluno logado.
+
+| Variável | O que faz | Sugestão de produção |
+|---|---|---|
+| `CHAT_ANON_DAILY_TOKEN_BUDGET` | Soma os tokens de `ai_usage` do canal anônimo no dia de São Paulo. Ao atingir o teto, o chat anônimo responde o texto fixo "O assistente está com muitas conversas agora. Fale com a nossa equipe pelo WhatsApp ou tente de novo amanhã." (HTTP 200, com o botão de WhatsApp quando `WHATSAPP_HANDOFF_NUMBER` é válido), **sem chamar o LLM**. A soma vem do banco (sobrevive a restart); se o banco não puder ser lido, o chat segue. | 300000 tokens/dia |
+| `CHAT_ANON_DAILY_MESSAGES_PER_IP` | Mensagens por IP em janela deslizante de 24 h; acima do teto, 429. | 200 mensagens/IP/dia |
+| `CHAT_ANON_NEW_SESSIONS_PER_IP_HOUR` | Sessões novas por IP em janela deslizante de 1 h; acima do teto, 429. Continuar uma sessão existente não conta. | 20 sessões novas/IP/hora |
+
+Os dois limites por IP usam o IP efetivo da SG3 (`TRUSTED_PROXIES`) e guardam o estado **em memória do processo**:
+rode **um único worker** (com vários, cada um teria o seu contador) e saiba que um restart zera as janelas. Os 429
+vêm antes de qualquer outra coisa; o teto de tokens vem depois e antes dos guardrails de entrada. Cada resposta fixa do
+teto aparece na aba Observabilidade de IA como bloqueio do tipo `budget`.
+
 ## 🧭 Fase 2 - Área do Funcionário e Governança
 
 A Fase 2 evolui o MVP com o painel administrativo completo descrito no
