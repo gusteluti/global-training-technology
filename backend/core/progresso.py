@@ -167,7 +167,11 @@ def resumo(enrollment_id: int, urls_do_curso: List[str]) -> Dict:
 
 
 def codigo_validacao(enrollment_id: int, user_id: int) -> str:
-    chave = (os.getenv("JWT_SECRET_KEY") or "gt").encode()
+    # SG2 (D109): sem fallback fixo. Sem JWT_SECRET_KEY o código não é calculado (o erro não traz valor nenhum).
+    segredo = os.getenv("JWT_SECRET_KEY")
+    if not segredo:
+        raise RuntimeError("JWT_SECRET_KEY não configurado no backend; o código de validação não pode ser calculado.")
+    chave = segredo.encode()
     return hmac.new(chave, f"certificado:{enrollment_id}:{user_id}".encode(), hashlib.sha256).hexdigest()[:12].upper()
 
 

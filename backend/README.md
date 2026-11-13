@@ -97,6 +97,13 @@ cp .env.example .env
 # Editar .env com sua GROQ_API_KEY
 ```
 
+Em produção defina `APP_ENV=production` explicitamente. O startup valida a configuração (SG2) e o app não sobe, com
+mensagem sem valores de segredo, se: `JWT_SECRET_KEY` tem menos de 32 caracteres; `ADMIN_TOKEN_SECRET` está ausente ou é
+igual a uma senha de perfil; `ADMIN_PASSWORD`/`FINANCIAL_PASSWORD`/`SUPPORT_PASSWORD` têm menos de 12 caracteres ou são a
+senha pública do `seed_demo`; `PAYMENTS_MOCK` está ligado; `MERCADO_PAGO_WEBHOOK_SECRET` ou `MERCADO_PAGO_ACCESS_TOKEN`
+estão vazios; ou `CORS_ALLOWED_ORIGINS` está ausente, tem localhost ou origem `http://`. Fora de produção só há `[AVISO]`.
+Em produção o login legado `POST /api/admin/login` responde 404 e o token legado de funcionário é recusado.
+
 ### 4. Iniciar servidor
 ```bash
 python app.py
