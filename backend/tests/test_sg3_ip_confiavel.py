@@ -19,9 +19,11 @@ Contrato (decidido pelo PM, P4; formas escolhidas pelo agente-testes estao marca
 
 Escolhas de forma do teste (conservadoras; ver relatorio):
   [forma] item malformado = qualquer item que `ipaddress.ip_address` nao aceite depois de aparado: vazio, texto,
-          `unknown`, IP com porta (`1.2.3.4:443`), IPv6 entre colchetes (`[2001:db8::1]`, com ou sem porta). Um item
-          malformado a DIREITA do escolhido (ou o unico) faz o cabecalho inteiro valer como malformado (volta ao par
-          TCP). O caso "item malformado a ESQUERDA do IP escolhido" nao e testado (o contrato nao fecha; ver relatorio).
+          `unknown`, IP com porta (`1.2.3.4:443`), IPv6 entre colchetes (`[2001:db8::1]`, com ou sem porta).
+  [decisao do orquestrador, contrato da SG3] leitura da DIREITA para a ESQUERDA: pula os itens que pertencem a
+          `TRUSTED_PROXIES`; o primeiro item que NAO e proxy e o cliente; se ele for malformado, vale o par TCP; tudo
+          a ESQUERDA dele e ignorado (controlado pelo atacante), inclusive itens malformados. Se todos os itens sao
+          proxies, vale o mais a esquerda.
   [forma] apenas `X-Forwarded-For` conta; `X-Real-IP` e `Forwarded` sao ignorados.
   [forma] par TCP que nao e IP (ex.: "testclient") ou ausente nunca e proxy confiavel: devolve o par como esta
           (None se nao houver par), como hoje.
@@ -446,6 +448,17 @@ def test_b14_cabecalho_ausente_ou_malformado_atras_de_proxy_confiavel_cai_no_par
     _assert_chat_429(_chat(proxy, "outro-lixo"), "B14 31a malformado")
 
 
+def test_b15_lixo_a_esquerda_nao_joga_o_cliente_no_balde_do_proxy(app_sg3, monkeypatch):
+    """O atacante que manda `lixo` no XFF nao pode encher o contador do proxy (que seria de todos): o proxy anexa o
+    IP real a direita e so ele conta."""
+    _proxies(monkeypatch, PROXY)
+    proxy = _cliente(app_sg3, PROXY)
+    _chat_n(proxy, 30, lambda i: f"lixo-{i}, {CLI_A}", "B15 cliente A com lixo a esquerda")
+    _assert_chat_429(_chat(proxy, f"lixo, {CLI_A}"), "B15 31a do cliente A")
+    _assert_chat_livre(_chat(proxy, None), "B15 o balde do proprio proxy (sem cabecalho) esta livre")
+    _assert_chat_livre(_chat(proxy, f"lixo, {CLI_B}"), "B15 cliente B")
+
+
 # =========================================================================================
 # C - guarda verde: par TCP fora da lista tem o cabecalho ignorado, mesmo com TRUSTED_PROXIES preenchida
 # =========================================================================================
@@ -569,6 +582,25 @@ MALFORMADOS = [
 def test_d7_cabecalho_malformado_ou_vazio_volta_ao_par_tcp(monkeypatch, cabecalho):
     _proxies(monkeypatch, PROXY)
     assert _efetivo(PROXY, cabecalho) == PROXY
+
+
+ESQUERDA_MALFORMADA = [
+    pytest.param("lixo, 198.51.100.1", "198.51.100.1", id="lixo-a-esquerda-real-a-direita"),
+    pytest.param("198.51.100.1, lixo", PROXY, id="lixo-a-direita-vale-o-par-tcp"),
+    pytest.param("1.1.1.1, lixo, 198.51.100.1", "198.51.100.1", id="forjado-e-lixo-a-esquerda"),
+    pytest.param("lixo, 10.77.0.2, 10.77.0.1", PROXY, id="lixo-a-esquerda-de-cadeia-so-de-proxies"),
+    pytest.param(", 198.51.100.1", "198.51.100.1", id="item-vazio-a-esquerda"),
+    pytest.param("1.1.1.1:443, [2001:db8::1], 198.51.100.1, 10.77.0.1", "198.51.100.1", id="porta-e-colchetes-a-esquerda"),
+    pytest.param("lixo, 198.51.100.1, 10.77.0.2, 10.77.0.1", "198.51.100.1", id="lixo-a-esquerda-com-dois-proxies"),
+    pytest.param("198.51.100.1, 10.77.0.2, lixo", PROXY, id="lixo-entre-o-proxy-e-a-direita"),
+]
+
+
+@pytest.mark.parametrize("cabecalho,esperado", ESQUERDA_MALFORMADA)
+def test_d7b_item_malformado_a_esquerda_do_primeiro_nao_proxy_e_ignorado(monkeypatch, cabecalho, esperado):
+    """Decisao do orquestrador: so importa o primeiro item que nao e proxy, lendo da direita para a esquerda."""
+    _proxies(monkeypatch, f"{PROXY}, {PROXY2}")
+    assert _efetivo(PROXY, cabecalho) == esperado
 
 
 def test_d8_cabecalho_ausente_volta_ao_par_tcp(monkeypatch):
