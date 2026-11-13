@@ -1856,3 +1856,31 @@ verdes; builds de desenvolvimento e produção limpos. **Observado:** `test_gr5_
 intermitente, falhou também com a mudança guardada, então não é desta entrega.
 **Fora do escopo, aberto:** `GET /` ainda lista `/docs` e `/health`; README, `backend/README.md` e a documentação técnica ainda
 descrevem o `/health` antigo (atualizar na entrega de documentação do deploy, SG5).
+
+## D112 — SG2: configuração de produção que não sobe insegura (13/11/2026)
+Entregue conforme o plano SG e a decisão P3 da D109:
+- `core/configuracao.py`: `validar_configuracao(env=None)` lista todos os problemas (cada um cita só o nome da variável, nunca o
+  valor) e `exigir_configuracao_segura()` levanta `RuntimeError` **no startup** quando `APP_ENV=production` (normalizado como na
+  SG1). Recusa: `JWT_SECRET_KEY` com menos de 32 caracteres; `ADMIN_TOKEN_SECRET` ausente ou igual a uma senha de perfil;
+  senha de perfil com menos de 12 caracteres ou igual à do `seed_demo`; `PAYMENTS_MOCK` ligado; `MERCADO_PAGO_WEBHOOK_SECRET` ou
+  `MERCADO_PAGO_ACCESS_TOKEN` vazios; `CORS_ALLOWED_ORIGINS` ausente, com localhost ou com origem `http://`. Fora de produção
+  só `[AVISO]` por problema.
+- `POST /api/admin/login` (legado) responde 404 em produção (sem falha, auditoria nem tentativa registrada); em `development` e
+  `test` igual a hoje. Em produção o token administrativo legado é recusado (401) e `get_admin_secret()` não cai para
+  `ADMIN_PASSWORD`. Os funcionários entram por conta individual (`POST /api/token`, S3).
+- `codigo_validacao` do certificado sem o fallback `"gt"`: sem `JWT_SECRET_KEY` levanta erro; com a chave, o código é idêntico
+  ao de antes (8 valores de referência no teste), então certificados já emitidos continuam válidos.
+- Documentação: `AGENTS.md` 6.1, `README.md`, `backend/README.md` e `.env.example` (comentário).
+**Ciclo:** red `1795254`; backend `b087d25`. Suíte SG2 158/158; SG0+SG1+SG2 349 passed; regressão completa do backend 2951 passed e
+as 13 falhas conhecidas da D107.
+**Para revisão do PM:**
+1. `frontend/admin.html` (painel da Fase 1, fora do Angular) usa o login legado e **deixa de funcionar em produção**; o painel
+   oficial é o Angular. Decidir se `admin.html` sai do repositório ou fica só para demonstração local.
+2. Com `APP_ENV` **ausente**, o app se comporta como fora de produção (só avisos, login legado ativo): os e2e removem
+   `APP_ENV`. O checklist de deploy (SG5) vai exigir `APP_ENV=production` explícito.
+3. Os placeholders do `.env.example` (`troque_essa_senha` etc.) **não** são recusados; sugestão: tratá-los como valores públicos,
+   como a senha do seed. É política nova, fica para decisão.
+4. Textos das mensagens de problema (o que o operador vê no log de subida).
+5. `SENHAS_PUBLICAS_DO_SEED` está duplicada em `core/configuracao.py` (o `seed_demo` carrega `.env` e banco ao importar); trocar
+   nos dois lugares se a senha do seed mudar.
+**Fora do escopo, aberto:** `DOCUMENTACAO_TECNICA_TCC*` e `README_PHASE2.md` ainda não descrevem a validação de produção.
