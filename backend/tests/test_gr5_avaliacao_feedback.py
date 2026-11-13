@@ -53,8 +53,8 @@ Decisoes deste teste (para o orquestrador registrar):
   5. Repetir o feedback no mesmo `reply_id` ATUALIZA a nota (uma linha por reply_id; vale a ultima).
   6. `ai_feedback` nao guarda texto (nem da mensagem nem da resposta) nem o session_id cru; sobrevive ao restart;
      feedback nao cria linha em ai_interactions/ai_usage nem em chat_messages.
-  7. Painel: `guards = {total, by_type}` com as 10 chaves do vocabulario fechado (zeros inclusive); `total` = soma de
-     by_type (guard nulo ou fora do vocabulario nao conta); `no_source` = by_type["no_source"]; `feedback = {up,
+  7. Painel: `guards = {total, by_type}` com as 11 chaves do vocabulario fechado (as 10 do PLANO_GR + `budget` da SG4,
+     D109 -> D114, autoridade 4.3; zeros inclusive); `total` = soma de by_type (guard nulo ou fora do vocabulario nao conta); `no_source` = by_type["no_source"]; `feedback = {up,
      down, rate}` com rate = round(up / (up + down), 4) e **null** sem feedback (0 seria "100% negativo"). O painel
      nao tem filtro de periodo hoje: os campos novos sao do historico inteiro, como outcomes/handoff. Todos os perfis
      internos veem (nao e custo); aluno 403; sem token 401.
@@ -119,6 +119,9 @@ GUARDS = [
 ]
 FILTRANTES = {"input_pii", "output_link"}
 BLOQUEANTES = set(GUARDS) - FILTRANTES
+# SG4 (D109 -> D114, autoridade 4.3): o vocabulario fechado do painel ganha `budget` (teto diario do chat anonimo).
+# `GUARDS` continua sendo o das 10 categorias da bateria adversarial (budget nao e ataque da bateria).
+GUARDS_PAINEL = GUARDS + ["budget"]
 
 INPUT_BLOCKED = "Não posso atender esse tipo de pedido. Posso ajudar com dúvidas sobre os cursos da Global Training."
 OFFER_BLOCKED = (
@@ -981,7 +984,7 @@ def _inserir_interacao(guard, outcome="answered", channel="anonymous"):
 
 def test_p1_banco_vazio_tem_as_chaves_novas_zeradas(client, llm):
     metricas = _painel(client, _token_staff(client, "admin"))
-    assert metricas.get("guards") == {"total": 0, "by_type": {g: 0 for g in GUARDS}}, metricas.get("guards")
+    assert metricas.get("guards") == {"total": 0, "by_type": {g: 0 for g in GUARDS_PAINEL}}, metricas.get("guards")
     assert metricas.get("no_source") == 0
     assert metricas.get("feedback") == {"up": 0, "down": 0, "rate": None}, \
         "sem feedback, rate e null (0 seria '100% negativo')"
@@ -999,7 +1002,7 @@ def test_p2_guards_contados_por_tipo_do_vocabulario_fechado(client, llm):
 
     metricas = _painel(client, _token_staff(client, "admin"))
 
-    esperado = {g: semeados.get(g, 0) for g in GUARDS}
+    esperado = {g: semeados.get(g, 0) for g in GUARDS_PAINEL}
     assert metricas["guards"] == {"total": sum(semeados.values()), "by_type": esperado}, metricas["guards"]
     assert metricas["no_source"] == 2 == metricas["guards"]["by_type"]["no_source"]
 
