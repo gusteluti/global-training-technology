@@ -33,10 +33,19 @@ from auth import router as auth_router
 from student.routes import router as student_router
 from core.security import get_password_hash, senha_excede_limite_bcrypt
 from core import operacao, rate_limit
+from core.cabecalhos import CabecalhosSeguranca, documentacao_habilitada, erro_interno
 from db import Database
 
 # Initialize FastAPI
-app = FastAPI(title="TCC School Chatbot API", version="1.0.0")
+# SG1 (D109): documentação interativa e esquema OpenAPI só com APP_ENV development ou test (decidido na montagem do app).
+_docs = documentacao_habilitada()
+app = FastAPI(
+    title="TCC School Chatbot API",
+    version="1.0.0",
+    docs_url="/docs" if _docs else None,
+    redoc_url="/redoc" if _docs else None,
+    openapi_url="/openapi.json" if _docs else None,
+)
 
 # CORS (E9, D48): lista explícita de origens, sem "*" e sem credenciais (a autenticação é pelo
 # cabeçalho Authorization). CORS_ALLOWED_ORIGINS (separada por vírgulas) substitui o padrão.
@@ -78,6 +87,10 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
+# SG1 (D109): cabeçalhos de segurança em toda resposta. Adicionada depois do CORS, fica por fora dele (cobre o
+# preflight); o 500 de exceção não tratada, que sai do ServerErrorMiddleware, passa pelo handler de Exception.
+app.add_middleware(CabecalhosSeguranca)
+app.add_exception_handler(Exception, erro_interno)
 
 # Pydantic models
 class ChatMessage(BaseModel):
@@ -144,53 +157,14 @@ async def startup_event():
 @app.get("/health")
 @app.get("/api/health")
 async def health_check():
-    """Health check endpoint"""
+    """Health check público (SG1, D109): só o status. O detalhe está em GET /api/dashboard/saude (Gestão)."""
     try:
-        manager_agent = getattr(app.state, "manager_agent", None)
-        if manager_agent:
-            manager_agent.refresh_courses_if_changed()
-        courses_count = len(manager_agent.courses) if manager_agent else 0
-        # X4 (D90): estado das dependências; "degraded" quando o banco não responde.
+        # X4 (D90): "degraded" quando o banco não responde.
         servicos = operacao.verificar_servicos()
-        return {
-            "status": "ok" if servicos["database"] == "ok" else "degraded",
-            "services": servicos,
-            "courses_loaded": courses_count,
-            "llm": "groq",
-            "available_models": ["mixtral-8x7b-32768"],
-            "payments_mock": pagamento_mockado_efetivo(),
-        }
-    except Exception as e:
-        return {
-            "status": "error",
-            "message": str(e)
-        }
+        return {"status": "ok" if servicos["database"] == "ok" else "degraded"}
+    except Exception:
+        return {"status": "error"}
 
-@app.get("/api/chat/courses-debug")
-async def chat_courses_debug(request: Request):
-    """Debug endpoint to inspect which courses are loaded by the chat agent."""
-    manager_agent = getattr(request.app.state, "manager_agent", None)
-    if not manager_agent:
-        return {
-            "status": "error",
-            "message": "Manager agent not initialized",
-            "courses": []
-        }
-
-    manager_agent.refresh_courses_if_changed()
-    return {
-        "status": "success",
-        "total": len(manager_agent.courses),
-        "courses": [
-            {
-                "id": course_id,
-                "name": course_data.get("name"),
-                "price": course_data.get("price"),
-                "level": course_data.get("level"),
-            }
-            for course_id, course_data in manager_agent.courses.items()
-        ]
-    }
 
 def _handoff_anonimo(manager_agent, mensagem: str, session_id: str, course_id: Optional[str],
                      motivo_padrao: Optional[str] = None) -> list:
