@@ -4,7 +4,7 @@
 mesmo IP em 15 min bloqueiam o IP por 15 min. Bloqueado: 429 com ERRO_LOGIN, mesmo com a senha certa. E-mail
 inexistente conta igual (sem enumeração). Estado na tabela `login_attempts` (sobrevive a restart). O primeiro
 bloqueio de cada janela grava `auth.locked` (e-mail mascarado ou IP; nunca a senha).
-O IP é `request.client.host`; X-Forwarded-For não é considerado.
+O IP é o de `core.cliente_ip.ip_do_cliente` (par TCP; X-Forwarded-For não é considerado sem `TRUSTED_PROXIES`).
 """
 
 from datetime import datetime, timedelta, timezone
@@ -13,6 +13,7 @@ from typing import List, Optional, Tuple
 from fastapi import HTTPException, Request
 
 from core.audit import record_audit
+from core.cliente_ip import ip_do_cliente as _ip_do_cliente
 from db import Database
 
 ERRO_LOGIN = "Muitas tentativas. Tente novamente em alguns minutos."
@@ -33,7 +34,7 @@ def normalizar_email(email: Optional[str]) -> Optional[str]:
 
 
 def ip_do_cliente(request: Request) -> Optional[str]:
-    return request.client.host if request.client and request.client.host else None
+    return _ip_do_cliente(request)
 
 
 def mascarar_email(email: str) -> str:

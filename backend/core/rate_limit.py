@@ -8,7 +8,7 @@
   (`login_limit.ERRO_LOGIN`).
 
 Janela deslizante de 1 minuto. Tentativa barrada não conta. O estado é zerado no startup do app
-(`redefinir_limites()`). O IP é `request.client.host`; X-Forwarded-For não é considerado.
+(`redefinir_limites()`). O IP é o de `core.cliente_ip.ip_do_cliente` (par TCP; X-Forwarded-For não é considerado sem `TRUSTED_PROXIES`).
 """
 
 import threading
@@ -17,6 +17,8 @@ from collections import deque
 from typing import Deque, Dict, Hashable, Iterable, Optional
 
 from fastapi import Request
+
+from core.cliente_ip import ip_do_cliente
 
 ERRO_CHAT = "Muitas mensagens em pouco tempo. Aguarde um instante."
 ERRO_CHECKOUT = "Muitas tentativas de compra em pouco tempo. Aguarde um instante."
@@ -38,7 +40,7 @@ def redefinir_limites() -> None:
 
 
 def _ip(request: Request) -> Optional[str]:
-    return request.client.host if request.client and request.client.host else None
+    return ip_do_cliente(request)
 
 
 def _podar(fila: Deque[float], limite_inferior: float) -> None:
