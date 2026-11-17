@@ -15,6 +15,7 @@ export class CadastroComponent {
   error = '';
   success = false;
   enviando = false;
+  mostrarSenha = false;
   // D108: `next` interno vindo do login (ex.: catálogo com curso e turma do chat); volta ao login nos links.
   nextInterno: string | null = null;
 

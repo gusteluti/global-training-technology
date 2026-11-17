@@ -306,3 +306,18 @@ a:hover { color: var(--gt-teal-dark); }
 
 /* Ícones SVG dos botões de feedback do chat (substituem os emojis, DESIGN.md). */
 .gt-icone { width: 16px; height: 16px; display: inline-block; vertical-align: -3px; }
+
+/* Campo de senha com botão de mostrar/ocultar (login e cadastro). */
+.gt-senha { position: relative; }
+.gt-senha .form-control { padding-right: 2.75rem; }
+.gt-senha-olho {
+  position: absolute; top: 50%; right: 6px; transform: translateY(-50%);
+  width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 6px; background: transparent; color: var(--gt-muted);
+  transition: color .2s, background-color .2s;
+}
+.gt-senha-olho:hover { color: var(--gt-teal); background: var(--gt-soft-blue); }
+.gt-senha-olho .gt-icone { width: 18px; height: 18px; }
+
+/* "Aula 2 de 5" acima do título da aula. */
+.sala-contador { font-size: 13px; font-weight: 600; color: var(--gt-muted); margin-bottom: 2px; }

@@ -24,6 +24,7 @@ export class LoginComponent {
   error = '';
   aviso = '';
   enviando = false;
+  mostrarSenha = false;
   // D108: o `next` interno segue para o cadastro e volta ao login ("Criar conta e matricular-se").
   nextInterno: string | null = null;
 
