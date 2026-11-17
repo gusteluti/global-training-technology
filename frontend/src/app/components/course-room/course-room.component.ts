@@ -62,6 +62,13 @@ export class CourseRoomComponent implements OnInit {
     return posicao >= 0 ? aulas[posicao + 1] : undefined;
   }
 
+  // "Aula 2 de 5": só para os conteúdos dos módulos (extras não contam).
+  get posicaoAula(): { numero: number; total: number } | null {
+    const aulas = this.aulas();
+    const posicao = aulas.indexOf(this.atual);
+    return posicao >= 0 ? { numero: posicao + 1, total: aulas.length } : null;
+  }
+
   // 409: a matrícula deixou de estar ativa com a página aberta. A sala sai da tela.
   private verificarAcesso(err: any): boolean {
     if (err && err.status === 409) {

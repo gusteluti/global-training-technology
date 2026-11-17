@@ -23,6 +23,8 @@ export class LoginComponent {
   password = '';
   error = '';
   aviso = '';
+  enviando = false;
+  mostrarSenha = false;
   // D108: o `next` interno segue para o cadastro e volta ao login ("Criar conta e matricular-se").
   nextInterno: string | null = null;
 
@@ -38,8 +40,13 @@ export class LoginComponent {
   submit() {
     this.error = '';
     this.aviso = '';
+    if (this.enviando) {
+      return;
+    }
+    this.enviando = true;
     this.auth.login(this.email, this.password).subscribe({
       next: ok => {
+        this.enviando = false;
         if (ok) {
           // Gestão, Financeiro e Suporte vão para a área administrativa; o restante, para a área do aluno.
           const role = this.auth.getRole();
@@ -56,6 +63,7 @@ export class LoginComponent {
         }
       },
       error: err => {
+        this.enviando = false;
         this.error = err?.error?.detail || 'Erro ao autenticar';
       }
     });

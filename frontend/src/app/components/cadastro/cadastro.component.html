@@ -1,8 +1,9 @@
-<div class="row justify-content-center mt-5">
-  <div class="col-md-6">
-    <div class="card">
+<div class="gt-auth">
+  <div>
+    <div class="card gt-auth-card">
       <div class="card-body">
-        <h4 class="card-title">Criar conta de aluno</h4>
+        <h1 class="card-title gt-auth-titulo">Criar conta de aluno</h1>
+        <p class="gt-auth-sub">Com a conta você se matricula, paga pelo Mercado Pago e acompanha seus cursos.</p>
 
         <div *ngIf="success" class="alert alert-success">
           Conta criada. Você já pode entrar.
@@ -14,15 +15,24 @@
         <form *ngIf="!success" (ngSubmit)="submit()">
           <div class="mb-3">
             <label class="form-label">Nome completo</label>
-            <input class="form-control" [(ngModel)]="name" name="name" required />
+            <input class="form-control" [(ngModel)]="name" name="name" required autocomplete="name" />
           </div>
           <div class="mb-3">
             <label class="form-label">E-mail</label>
-            <input type="email" class="form-control" [(ngModel)]="email" name="email" required />
+            <input type="email" class="form-control" [(ngModel)]="email" name="email" required autocomplete="email" spellcheck="false" />
           </div>
           <div class="mb-3">
-            <label class="form-label">Senha (mínimo 8 caracteres)</label>
-            <input type="password" class="form-control" [(ngModel)]="password" name="password" required />
+            <label class="form-label">Senha</label>
+            <div class="gt-senha">
+              <input [type]="mostrarSenha ? 'text' : 'password'" class="form-control" [(ngModel)]="password" name="password" required autocomplete="new-password" minlength="8" />
+              <button type="button" class="gt-senha-olho" (click)="mostrarSenha = !mostrarSenha"
+                    [attr.aria-label]="mostrarSenha ? 'Ocultar senha' : 'Mostrar senha'"
+                    [attr.aria-pressed]="mostrarSenha" data-testid="senha-mostrar">
+              <svg *ngIf="!mostrarSenha" class="gt-icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg *ngIf="mostrarSenha" class="gt-icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.9 4.2A10.4 10.4 0 0 1 12 4c6.5 0 10 8 10 8a17.6 17.6 0 0 1-2.2 3.2M6.6 6.6C3.7 8.6 2 12 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2M2 2l20 20"/></svg>
+            </button>
+            </div>
+            <div class="form-text">Use pelo menos 8 caracteres.</div>
           </div>
           <div class="form-check mb-3">
             <input class="form-check-input" type="checkbox" id="aceite" name="aceite" data-testid="cadastro-aceite"
@@ -32,8 +42,10 @@
               <a routerLink="/privacidade" target="_blank">Política de Privacidade</a>.
             </label>
           </div>
-          <button class="btn btn-primary" type="submit" [disabled]="enviando || !aceite">Criar conta</button>
-          <a routerLink="/" [queryParams]="nextInterno ? { next: nextInterno } : null" class="btn btn-link">Já tenho conta</a>
+          <button class="btn btn-primary w-100" type="submit" [disabled]="enviando || !aceite">Criar conta</button>
+          <p class="text-center mt-3 mb-0">
+            <a routerLink="/" [queryParams]="nextInterno ? { next: nextInterno } : null" class="gt-auth-link-pequeno">Já tenho conta</a>
+          </p>
         </form>
       </div>
     </div>

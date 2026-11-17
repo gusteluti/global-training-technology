@@ -53,7 +53,16 @@ Regras:
 - **Planilha do hero:** barra de fórmula, letras de coluna, números de linha, uma linha por curso e o total. Clicar numa
   linha leva ao cartão do curso. No celular a coluna "Nível" encolhe a zero.
 - **Abas do painel:** um indicador teal desliza até a aba ativa (`.gt-abas-indicador`).
-- **Chat:** bolhas; resposta do assistente revelada de cima para baixo; avatar "GT".
+- **Chat:** bolhas; resposta do assistente revelada de cima para baixo; avatar "GT". Feedback da resposta com
+  ícones SVG de polegar (`.gt-icone`), nunca emoji.
+- **Telas de acesso** (login, cadastro, esqueci/redefinir/definir senha): coluna de até 440 px (`.gt-auth`), título
+  em `h1` (`.gt-auth-titulo`) com uma linha de apoio (`.gt-auth-sub`), campos com `autocomplete` correto
+  (`username`, `current-password`, `new-password`, `email`, `name`) e dica de senha em `.form-text`. O botão de envio
+  ocupa a largura e mostra "Entrando…" enquanto espera.
+- **Sala do curso:** nome do curso em `h1` (`.sala-titulo-curso`); "Voltar" com seta SVG (`.gt-voltar`); aula
+  concluída com check SVG e texto oculto "Concluída"; ao concluir tudo, bloco `.sala-concluido` com o botão de
+  certificado em tamanho normal.
+- **Gráficos de barra:** `maxBarThickness: 56`, para que um mês só não vire um bloco da largura do gráfico.
 
 ## Movimento
 

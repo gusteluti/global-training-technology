@@ -213,13 +213,13 @@
                   [attr.aria-pressed]="msg.feedback === 'up' ? 'true' : 'false'"
                   [class.ativo]="msg.feedback === 'up'"
                   [disabled]="!!msg.feedback || msg.enviandoFeedback"
-                  (click)="enviarFeedback(msg, 'up')">👍</button>
+                  (click)="enviarFeedback(msg, 'up')"><svg class="gt-icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 10v12M15 5.9 14 10h5.8a2 2 0 0 1 1.9 2.6l-2.3 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.8a2 2 0 0 0 1.8-1.1L12 2a3.1 3.1 0 0 1 3 3.9Z"/></svg></button>
           <button type="button" class="chat-feedback-btn" data-testid="chat-feedback-down"
                   aria-label="Resposta não útil" title="Resposta não útil"
                   [attr.aria-pressed]="msg.feedback === 'down' ? 'true' : 'false'"
                   [class.ativo]="msg.feedback === 'down'"
                   [disabled]="!!msg.feedback || msg.enviandoFeedback"
-                  (click)="enviarFeedback(msg, 'down')">👎</button>
+                  (click)="enviarFeedback(msg, 'down')"><svg class="gt-icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 14V2M9 18.1 10 14H4.2a2 2 0 0 1-1.9-2.6l2.3-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.8a2 2 0 0 0-1.8 1.1L12 22a3.1 3.1 0 0 1-3-3.9Z"/></svg></button>
         </div>
       </ng-container>
       <div *ngIf="chatAcoes.length || chatWhatsapp || chatAbrir.length" class="chat-acoes">

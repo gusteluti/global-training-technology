@@ -1,8 +1,8 @@
-<div class="row justify-content-center mt-5">
-  <div class="col-md-6">
-    <div class="card">
+<div class="gt-auth">
+  <div>
+    <div class="card gt-auth-card">
       <div class="card-body">
-        <h4 class="card-title">Redefinir senha</h4>
+        <h1 class="card-title gt-auth-titulo">Redefinir senha</h1>
 
         <div *ngIf="mensagem" class="alert alert-success">
           <span data-testid="redefinir-mensagem">{{ mensagem }}</span>
@@ -18,12 +18,13 @@
 
         <form *ngIf="!mensagem && !verificando && !linkInvalido" (ngSubmit)="submit()">
           <div class="mb-3">
-            <label class="form-label">Nova senha (mínimo 8 caracteres)</label>
-            <input type="password" class="form-control" [(ngModel)]="password" name="password" required data-testid="redefinir-senha" />
+            <label class="form-label">Nova senha</label>
+            <input type="password" class="form-control" [(ngModel)]="password" name="password" required autocomplete="new-password" minlength="8" data-testid="redefinir-senha" />
+            <div class="form-text">Use pelo menos 8 caracteres.</div>
           </div>
           <div class="mb-3">
             <label class="form-label">Confirmar nova senha</label>
-            <input type="password" class="form-control" [(ngModel)]="confirmar" name="confirmar" required data-testid="redefinir-confirmar" />
+            <input type="password" class="form-control" [(ngModel)]="confirmar" name="confirmar" required autocomplete="new-password" data-testid="redefinir-confirmar" />
           </div>
           <button class="btn btn-primary" type="submit" [disabled]="enviando || !token" data-testid="redefinir-enviar">Redefinir senha</button>
         </form>
