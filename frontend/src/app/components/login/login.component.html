@@ -1,32 +1,36 @@
-<div class="row justify-content-center mt-5">
-  <div class="col-md-6">
-    <div class="card">
-      <div class="card-body">
-        <h4 class="card-title">Acessar Plataforma</h4>
+<div class="gt-auth">
+  <div class="card gt-auth-card">
+    <div class="card-body">
+      <h1 class="card-title gt-auth-titulo">Entrar na plataforma</h1>
+      <p class="gt-auth-sub">Acesse seus cursos, pagamentos e certificados.</p>
 
-        <div *ngIf="aviso" class="alert alert-warning" data-testid="login-sessao-expirada">{{ aviso }}</div>
-        <div *ngIf="error" class="alert alert-danger">{{ error }}</div>
+      <div *ngIf="aviso" class="alert alert-warning" data-testid="login-sessao-expirada" role="status">{{ aviso }}</div>
+      <div *ngIf="error" class="alert alert-danger" role="alert">{{ error }}</div>
 
-        <form (ngSubmit)="submit()">
-          <div class="mb-3">
-            <label class="form-label">E-mail</label>
-            <input class="form-control" [(ngModel)]="email" name="email" required />
+      <form (ngSubmit)="submit()">
+        <div class="mb-3">
+          <label class="form-label" for="login-email">E-mail</label>
+          <input id="login-email" type="email" class="form-control" [(ngModel)]="email" name="email" required
+                 autocomplete="username" inputmode="email" spellcheck="false" />
+        </div>
+        <div class="mb-3">
+          <div class="d-flex justify-content-between align-items-baseline">
+            <label class="form-label" for="login-senha">Senha</label>
+            <a routerLink="/esqueci-senha" class="gt-auth-link-pequeno" data-testid="esqueci-link">Esqueci minha senha</a>
           </div>
-          <div class="mb-3">
-            <label class="form-label">Senha</label>
-            <input type="password" class="form-control" [(ngModel)]="password" name="password" required />
-          </div>
-          <button class="btn btn-primary" type="submit">Entrar</button>
-          <a routerLink="/esqueci-senha" class="btn btn-link" data-testid="esqueci-link">Esqueci minha senha</a>
-        </form>
+          <input id="login-senha" type="password" class="form-control" [(ngModel)]="password" name="password" required
+                 autocomplete="current-password" />
+        </div>
+        <button class="btn btn-primary w-100" type="submit" [disabled]="enviando">
+          {{ enviando ? 'Entrando…' : 'Entrar' }}
+        </button>
+      </form>
 
-        <hr class="my-3" />
-        <p class="mb-2 text-muted">Ainda não tem uma conta?</p>
-        <a routerLink="/cadastro" [queryParams]="nextInterno ? { next: nextInterno } : null"
-           class="btn btn-outline-primary w-100" data-testid="cadastro-link">
-          Criar conta e matricular-se
-        </a>
-      </div>
+      <div class="gt-auth-divisor"><span>Ainda não tem uma conta?</span></div>
+      <a routerLink="/cadastro" [queryParams]="nextInterno ? { next: nextInterno } : null"
+         class="btn btn-outline-primary w-100" data-testid="cadastro-link">
+        Criar conta e matricular-se
+      </a>
     </div>
   </div>
 </div>

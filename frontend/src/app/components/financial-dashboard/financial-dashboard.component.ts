@@ -190,7 +190,8 @@ export class FinancialDashboardComponent implements OnInit, OnDestroy {
         datasets: [{
           label: 'Receita aprovada (R$)',
           data: monthly.map(m => m.revenue),
-          backgroundColor: '#0096c7'
+          backgroundColor: '#0096c7',
+          maxBarThickness: 56
         }]
       },
       options: {

@@ -1,8 +1,8 @@
-<div class="row justify-content-center mt-5">
-  <div class="col-md-6">
-    <div class="card">
+<div class="gt-auth">
+  <div>
+    <div class="card gt-auth-card">
       <div class="card-body">
-        <h4 class="card-title">Definir senha</h4>
+        <h1 class="card-title gt-auth-titulo">Definir senha</h1>
 
         <div *ngIf="success" class="alert alert-success">
           Senha definida. Você já pode entrar.
@@ -18,8 +18,9 @@
 
         <form *ngIf="!success && !verificando && !linkInvalido" (ngSubmit)="submit()">
           <div class="mb-3">
-            <label class="form-label">Nova senha (mínimo 8 caracteres)</label>
-            <input type="password" class="form-control" [(ngModel)]="password" name="password" required />
+            <label class="form-label">Nova senha</label>
+            <input type="password" class="form-control" [(ngModel)]="password" name="password" required autocomplete="new-password" minlength="8" />
+            <div class="form-text">Use pelo menos 8 caracteres.</div>
           </div>
           <button class="btn btn-primary" type="submit" [disabled]="enviando">Definir senha</button>
         </form>

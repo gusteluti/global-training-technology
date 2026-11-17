@@ -261,3 +261,48 @@ a:hover { color: var(--gt-teal-dark); }
 .sala-chat-texto p:last-child, .sala-chat-texto ul:last-child, .sala-chat-texto ol:last-child { margin-bottom: 0; }
 .sala-chat-texto ul, .sala-chat-texto ol { margin: 0 0 8px; padding-left: 20px; }
 .sala-chat-nota { color: var(--gt-teal-dark); font-size: 12px; margin: -4px 0 8px; }
+
+/* ---------- Telas de acesso (login, cadastro, senha): um h1 por página, coluna estreita e foco no formulário. ---------- */
+.gt-auth { display: flex; justify-content: center; padding: 32px 0 16px; }
+.gt-auth > * { width: 100%; max-width: 440px; }
+.gt-auth-card { margin: 0; box-shadow: 0 12px 32px rgba(16, 31, 45, 0.07); }
+.gt-auth-card .card-body { padding: 2rem; }
+.gt-auth-titulo { font-size: 34px; line-height: 1.05; margin-bottom: 6px; }
+.gt-auth-sub { color: var(--gt-muted); font-size: 15px; margin-bottom: 1.5rem; }
+.gt-auth-link-pequeno { font-size: 13px; font-weight: 600; text-decoration: none; }
+.gt-auth-divisor {
+  display: flex; align-items: center; gap: 12px; margin: 1.5rem 0 1rem;
+  color: var(--gt-muted); font-size: 14px;
+}
+.gt-auth-divisor::before, .gt-auth-divisor::after { content: ""; flex: 1; height: 1px; background: var(--gt-border); }
+.form-text { color: var(--gt-muted); font-size: 13px; }
+@media (max-width: 768px) {
+  .gt-auth { padding-top: 8px; }
+  .gt-auth-card .card-body { padding: 1.5rem; }
+  .gt-auth-titulo { font-size: 30px; }
+  /* iOS não aplica zoom em campo com 16 px (DESIGN.md, acessibilidade). */
+  .form-control, .form-select { font-size: 16px; }
+}
+
+/* Botão desabilitado não "sobe" no hover. */
+.btn-primary:disabled, .btn-primary.disabled { transform: none; }
+
+/* ---------- Sala do curso: título da página, voltar e marca de concluída. ---------- */
+.gt-voltar {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 14px; font-weight: 600; text-decoration: none;
+}
+.gt-voltar svg { transition: transform .2s; }
+.gt-voltar:hover svg { transform: translateX(-2px); }
+.sala-titulo-curso { font-size: 40px; line-height: 1.05; margin-bottom: 1rem; }
+.sala-check { flex: 0 0 auto; margin-right: 6px; vertical-align: -2px; color: #198754; }
+.sala-lista .list-group-item.active .sala-check { color: #fff; }
+.sala-concluido {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
+  border: 1px solid #b8e7f1; background: var(--gt-soft-blue); border-radius: 8px; padding: 14px 18px; margin-top: 12px;
+}
+.sala-concluido strong { font-size: 16px; }
+@media (max-width: 768px) { .sala-titulo-curso { font-size: 32px; } }
+
+/* Ícones SVG dos botões de feedback do chat (substituem os emojis, DESIGN.md). */
+.gt-icone { width: 16px; height: 16px; display: inline-block; vertical-align: -3px; }
