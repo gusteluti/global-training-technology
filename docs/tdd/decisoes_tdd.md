@@ -1945,3 +1945,16 @@ novos de turma/vagas/carga horária na API **rejeitados** (sem mudança de lógi
 landing refeita nesta onda sem tocar no script inline; fonte hospedada fica para o SG6.
 **Critérios medidos:** contraste AA (≥ 4,5:1 em texto normal), um `h1` por tela, rótulo em cada campo, alvo de toque ≥ 44 px,
 nenhum `confirm()`, nenhuma rolagem horizontal a 390 px.
+
+## D116 — DS0: fundação do design (22/11/2026)
+Entregue conforme o PLANO_DESIGN e a D115: logo oficial (`frontend/src/assets/brand/`, versão de fundo escuro na barra, 52 px;
+44 px no celular) no lugar do disco "GT" em CSS; tokens `--gt-link #0077a3` e `--gt-link-hover #005f84` para todo texto azul
+(links, aba ativa, `.btn-outline-primary`), `.btn-primary` com fundo `#0077a3` e texto branco (5,04:1); `#0096c7` só em
+preenchimento, borda e foco; piso de 14 px em `.form-label`, rodapé e rótulo de perfil; `angular.json` com `assets`;
+`docs/DESIGN.md` atualizado (pares de contraste, logo, pisos, 44 px, D-B e D-C). Helper `frontend/e2e/apoio_contraste.py`
+(varredura WCAG AA) para as próximas entregas.
+**Ajustes mecânicos (4.3, D115 → D116):** D1 V2 (logo vira imagem), V4 (botão Entrar em azul da marca com AA), V7 (aba ativa com
+AA); D3 G5 (preço em azul da marca com AA para texto grande).
+**Ciclo:** red `cf2dc93`; frontend `fb2c379`. e2e DS0 2/2 (A1–A4, F1–F14), D1 10/10, D3 10/10, D4 2/2, D2 10/10, B1 10/10,
+admin 34/34; build limpo. **Fica para DS2/DS3:** `#0096c7` como texto no CSS de `student-dashboard` e `course-catalog`; textos de
+12–13 px em telas logadas (cabeçalho de tabela, nota do chat da sala); logo no rodapé (D1 V6 lê o texto do rodapé).
