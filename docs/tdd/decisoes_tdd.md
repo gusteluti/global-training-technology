@@ -1958,3 +1958,24 @@ AA); D3 G5 (preço em azul da marca com AA para texto grande).
 **Ciclo:** red `cf2dc93`; frontend `fb2c379`. e2e DS0 2/2 (A1–A4, F1–F14), D1 10/10, D3 10/10, D4 2/2, D2 10/10, B1 10/10,
 admin 34/34; build limpo. **Fica para DS2/DS3:** `#0096c7` como texto no CSS de `student-dashboard` e `course-catalog`; textos de
 12–13 px em telas logadas (cabeçalho de tabela, nota do chat da sala); logo no rodapé (D1 V6 lê o texto do rodapé).
+
+## D117 — DS1: componentes base (22/11/2026)
+Entregue conforme o PLANO_DESIGN e a D115: `ConfirmacaoService` + `ConfirmacaoComponent` (um só, na casca) substituem as 8
+chamadas de `confirm()` do navegador. A janela tem `role="alertdialog"`, `aria-modal`, título e texto com a pergunta de antes
+palavra por palavra, foco inicial em "Voltar", Tab preso, Esc = Voltar, foco devolvido à origem; confirmar executa exatamente o
+código que vinha depois do `confirm()`, voltar não faz requisição. Destrutivas (`#b42318`, texto branco): excluir conta, desativar
+conta (equipe e aluno), excluir turma, excluir curso, aprovar e reembolsar, confirmar reembolso. Não destrutivas: pedir
+cancelamento, reativar, arquivar e desarquivar. Clicar no fundo não fecha (alertdialog).
+Um `h1` por tela (títulos existentes promovidos com a classe de tamanho antiga; no `/admin`, "Painel administrativo" é o único
+`h1` de todas as abas — a hierarquia interna das abas fica para a DS3); `label[for]`/`aria-label` em todos os campos; alvos
+≥ 44 px por CSS global (`.btn`, `.nav-link`, `.btn-sm`, atalhos, lista da sala); `flex-wrap` nos dois subpainéis que estouravam
+a 390 px (detalhe do aluno 485 px, alunos do curso 411 px).
+**Ajustes mecânicos (4.3, D115 → D117):** diálogo nativo → janela do app (helper `apoio_confirmacao.py`) em admin, f1,
+jornadas_usabilidade, qa_fluxos, qa_istqb, s3, s4, u5, u7, u8, x5; J-VIS-02 lê o título de Termos/Privacidade em `h1`.
+**Ciclo:** red `834685a`; frontend `cd7b245`; ajuste `f6838a0`. e2e DS1 2/2 (19 checks) e estático 2/2; admin 34/34, f1 11/11,
+s3, s4 12/12, u5 8/8, u7, u8 10/10, x5 10/10, f7 11/11, l2 24/24, b1 10/10, b2 8/8, d1 10/10, d2 10/10, d4 2/2, e2 8/8,
+e3 7/7, ds0 2/2, jornadas 74/74, qa_fluxos 18/18, qa_istqb 524/526, o0, x1, x2, f3 11/11, u1 13/13, l1 16/16, u4 7/7, s2 5/5,
+d3 10/10, e7 11/11, e8 17/17; build limpo. **Não verificado (ambiente):** CT-UI-14, CT-UI-15 e `test_c_sala_curso` dependem do
+player do YouTube, bloqueado pelo proxy do sandbox; falham igual em `fa81ca7` (antes da DS1). Rodar na máquina do PM.
+**Riscos anotados:** o rótulo do botão de confirmar repete o botão de origem com a janela aberta; a atualização automática de 30 s
+(X5) não pausa com a janela aberta (não alterado por ser comportamento).
