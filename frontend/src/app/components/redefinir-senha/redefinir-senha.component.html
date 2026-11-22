@@ -2,7 +2,7 @@
   <div class="col-md-6">
     <div class="card">
       <div class="card-body">
-        <h4 class="card-title">Redefinir senha</h4>
+        <h1 class="card-title h4">Redefinir senha</h1>
 
         <div *ngIf="mensagem" class="alert alert-success">
           <span data-testid="redefinir-mensagem">{{ mensagem }}</span>
@@ -18,12 +18,12 @@
 
         <form *ngIf="!mensagem && !verificando && !linkInvalido" (ngSubmit)="submit()">
           <div class="mb-3">
-            <label class="form-label">Nova senha (mínimo 8 caracteres)</label>
-            <input type="password" class="form-control" [(ngModel)]="password" name="password" required data-testid="redefinir-senha" />
+            <label class="form-label" for="redefinir-nova-senha">Nova senha (mínimo 8 caracteres)</label>
+            <input id="redefinir-nova-senha" type="password" class="form-control" [(ngModel)]="password" name="password" required data-testid="redefinir-senha" />
           </div>
           <div class="mb-3">
-            <label class="form-label">Confirmar nova senha</label>
-            <input type="password" class="form-control" [(ngModel)]="confirmar" name="confirmar" required data-testid="redefinir-confirmar" />
+            <label class="form-label" for="redefinir-confirmar">Confirmar nova senha</label>
+            <input id="redefinir-confirmar" type="password" class="form-control" [(ngModel)]="confirmar" name="confirmar" required data-testid="redefinir-confirmar" />
           </div>
           <button class="btn btn-primary" type="submit" [disabled]="enviando || !token" data-testid="redefinir-enviar">Redefinir senha</button>
         </form>

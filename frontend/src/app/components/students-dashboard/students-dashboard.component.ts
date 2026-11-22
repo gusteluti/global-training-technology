@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { ApiService } from '../../services/api.service';
+import { ConfirmacaoService } from '../../services/confirmacao.service';
 import { AuthService } from '../../services/auth.service';
 import { salvarArquivo } from '../../services/salvar-arquivo';
 
@@ -51,7 +52,7 @@ export class StudentsDashboardComponent implements OnInit {
   podeGerenciarConta = false;
   alterandoConta = false;
 
-  constructor(private api: ApiService, private auth: AuthService) { }
+  constructor(private api: ApiService, private auth: AuthService, private confirmacao: ConfirmacaoService) { }
 
   ngOnInit(): void {
     this.podeExportar = ['admin', 'financial'].includes(this.auth.getRole() || '');
@@ -154,22 +155,28 @@ export class StudentsDashboardComponent implements OnInit {
     const pergunta = desativar
       ? `Desativar a conta de "${aluno.name}"?`
       : `Reativar a conta de "${aluno.name}"?`;
-    if (!confirm(pergunta)) {
-      return;
-    }
-    this.alterandoConta = true;
-    this.detalheErro = '';
-    const chamada = desativar ? this.api.deactivateStudent(aluno.id) : this.api.reactivateStudent(aluno.id);
-    chamada.subscribe({
-      next: () => {
-        this.alterandoConta = false;
-        this.abrirDetalhe(aluno);
-        this.carregar();
-      },
-      error: err => {
-        this.alterandoConta = false;
-        this.detalheErro = err?.error?.detail || 'Não foi possível alterar a conta do aluno.';
+    this.confirmacao.confirmar({
+      titulo: pergunta,
+      rotuloConfirmar: desativar ? 'Desativar conta' : 'Reativar conta',
+      destrutiva: desativar
+    }).then(ok => {
+      if (!ok) {
+        return;
       }
+      this.alterandoConta = true;
+      this.detalheErro = '';
+      const chamada = desativar ? this.api.deactivateStudent(aluno.id) : this.api.reactivateStudent(aluno.id);
+      chamada.subscribe({
+        next: () => {
+          this.alterandoConta = false;
+          this.abrirDetalhe(aluno);
+          this.carregar();
+        },
+        error: err => {
+          this.alterandoConta = false;
+          this.detalheErro = err?.error?.detail || 'Não foi possível alterar a conta do aluno.';
+        }
+      });
     });
   }
 

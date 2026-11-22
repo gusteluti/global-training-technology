@@ -29,6 +29,7 @@ import { StudentProfileComponent } from './components/student-profile/student-pr
 import { StaffAdminComponent } from './components/staff-admin/staff-admin.component';
 import { TermosComponent } from './components/termos/termos.component';
 import { AtualizacaoAutomaticaComponent } from './components/atualizacao-automatica/atualizacao-automatica.component';
+import { ConfirmacaoComponent } from './components/confirmacao/confirmacao.component';
 import { AuthInterceptor } from './interceptors/auth.interceptor';
 import { DataSpPipe } from './pipes/data-sp.pipe';
 import { ChatMarkdownPipe } from './pipes/chat-markdown.pipe';
@@ -61,6 +62,7 @@ registerLocaleData(localePt);
     StaffAdminComponent,
     TermosComponent,
     AtualizacaoAutomaticaComponent,
+    ConfirmacaoComponent,
     DataSpPipe,
     ChatMarkdownPipe
   ],

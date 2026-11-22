@@ -2,15 +2,15 @@
   <div class="col-md-6">
     <div class="card">
       <div class="card-body">
-        <h4 class="card-title">Esqueci minha senha</h4>
+        <h1 class="card-title h4">Esqueci minha senha</h1>
 
         <div *ngIf="mensagem" class="alert alert-success" data-testid="esqueci-mensagem">{{ mensagem }}</div>
         <div *ngIf="erro" class="alert alert-danger" data-testid="esqueci-erro">{{ erro }}</div>
 
         <form (ngSubmit)="submit()">
           <div class="mb-3">
-            <label class="form-label">E-mail</label>
-            <input type="email" class="form-control" [(ngModel)]="email" name="email" required data-testid="esqueci-email" />
+            <label class="form-label" for="esqueci-email">E-mail</label>
+            <input id="esqueci-email" type="email" class="form-control" [(ngModel)]="email" name="email" required data-testid="esqueci-email" />
           </div>
           <button class="btn btn-primary" type="submit" [disabled]="enviando" data-testid="esqueci-enviar">Enviar link</button>
           <a routerLink="/" class="btn btn-link">Voltar ao login</a>

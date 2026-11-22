@@ -1,5 +1,6 @@
 import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { ApiService } from '../../services/api.service';
+import { ConfirmacaoService } from '../../services/confirmacao.service';
 import { AuthService } from '../../services/auth.service';
 import { Chart } from '../../charts';
 import { salvarArquivo } from '../../services/salvar-arquivo';
@@ -60,7 +61,7 @@ export class CoursesDashboardComponent implements OnInit, OnDestroy {
   manualErro = '';
   salvandoManual = false;
 
-  constructor(private api: ApiService, private auth: AuthService) { }
+  constructor(private api: ApiService, private auth: AuthService, private confirmacao: ConfirmacaoService) { }
 
   ngOnInit(): void {
     this.canManage = this.auth.getRole() === 'admin';
@@ -308,18 +309,27 @@ export class CoursesDashboardComponent implements OnInit, OnDestroy {
   }
 
   excluirTurma(turma: any): void {
-    if (!this.canManage || !confirm(`Excluir a turma "${turma.name}"?`)) {
+    if (!this.canManage) {
       return;
     }
-    this.turmaErro = '';
-    this.api.deleteClass(turma.id).subscribe({
-      next: () => {
-        if (this.turmaEditando?.id === turma.id) {
-          this.turmaEditando = null;
-        }
-        this.refresh();
-      },
-      error: err => this.turmaErro = this.errorText(err)
+    this.confirmacao.confirmar({
+      titulo: `Excluir a turma "${turma.name}"?`,
+      rotuloConfirmar: 'Excluir turma',
+      destrutiva: true
+    }).then(ok => {
+      if (!ok) {
+        return;
+      }
+      this.turmaErro = '';
+      this.api.deleteClass(turma.id).subscribe({
+        next: () => {
+          if (this.turmaEditando?.id === turma.id) {
+            this.turmaEditando = null;
+          }
+          this.refresh();
+        },
+        error: err => this.turmaErro = this.errorText(err)
+      });
     });
   }
 

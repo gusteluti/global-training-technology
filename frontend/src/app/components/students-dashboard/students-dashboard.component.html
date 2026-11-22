@@ -86,15 +86,15 @@
 
 <div class="card mt-3" data-testid="aluno-detalhe" *ngIf="detalhe">
   <div class="card-body">
-    <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
-      <div>
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
+      <div class="text-break">
         <h5 class="mb-0">
           {{ detalhe.student?.name }}
           <span class="badge bg-secondary ms-1" data-testid="aluno-desativado" *ngIf="detalhe.student?.is_active === false">Desativado</span>
         </h5>
         <div class="text-muted small">{{ detalhe.student?.email }}</div>
       </div>
-      <div class="d-flex gap-2">
+      <div class="d-flex flex-wrap gap-2">
         <ng-container *ngIf="podeGerenciarConta">
           <button type="button" class="btn btn-sm btn-outline-danger" data-testid="aluno-desativar"
                   *ngIf="detalhe.student?.is_active !== false" [disabled]="alterandoConta"

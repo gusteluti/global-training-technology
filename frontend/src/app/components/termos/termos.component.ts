@@ -10,7 +10,7 @@ import { ActivatedRoute } from '@angular/router';
   <div class="col-lg-8">
     <div class="card"><div class="card-body" data-testid="termos-texto">
       <ng-container *ngIf="doc === 'privacidade'; else termos">
-        <h3>Política de Privacidade</h3>
+        <h1 class="h3">Política de Privacidade</h1>
         <p class="text-muted small">Versão 2026-10 · Projeto acadêmico (TCC)</p>
         <h5>Quais dados coletamos</h5>
         <p>Nome, e-mail, telefone (opcional), senha (guardada só como código irreversível), matrículas, pagamentos
@@ -27,7 +27,7 @@ import { ActivatedRoute } from '@angular/router';
           identificação pessoal, porque o registro financeiro é obrigação legal (art. 16).</p>
       </ng-container>
       <ng-template #termos>
-        <h3>Termos de Uso</h3>
+        <h1 class="h3">Termos de Uso</h1>
         <p class="text-muted small">Versão 2026-10 · Projeto acadêmico (TCC)</p>
         <p>Ao criar uma conta você concorda em usar a plataforma de forma lícita, manter sua senha em sigilo e
           fornecer dados verdadeiros.</p>

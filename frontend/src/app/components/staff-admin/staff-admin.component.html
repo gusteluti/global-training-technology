@@ -6,16 +6,16 @@
     <div class="alert alert-danger py-2" data-testid="equipe-erro" *ngIf="erro">{{ erro }}</div>
     <div class="row g-2 align-items-end">
       <div class="col-12 col-md-4">
-        <label class="form-label small mb-1">E-mail</label>
-        <input class="form-control" type="email" maxlength="254" data-testid="equipe-email" [(ngModel)]="email">
+        <label class="form-label small mb-1" for="equipe-email">E-mail</label>
+        <input id="equipe-email" class="form-control" type="email" maxlength="254" data-testid="equipe-email" [(ngModel)]="email">
       </div>
       <div class="col-12 col-md-3">
-        <label class="form-label small mb-1">Nome</label>
-        <input class="form-control" maxlength="120" data-testid="equipe-nome" [(ngModel)]="nome">
+        <label class="form-label small mb-1" for="equipe-nome">Nome</label>
+        <input id="equipe-nome" class="form-control" maxlength="120" data-testid="equipe-nome" [(ngModel)]="nome">
       </div>
       <div class="col-6 col-md-3">
-        <label class="form-label small mb-1">Perfil</label>
-        <select class="form-select" data-testid="equipe-perfil" [(ngModel)]="perfil">
+        <label class="form-label small mb-1" for="equipe-perfil">Perfil</label>
+        <select id="equipe-perfil" class="form-select" data-testid="equipe-perfil" [(ngModel)]="perfil">
           <option *ngFor="let p of perfis" [value]="p.value">{{ p.label }}</option>
         </select>
       </div>
@@ -41,6 +41,7 @@
             <td>{{ p.email }}</td>
             <td>
               <select class="form-select form-select-sm" data-testid="equipe-perfil-select"
+                      [attr.aria-label]="'Perfil de ' + p.name"
                       [disabled]="p.id === meuId" (change)="trocarPerfil(p, $event)">
                 <option *ngFor="let opcao of perfis" [value]="opcao.value" [selected]="opcao.value === p.role">{{ opcao.label }}</option>
               </select>
