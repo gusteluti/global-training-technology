@@ -1979,3 +1979,18 @@ d3 10/10, e7 11/11, e8 17/17; build limpo. **Não verificado (ambiente):** CT-UI
 player do YouTube, bloqueado pelo proxy do sandbox; falham igual em `fa81ca7` (antes da DS1). Rodar na máquina do PM.
 **Riscos anotados:** o rótulo do botão de confirmar repete o botão de origem com a janela aberta; a atualização automática de 30 s
 (X5) não pausa com a janela aberta (não alterado por ser comportamento).
+
+## D118 — DS2: área do aluno (22/11/2026)
+Entregue conforme o PLANO_DESIGN e a D115: topo da área do aluno e do catálogo em fundo sólido (sem gradiente atrás do texto);
+resumo vira faixa de números (`<dl data-testid="aluno-resumo">`, borda única, divisórias, valores `#17212b` tabulares; empilha no
+celular); status de curso e de pagamento com ponto (`.badge-status::before`, sem texto, os textos "Ativa"/"Em análise" seguem
+exatos); laranja de conversão (`--gt-cta`, `.btn-cta`, texto `#17212b`, 6,25:1) só em "Comprar cursos" e no botão de compra do
+catálogo (D-B); estados vazios de "Meus cursos" e do histórico com o texto de antes e o link "Ver cursos" para `/catalogo`;
+"Baixar certificado" em estilo secundário (uma ação principal por cartão); balão do aluno em `#0077a3`; preço do catálogo em
+`#0077a3`; piso de 14 px em badges, cabeçalho de tabela, rótulos do resumo, notas do chat e da sala; botões de feedback do chat com
+44 × 44 px; histórico empilhado no celular sem herdar `min-width` da tabela. Uma coluna no computador largo (escolha conservadora).
+**Ciclo:** red `de8b480`; frontend `70e2b0a`. e2e DS2 2/2 (V 3/3, 20/20); ds1, ds0, d2 10/10, d3 10/10, d4, e3 7/7, e5 11/11,
+b2 8/8, o0 7/7, s1 7/7, f5a 8/8, f6 7/7, gr1, gr4, gr5, x1, x2, u5 8/8, s4 12/12, f2 10/10; build limpo.
+**Falhas que já existiam (não vêm da DS2; idênticas com o código de antes, `de8b480`):** GR3 P3/L3 (o chat mostra a mensagem
+mascarada e o teste procura a pergunta original) e F5b G5 (resposta do bot não aparece). Ficam como pendência fora do plano de
+design.
