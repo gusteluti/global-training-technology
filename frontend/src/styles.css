@@ -19,6 +19,9 @@
   --gt-border: #d8e0e8;
   --gt-soft-blue: #eaf8fc;
   --gt-orange: #ff7a18;
+  /* DS2 (D-B): laranja só no botão de conversão, sempre com texto escuro (#17212b: 6,25:1; hover 5,04:1). */
+  --gt-cta: #ff7a18;
+  --gt-cta-hover: #e86a0c;
   --gt-font: 'Barlow', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --gt-font-title: 'Barlow Condensed', 'Barlow', system-ui, sans-serif;
 
@@ -128,6 +131,18 @@ a:hover { color: var(--gt-link-hover); }
   --bs-btn-hover-bg: #17212b; --bs-btn-hover-border-color: #17212b; --bs-btn-hover-color: #ffffff;
 }
 .btn-link { font-weight: 600; text-decoration: none; }
+/* DS2 (D-B): botão de conversão (comprar/retomar pagamento). Único uso do laranja na SPA; texto escuro em todos os
+   estados. Funciona com .btn (variáveis do Bootstrap) e sozinho (cores diretas). */
+.btn-cta {
+  --bs-btn-bg: var(--gt-cta); --bs-btn-border-color: var(--gt-cta); --bs-btn-color: var(--gt-text);
+  --bs-btn-hover-bg: var(--gt-cta-hover); --bs-btn-hover-border-color: var(--gt-cta-hover); --bs-btn-hover-color: var(--gt-text);
+  --bs-btn-active-bg: var(--gt-cta-hover); --bs-btn-active-border-color: var(--gt-cta-hover); --bs-btn-active-color: var(--gt-text);
+  --bs-btn-disabled-bg: var(--gt-cta); --bs-btn-disabled-border-color: var(--gt-cta); --bs-btn-disabled-color: var(--gt-text);
+  --bs-btn-focus-shadow-rgb: 255, 122, 24;
+  background-color: var(--gt-cta); border-color: var(--gt-cta); color: var(--gt-text);
+}
+.btn-cta:hover, .btn-cta:focus-visible { background-color: var(--gt-cta-hover); border-color: var(--gt-cta-hover); color: var(--gt-text); }
+.btn.btn-cta { padding: 0.6rem 1.6rem; }
 
 /* DS1 (D115): alvo de toque de 44 px em botões, links com cara de botão, abas, paginação e "Sair".
    O <button> já centraliza o conteúdo na vertical; o <a class="btn"> passa a inline-flex para ficar igual.
@@ -173,11 +188,18 @@ a.btn, label.btn { display: inline-flex; align-items: center; justify-content: c
 .table { --bs-table-color: var(--gt-text); --bs-table-striped-bg: #f7f9fb; --bs-table-hover-bg: #eaf8fc; }
 /* Sem text-transform: os e2e (E5, E8) leem o texto literal dos cabeçalhos. */
 .table thead th {
-  font-size: 13px; letter-spacing: 0.3px;
+  font-size: 14px; letter-spacing: 0.3px;
   color: var(--gt-muted); font-weight: 700; border-bottom-width: 1px;
 }
 
-.badge { font-weight: 600; border-radius: 20px; padding: 0.4em 0.8em; }
+/* DS2 (D115): badge com 14 px no mínimo. Status (matrícula, pagamento) leva também um ponto em ::before, sem texto,
+   para não depender só da cor; o innerText do badge continua exatamente o rótulo ("Ativa", "Em análise"). */
+.badge { font-size: 14px; font-weight: 600; border-radius: 20px; padding: 0.4em 0.8em; }
+.badge-status { display: inline-flex; align-items: center; gap: 6px; }
+.badge-status::before {
+  content: ""; display: inline-block; flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%;
+  background-color: currentColor;
+}
 .alert { border-radius: 8px; }
 .alert-info { background: var(--gt-soft-blue); border-color: #b8e7f1; color: var(--gt-link-hover); }
 
@@ -271,4 +293,4 @@ a.btn, label.btn { display: inline-flex; align-items: center; justify-content: c
 .sala-chat-texto p { margin: 0 0 8px; }
 .sala-chat-texto p:last-child, .sala-chat-texto ul:last-child, .sala-chat-texto ol:last-child { margin-bottom: 0; }
 .sala-chat-texto ul, .sala-chat-texto ol { margin: 0 0 8px; padding-left: 20px; }
-.sala-chat-nota { color: var(--gt-link); font-size: 12px; margin: -4px 0 8px; }
+.sala-chat-nota { color: var(--gt-link); font-size: 14px; margin: -4px 0 8px; }
