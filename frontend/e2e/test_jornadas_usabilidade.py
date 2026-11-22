@@ -529,7 +529,8 @@ def test_j_vis_02_criar_conta(s, navegador):
             pagina.get_by_role("link", name=link).click()
         documento = nova.value
         documento.wait_for_load_state()
-        expect(campo(documento, "termos-texto").locator("h3")).to_have_text(titulo)
+        # DS1 (4.3, D115 → DS1): o título do documento virou o h1 da tela (<h1 class="h3">).
+        expect(campo(documento, "termos-texto").locator("h1")).to_have_text(titulo)
         documento.get_by_role("link", name="Voltar ao cadastro").click()
         documento.wait_for_url("**/cadastro")
         documento.close()
