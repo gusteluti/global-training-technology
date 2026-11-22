@@ -1928,3 +1928,20 @@ falhas conhecidas da D107; e2e SG4 6/6, GR5 painel 10/10, GR5 feedback, E7, SG1,
 **Para revisão do PM:** o texto `CHAT_INDISPONIVEL`; o rótulo "Teto diário atingido"; a ordem acima; valores de produção
 (300.000 tokens/dia, 200 msgs/IP/dia, 20 sessões novas/IP/hora). **Não verificado:** mais de um worker; custo do `SUM` em
 `ai_usage` grande (índice só em `created_at`); comportamento no uvicorn real.
+
+## D115 — Plano de design aprovado (PLANO_DESIGN, DS0 a DS5) (22/11/2026)
+O PM aprovou o `docs/tdd/PLANO_DESIGN.md` com a ordem "implemente o plano, não altere nenhuma lógica e funcionalidade. Utilize
+o nosso framework de agentes de teste e de implementação". Branch do projeto: `feature/fase2-design`, criada a partir de
+`feature/fase2-seguranca` (`9461073`, onda 1 do SG) para não divergir do código mais novo; sub-branches por entrega
+(`feature/fase2-design-ds0` …), merge `--no-ff` na branch do projeto, push só dela, nunca na `main`.
+**Regra que vale em todas as entregas DS:** nenhuma mudança de backend, rota, contrato, permissão, texto de erro ou fluxo. O dev
+mantém os `data-testid`, ids, classes e textos que os e2e existentes usam; se um e2e antigo quebrar por motivo visual, o ajuste é
+do agente-testes (4.3, D115 → D-entrega), nunca do dev. A troca do `confirm()` do navegador pela janela do próprio app preserva o
+comportamento (confirmar executa, voltar não faz nada); os e2e que aceitavam o diálogo nativo passam a clicar no botão da janela
+(ajuste mecânico 4.3).
+**Decisões D-A a D-G** (tabela "Decisões resolvidas" do plano): logo derivada para fundo claro aprovada; laranja só no botão de
+conversão com texto escuro; números ilustrativos do hero trocados por garantias verificáveis (revoga essa parte da D106); campos
+novos de turma/vagas/carga horária na API **rejeitados** (sem mudança de lógica); "Área do funcionário" só no rodapé da landing;
+landing refeita nesta onda sem tocar no script inline; fonte hospedada fica para o SG6.
+**Critérios medidos:** contraste AA (≥ 4,5:1 em texto normal), um `h1` por tela, rótulo em cada campo, alvo de toque ≥ 44 px,
+nenhum `confirm()`, nenhuma rolagem horizontal a 390 px.
