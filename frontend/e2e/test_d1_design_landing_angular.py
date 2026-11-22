@@ -4,17 +4,23 @@ Fonte: pedido do PM (07/10/2026) "copie o design da landing page para o resto do
 `frontend/landing_global_training.html` (a mesma da `main`). Contrato visual em docs/tdd/decisoes_tdd.md, D66.
 
 Tokens copiados da landing (verificados pelo estilo COMPUTADO no Chromium, não pelo CSS-fonte):
-  nav escura #212830 = rgb(33, 40, 48); teal #0096c7 = rgb(0, 150, 199); laranja do logo #ff7a18 = rgb(255, 122, 24);
-  texto #17212b = rgb(23, 33, 43); família Barlow no corpo e Barlow Condensed nos títulos.
+  nav escura #212830 = rgb(33, 40, 48); texto #17212b = rgb(23, 33, 43); família Barlow no corpo e Barlow Condensed
+  nos títulos.
+  Ajuste mecânico 4.3 (D115 -> DS0): o logo passou a ser o arquivo oficial (imagem) e o azul de texto/botão passou a
+  exigir contraste AA (o teal #0096c7 dava 3,39:1 e fica só para preenchimento, borda e ícone). V2, V4 e V7 testam a
+  nova regra, preservando a intenção: o logo da escola está na barra; botão primário azul com texto branco; aba ativa
+  destacada em azul.
 
 Cenários:
   V1 tela de login (/): barra superior [data-testid=app-nav] visível com fundo rgb(33, 40, 48)
-  V2 logo [data-testid=app-logo]: círculo "GT" e o texto "Global Training" em laranja rgb(255, 122, 24)
+  V2 logo [data-testid=app-logo] na barra: imagem oficial da marca (<img> com alt "Global Training Technology",
+     src em assets/brand/, carregada)
   V3 corpo da página em Barlow (font-family computada contém "Barlow") e cor de texto rgb(23, 33, 43)
-  V4 botão primário (Entrar) com fundo teal rgb(0, 150, 199) e texto branco
+  V4 botão primário (Entrar) com fundo azul da marca e texto branco, contraste >= 4,5:1
   V5 título do cartão de login em Barlow Condensed
   V6 rodapé [data-testid=app-footer] visível, fundo rgb(33, 40, 48), com "Global Training Technology"
-  V7 Gestão em /admin: aba ativa (ul.nav-tabs .nav-link.active) em teal rgb(0, 150, 199); "Sair" na barra superior
+  V7 Gestão em /admin: aba ativa (ul.nav-tabs .nav-link.active) em azul da marca com contraste >= 4,5:1 sobre o fundo
+     efetivo; "Sair" na barra superior
   V8 aluno em /student: barra superior e rodapé presentes; botão "Sair" visível na barra
   V9 regressão de seletores: o login continua com input[name=email], input[name=password], button[type=submit] e
      o link [data-testid=esqueci-link]
@@ -37,6 +43,7 @@ E2E_DIR = Path(__file__).resolve().parent
 if str(E2E_DIR) not in sys.path:
     sys.path.insert(0, str(E2E_DIR))
 
+from apoio_contraste import descrever, razao_contraste, varrer_contraste  # noqa: E402
 from apoio_harness_h1 import abrir_banco, ambiente_isolado  # noqa: E402
 from servidor_e2e_h1 import GESTAO_EMAIL, GESTAO_SENHA  # noqa: E402
 
@@ -46,10 +53,15 @@ TIMEOUT = 5000
 ERRO_HTTP = re.compile(r"status of (\d{3})")
 
 NAV = "rgb(33, 40, 48)"
-TEAL = "rgb(0, 150, 199)"
-LARANJA = "rgb(255, 122, 24)"
 TEXTO = "rgb(23, 33, 43)"
 BRANCO = "rgb(255, 255, 255)"
+ALT_LOGO = "Global Training Technology"
+
+
+def azul_da_marca(cor):
+    """Azul da paleta (família #0096c7/#0077a3/#005f84): vermelho quase nulo e azul acima do verde."""
+    r, g, b = (float(v) for v in re.findall(r"[\d.]+", cor)[:3])
+    return r <= 20 and b > g > r
 
 
 class Falha(Exception):
@@ -149,14 +161,17 @@ def test_d1_design_landing_angular_e2e(servidores, browser):
 
     def v2():
         page = login_page()
-        logo = page.locator('[data-testid="app-logo"]').first
+        logo = page.locator('[data-testid="app-nav"] [data-testid="app-logo"]').first
         logo.wait_for(state="visible", timeout=TIMEOUT)
-        texto = logo.inner_text()
-        if "GT" not in texto or "Global Training" not in texto:
-            raise Falha(f"V2: o logo mostra {texto!r} (esperado o círculo 'GT' e 'Global Training')")
-        cor = estilo(page, '[data-testid="app-logo-nome"]', "color")
-        if cor != LARANJA:
-            raise Falha(f"V2: cor do nome no logo {cor} (esperado {LARANJA})")
+        img = logo.locator("img")
+        if img.count() != 1:
+            raise Falha(f"V2: o logo da barra tem {img.count()} imagem(ns) (esperado 1, o logo oficial)")
+        alt = img.first.get_attribute("alt") or ""
+        src = img.first.evaluate("e => e.currentSrc || e.src") or ""
+        if alt != ALT_LOGO or "assets/brand/" not in src:
+            raise Falha(f"V2: logo com alt {alt!r} e src {src!r} (esperado {ALT_LOGO!r} em assets/brand/)")
+        if not img.first.evaluate("e => e.complete && e.naturalWidth > 0"):
+            raise Falha(f"V2: a imagem do logo não carregou ({src})")
 
     def v3():
         page = login_page()
@@ -171,8 +186,9 @@ def test_d1_design_landing_angular_e2e(servidores, browser):
         page = login_page()
         fundo = estilo(page, "button[type=submit]", "background-color")
         cor = estilo(page, "button[type=submit]", "color")
-        if fundo != TEAL or cor != BRANCO:
-            raise Falha(f"V4: botão Entrar com fundo {fundo} e texto {cor} (esperado {TEAL} / {BRANCO})")
+        if cor != BRANCO or not azul_da_marca(fundo) or razao_contraste(cor, fundo) < 4.5:
+            raise Falha(f"V4: botão Entrar com fundo {fundo} e texto {cor} (esperado azul da marca e branco, "
+                        f">= 4,5:1; obtido {razao_contraste(cor, fundo):.2f}:1)")
 
     def v5():
         page = login_page()
@@ -198,8 +214,11 @@ def test_d1_design_landing_angular_e2e(servidores, browser):
         entrar(page, GESTAO_EMAIL, GESTAO_SENHA, "admin", "V7 login da Gestão")
         page.locator("ul.nav-tabs .nav-link.active").first.wait_for(state="visible", timeout=TIMEOUT)
         cor = estilo(page, "ul.nav-tabs .nav-link.active", "color")
-        if cor != TEAL:
-            raise Falha(f"V7: aba ativa com cor {cor} (esperado {TEAL})")
+        if not azul_da_marca(cor):
+            raise Falha(f"V7: aba ativa com cor {cor} (esperado o azul da marca)")
+        medida = varrer_contraste(page, dentro_de=["ul.nav-tabs .nav-link.active"])
+        if medida["verificados"] < 1 or medida["falhas"]:
+            raise Falha(f"V7: aba ativa abaixo do AA: {descrever(medida['falhas']) or 'nada verificado'}")
         sair = page.locator('[data-testid="app-nav"]').get_by_role("button", name="Sair")
         if sair.count() != 1 or not sair.first.is_visible():
             raise Falha("V7: o botão 'Sair' não está na barra superior")
@@ -226,12 +245,12 @@ def test_d1_design_landing_angular_e2e(servidores, browser):
             raise Falha(f"V10: {len(erros_console)} erro(s) de console: " + " | ".join(erros_console[:5]))
 
     cenario("V1", "barra superior com o fundo escuro da landing", v1)
-    cenario("V2", "logo 'GT' + 'Global Training' em laranja", v2)
+    cenario("V2", "logo oficial da escola na barra", v2)
     cenario("V3", "corpo em Barlow com a cor de texto da landing", v3)
-    cenario("V4", "botão primário teal com texto branco", v4)
+    cenario("V4", "botão primário azul com texto branco no AA", v4)
     cenario("V5", "título do cartão em Barlow Condensed", v5)
     cenario("V6", "rodapé escuro com 'Global Training Technology'", v6)
-    cenario("V7", "Gestão: aba ativa teal e 'Sair' na barra", v7)
+    cenario("V7", "Gestão: aba ativa azul no AA e 'Sair' na barra", v7)
     cenario("V8", "aluno: barra e rodapé em /student, 'Sair' na barra", v8)
     cenario("V9", "login mantém os seletores dos e2e anteriores", v9)
     cenario("V10", "sem erros de console", v10)
