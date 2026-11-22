@@ -46,6 +46,7 @@ E2E_DIR = Path(__file__).resolve().parent
 if str(E2E_DIR) not in sys.path:
     sys.path.insert(0, str(E2E_DIR))
 
+from apoio_confirmacao import confirmar_no_app  # noqa: E402  (DS1: janela de confirmação do app, 4.3 D115)
 from apoio_harness_h1 import _api, ambiente_isolado  # noqa: E402
 from apoio_webhook_mp import enviar_webhook  # noqa: E402  (E9, D48: webhook assinado, id numérico)
 from servidor_e2e_h1 import (  # noqa: E402
@@ -140,8 +141,7 @@ def test_admin_angular_e2e(servidores, browser, pagamentos_aprovados_para_reembo
         console_errors = []
         page.on("console", lambda m: console_errors.append(m.text) if m.type == "error" else None)
         page.on("pageerror", lambda e: console_errors.append(str(e)))
-        dialogs = []
-        page.on("dialog", lambda d: (dialogs.append(d.message), d.accept()))
+        dialogs = []  # DS1 (4.3, D115): textos da janela de confirmação do app (antes: diálogo nativo aceito)
 
         page.goto(BASE + "/", wait_until="networkidle")
         page.fill("input[name=email]", email)
@@ -179,6 +179,9 @@ def test_admin_angular_e2e(servidores, browser, pagamentos_aprovados_para_reembo
             if n_before:
                 refunded_antes = page.locator("span.badge", has_text="Reembolsado").count()
                 refund_btns.first.click()
+                confirmado = confirmar_no_app(page, obrigatoria=False)
+                if confirmado:
+                    dialogs.append(confirmado)
                 time.sleep(2.0)
                 refunded_badges = page.locator("span.badge", has_text="Reembolsado").count()
                 check(f"{role}: reembolso pela tela muda status para refunded",

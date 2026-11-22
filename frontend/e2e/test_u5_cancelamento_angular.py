@@ -12,7 +12,8 @@ Contrato de tela (D82):
     `cancelamento-aprovar` (confirm), `cancelamento-motivo` + `cancelamento-recusar`.
 
 Escolhas de forma do teste (nenhuma define politica):
-  - Todo dialogo (confirm) e aceito; o teste confere que houve ao menos um confirm ao enviar e ao aprovar.
+  - Toda confirmacao e aceita; o teste confere que houve ao menos uma confirmacao ao enviar e ao aprovar. Desde a DS1
+    (4.3, D115) a confirmacao e a janela do app ([data-testid=confirmacao]), nao mais o window.confirm.
   - `cancelamento-motivo`/`cancelamento-recusar` sao procurados dentro da linha; se o campo so aparece depois do
     primeiro clique em recusar, o teste clica, preenche e clica de novo. Fora da linha, aceita o campo da secao.
   - Depois de enviar o pedido, o status aparece no cartao sem recarregar a pagina; mudancas feitas por OUTRO perfil
@@ -56,6 +57,7 @@ E2E_DIR = Path(__file__).resolve().parent
 if str(E2E_DIR) not in sys.path:
     sys.path.insert(0, str(E2E_DIR))
 
+from apoio_confirmacao import confirmar_no_app  # noqa: E402  (DS1, 4.3 D115: janela de confirmação do app)
 from apoio_harness_h1 import abrir_banco, ambiente_isolado  # noqa: E402
 from servidor_e2e_h1 import (  # noqa: E402
     FINANCEIRO_EMAIL, FINANCEIRO_SENHA, GESTAO_EMAIL, GESTAO_SENHA, SUPORTE_EMAIL, SUPORTE_SENHA,
@@ -284,8 +286,9 @@ def pedir_cancelamento(page, curso, dialogos, codigo, motivo):
     campo.fill(motivo, timeout=TIMEOUT)
     antes = len(dialogos)
     esperar(page.locator(SEL_CANCELAR_ENVIAR), codigo, "o botao curso-cancelar-enviar").click(timeout=TIMEOUT)
+    dialogos.append(confirmar_no_app(page))
     page.wait_for_load_state("networkidle")
-    esperar_condicao(lambda: None if len(dialogos) > antes else "nenhum window.confirm ao enviar o pedido", codigo)
+    esperar_condicao(lambda: None if len(dialogos) > antes else "nenhuma confirmacao ao enviar o pedido", codigo)
 
 
 def abrir_financeiro(page, codigo):
@@ -385,13 +388,8 @@ def test_u5_cancelamento_angular_e2e(servidores, browser):
                 return
             erros_console.append(f"{msg.text[:120]} ({url})")
 
-        def ao_dialogo(dialogo):
-            dialogos.append(dialogo.message)
-            dialogo.accept()
-
         page.on("console", ao_console)
         page.on("pageerror", lambda erro: erros_console.append(f"pageerror: {erro}"[:160]))
-        page.on("dialog", ao_dialogo)
         return page
 
     def pagina(perfil):
@@ -466,8 +464,9 @@ def test_u5_cancelamento_angular_e2e(servidores, browser):
         if not visivel(botao):
             raise Falha("F2: a cancelamento-row nao tem cancelamento-aprovar")
         botao.first.click(timeout=TIMEOUT)
+        dialogos.append(confirmar_no_app(page))
         page.wait_for_load_state("networkidle")
-        esperar_condicao(lambda: None if len(dialogos) > antes else "nenhum window.confirm ao aprovar", "F2")
+        esperar_condicao(lambda: None if len(dialogos) > antes else "nenhuma confirmacao ao aprovar", "F2")
         linha_some(page, s["rui"], "F2")
         pid, eid = s["rui"]["a"]["pid"], s["rui"]["a"]["eid"]
 

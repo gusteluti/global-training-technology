@@ -7,8 +7,10 @@ pelo orquestrador no pedido da F1 (decisões de forma). Backend correspondente: 
 Contrato de tela (aba "Cadastro de cursos" de /admin, só Gestão), data-testid por linha `curso-row`:
   curso-delete            desabilitado (atributo disabled) quando o curso tem aluno matriculado (enrollments_count > 0)
   curso-delete-motivo     ao lado do botão, texto exato "Tem alunos matriculados — arquive em vez de excluir."
-  curso-archive           "Arquivar" (curso não arquivado); confirmação nativa window.confirm com o nome do curso
-  curso-unarchive         "Desarquivar" (curso arquivado); confirmação nativa window.confirm com o nome do curso
+  curso-archive           "Arquivar" (curso não arquivado); confirmação com o nome do curso
+  curso-unarchive         "Desarquivar" (curso arquivado); confirmação com o nome do curso
+  DS1 (4.3, D115): a confirmação deixou de ser o window.confirm e passou a ser a janela do app
+  ([data-testid=confirmacao], apoio_confirmacao.py); "aceito" = confirmar, "recusado" = Voltar.
   curso-arquivado         badge "Arquivado" na linha do curso arquivado
   Curso sem aluno: exclui como hoje (curso-delete -> curso-delete-confirm, confirmação na própria tela).
 S7 (aba Financeiro): clicar em "Reembolsar" abre window.confirm com a identificação do pagamento (#<id>); recusado,
@@ -56,6 +58,7 @@ E2E_DIR = Path(__file__).resolve().parent
 if str(E2E_DIR) not in sys.path:
     sys.path.insert(0, str(E2E_DIR))
 
+from apoio_confirmacao import confirmar_no_app, voltar_no_app  # noqa: E402  (DS1: janela do app, 4.3 D115)
 from apoio_harness_h1 import abrir_banco, ambiente_isolado  # noqa: E402
 from apoio_webhook_mp import enviar_webhook  # noqa: E402
 from servidor_e2e_h1 import GESTAO_EMAIL, GESTAO_SENHA  # noqa: E402
@@ -259,18 +262,20 @@ def test_f1_trava_exclusao_angular_e2e(servidores, browser):
             if msg.type == "error" and ERRO_HTTP.search(msg.text) and "/api/" in (url + msg.text):
                 erros_console.append(f"{msg.text[:120]} ({url})")
 
-        def ao_dialogo(dialogo):
-            estado["dialogos"].append((dialogo.type, dialogo.message))
-            if estado["dialogo"] == "accept":
-                dialogo.accept()
-            else:
-                dialogo.dismiss()
-
         page.on("console", ao_console)
         page.on("pageerror", lambda erro: erros_console.append(f"pageerror: {erro}"[:160]))
-        page.on("dialog", ao_dialogo)
         page.on("request", lambda req: estado["requisicoes"].append((req.method, req.url)))
         return page
+
+    def responder_janela(page):
+        """DS1 (4.3, D115 -> DS1): a confirmação é a janela do app. 'accept' clica em confirmar (antes: aceitar o
+        window.confirm), 'dismiss' clica em Voltar (antes: recusar). O texto da janela entra em estado["dialogos"]
+        como antes entrava a mensagem do diálogo nativo; sem a janela, o cenário falha."""
+        if estado["dialogo"] == "accept":
+            texto = confirmar_no_app(page)
+        else:
+            texto = voltar_no_app(page)
+        estado["dialogos"].append(("confirm", texto))
 
     def cenario(codigo, nome, funcao):
         try:
@@ -365,6 +370,7 @@ def test_f1_trava_exclusao_angular_e2e(servidores, browser):
         dialogos_antes = len(estado["dialogos"])
         posts_antes = len(chamadas("POST", "/archive"))
         botao.first.click(timeout=TIMEOUT)
+        responder_janela(page)
         page.wait_for_timeout(1000)
         novos = estado["dialogos"][dialogos_antes:]
         if not novos or novos[0][0] != "confirm":
@@ -387,6 +393,7 @@ def test_f1_trava_exclusao_angular_e2e(servidores, browser):
         if arquivar.count() != 1:
             raise Falha("A1: a linha do curso não tem um único [data-testid=curso-archive]")
         arquivar.first.click(timeout=TIMEOUT)
+        responder_janela(page)
         badge = linha(page, curso_com["id"]).first.locator('[data-testid="curso-arquivado"]')
         try:
             badge.first.wait_for(state="visible", timeout=TIMEOUT * 2)
@@ -451,6 +458,7 @@ def test_f1_trava_exclusao_angular_e2e(servidores, browser):
         estado["dialogo"] = "accept"
         dialogos_antes = len(estado["dialogos"])
         botao.first.click(timeout=TIMEOUT)
+        responder_janela(page)
         try:
             linha(page, curso_com["id"]).first.locator('[data-testid="curso-arquivado"]').first.wait_for(
                 state="detached", timeout=TIMEOUT * 2)
@@ -493,6 +501,7 @@ def test_f1_trava_exclusao_angular_e2e(servidores, browser):
         dialogos_antes = len(estado["dialogos"])
         reembolsos_antes = len(chamadas("POST", "/api/payments/refund/"))
         botao.click(timeout=TIMEOUT)
+        responder_janela(page)
         page.wait_for_timeout(1500)
         novos = estado["dialogos"][dialogos_antes:]
         if not novos or novos[0][0] != "confirm":
@@ -511,6 +520,7 @@ def test_f1_trava_exclusao_angular_e2e(servidores, browser):
         estado["dialogo"] = "accept"
         dialogos_antes = len(estado["dialogos"])
         botao.click(timeout=TIMEOUT)
+        responder_janela(page)
         page.wait_for_timeout(2000)
         novos = estado["dialogos"][dialogos_antes:]
         if not novos or f"#{pagamento['id']}" not in novos[0][1]:

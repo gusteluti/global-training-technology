@@ -3,7 +3,7 @@
 G1 Gestão abre a aba Equipe e vê as contas de funcionário do harness.
 G2 Gestão convida uma pessoa (Suporte): aparece `equipe-ok` e a nova linha.
 G3 Gestão troca o perfil da pessoa convidada para Financeiro (a API confirma).
-G4 Gestão desativa a pessoa (confirm aceito): aparece o badge `equipe-desativada`.
+G4 Gestão desativa a pessoa (confirmação aceita na janela do app, DS1/D115): aparece o badge `equipe-desativada`.
 G5 Suporte não vê a aba Equipe.
 """
 
@@ -13,6 +13,7 @@ import urllib.request
 import pytest
 from playwright import sync_api
 
+from apoio_confirmacao import confirmar_no_app
 from apoio_harness_h1 import ambiente_isolado
 from servidor_e2e_h1 import GESTAO_EMAIL, GESTAO_SENHA, SUPORTE_EMAIL, SUPORTE_SENHA
 
@@ -46,7 +47,6 @@ def test_s3_equipe():
         navegador = p.chromium.launch()
         try:
             page = navegador.new_context(viewport={"width": 1366, "height": 900}).new_page()
-            page.on("dialog", lambda d: d.accept())
             _entrar(page, alvo["base"], GESTAO_EMAIL, GESTAO_SENHA)
 
             # G1
@@ -72,6 +72,7 @@ def test_s3_equipe():
 
             # G4
             linha.first.locator('[data-testid="equipe-desativar"]').click(timeout=TIMEOUT)
+            confirmar_no_app(page)  # DS1 (4.3, D115): janela do app no lugar do confirm nativo
             linhas.filter(has_text=NOVO_EMAIL).locator('[data-testid="equipe-desativada"]').wait_for(timeout=TIMEOUT)
 
             # G5

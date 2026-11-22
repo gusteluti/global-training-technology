@@ -18,6 +18,7 @@ import pytest
 from test_qa_chat_rag import pdf
 from test_qa_istqb import FIN, GESTAO, SENHA, SUP, _anexo, ct, entrar, navegador, novo_curso, s, tela  # noqa: F401
 from apoio_webhook_mp import enviar_webhook
+from apoio_confirmacao import confirmar_no_app  # DS1 (4.3, D115): janela de confirmação do app
 
 PASTA = Path(os.getenv("QA_FOTOS") or Path(tempfile.gettempdir()) / "qa_fotos")
 PASTA.mkdir(exist_ok=True)
@@ -177,13 +178,13 @@ def test_fluxo_cancelamento(s, navegador):
     aluno = s.aluno("Fabio Cancela")
     s.matricula(aluno.id)
     estudante = tela(navegador)
-    estudante.on("dialog", lambda dialogo: dialogo.accept())
     entrar(estudante, s, aluno.email, SENHA, "student")
 
     def pedir(motivo):
         campo(estudante, "curso-cancelar").click()
         campo(estudante, "curso-cancelar-motivo").fill(motivo)
         campo(estudante, "curso-cancelar-enviar").click()
+        confirmar_no_app(estudante)
         campo(estudante, "curso-cancelamento-status").wait_for()
 
     pedir("Mudei de cidade")
@@ -202,9 +203,9 @@ def test_fluxo_cancelamento(s, navegador):
     financeiro.reload(wait_until="networkidle")
     aba(financeiro, "Financeiro")
     linha = campo(financeiro, "cancelamento-row").filter(has_text=aluno.email)
-    financeiro.on("dialog", lambda dialogo: dialogo.accept())
     foto(financeiro, "Cancelamento", "Pedido na fila do Financeiro", "Pedido aberto com o motivo do aluno")
     linha.locator('[data-testid="cancelamento-aprovar"]').click()
+    confirmar_no_app(financeiro)
     linha.wait_for(state="detached")
     estudante.reload(wait_until="networkidle")
     assert campo(estudante, "curso-entrar").count() == 0
@@ -390,7 +391,6 @@ def test_fluxo_lgpd(s, navegador):
     s.limpar_limites()
     aluno = s.aluno("Otavio LGPD")
     pagina = tela(navegador)
-    pagina.on("dialog", lambda dialogo: dialogo.accept())
     entrar(pagina, s, aluno.email, SENHA, "student")
     pagina.goto(s.alvo["base"] + "/student/perfil", wait_until="networkidle")
     with pagina.expect_download() as baixado:
@@ -398,10 +398,12 @@ def test_fluxo_lgpd(s, navegador):
     assert aluno.email in Path(baixado.value.path()).read_text(encoding="utf-8")
     campo(pagina, "perfil-excluir-senha").fill("senha-errada")
     campo(pagina, "perfil-excluir").click()
+    confirmar_no_app(pagina)
     campo(pagina, "perfil-erro").wait_for()
     foto(pagina, "LGPD", "Exclusão com a senha errada", campo(pagina, "perfil-erro").inner_text())
     campo(pagina, "perfil-excluir-senha").fill(SENHA)
     campo(pagina, "perfil-excluir").click()
+    confirmar_no_app(pagina)
     pagina.wait_for_load_state("networkidle")
     pagina.locator("input[name=password]").wait_for()
     assert s.login(aluno.email, SENHA).s != 200
@@ -415,19 +417,20 @@ def test_fluxo_desativar(s, navegador):
     estudante = tela(navegador)
     entrar(estudante, s, aluno.email, SENHA, "student")
     gestao = tela(navegador)
-    gestao.on("dialog", lambda dialogo: dialogo.accept())
     entrar(gestao, s, *GESTAO, "admin")
     aba(gestao, "Alunos")
     campo(gestao, "alunos-busca").fill(aluno.email)
     gestao.wait_for_load_state("networkidle")
     gestao.get_by_role("button", name="Paula Conta").first.click()
     campo(gestao, "aluno-desativar").click()
+    confirmar_no_app(gestao)
     campo(gestao, "aluno-reativar").wait_for()
     foto(gestao, "Conta do aluno", "Gestão desativa a conta", "Botão Reativar aparece")
     estudante.reload(wait_until="networkidle")
     assert re.search("expirou", estudante.content())
     foto(estudante, "Conta do aluno", "Aluno recarrega a página", "Volta ao login com aviso de sessão expirada")
     campo(gestao, "aluno-reativar").click()
+    confirmar_no_app(gestao)
     campo(gestao, "aluno-desativar").wait_for()
     assert s.login(aluno.email, SENHA).s == 200
     assert _anexo

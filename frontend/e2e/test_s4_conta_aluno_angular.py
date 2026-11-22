@@ -17,8 +17,8 @@ Contrato de tela (D80):
   - Login de aluno desativado com a senha certa: a tela mostra "Sua conta está desativada. Fale com o suporte."
 
 Escolhas de forma do teste (nenhuma define politica; ver relatorio do agente-testes):
-  - A confirmacao de desativar/reativar e a nativa (window.confirm), padrao das acoes de Gestao do projeto (arquivar
-    curso F1, reembolso S7). O teste aceita o dialogo e exige que ele tenha aparecido.
+  - A confirmacao de desativar/reativar era a nativa (window.confirm); desde a DS1 (4.3, D115) e a janela do app
+    ([data-testid=confirmacao]). O teste confirma na janela e exige que ela tenha aparecido.
   - O link "Meu perfil" e procurado pelo texto exato (link ou botao). As mensagens de sessao expirada e de conta
     desativada sao procuradas no texto da pagina de login (sem fixar o elemento).
   - O texto de perfil-ok nao e fixado (D80 nao fixa). O cabecalho e conferido depois de abrir /student de novo.
@@ -67,6 +67,7 @@ E2E_DIR = Path(__file__).resolve().parent
 if str(E2E_DIR) not in sys.path:
     sys.path.insert(0, str(E2E_DIR))
 
+from apoio_confirmacao import confirmar_no_app  # noqa: E402  (DS1, 4.3 D115: janela de confirmação do app)
 from apoio_harness_h1 import abrir_banco, ambiente_isolado  # noqa: E402
 from servidor_e2e_h1 import GESTAO_EMAIL, GESTAO_SENHA  # noqa: E402
 
@@ -217,13 +218,15 @@ def entrar(page, email, senha, destino, codigo):
         raise Falha(f"{codigo}: login de {email} nao levou a /{destino} (URL atual {page.url})")
 
 
-def clicar_e_esperar_resposta(page, locator, metodo, caminho, codigo):
+def clicar_e_esperar_resposta(page, locator, metodo, caminho, codigo, depois_do_clique=None):
     def e_a_chamada(resposta):
         return resposta.request.method == metodo and caminho_da_url(resposta.url) == caminho
 
     try:
         with page.expect_response(e_a_chamada, timeout=TIMEOUT * 2) as info:
             locator.click(timeout=TIMEOUT)
+            if depois_do_clique is not None:  # DS1 (4.3, D115): confirmar na janela do app
+                depois_do_clique()
     except sync_api.TimeoutError:
         raise Falha(f"{codigo}: o clique nao gerou {metodo} {caminho}")
     return info.value.status
@@ -312,12 +315,7 @@ def test_s4_conta_aluno_angular_e2e(servidores, browser):
                     "caminho": caminho_da_url(resposta.url), "desativado": estado["desativado"],
                 })
 
-        def ao_dialogo(dialogo):
-            dialogos.append((rotulo, dialogo.type, dialogo.message))
-            dialogo.accept()
-
         page.on("response", ao_resposta)
-        page.on("dialog", ao_dialogo)
         page.on("pageerror", lambda e: erros_pagina.append(f"{rotulo}: {e}"[:200]))
         return page
 
@@ -440,9 +438,11 @@ def test_s4_conta_aluno_angular_e2e(servidores, browser):
         antes = len(dialogos)
         botao = esperar(detalhe.locator(_sel("aluno-desativar")), "D1", "o botao aluno-desativar")
         estado["desativado"] = True
-        status = clicar_e_esperar_resposta(page, botao, "POST", f"/api/admin/students/{s['uid']}/deactivate", "D1")
+        status = clicar_e_esperar_resposta(
+            page, botao, "POST", f"/api/admin/students/{s['uid']}/deactivate", "D1",
+            depois_do_clique=lambda: dialogos.append(("gestao", "confirm", confirmar_no_app(page))))
         if len(dialogos) == antes:
-            raise Falha("D1: desativar nao pediu confirmacao (window.confirm)")
+            raise Falha("D1: desativar nao pediu confirmacao (janela do app)")
         if status != 200:
             raise Falha(f"D1: POST deactivate respondeu HTTP {status}")
         esperar(page.locator(_sel("aluno-desativado")), "D1", "o badge aluno-desativado")
@@ -484,9 +484,11 @@ def test_s4_conta_aluno_angular_e2e(servidores, browser):
         esperar(detalhe.locator(_sel("aluno-desativado")), "R1", "o badge aluno-desativado antes de reativar")
         antes = len(dialogos)
         botao = esperar(detalhe.locator(_sel("aluno-reativar")), "R1", "o botao aluno-reativar")
-        status = clicar_e_esperar_resposta(page, botao, "POST", f"/api/admin/students/{s['uid']}/reactivate", "R1")
+        status = clicar_e_esperar_resposta(
+            page, botao, "POST", f"/api/admin/students/{s['uid']}/reactivate", "R1",
+            depois_do_clique=lambda: dialogos.append(("gestao", "confirm", confirmar_no_app(page))))
         if len(dialogos) == antes:
-            raise Falha("R1: reativar nao pediu confirmacao (window.confirm)")
+            raise Falha("R1: reativar nao pediu confirmacao (janela do app)")
         if status != 200:
             raise Falha(f"R1: POST reactivate respondeu HTTP {status}")
         def leitura():
