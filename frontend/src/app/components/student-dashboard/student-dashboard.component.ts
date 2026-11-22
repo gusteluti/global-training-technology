@@ -3,6 +3,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { PainelMatriculas } from '../../resolvers/enrollments.resolver';
 import { salvarArquivo } from '../../services/salvar-arquivo';
 import { ApiService } from '../../services/api.service';
+import { ConfirmacaoService } from '../../services/confirmacao.service';
 import { AuthService } from '../../services/auth.service';
 import { formatarDataSP } from '../../pipes/data-sp.pipe';
 import { mensagemDeErroDoChat } from '../../services/erro-chat';
@@ -135,7 +136,8 @@ export class StudentDashboardComponent implements OnInit {
   enviandoCancelamento = false;
   erroCancelamento: { [enrollmentId: number]: string } = {};
 
-  constructor(private route: ActivatedRoute, private router: Router, private api: ApiService, auth: AuthService) {
+  constructor(private route: ActivatedRoute, private router: Router, private api: ApiService, auth: AuthService,
+              private confirmacao: ConfirmacaoService) {
     // E-mail do próprio token (nunca de outro aluno): mostrado só no cabeçalho.
     this.email = auth.decodeToken()?.email || '';
     // Dados vindos do EnrollmentsResolver (rota /student).
@@ -243,24 +245,30 @@ export class StudentDashboardComponent implements OnInit {
     if (this.enviandoCancelamento) {
       return;
     }
-    if (!confirm(`Pedir o cancelamento de ${m.course_name}? O reembolso é analisado pelo financeiro.`)) {
-      return;
-    }
-    this.enviandoCancelamento = true;
-    delete this.erroCancelamento[m.id];
-    this.api.requestCancellation(m.id, this.motivoCancelamento.trim()).subscribe({
-      next: () => {
-        this.enviandoCancelamento = false;
-        this.cancelarAbertoId = null;
-        this.motivoCancelamento = '';
-        this.recarregarMatriculas();
-      },
-      error: (err: any) => {
-        this.enviandoCancelamento = false;
-        const detalhe = err?.error?.detail;
-        this.erroCancelamento[m.id] = typeof detalhe === 'string' ? detalhe : 'Não foi possível pedir o cancelamento.';
-        this.recarregarMatriculas();
+    this.confirmacao.confirmar({
+      titulo: `Pedir o cancelamento de ${m.course_name}?`,
+      texto: 'O reembolso é analisado pelo financeiro.',
+      rotuloConfirmar: 'Pedir cancelamento'
+    }).then(ok => {
+      if (!ok) {
+        return;
       }
+      this.enviandoCancelamento = true;
+      delete this.erroCancelamento[m.id];
+      this.api.requestCancellation(m.id, this.motivoCancelamento.trim()).subscribe({
+        next: () => {
+          this.enviandoCancelamento = false;
+          this.cancelarAbertoId = null;
+          this.motivoCancelamento = '';
+          this.recarregarMatriculas();
+        },
+        error: (err: any) => {
+          this.enviandoCancelamento = false;
+          const detalhe = err?.error?.detail;
+          this.erroCancelamento[m.id] = typeof detalhe === 'string' ? detalhe : 'Não foi possível pedir o cancelamento.';
+          this.recarregarMatriculas();
+        }
+      });
     });
   }
 

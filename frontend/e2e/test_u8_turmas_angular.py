@@ -21,7 +21,8 @@ Escolhas de forma do teste (nenhuma define politica):
   - A mensagem de termino antes do inicio pode vir do backend (422) ou de validacao no formulario; o teste so exige o
     texto exato em `turma-erro` e que nada mude na API.
   - `turma-erro` e o testid novo da D83; o `turma-error` da L1 nao e usado por este teste.
-  - Todo dialogo (confirm) e aceito; a exclusao exige um confirm cujo texto contenha o nome da turma.
+  - Toda confirmacao e aceita; a exclusao exige uma confirmacao cujo texto contenha o nome da turma. Desde a DS1
+    (4.3, D115) a confirmacao e a janela do app ([data-testid=confirmacao]), nao mais o window.confirm.
   - Datas do formulario preenchidas em AAAA-MM-DD (input date do Chromium).
 
 Seed (harness D58, SQLite temporario; datas relativas a hoje, D81): curso A (com material) e curso B criados pela API
@@ -64,6 +65,7 @@ E2E_DIR = Path(__file__).resolve().parent
 if str(E2E_DIR) not in sys.path:
     sys.path.insert(0, str(E2E_DIR))
 
+from apoio_confirmacao import confirmar_no_app  # noqa: E402  (DS1, 4.3 D115: janela de confirmação do app)
 from apoio_harness_h1 import abrir_banco, ambiente_isolado  # noqa: E402
 from servidor_e2e_h1 import GESTAO_EMAIL, GESTAO_SENHA, SUPORTE_EMAIL, SUPORTE_SENHA  # noqa: E402
 
@@ -415,13 +417,8 @@ def test_u8_turmas_angular_e2e(servidores, browser):
                 return
             erros_console.append(f"{msg.text[:120]} ({url})")
 
-        def ao_dialogo(dialogo):
-            dialogos.append(dialogo.message)
-            dialogo.accept()
-
         page.on("console", ao_console)
         page.on("pageerror", lambda erro: erros_console.append(f"pageerror: {erro}"[:160]))
-        page.on("dialog", ao_dialogo)
         return page
 
     def pagina(perfil):
@@ -520,10 +517,11 @@ def test_u8_turmas_angular_e2e(servidores, browser):
         linha = linha_da_turma(page, TURMA_EDITADA, "X1")
         antes = len(dialogos)
         botao_da_linha(linha.first, SEL_EXCLUIR, "X1", "turma-excluir").click(timeout=TIMEOUT)
+        dialogos.append(confirmar_no_app(page))
         page.wait_for_load_state("networkidle")
-        esperar_condicao(lambda: None if len(dialogos) > antes else "nenhum window.confirm ao excluir", "X1")
+        esperar_condicao(lambda: None if len(dialogos) > antes else "nenhuma confirmacao ao excluir", "X1")
         if not any(TURMA_EDITADA in d for d in dialogos[antes:]):
-            raise Falha(f"X1: o confirm da exclusao nao cita o nome da turma: {dialogos[antes:]}")
+            raise Falha(f"X1: a confirmacao da exclusao nao cita o nome da turma: {dialogos[antes:]}")
         linha_some(page, TURMA_EDITADA, "X1")
         esperar_condicao(lambda: None if turma_api(s["token"], TURMA_EDITADA) is None
                          else "a turma excluida continua em GET /api/admin/classes", "X1")
@@ -534,8 +532,9 @@ def test_u8_turmas_angular_e2e(servidores, browser):
         linha = linha_da_turma(page, TURMA_ALUNO, "X2")
         antes = len(dialogos)
         botao_da_linha(linha.first, SEL_EXCLUIR, "X2", "turma-excluir").click(timeout=TIMEOUT)
+        dialogos.append(confirmar_no_app(page))
         page.wait_for_load_state("networkidle")
-        esperar_condicao(lambda: None if len(dialogos) > antes else "nenhum window.confirm ao excluir", "X2")
+        esperar_condicao(lambda: None if len(dialogos) > antes else "nenhuma confirmacao ao excluir", "X2")
         erro_na_tela(page, ERR_DEL, "X2")
         linha_da_turma(page, TURMA_ALUNO, "X2")
         if turma_api(s["token"], TURMA_ALUNO) is None:

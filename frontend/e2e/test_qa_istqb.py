@@ -26,6 +26,7 @@ os.environ["JWT_SECRET_KEY"] = "segredo-jwt-e5-teste-bem-longo-0123456789"
 os.environ["QA_LOG_ROTAS"] = str(Path(tempfile.gettempdir()) / f"qa_rotas_{uuid.uuid4().hex}.log")
 os.environ["QA_COVERAGE"] = str(Path(__file__).resolve().parents[2] / ".coverage.qa")
 
+from apoio_confirmacao import confirmar_no_app  # noqa: E402  (DS1, 4.3 D115: janela de confirmação do app)
 from apoio_harness_h1 import abrir_banco, ambiente_isolado  # noqa: E402
 from apoio_webhook_mp import assinar, enviar_webhook, id_de_pagamento  # noqa: E402
 
@@ -1550,9 +1551,9 @@ def test_ui_arquivar(s, navegador):
     pagina = tela(navegador)
     entrar(pagina, s, *GESTAO, "admin")
     pagina.get_by_role("button", name="Cadastro de cursos", exact=True).click()
-    pagina.on("dialog", lambda dialogo: dialogo.accept())
     linha = pagina.locator("tr", has_text="Arquivável QA")
     linha.locator('[data-testid="curso-archive"]').click()
+    confirmar_no_app(pagina)
     linha.locator('[data-testid="curso-arquivado"]').wait_for()
     aluno = s.aluno()
     catalogo = tela(navegador)

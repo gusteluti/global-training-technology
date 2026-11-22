@@ -304,7 +304,7 @@ def test_x5_atualizacao_paineis_angular_e2e(servidores, browser):
     page.on("console", ao_console)
     page.on("pageerror", lambda erro: erros_console.append(f"pageerror: {erro}"[:160]))
     page.on("request", ao_pedido)
-    page.on("dialog", lambda dialogo: dialogo.accept())
+    # DS1 (4.3, D115): sem confirm() nativo no app; o antigo aceite automático do diálogo saiu (nenhum cenário confirma).
 
     logado = {"ok": False}
 

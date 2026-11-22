@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { ApiService } from '../../services/api.service';
+import { ConfirmacaoService } from '../../services/confirmacao.service';
 
 const MSG_FAQ = 'Cada linha do FAQ deve ter o formato: Pergunta | Resposta.';
 const MSG_URL = 'A URL do material deve começar com http:// ou https://.';
@@ -60,7 +61,7 @@ export class CourseAdminComponent implements OnInit {
 
   conteudosDe: any = null;
 
-  constructor(private api: ApiService) { }
+  constructor(private api: ApiService, private confirmacao: ConfirmacaoService) { }
 
   ngOnInit(): void {
     this.loadCourses();
@@ -308,21 +309,26 @@ export class CourseAdminComponent implements OnInit {
     const pergunta = arquivar
       ? `Arquivar o curso "${course.name}"?`
       : `Desarquivar o curso "${course.name}"?`;
-    if (!confirm(pergunta)) {
-      return;
-    }
-    this.clearMessages();
-    this.busy = true;
-    const chamada = arquivar ? this.api.archiveCourse(course.id) : this.api.unarchiveCourse(course.id);
-    chamada.subscribe({
-      next: () => {
-        this.busy = false;
-        this.loadCourses();
-      },
-      error: err => {
-        this.busy = false;
-        this.error = this.errorText(err);
+    this.confirmacao.confirmar({
+      titulo: pergunta,
+      rotuloConfirmar: arquivar ? 'Arquivar curso' : 'Desarquivar curso'
+    }).then(ok => {
+      if (!ok) {
+        return;
       }
+      this.clearMessages();
+      this.busy = true;
+      const chamada = arquivar ? this.api.archiveCourse(course.id) : this.api.unarchiveCourse(course.id);
+      chamada.subscribe({
+        next: () => {
+          this.busy = false;
+          this.loadCourses();
+        },
+        error: err => {
+          this.busy = false;
+          this.error = this.errorText(err);
+        }
+      });
     });
   }
 

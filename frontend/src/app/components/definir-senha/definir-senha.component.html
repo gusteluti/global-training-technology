@@ -2,7 +2,7 @@
   <div class="col-md-6">
     <div class="card">
       <div class="card-body">
-        <h4 class="card-title">Definir senha</h4>
+        <h1 class="card-title h4">Definir senha</h1>
 
         <div *ngIf="success" class="alert alert-success">
           Senha definida. Você já pode entrar.
@@ -18,8 +18,8 @@
 
         <form *ngIf="!success && !verificando && !linkInvalido" (ngSubmit)="submit()">
           <div class="mb-3">
-            <label class="form-label">Nova senha (mínimo 8 caracteres)</label>
-            <input type="password" class="form-control" [(ngModel)]="password" name="password" required />
+            <label class="form-label" for="definir-senha">Nova senha (mínimo 8 caracteres)</label>
+            <input id="definir-senha" type="password" class="form-control" [(ngModel)]="password" name="password" required />
           </div>
           <button class="btn btn-primary" type="submit" [disabled]="enviando">Definir senha</button>
         </form>

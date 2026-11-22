@@ -235,7 +235,7 @@
       para melhorar o atendimento. Não envie dados sensíveis (documentos, cartões, senhas).</p>
     <form class="input-group chat-form" (ngSubmit)="enviarChat()">
       <input type="text" class="form-control" name="chatInput" data-testid="chat-input"
-             placeholder="Digite sua mensagem" autocomplete="off"
+             placeholder="Digite sua mensagem" aria-label="Digite sua mensagem" autocomplete="off"
              [(ngModel)]="chatInput">
       <button type="submit" class="btn btn-primary" data-testid="chat-send"
               [disabled]="!podeEnviarChat()">Enviar</button>

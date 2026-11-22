@@ -4,7 +4,7 @@
 <div class="alert alert-warning" *ngIf="erro" data-testid="sala-erro">{{ erro }}</div>
 
 <ng-container *ngIf="sala">
-  <h3 class="text-break" data-testid="sala-curso">{{ sala.course_name }}</h3>
+  <h1 class="text-break h3" data-testid="sala-curso">{{ sala.course_name }}</h1>
 
   <div class="mb-4" *ngIf="sala.progress.total">
     <div class="d-flex justify-content-between small mb-1">

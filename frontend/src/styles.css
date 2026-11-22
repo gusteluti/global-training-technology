@@ -129,6 +129,15 @@ a:hover { color: var(--gt-link-hover); }
 }
 .btn-link { font-weight: 600; text-decoration: none; }
 
+/* DS1 (D115): alvo de toque de 44 px em botões, links com cara de botão, abas, paginação e "Sair".
+   O <button> já centraliza o conteúdo na vertical; o <a class="btn"> passa a inline-flex para ficar igual.
+   O .btn-link.p-0 dentro de tabela (nome do aluno, curso) ganha a altura sem padding extra. */
+.btn, .nav-link, .gt-nav-cta { min-height: 44px; }
+a.btn, label.btn { display: inline-flex; align-items: center; justify-content: center; }
+.btn-sm { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+.table .btn-link.p-0 { vertical-align: middle; }
+.sala-lista .list-group-item { min-height: 44px; align-items: center; }
+
 .form-control, .form-select {
   border-color: var(--gt-border); border-radius: 8px; padding: 0.6rem 0.9rem; color: var(--gt-text);
 }
