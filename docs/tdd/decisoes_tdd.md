@@ -2009,3 +2009,20 @@ na própria linha (fluxo da F1/L2, mantido pela regra da D115).
 e8 17/17, f1 11/11, f3 11/11, f7 11/11, gr5 10/10, l1 16/16, l2 24/24, s3, sg1, u1 13/13, u4 7/7, u5 8/8, u8 10/10, x4; build
 limpo. **Para revisão do PM:** o `h2` visível com o nome da aba em quatro abas (as outras três já tinham título próprio).
 **Fica para a DS5:** unificar a faixa da DS2 (`.aluno-resumo`) com `.gt-faixa`.
+
+## D120 — DS4: landing como catálogo (23/11/2026)
+Entregue conforme o PLANO_DESIGN e as decisões D-B a D-F da D115, só em `frontend/landing_global_training.html`: logo oficial
+embutida (`data:` URI) na barra e no rodapé; barra com links de seção (Cursos, Como funciona, Dúvidas; ocultos por CSS abaixo de
+720 px) e "Área do aluno"; "Área do funcionário" só no rodapé (D-E); hero escuro `#212830` com grade em pseudo-elemento, CTA
+laranja "Ver cursos abertos" e garantias verificáveis no lugar de 10k+/500+/100% (D-C); `#cursos` logo depois do hero, cartões com
+"Matricular agora" laranja (D-B) e "Tirar dúvidas com IA" secundário; bloco "Treinamento para a sua empresa" (abre o chat);
+passos; "Em todos os cursos" com "Certificado de conclusão" no lugar de "Certificado reconhecido pelo mercado" (a base diz que é
+certificado de curso livre); "Dúvidas frequentes" (`#duvidas`) com respostas tiradas de `backend/knowledge`; faixa final; piso
+14 px, alvos 44 px, balão do usuário `#0077a3`. **Script inline idêntico a `c6f3342`** (guarda estática `test_ds4_script_inalterado`);
+só a string de template do cartão mudou de marcação. Sem filtros e sem campo novo de API (D-D).
+**Ajuste mecânico (4.3, D115 → D120):** D3 vitrine passa a procurar "Área do funcionário" no rodapé (D-E).
+**Ciclo:** red `9942c74`; landing `b608a76`. ds4 16/16, guarda 7/7, d4 2/2, d3 vitrine 5/5, d1, e6 8/8, f6 5/5, gr2 6/6, sg4 6/6;
+build limpo. **Falhas que não vêm da DS4:** F5b L4 (falha igual com a landing de `c6f3342`), GR3 P3/L3 (D118); J-GES-03 da
+jornada procura `[data-testid=obs-guardrails] h5`, que a DS3 promoveu (ajuste mecânico pendente para a DS5).
+**Para revisão do PM:** os textos novos do bloco de empresas, das dúvidas e da faixa final; Termos/Privacidade ficaram fora do
+rodapé da landing (são rotas do Angular e um link estático não segue o `APP_URL` sem script novo).
