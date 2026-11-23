@@ -2073,3 +2073,25 @@ numa primeira rodada e 74/74 ao repetir isolada; causa não investigada (parece 
 **Ajuste mecânico de teste (4.3, D93 → D115 → D118 → DS2b):** D3 G2 e G6 (registrado acima pelo agente-testes).
 **Escolha do dev para o PM confirmar:** o botão "Pedir cancelamento" no bloco cinza usa `#b42318` (vermelho da D115) porque
 o azul não passava AA sobre `#f7f9fb` (4,29:1). Capturas conferidas a 1366 e 390 px.
+
+## Registro do agente-testes: R3-1, ajuste mecânico do guarda do script da landing (23/11/2026)
+**Origem (a numerar pelo orquestrador):** relato do PM de que o chat da landing não funciona quando ele abre a página. O
+e2e E6 passava porque o harness troca o literal `BACKEND_URL` na cópia servida; nenhum teste cobria o endereço real. Contrato
+da R3-1, decidido pelo PM: `<meta name="gtt-api-url">` no head (meta preenchida > `http://localhost:8000` em file:/localhost/
+127.0.0.1 > `window.location.origin`), constante `BACKEND_URL` e literal mantidos, três erros distintos do chat (rede, resposta que
+não é JSON, JSON com `status: error`) e diagnóstico só no console. Testes: `frontend/e2e/test_r3a_landing_chat_config.py`.
+**Ajuste mecânico (4.3):** `frontend/e2e/test_ds4_script_inalterado.py` comparava o script inline com o de `c6f3342` e a R3-1
+muda o script por decisão do PM. O verificador passa a (1) usar como referência a landing da `main` em `3d94f6c` (provado que
+não afrouxa: S1 passa nos dois, o script de `3d94f6c` é o de `c6f3342` fora das templates do cartão e da planilha, e a regra
+"só essas templates diferem" continua); (2) aceitar EXATAMENTE a mudança declarada, por `REGIOES_DECLARADAS`: quatro trechos
+entre âncoras de texto (resolvedor do endereço; auxiliares dos erros; POST e leitura do JSON; tratamento dos erros), com o
+miolo livre e as âncoras e todo o resto idênticos; o bloco de sucesso do chat não pode mudar; o número de `fetch(` (e de
+XMLHttpRequest, WebSocket, sendBeacon etc.) não pode crescer; (3) ganhar o cenário S0c, que prova sobre o script real que a
+exceção é estreita (mudança fora das regiões, `fetch` novo e âncora que sumiu são detectados). S0 e S0b ficaram intactos e
+continuam estritos. **Intenção preservada:** o script da landing só muda onde o PM autorizou; qualquer outra mudança continua
+reprovando. **Encadeamento:** D115 (D-F) -> D120 (guarda S1) -> R3-1.
+**Re-base obrigatório:** quando a R3-1 for mergeada, trocar `REFERENCIA` pelo merge da R3-1 e esvaziar `REGIOES_DECLARADAS`; sem
+isso a exceção ficaria aberta para as próximas entregas.
+**Escolhas do agente-testes (modo autônomo, D40):** A2 e A4 (ramo "localhost" do endereço) passam no red porque o ramo é o
+comportamento de hoje; protegem contra uma implementação que passe a usar sempre a origem. O red do endereço está em S1 (meta no
+head), A1, A1b e A3. Um JSON sem `status` (ex.: `{"detail": ...}` de um 500) não é testado: o contrato não o define.
