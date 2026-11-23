@@ -2026,3 +2026,27 @@ build limpo. **Falhas que não vêm da DS4:** F5b L4 (falha igual com a landing 
 jornada procura `[data-testid=obs-guardrails] h5`, que a DS3 promoveu (ajuste mecânico pendente para a DS5).
 **Para revisão do PM:** os textos novos do bloco de empresas, das dúvidas e da faixa final; Termos/Privacidade ficaram fora do
 rodapé da landing (são rotas do Angular e um link estático não segue o `APP_URL` sem script novo).
+
+## D121 — DS5: fechamento da onda de design (23/11/2026)
+Regressão completa depois de DS0–DS4, feita pelo agente-testes na sub-branch `feature/fase2-design-ds5` (commit `ffb11ad`,
+merge `2f22a65`). **Nenhuma regressão causada pela onda de design.**
+**Ajuste mecânico (4.3, D115 → D119 → DS5):** `test_jornadas_usabilidade.py::test_j_ges_03_equipe_e_auditoria` lia o título do
+cartão Guardrails por `h5`; a DS3 promoveu esse título para `<h3 class="h5">`. O seletor passou a `get_by_role("heading")`,
+que continua estrito (falha com mais de um título no cartão). Prova: com o seletor antigo o teste falha em `3ba3b95`; com o
+novo, a jornada passa 74/74. Nenhum outro seletor por tag de título aponta para telas da DS3.
+**Resultados:** backend 3152 passed e 13 failed (gr4 ×6, gr5 ×7), igual à D114 (as 13 da D107). `ng build` limpo (mesmos
+avisos da base `9461073`: target ES2022 e três seletores do Bootstrap). e2e, um por vez, 60 arquivos: todos verdes, menos as
+falhas abaixo. Varredura final DS0–DS4 verde na árvore `ffb11ad`.
+**Falhas que não vêm da onda (provadas numa worktree em `9461073`, com a mesma mensagem):**
+- ambiente: `test_c_sala_curso` e `qa_istqb` CT-UI-14/CT-UI-15 esperam o player do YouTube, e o proxy do sandbox bloqueia
+  `youtube.com` (403);
+- já existiam: GR3 P3/L3, F5b G5 e F5b L4 (D118, D120).
+**Não executados aqui:** `test_video_real_angular` e `test_qa_chat_llm_real` (internet e LLM reais), e os três testes do
+YouTube com acesso liberado. Ficam para a máquina do PM.
+**Varredura de contraste e `h1`:** coberta pelos e2e DS0–DS4, que medem contraste AA pelo estilo computado e um `h1` em cada
+rota do aluno, no painel da equipe e na landing. **Capturas antes e depois:** não feitas nesta entrega (opcional, a pedido).
+**`docs/DESIGN.md` final:** cores novas (`--gt-cta-hover`, `#cbd5df`, `#7fd8f0`, `#b42318`), `.btn-cta`, janela de
+confirmação, `.badge-status`, `.gt-faixa`, tabelas, estado vazio, títulos por tela, ordem dos blocos da landing e D-C aplicada.
+**Fica em aberto (não bloqueia):** unificar `.aluno-resumo` com `.gt-faixa` (refatoração de CSS, D119); o rótulo do botão de
+confirmar repete o texto do botão de origem; a atualização automática de 30 s não pausa com a janela aberta (o formulário
+aberto já pausa, a janela não). Itens para revisão do PM listados na D119 e na D120.

@@ -176,3 +176,26 @@ Tomadas pelo PM. Anteriores às D21 a D26 do log. Cobrem o que o documento de es
 | SG5, SG6 | Onda 2 |
 | SG7 | Onda 3 |
 | SG8, SG9, SG10 | Opcionais, aguardam decisão do PM |
+
+---
+
+## Plano DS — atualização de design (D115)
+
+Plano em `docs/tdd/PLANO_DESIGN.md`; sistema visual em `docs/DESIGN.md`. Branch `feature/fase2-design`. Só design: nenhuma
+regra, rota, API ou dado mudou.
+
+| Entrega | Estado |
+|---|---|
+| DS0 — fundação | Entregue (D116): tokens de contraste, logo oficial, piso de 14 px. |
+| DS1 — componentes base | Entregue (D117, corrigida na D119): janela de confirmação no lugar dos 8 `confirm()`, `h1` por tela, rótulos, alvos de 44 px. |
+| DS2 — área do aluno | Entregue (D118). |
+| DS3 — painel da equipe | Entregue (D119). |
+| DS4 — landing como catálogo | Entregue (D120). |
+| DS5 — fechamento | Entregue (D121): regressão sem falha nova; `DESIGN.md` final. |
+
+**Para revisão do PM:** `h2` visível com o nome da aba em quatro abas do painel (D119); textos novos da landing (empresas,
+dúvidas, faixa final) e Termos/Privacidade fora do rodapé da landing (D120); filtros do protótipo não feitos (seriam
+funcionalidade nova); logo embutido duas vezes na landing (~99 KB) até a SG6.
+**Aberto:** unificar `.aluno-resumo` com `.gt-faixa`; atualização de 30 s não pausa com a janela de confirmação aberta;
+rodar na máquina do PM os testes que dependem de YouTube, internet e LLM reais; capturas antes e depois, se o PM quiser.
+
