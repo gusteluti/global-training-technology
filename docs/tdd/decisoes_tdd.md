@@ -1994,3 +1994,18 @@ b2 8/8, o0 7/7, s1 7/7, f5a 8/8, f6 7/7, gr1, gr4, gr5, x1, x2, u5 8/8, s4 12/12
 **Falhas que já existiam (não vêm da DS2; idênticas com o código de antes, `de8b480`):** GR3 P3/L3 (o chat mostra a mensagem
 mascarada e o teste procura a pergunta original) e F5b G5 (resposta do bot não aparece). Ficam como pendência fora do plano de
 design.
+
+## D119 — DS3: painel da equipe (23/11/2026)
+Entregue conforme o PLANO_DESIGN e a D115, sem mudança de abas por perfil: `h2` no topo de cada aba (Financeiro, Cursos, Cadastro
+de cursos e Observabilidade de IA ganharam um `h2` visível com o nome da aba; Alunos, Auditoria e Equipe tiveram o título atual
+promovido) e nos subpainéis (aluno, alunos do curso, conteúdos, Novo/Editar curso); seções em `h3`/`h4` com a aparência antiga;
+toda tabela com `aria-labelledby` para o título da seção e `scope="col"` em todo `th` (ações com "Ações" visualmente oculto);
+`.badge-status` em todos os status (transações, arquivado, desativado, saúde, equipe); KPIs do Financeiro numa faixa
+(`dl.gt-faixa`, classes globais em `styles.css`); `code` em tabela com 14 px; no `/admin`, cartões com raio 10 px sem sombra e
+cabeçalho de tabela `#f3f6f9`/`#3b4652`.
+**Correção da D117:** excluir curso e excluir conteúdo **não** usam a janela da DS1; continuam com a confirmação em dois passos
+na própria linha (fluxo da F1/L2, mantido pela regra da D115).
+**Ciclo:** red `1003a5f`; frontend `8efa94a`. e2e DS3 2/2 (4/4, 21/21); admin 34/34, d3, d4, ds0, ds1, ds2, e5 9/9, e7 11/11,
+e8 17/17, f1 11/11, f3 11/11, f7 11/11, gr5 10/10, l1 16/16, l2 24/24, s3, sg1, u1 13/13, u4 7/7, u5 8/8, u8 10/10, x4; build
+limpo. **Para revisão do PM:** o `h2` visível com o nome da aba em quatro abas (as outras três já tinham título próprio).
+**Fica para a DS5:** unificar a faixa da DS2 (`.aluno-resumo`) com `.gt-faixa`.
