@@ -6,7 +6,9 @@ Contrato de tela (D93), verificado por estilo COMPUTADO no Chromium:
   G3 avaliação: sem avaliação, o seletor já mostra "5 ★"; enviar mostra [data-testid=curso-avaliacao-ok];
      com avaliação 4, ao recarregar o seletor mostra "4 ★"; o comentário tem largura útil (>= 200 px)
   G4 aviso de gravação do chat com respiro lateral (padding-left >= 12 px, igual ao das mensagens)
-  G5 catálogo: rótulo de seção "Catálogo", ícone com as iniciais em cada cartão e preço em Barlow Condensed teal
+  G5 catálogo: rótulo de seção "Catálogo", ícone com as iniciais em cada cartão e preço em Barlow Condensed no azul
+     da marca, com contraste AA (ajuste mecânico 4.3, D115 -> DS0: o teal #0096c7 só vale como texto grande; o azul
+     de texto passa a #0077a3/#005f84)
   G6 paleta: barra de progresso em teal; status "Em análise" com fundo da paleta (não o azul padrão do Bootstrap)
   G7 observabilidade: custo "US$ 0,0000" (vírgula) numa linha só; percentuais com vírgula
   G8 financeiro: a coluna Curso mostra o NOME do curso, não o id
@@ -32,6 +34,7 @@ E2E_DIR = Path(__file__).resolve().parent
 if str(E2E_DIR) not in sys.path:
     sys.path.insert(0, str(E2E_DIR))
 
+from apoio_contraste import descrever, varrer_contraste  # noqa: E402
 from apoio_harness_h1 import abrir_banco, ambiente_isolado  # noqa: E402
 from servidor_e2e_h1 import GESTAO_EMAIL, GESTAO_SENHA  # noqa: E402
 
@@ -263,8 +266,13 @@ def test_d3_ajustes_design_angular_e2e(servidores, browser):
         if icone.count() != 1 or icone.first.inner_text().strip() != "EA":
             raise Falha("o cartão não mostra o ícone com as iniciais do curso ('EA')")
         preco = card.locator('[data-testid="catalogo-preco"]')
-        if "Barlow Condensed" not in estilo(preco, "font-family") or estilo(preco, "color") != TEAL:
-            raise Falha(f"preço em {estilo(preco, 'font-family')!r} / {estilo(preco, 'color')}")
+        cor = estilo(preco, "color")
+        r, g, b = (float(v) for v in re.findall(r"[\d.]+", cor)[:3])
+        if "Barlow Condensed" not in estilo(preco, "font-family") or not (r <= 20 and b > g > r):
+            raise Falha(f"preço em {estilo(preco, 'font-family')!r} / {cor} (esperado Barlow Condensed no azul da marca)")
+        medida = varrer_contraste(page, dentro_de=['[data-testid="catalogo-preco"]'])
+        if medida["verificados"] < 1 or medida["falhas"]:
+            raise Falha(f"preço abaixo do AA: {descrever(medida['falhas']) or 'nada verificado'}")
 
     # --- G6 paleta ----------------------------------------------------------------------------------------
     def g6():

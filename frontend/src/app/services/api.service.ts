@@ -17,9 +17,9 @@ export class ApiService {
     return { headers };
   }
 
-  // X4 (D90): estado das dependências (público, sem dado sensível).
-  public getHealth() {
-    return this.http.get(`${BASE}/api/health`);
+  // X4 (D90) e SG1 (D109, P2): detalhe das dependências, só para a Gestão (admin). O /api/health público só devolve o status.
+  public getSaudeSistema() {
+    return this.http.get(`${BASE}/api/dashboard/saude`, this.authHeaders());
   }
 
   public getPublicCourses() {

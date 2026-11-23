@@ -18,6 +18,7 @@ from core.security import (
     resolve_role_from_password,
     TOKEN_TTL_SECONDS,
 )
+from core.cabecalhos import ambiente
 from core.audit import change, legacy_actor, record_audit
 from core import conteudos, login_limit
 from core.emails import email_valido
@@ -196,7 +197,14 @@ def _course_changes(before_data: Dict, after_data: Dict) -> List[Dict]:
             changes.append(change(field, before, after))
     return changes
 
-@router.post("/login")
+def _login_legado_disponivel() -> None:
+    """SG2 (D109): em produção o login legado por senha única não existe (404, sem falha, auditoria nem tentativa).
+    O ambiente é lido a cada requisição; roda como dependência, antes da validação do corpo."""
+    if ambiente() == "production":
+        raise HTTPException(status_code=404, detail="Not Found")
+
+
+@router.post("/login", dependencies=[Depends(_login_legado_disponivel)])
 async def admin_login(credentials: AdminLoginInput, request: Request):
     # S2 (D79): o login legado (só senha) é limitado por IP.
     ip = login_limit.ip_do_cliente(request)

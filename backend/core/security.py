@@ -30,6 +30,7 @@ from fastapi import Header, HTTPException
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
+from core.cabecalhos import ambiente
 from db import Database
 from models.user import Role, User
 
@@ -54,7 +55,11 @@ AuthContext = User
 # --- Segredos ---------------------------------------------------------------
 
 def get_admin_secret() -> str:
-    secret = os.getenv("ADMIN_TOKEN_SECRET") or os.getenv("ADMIN_PASSWORD")
+    # SG2 (D109): em produção a chave do token de funcionário é só ADMIN_TOKEN_SECRET; cair para ADMIN_PASSWORD deixaria
+    # quem descobre a senha forjar tokens. Fora de produção o fallback continua.
+    secret = os.getenv("ADMIN_TOKEN_SECRET")
+    if not secret and ambiente() != "production":
+        secret = os.getenv("ADMIN_PASSWORD")
     if not secret:
         raise HTTPException(status_code=500, detail="ADMIN_TOKEN_SECRET não configurado no backend.")
     return secret
@@ -197,6 +202,9 @@ def create_admin_token(role: Role) -> str:
 
 
 def _user_from_staff_token(token: str) -> User:
+    # SG2 (D109): o login legado por senha única não existe em produção; o token que ele emite também não vale lá.
+    if ambiente() == "production":
+        raise HTTPException(status_code=401, detail="Token de admin inválido.")
     try:
         decoded = base64.urlsafe_b64decode(token.encode("utf-8")).decode("utf-8")
         role_value, expires_at, nonce, signature = decoded.split(":", 3)

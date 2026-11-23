@@ -1,22 +1,23 @@
 /* Catálogo no estilo da landing e da área do aluno (D93). */
-.catalogo-hero { background: linear-gradient(120deg, #ffffff 55%, #eaf8fc 100%); margin-bottom: 1.5rem; }
+/* DS2 (D115): topo em fundo sólido, sem gradiente atrás do texto; cartões com raio de 10 px e sem sombra pesada. */
+.catalogo-hero { background: #ffffff; border-radius: 10px; box-shadow: none; margin-bottom: 1.5rem; }
 .catalogo-hero .card-body { padding: 2rem; }
 .catalogo-titulo { font-size: 42px; line-height: 1.05; margin-bottom: 8px; }
 .catalogo-voltar { font-weight: 600; text-decoration: none; }
 
-.catalogo-card { transition: border-color .2s, box-shadow .2s; }
-.catalogo-card:hover { border-color: #9fd3e4; box-shadow: 0 12px 32px rgba(20, 35, 50, 0.08); }
+.catalogo-card { border-radius: 10px; box-shadow: none; transition: border-color .2s; }
+.catalogo-card:hover { border-color: #9fd3e4; }
 .catalogo-icone {
   width: 48px; height: 48px; border-radius: 12px;
-  background: #eaf8fc; border: 1.5px solid #b8e7f1; color: #0096c7;
+  background: #eaf8fc; border: 1.5px solid #b8e7f1; color: #0077a3;
   display: flex; align-items: center; justify-content: center;
   font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-weight: 900; font-size: 20px;
 }
 .catalogo-nome { font-family: 'Barlow', sans-serif; font-size: 20px; font-weight: 800; margin-bottom: 4px; letter-spacing: 0; }
-.catalogo-nivel { font-size: 12px; color: #66707c; text-transform: none; letter-spacing: 0.5px; }
+.catalogo-nivel { font-size: 14px; color: #66707c; text-transform: none; letter-spacing: 0.5px; }
 .catalogo-preco {
   font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-weight: 900;
-  font-size: 30px; color: #0096c7; line-height: 1.1;
+  font-size: 30px; color: #0077a3; line-height: 1.1; font-variant-numeric: tabular-nums;
 }
 .catalogo-matriculado {
   text-align: center; padding: 10px 12px; border-radius: 8px; font-weight: 700; font-size: 14px;

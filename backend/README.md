@@ -97,6 +97,33 @@ cp .env.example .env
 # Editar .env com sua GROQ_API_KEY
 ```
 
+Em produção defina `APP_ENV=production` explicitamente. O startup valida a configuração (SG2) e o app não sobe, com
+mensagem sem valores de segredo, se: `JWT_SECRET_KEY` tem menos de 32 caracteres; `ADMIN_TOKEN_SECRET` está ausente ou é
+igual a uma senha de perfil; `ADMIN_PASSWORD`/`FINANCIAL_PASSWORD`/`SUPPORT_PASSWORD` têm menos de 12 caracteres ou são a
+senha pública do `seed_demo`; `PAYMENTS_MOCK` está ligado; `MERCADO_PAGO_WEBHOOK_SECRET` ou `MERCADO_PAGO_ACCESS_TOKEN`
+estão vazios; ou `CORS_ALLOWED_ORIGINS` está ausente, tem localhost ou origem `http://`. Fora de produção só há `[AVISO]`.
+Em produção o login legado `POST /api/admin/login` responde 404 e o token legado de funcionário é recusado.
+
+IP real atrás de proxy (SG3): a variável opcional `TRUSTED_PROXIES` (IPs e CIDRs, IPv4/IPv6, separados por vírgula)
+lista os proxies confiáveis. **Padrão vazio**: vale o par TCP e `X-Forwarded-For` é ignorado. Com o par TCP na lista, o
+IP do cliente é o primeiro item de `X-Forwarded-For`, da direita para a esquerda, que não seja proxy confiável
+(`core/cliente_ip.py`); malformado volta ao par TCP e par fora da lista tem o cabeçalho ignorado. Vale para os limites de
+chat, checkout, checagem de token de senha e para o bloqueio de login. O uvicorn 0.24 liga `--proxy-headers` por padrão e
+confia em `127.0.0.1`: em produção atrás de proxy o app deve rodar com `proxy_headers=False` (`--no-proxy-headers`) para
+valer só a regra do projeto (mudança de execução prevista na SG5; aqui só documentada).
+
+Teto de custo e de abuso do chat anônimo (SG4): três variáveis opcionais, **desligadas por padrão** (ausente, vazia,
+`0`, inválida ou negativa = desligado), lidas a cada requisição; não afetam o chat do aluno.
+- `CHAT_ANON_DAILY_TOKEN_BUDGET`: teto de tokens por dia de São Paulo, somando `ai_usage` do canal anônimo (roteamento e
+  resposta, todas as sessões). Ao atingir, `POST /api/chat` responde 200 com o texto fixo `CHAT_INDISPONIVEL`
+  (`agents/llm_guard.py`), sem chamar o LLM, `outcome='unresolved'`, `guard='budget'` e, com `WHATSAPP_HANDOFF_NUMBER`
+  válido, a ação de handoff da F6. Falha ao ler o banco: o chat segue (fail-open). Sugestão de produção: 300000.
+- `CHAT_ANON_DAILY_MESSAGES_PER_IP`: mensagens por IP efetivo em janela deslizante de 24 h; acima, 429. Sugestão: 200.
+- `CHAT_ANON_NEW_SESSIONS_PER_IP_HOUR`: sessões novas por IP efetivo em 1 h; acima, 429. Sugestão: 20.
+Os limites por IP (`core/rate_limit.py`) ficam em memória do processo e são zerados a cada startup: em produção use
+**um worker** só. Ordem em `POST /api/chat`: 429 por IP (minuto, diário, sessões novas), depois o teto de tokens
+(resposta fixa), depois os guardrails de entrada e o LLM. Uma mensagem barrada não conta em nenhuma janela.
+
 ### 4. Iniciar servidor
 ```bash
 python app.py

@@ -1,5 +1,6 @@
 import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { ApiService } from '../../services/api.service';
+import { ConfirmacaoService } from '../../services/confirmacao.service';
 import { Chart } from '../../charts';
 import { salvarArquivo } from '../../services/salvar-arquivo';
 
@@ -36,7 +37,7 @@ export class FinancialDashboardComponent implements OnInit, OnDestroy {
   // A aba Financeiro só existe para Gestão e Financeiro, os mesmos perfis que podem exportar (D74).
   exportando = false;
 
-  constructor(private api: ApiService) { }
+  constructor(private api: ApiService, private confirmacao: ConfirmacaoService) { }
 
   // Solicitações de cancelamento em aberto (U5, D82). A aba Financeiro só existe para Gestão e Financeiro.
   cancelamentos: any[] = [];
@@ -65,10 +66,17 @@ export class FinancialDashboardComponent implements OnInit, OnDestroy {
     if (this.decidindoId !== null) {
       return;
     }
-    if (!confirm(`Aprovar o cancelamento de ${pedido.course_name} e reembolsar ${pedido.student_name}? A ação fica registrada na auditoria.`)) {
-      return;
-    }
-    this.decidir(pedido, this.api.approveCancellationRequest(pedido.id));
+    this.confirmacao.confirmar({
+      titulo: `Aprovar o cancelamento de ${pedido.course_name} e reembolsar ${pedido.student_name}?`,
+      texto: 'A ação fica registrada na auditoria.',
+      rotuloConfirmar: 'Aprovar e reembolsar',
+      destrutiva: true
+    }).then(ok => {
+      if (!ok) {
+        return;
+      }
+      this.decidir(pedido, this.api.approveCancellationRequest(pedido.id));
+    });
   }
 
   recusarCancelamento(pedido: any): void {
@@ -149,20 +157,27 @@ export class FinancialDashboardComponent implements OnInit, OnDestroy {
   }
 
   refund(payment: any): void {
-    if (!confirm(`Confirmar o reembolso do pagamento #${payment.id}? A ação fica registrada na auditoria.`)) {
-      return;
-    }
-    this.refundingId = payment.id;
-    this.api.refundPayment(payment.id).subscribe({
-      next: () => {
-        this.refundingId = null;
-        this.load();
-        this.carregarCancelamentos();
-      },
-      error: err => {
-        this.refundingId = null;
-        this.error = err?.error?.detail || 'Não foi possível reembolsar o pagamento.';
+    this.confirmacao.confirmar({
+      titulo: `Confirmar o reembolso do pagamento #${payment.id}?`,
+      texto: 'A ação fica registrada na auditoria.',
+      rotuloConfirmar: 'Confirmar reembolso',
+      destrutiva: true
+    }).then(ok => {
+      if (!ok) {
+        return;
       }
+      this.refundingId = payment.id;
+      this.api.refundPayment(payment.id).subscribe({
+        next: () => {
+          this.refundingId = null;
+          this.load();
+          this.carregarCancelamentos();
+        },
+        error: err => {
+          this.refundingId = null;
+          this.error = err?.error?.detail || 'Não foi possível reembolsar o pagamento.';
+        }
+      });
     });
   }
 

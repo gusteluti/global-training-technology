@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { ApiService } from '../../services/api.service';
+import { ConfirmacaoService } from '../../services/confirmacao.service';
 import { AuthService } from '../../services/auth.service';
 
 // Gestão da equipe (S3, D85): só a Gestão. A API aplica as mesmas regras (própria conta, última Gestão ativa).
@@ -22,7 +23,7 @@ export class StaffAdminComponent implements OnInit {
   erro = '';
   meuId: number | null = null;
 
-  constructor(private api: ApiService, private auth: AuthService) { }
+  constructor(private api: ApiService, private auth: AuthService, private confirmacao: ConfirmacaoService) { }
 
   ngOnInit(): void {
     const dados = this.auth.decodeToken();
@@ -75,17 +76,23 @@ export class StaffAdminComponent implements OnInit {
 
   alterarAtivo(pessoa: any, ativo: boolean): void {
     const acao = ativo ? 'Reativar' : 'Desativar';
-    if (!confirm(`${acao} a conta de "${pessoa.name}"?`)) {
-      return;
-    }
-    this.ok = '';
-    this.erro = '';
-    this.api.setStaffActive(pessoa.id, ativo).subscribe({
-      next: () => {
-        this.ok = `Conta de ${pessoa.name} ${ativo ? 'reativada' : 'desativada'}.`;
-        this.carregar();
-      },
-      error: err => this.erro = this.texto(err, 'Não foi possível alterar a conta.')
+    this.confirmacao.confirmar({
+      titulo: `${acao} a conta de "${pessoa.name}"?`,
+      rotuloConfirmar: `${acao} conta`,
+      destrutiva: !ativo
+    }).then(ok => {
+      if (!ok) {
+        return;
+      }
+      this.ok = '';
+      this.erro = '';
+      this.api.setStaffActive(pessoa.id, ativo).subscribe({
+        next: () => {
+          this.ok = `Conta de ${pessoa.name} ${ativo ? 'reativada' : 'desativada'}.`;
+          this.carregar();
+        },
+        error: err => this.erro = this.texto(err, 'Não foi possível alterar a conta.')
+      });
     });
   }
 

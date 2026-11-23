@@ -17,6 +17,8 @@ from admin.contents import router as contents_router
 from admin.staff import router as staff_router
 from dashboard.routes import router as dashboard_router
 from agents.llm_guard import (
+    CHAT_INDISPONIVEL,
+    GUARD_BUDGET,
     GUARD_LOGIN,
     LLM_UNAVAILABLE,
     MAX_MESSAGE_CHARS,
@@ -24,7 +26,9 @@ from agents.llm_guard import (
     InputBlockedError,
     LLMUnavailableError,
     mascarar_pii,
+    teto_diario_de_tokens,
 )
+from agents import ai_observability
 from agents.dados_aluno import acoes_login
 from agents.feedback import ERRO_RESPOSTA_NAO_ENCONTRADA, emitir_reply_id_anonimo, registrar_feedback_anonimo
 from agents.handoff import acoes_de_handoff
@@ -33,10 +37,20 @@ from auth import router as auth_router
 from student.routes import router as student_router
 from core.security import get_password_hash, senha_excede_limite_bcrypt
 from core import operacao, rate_limit
+from core.configuracao import exigir_configuracao_segura
+from core.cabecalhos import CabecalhosSeguranca, documentacao_habilitada, erro_interno
 from db import Database
 
 # Initialize FastAPI
-app = FastAPI(title="TCC School Chatbot API", version="1.0.0")
+# SG1 (D109): documentação interativa e esquema OpenAPI só com APP_ENV development ou test (decidido na montagem do app).
+_docs = documentacao_habilitada()
+app = FastAPI(
+    title="TCC School Chatbot API",
+    version="1.0.0",
+    docs_url="/docs" if _docs else None,
+    redoc_url="/redoc" if _docs else None,
+    openapi_url="/openapi.json" if _docs else None,
+)
 
 # CORS (E9, D48): lista explícita de origens, sem "*" e sem credenciais (a autenticação é pelo
 # cabeçalho Authorization). CORS_ALLOWED_ORIGINS (separada por vírgulas) substitui o padrão.
@@ -78,6 +92,10 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
+# SG1 (D109): cabeçalhos de segurança em toda resposta. Adicionada depois do CORS, fica por fora dele (cobre o
+# preflight); o 500 de exceção não tratada, que sai do ServerErrorMiddleware, passa pelo handler de Exception.
+app.add_middleware(CabecalhosSeguranca)
+app.add_exception_handler(Exception, erro_interno)
 
 # Pydantic models
 class ChatMessage(BaseModel):
@@ -95,6 +113,10 @@ class FeedbackAnonimo(BaseModel):
 @app.on_event("startup")
 async def startup_event():
     """Load courses and initialize manager agent on startup"""
+    # SG2 (D109): em produção a configuração insegura impede a subida (RuntimeError, sem valor de segredo); fora de
+    # produção a subida segue e cada problema vira um [AVISO]. Fica no startup, não na importação do módulo.
+    for problema in exigir_configuracao_segura():
+        print(f"[AVISO] {problema}")
     # S9 (D79): estado em memória dos limites de taxa (chat e checkout) nasce zerado a cada startup.
     rate_limit.redefinir_limites()
     # X3 (D90): backup diário do banco quando BACKUP_DIR está definida. Falha não impede a subida.
@@ -144,53 +166,14 @@ async def startup_event():
 @app.get("/health")
 @app.get("/api/health")
 async def health_check():
-    """Health check endpoint"""
+    """Health check público (SG1, D109): só o status. O detalhe está em GET /api/dashboard/saude (Gestão)."""
     try:
-        manager_agent = getattr(app.state, "manager_agent", None)
-        if manager_agent:
-            manager_agent.refresh_courses_if_changed()
-        courses_count = len(manager_agent.courses) if manager_agent else 0
-        # X4 (D90): estado das dependências; "degraded" quando o banco não responde.
+        # X4 (D90): "degraded" quando o banco não responde.
         servicos = operacao.verificar_servicos()
-        return {
-            "status": "ok" if servicos["database"] == "ok" else "degraded",
-            "services": servicos,
-            "courses_loaded": courses_count,
-            "llm": "groq",
-            "available_models": ["mixtral-8x7b-32768"],
-            "payments_mock": pagamento_mockado_efetivo(),
-        }
-    except Exception as e:
-        return {
-            "status": "error",
-            "message": str(e)
-        }
+        return {"status": "ok" if servicos["database"] == "ok" else "degraded"}
+    except Exception:
+        return {"status": "error"}
 
-@app.get("/api/chat/courses-debug")
-async def chat_courses_debug(request: Request):
-    """Debug endpoint to inspect which courses are loaded by the chat agent."""
-    manager_agent = getattr(request.app.state, "manager_agent", None)
-    if not manager_agent:
-        return {
-            "status": "error",
-            "message": "Manager agent not initialized",
-            "courses": []
-        }
-
-    manager_agent.refresh_courses_if_changed()
-    return {
-        "status": "success",
-        "total": len(manager_agent.courses),
-        "courses": [
-            {
-                "id": course_id,
-                "name": course_data.get("name"),
-                "price": course_data.get("price"),
-                "level": course_data.get("level"),
-            }
-            for course_id, course_data in manager_agent.courses.items()
-        ]
-    }
 
 def _handoff_anonimo(manager_agent, mensagem: str, session_id: str, course_id: Optional[str],
                      motivo_padrao: Optional[str] = None) -> list:
@@ -200,6 +183,20 @@ def _handoff_anonimo(manager_agent, mensagem: str, session_id: str, course_id: O
                             motivo_padrao=motivo_padrao)
 
 
+def _resposta_teto_diario(manager_agent, mensagem: str, session_id: str) -> dict:
+    """SG4: resposta fixa do teto diário (`CHAT_INDISPONIVEL`), registrada em `ai_interactions` como as demais respostas
+    fixas (outcome 'unresolved', guard 'budget'), com a ação de handoff da F6 quando há número válido. O motivo do
+    handoff é o das regras da D77 ou, na falta delas, 'unresolved' (coerente com o outcome). Sem texto cru gravado."""
+    with ai_observability.identidade_anonima(session_id):
+        ai_observability.registrar_interacao("unresolved", guard=GUARD_BUDGET)
+    mascarada, _ = mascarar_pii(mensagem)
+    return {
+        "status": "success", "message": CHAT_INDISPONIVEL, "session_id": session_id,
+        "actions": _handoff_anonimo(manager_agent, mascarada, session_id, None, motivo_padrao="unresolved"),
+        "sources": [], "reply_id": emitir_reply_id_anonimo(session_id),
+    }
+
+
 @app.post("/api/chat")
 async def chat(chat_msg: ChatMessage, request: Request):
     """
@@ -207,11 +204,15 @@ async def chat(chat_msg: ChatMessage, request: Request):
     Expected input: {"message": "user message", "session_id": "optional, emitido pelo servidor"}
     A resposta traz sempre o session_id efetivo; um id desconhecido abre uma sessão nova (E6, D38.1).
     S9 (D79): 30 mensagens por minuto por IP; acima disso, 429 sem chegar ao LLM.
+    SG4 (D109 P5): 429 também pelos tetos diário de mensagens e de sessões novas por hora por IP (desligados por
+    padrão), sempre antes de qualquer outra coisa; depois, o teto diário de tokens do canal anônimo produz a resposta
+    fixa CHAT_INDISPONIVEL (200, sem LLM), antes dos guardrails de entrada.
     """
-    if not rate_limit.permitir_chat(request):
+    manager_agent = getattr(request.app.state, "manager_agent", None)
+    sessao_nova = not (manager_agent and manager_agent.sessao_existe(chat_msg.session_id))
+    if not rate_limit.permitir_chat(request, sessao_nova=sessao_nova):
         return JSONResponse(status_code=429, content={"status": "error", "message": rate_limit.ERRO_CHAT})
     try:
-        manager_agent = getattr(request.app.state, "manager_agent", None)
         if not manager_agent:
             return {
                 "status": "error",
@@ -230,6 +231,11 @@ async def chat(chat_msg: ChatMessage, request: Request):
             return {"status": "error", "message": TOO_LONG}
 
         session_id = manager_agent.resolve_session(chat_msg.session_id)
+
+        # SG4 (D109 P5): teto diário de tokens do chat anônimo atingido -> resposta fixa, sem nenhuma chamada ao LLM
+        # (nem roteamento nem classificador), antes dos guardrails de entrada. Desligado por padrão.
+        if ai_observability.teto_diario_atingido(teto_diario_de_tokens()):
+            return _resposta_teto_diario(manager_agent, user_message, session_id)
 
         # Route message through manager agent
         try:

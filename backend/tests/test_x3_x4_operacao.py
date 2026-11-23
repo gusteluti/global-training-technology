@@ -1,4 +1,10 @@
-"""X3/X4 — backup do banco e /health com estado das dependências (D90, processo enxuto D84)."""
+"""X3/X4 — backup do banco e estado das dependências (D90, processo enxuto D84).
+
+SG1 (D109, P2; ajuste mecânico 4.3, D109 -> D111): o detalhe do estado das dependências saiu do `/health` público
+(agora só `{"status": ...}`) e vive em `GET /api/dashboard/saude`, só para a Gestão. Os testes que liam `services`,
+`courses_loaded`, `llm` e `payments_mock` do `/health` passam a ler da rota nova com o token da Gestão; a intenção
+(o estado dos serviços aparece, sem segredo, e o backup do startup é reportado) é a mesma.
+"""
 
 import sqlite3
 from datetime import datetime, timedelta, timezone
@@ -7,7 +13,18 @@ import pytest
 from fastapi.testclient import TestClient
 
 from core import operacao
+from core.security import create_access_token
 from db import Database
+
+ROTA_SAUDE = "/api/dashboard/saude"
+
+
+def _gestao():
+    """Cabeçalho de autorização de uma conta da Gestão (perfil admin), só para ler o detalhe de saúde (SG1)."""
+    email = "gestao.x4@teste.com"
+    user_id = Database.add_user(email, "Gestao X4", None, role="admin")
+    token = create_access_token({"user_id": user_id, "email": email, "role": "admin"})
+    return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.fixture
@@ -47,14 +64,14 @@ def test_startup_faz_backup_quando_configurado(banco, tmp_path, monkeypatch):
     from app import app as fastapi_app
 
     with TestClient(fastapi_app) as c:
-        corpo = c.get("/health").json()
+        corpo = c.get(ROTA_SAUDE, headers=_gestao()).json()
     assert list((tmp_path / "auto").glob("db-*.sqlite"))
     assert corpo["services"]["backup"].startswith("db-")
 
 
-def test_health_traz_servicos_e_mantem_chaves_antigas(client, monkeypatch):
+def test_saude_traz_servicos_e_mantem_chaves_antigas(client, monkeypatch):
     monkeypatch.setenv("SMTP_HOST", "smtp.teste.local")
-    corpo = client.get("/health").json()
+    corpo = client.get(ROTA_SAUDE, headers=_gestao()).json()
     assert corpo["status"] == "ok"
     for chave in ("courses_loaded", "llm", "payments_mock"):
         assert chave in corpo

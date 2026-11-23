@@ -12,6 +12,9 @@ Contrato novo (H3):
   - Mock efetivo: pagamento `approved` com payment_method `mock`, matricula `active`, resposta `mocked: true` e um evento
     de auditoria (E8) `payment.mock_approved`, entity_type `payment`, entity_id = id do pagamento.
   - GET /health ganha `payments_mock` (booleano): true so com o mock efetivo.
+    SG1 (D109, P2; ajuste mecanico 4.3, D109 -> D111): o `/health` publico passou a devolver so `{"status": ...}`; o
+    `payments_mock` (e o resto do detalhe) vive agora em `GET /api/dashboard/saude`, so para a Gestao. Os testes do
+    grupo H leem de la, com o token da Gestao; a regra do mock (so true com PAYMENTS_MOCK e APP_ENV=development) e a mesma.
 
 Grupos
   A  Autenticacao/perfil: 401 sem token, token forjado ou malformado; 403 para funcionario (JWT de conta e token
@@ -21,11 +24,11 @@ Grupos
      (user_id, email, price, amount) ignorados (IDOR); nenhuma conta nova; pendente nao libera material;
      sem MERCADO_PAGO_ACCESS_TOKEN -> 503                                                   [caracterizacao]
   M  Trava do mock (contrato novo) nos dois checkouts                                        [red, exceto M6/M7]
-  H  /health com `payments_mock`                                                             [red, exceto H5]
+  H  /api/dashboard/saude (Gestao) com `payments_mock` (era /health, SG1)                    [red, exceto H5]
 
 Checklist: IDOR (C2, C3, M7: o aluno vem so do JWT; nenhum id de usuario do corpo e aceito). Recurso pago so com
 `active`: C4 e M1 (pendente, inclusive com o mock ignorado, nao expoe URL de material). 401/403: grupo A.
-Compatibilidade: H1 (sem nenhuma variavel nova o mock fica desligado e o /health diz false).
+Compatibilidade: H1 (sem nenhuma variavel nova o mock fica desligado e a saude diz false).
 
 Convencoes (padrao de test_e9/test_l1): banco temporario do conftest, cursos em diretorio temporario, Mercado Pago
 falso por patch de `payments.routes.requests.post` (nenhuma rede real), PAYMENTS_MOCK e APP_ENV sempre removidos do
@@ -462,45 +465,46 @@ def test_m7_mock_efetivo_grava_para_o_dono_do_jwt_e_ignora_campos_extras(client,
 
 
 # =========================================================================================
-# Grupo H - /health com payments_mock
+# Grupo H - payments_mock no detalhe de saude (GET /api/dashboard/saude; era /health antes da SG1)
 # =========================================================================================
 
-def _health(client):
-    r = client.get("/health")
+def _health(client, contas):
+    """Detalhe de saude lido pela Gestao (SG1): o /health publico nao traz mais `payments_mock`."""
+    r = client.get("/api/dashboard/saude", headers=_auth(contas.gestao.token))
     assert r.status_code == 200, r.text
     return r.json()
 
 
-def test_h1_health_sem_variaveis_diz_mock_desligado(client):
-    corpo = _health(client)
+def test_h1_health_sem_variaveis_diz_mock_desligado(client, contas):
+    corpo = _health(client, contas)
     assert "payments_mock" in corpo, corpo
     assert corpo["payments_mock"] is False, corpo
 
 
 @pytest.mark.parametrize("valor_mock,app_env", MOCK_IGNORADO, ids=MOCK_IGNORADO_IDS)
-def test_h2_health_mock_ligado_sem_development_diz_false(client, monkeypatch, valor_mock, app_env):
+def test_h2_health_mock_ligado_sem_development_diz_false(client, contas, monkeypatch, valor_mock, app_env):
     _ligar_mock(monkeypatch, valor_mock, app_env)
-    corpo = _health(client)
+    corpo = _health(client, contas)
     assert corpo.get("payments_mock") is False, corpo
 
 
 @pytest.mark.parametrize("valor_mock", [None, "", "0", "false"], ids=lambda v: f"PAYMENTS_MOCK={v!r}")
-def test_h3_health_development_sem_mock_diz_false(client, monkeypatch, valor_mock):
+def test_h3_health_development_sem_mock_diz_false(client, contas, monkeypatch, valor_mock):
     _ligar_mock(monkeypatch, valor_mock, "development")
-    corpo = _health(client)
+    corpo = _health(client, contas)
     assert corpo.get("payments_mock") is False, corpo
 
 
 @pytest.mark.parametrize("valor_mock,app_env", MOCK_EFETIVO, ids=MOCK_EFETIVO_IDS)
-def test_h4_health_mock_efetivo_diz_true(client, monkeypatch, valor_mock, app_env):
+def test_h4_health_mock_efetivo_diz_true(client, contas, monkeypatch, valor_mock, app_env):
     _ligar_mock(monkeypatch, valor_mock, app_env)
-    corpo = _health(client)
+    corpo = _health(client, contas)
     assert corpo.get("payments_mock") is True, corpo
 
 
-def test_h5_health_mantem_as_chaves_antigas(client):
-    """[caracterizacao] o campo novo nao remove nada do /health."""
-    corpo = _health(client)
+def test_h5_health_mantem_as_chaves_antigas(client, contas):
+    """[caracterizacao] o campo novo nao remove nada do detalhe de saude (SG1: antes lido do /health)."""
+    corpo = _health(client, contas)
     assert corpo.get("status") == "ok", corpo
     for chave in ("courses_loaded", "llm"):
         assert chave in corpo, corpo

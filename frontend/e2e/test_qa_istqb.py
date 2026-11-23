@@ -26,6 +26,7 @@ os.environ["JWT_SECRET_KEY"] = "segredo-jwt-e5-teste-bem-longo-0123456789"
 os.environ["QA_LOG_ROTAS"] = str(Path(tempfile.gettempdir()) / f"qa_rotas_{uuid.uuid4().hex}.log")
 os.environ["QA_COVERAGE"] = str(Path(__file__).resolve().parents[2] / ".coverage.qa")
 
+from apoio_confirmacao import confirmar_no_app  # noqa: E402  (DS1, 4.3 D115: janela de confirmação do app)
 from apoio_harness_h1 import abrir_banco, ambiente_isolado  # noqa: E402
 from apoio_webhook_mp import assinar, enviar_webhook, id_de_pagamento  # noqa: E402
 
@@ -401,6 +402,7 @@ MATRIZ = [
     ("GET", "/api/dashboard/cursos/qa_py/alunos", {"admin", "financial", "support"}),
     ("GET", "/api/dashboard/cursos/qa_py/alunos.csv", {"admin", "financial"}),
     ("GET", "/api/dashboard/observabilidade-ia", {"admin", "financial", "support"}),
+    ("GET", "/api/dashboard/saude", {"admin"}),  # SG1 (D109, P2): detalhe de saúde só para a Gestão
     ("GET", "/api/admin/audit-logs", {"admin"}),
     ("GET", "/api/admin/staff", {"admin"}),
     ("GET", "/api/admin/courses", {"admin", "financial", "support"}),
@@ -1341,6 +1343,10 @@ def test_rotas_publicas(s, rota):
 @pytest.mark.parametrize("rota", ["/api/chat/courses-debug", "/openapi.json"])
 def test_rota_depuracao(s, rota):
     resposta = s.get(rota)
+    if rota == "/api/chat/courses-debug":
+        # SG1 (D109, P1; ajuste mecânico 4.3, D109 -> D111): a rota de depuração foi removida; antes só se exigia
+        # que, se respondesse 200, não listasse o prompt dos cursos.
+        assert resposta.s == 404, resposta.t
     assert CURSO_BASE["objectives"][0] not in resposta.j.get("courses", []) if resposta.s == 200 else True
     assert '"system_prompt": "p"' not in resposta.t
 
@@ -1545,9 +1551,9 @@ def test_ui_arquivar(s, navegador):
     pagina = tela(navegador)
     entrar(pagina, s, *GESTAO, "admin")
     pagina.get_by_role("button", name="Cadastro de cursos", exact=True).click()
-    pagina.on("dialog", lambda dialogo: dialogo.accept())
     linha = pagina.locator("tr", has_text="Arquivável QA")
     linha.locator('[data-testid="curso-archive"]').click()
+    confirmar_no_app(pagina)
     linha.locator('[data-testid="curso-arquivado"]').wait_for()
     aluno = s.aluno()
     catalogo = tela(navegador)

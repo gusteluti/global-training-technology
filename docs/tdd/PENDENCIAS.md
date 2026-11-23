@@ -160,3 +160,42 @@ Tomadas pelo PM. Anteriores às D21 a D26 do log. Cobrem o que o documento de es
 - O `papeis_tdd.md` e a seção 5 do `HANDOFF_TDD.md` ainda carregam a frase "nunca fazer push" no texto original. Ela está **revogada pela D30**. O `HANDOFF_TDD.md` já aponta para o log.
 - A seção 9 do `HANDOFF_TDD.md` foi corrigida nesta versão. Os comandos completos, com variáveis de ambiente, estão no `AGENTS.md`, seção 6.
 - A árvore de trabalho de `feature/fase2-tdd` deve estar limpa no fim de cada entrega. Qualquer alteração de outra autoria encontrada na árvore precisa ser identificada antes de qualquer commit.
+
+---
+
+## Plano SG — segurança da superfície pública (D109)
+
+| Entrega | Estado |
+|---|---|
+| SG0 — CI e higiene | Entregue (D110). Manual aberto: rotação de credenciais e proteção da `main`. CI: auditorias e suíte completa informativas até corrigir a D107. |
+| SG1 — descoberta e cabeçalhos | Entregue (D111). Aberto: `GET /` e README ainda citam `/docs` e o `/health` antigo (SG5). `test_gr5_feedback_chat` A3 intermitente. |
+| SG2 — config de produção | Entregue (D112). Aberto: destino do `admin.html` (login legado), placeholders do `.env.example`. |
+| SG3 — IP confiável | Entregue (D113). Aberto (SG5): `proxy_headers=False` no uvicorn e um worker. |
+| SG4 — teto do chat anônimo | Entregue (D114). Aberto: confirmar valores de produção com o PM. |
+| Onda 1 (SG1–SG4) | Regressão completa e e2e em andamento |
+| SG5, SG6 | Onda 2 |
+| SG7 | Onda 3 |
+| SG8, SG9, SG10 | Opcionais, aguardam decisão do PM |
+
+---
+
+## Plano DS — atualização de design (D115)
+
+Plano em `docs/tdd/PLANO_DESIGN.md`; sistema visual em `docs/DESIGN.md`. Branch `feature/fase2-design`. Só design: nenhuma
+regra, rota, API ou dado mudou.
+
+| Entrega | Estado |
+|---|---|
+| DS0 — fundação | Entregue (D116): tokens de contraste, logo oficial, piso de 14 px. |
+| DS1 — componentes base | Entregue (D117, corrigida na D119): janela de confirmação no lugar dos 8 `confirm()`, `h1` por tela, rótulos, alvos de 44 px. |
+| DS2 — área do aluno | Entregue (D118). |
+| DS3 — painel da equipe | Entregue (D119). |
+| DS4 — landing como catálogo | Entregue (D120). |
+| DS5 — fechamento | Entregue (D121): regressão sem falha nova; `DESIGN.md` final. |
+
+**Para revisão do PM:** `h2` visível com o nome da aba em quatro abas do painel (D119); textos novos da landing (empresas,
+dúvidas, faixa final) e Termos/Privacidade fora do rodapé da landing (D120); filtros do protótipo não feitos (seriam
+funcionalidade nova); logo embutido duas vezes na landing (~99 KB) até a SG6.
+**Aberto:** unificar `.aluno-resumo` com `.gt-faixa`; atualização de 30 s não pausa com a janela de confirmação aberta;
+rodar na máquina do PM os testes que dependem de YouTube, internet e LLM reais; capturas antes e depois, se o PM quiser.
+

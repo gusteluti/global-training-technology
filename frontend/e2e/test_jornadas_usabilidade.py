@@ -38,6 +38,7 @@ import pytest
 from playwright import sync_api
 from playwright.sync_api import expect
 
+from apoio_confirmacao import confirmar_no_app  # DS1 (4.3, D115): janela de confirmação do app
 from apoio_harness_h1 import ambiente_isolado
 from apoio_webhook_mp import enviar_webhook, id_de_pagamento
 from test_e6_landing_chat import BACKEND_URL_DA_LANDING, LANDING
@@ -528,7 +529,8 @@ def test_j_vis_02_criar_conta(s, navegador):
             pagina.get_by_role("link", name=link).click()
         documento = nova.value
         documento.wait_for_load_state()
-        expect(campo(documento, "termos-texto").locator("h3")).to_have_text(titulo)
+        # DS1 (4.3, D115 → DS1): o título do documento virou o h1 da tela (<h1 class="h3">).
+        expect(campo(documento, "termos-texto").locator("h1")).to_have_text(titulo)
         documento.get_by_role("link", name="Voltar ao cadastro").click()
         documento.wait_for_url("**/cadastro")
         documento.close()
@@ -1222,7 +1224,6 @@ def test_j_alu_04_cuidar_da_conta(s, navegador):
     nova = "senha-nova-j-alu-04"
     fluxo = "J-ALU-04 Cuidar da própria conta"
     pagina = tela(navegador)
-    pagina.on("dialog", lambda dialogo: dialogo.accept())
     entrar_em(pagina, s, aluno.email, SENHA)
     expect(pagina.locator("h1.aluno-titulo")).to_have_text("Olá, Renata!")
 
@@ -1257,6 +1258,7 @@ def test_j_alu_04_cuidar_da_conta(s, navegador):
     # 4. Exclui a conta com a senha: sai do sistema e o login com a conta excluída é recusado.
     campo(pagina, "perfil-excluir-senha").fill(nova)
     campo(pagina, "perfil-excluir").click()
+    confirmar_no_app(pagina)
     pagina.wait_for_url("**/login?conta=excluida")
     expect(campo(pagina, "login-sessao-expirada")).to_have_text("Sua conta foi excluída.")
     foto(pagina, fluxo, "Exclui a conta com a senha", "Volta ao login com Sua conta foi excluída.")
@@ -1284,11 +1286,11 @@ def test_j_alu_04_2n_senha_atual_errada(s, navegador):
 def test_j_alu_04_4n_excluir_senha_errada(s, navegador):
     aluno = s.aluno("Ema Exclui")
     pagina = tela(navegador)
-    pagina.on("dialog", lambda dialogo: dialogo.accept())
     entrar_em(pagina, s, aluno.email, SENHA)
     pagina.goto(s.alvo["base"] + "/student/perfil")
     campo(pagina, "perfil-excluir-senha").fill("senha-errada-qa")
     campo(pagina, "perfil-excluir").click()
+    confirmar_no_app(pagina)
     expect(campo(pagina, "perfil-erro")).to_have_text("Senha incorreta.")
     assert pagina.url.endswith("/student/perfil")
     assert s.sql("SELECT email FROM users WHERE id = ?", aluno.id)[0][0] == aluno.email
@@ -1302,13 +1304,13 @@ def test_j_alu_04_5n_desativado_logado(s, navegador):
     estudante = tela(navegador)
     entrar_em(estudante, s, aluno.email, SENHA)
     gestao = tela(navegador)
-    gestao.on("dialog", lambda dialogo: dialogo.accept())
     entrar(gestao, s, *GESTAO, "admin")
     aba(gestao, "Alunos")
     campo(gestao, "alunos-busca").fill(aluno.email)
     campo(gestao, "alunos-busca").press("Enter")
     gestao.get_by_role("button", name="Davi Desativado").click()
     campo(gestao, "aluno-desativar").click()
+    confirmar_no_app(gestao)
     campo(gestao, "aluno-reativar").wait_for()
     estudante.reload()
     expect(campo(estudante, "login-sessao-expirada")).to_have_text(MSG_SESSAO_EXPIRADA)
@@ -1333,6 +1335,7 @@ def _pedir_cancelamento(pagina, nome, motivo):
     cartao.locator('[data-testid="curso-cancelar"]').click()
     cartao.locator('[data-testid="curso-cancelar-motivo"]').fill(motivo)
     cartao.locator('[data-testid="curso-cancelar-enviar"]').click()
+    confirmar_no_app(pagina)
     expect(cartao.locator('[data-testid="curso-cancelamento-status"]')).to_have_text("Cancelamento em análise")
     return cartao
 
@@ -1343,6 +1346,7 @@ def _financeiro_decide(financeiro, email, aprovar, motivo=""):
     linha = campo(financeiro, "cancelamento-row").filter(has_text=email)
     if aprovar:
         linha.locator('[data-testid="cancelamento-aprovar"]').click()
+        confirmar_no_app(financeiro)
     else:
         linha.locator('[data-testid="cancelamento-motivo"]').fill(motivo)
         linha.locator('[data-testid="cancelamento-recusar"]').click()
@@ -1357,7 +1361,6 @@ def test_j_alu_05_desistir(s, navegador):
     enrollment, pagamento = s.matricula(aluno.id, curso=c["id"])
     fluxo = "J-ALU-05 Desistir da compra"
     estudante = tela(navegador)
-    estudante.on("dialog", lambda dialogo: dialogo.accept())
     entrar_em(estudante, s, aluno.email, SENHA)
 
     # 1. Pedir cancelamento com motivo: "Cancelamento em análise".
@@ -1366,7 +1369,6 @@ def test_j_alu_05_desistir(s, navegador):
 
     # 2. Financeiro recusa com motivo: o aluno vê o motivo e mantém o acesso.
     financeiro = tela(navegador)
-    financeiro.on("dialog", lambda dialogo: dialogo.accept())
     entrar(financeiro, s, *FIN, "admin")
     _financeiro_decide(financeiro, aluno.email, aprovar=False, motivo="Fora do prazo da turma")
     estudante.reload()
@@ -1396,13 +1398,13 @@ def test_j_alu_05_1n_a_sem_motivo(s, navegador):
     aluno = s.aluno("Sem Motivo")
     s.matricula(aluno.id, curso=c["id"])
     pagina = tela(navegador)
-    pagina.on("dialog", lambda dialogo: dialogo.accept())
     entrar_em(pagina, s, aluno.email, SENHA)
     cartao = cartao_do_curso(pagina, c["name"])
     cartao.locator('[data-testid="curso-cancelar"]').click()
     expect(cartao.locator('[data-testid="curso-cancelar-motivo"]')).to_have_attribute("placeholder", "Motivo (opcional)")
     # D108: o documento espera "não envia; pede o motivo". A D82 fixou o motivo como opcional (tela e API); vale a D82.
     cartao.locator('[data-testid="curso-cancelar-enviar"]').click()
+    confirmar_no_app(pagina)
     expect(cartao.locator('[data-testid="curso-cancelamento-status"]')).to_have_text("Cancelamento em análise")
     assert s.sql("""SELECT COUNT(*) FROM cancellation_requests r JOIN enrollments e ON e.id = r.enrollment_id
                     WHERE e.user_id = ? AND r.status = 'open'""", aluno.id)[0][0] == 1
@@ -1429,7 +1431,6 @@ def test_j_alu_05_1n_c_pedido_aberto(s, navegador):
     aluno = s.aluno("Pedido Aberto")
     s.matricula(aluno.id, curso=c["id"])
     pagina = tela(navegador)
-    pagina.on("dialog", lambda dialogo: dialogo.accept())
     entrar_em(pagina, s, aluno.email, SENHA)
     cartao = _pedir_cancelamento(pagina, c["name"], "Primeiro pedido")
     pagina.reload()
@@ -1450,7 +1451,6 @@ def test_j_ges_01_publicar_curso(s, navegador, tmp_path):
     nome_turma, nome_editado = f"Sabado {_hex(4)}", f"Sabado Integral {_hex(4)}"
     fluxo = "J-GES-01 Publicar um curso"
     gestao = tela(navegador)
-    gestao.on("dialog", lambda dialogo: dialogo.accept())
     entrar(gestao, s, *GESTAO, "admin")
 
     # 1. Cadastro de cursos: novo curso salvo e listado.
@@ -1539,11 +1539,11 @@ def test_j_ges_01_6n_excluir_turma_com_aluno(s, navegador):
     turma_id = turma(s, c["id"], nome_turma)
     s.matricula(s.aluno("Aluno da Turma").id, curso=c["id"], turma=turma_id)
     gestao = tela(navegador)
-    gestao.on("dialog", lambda dialogo: dialogo.accept())
     entrar(gestao, s, *GESTAO, "admin")
     aba(gestao, "Cursos")
     linha = campo(gestao, "turma-row").filter(has_text=nome_turma)
     linha.locator('[data-testid="turma-excluir"]').click()
+    confirmar_no_app(gestao)
     expect(campo(gestao, "turma-erro")).to_have_text(MSG_TURMA_COM_ALUNO)
     expect(linha).to_be_visible()
     assert any(t["id"] == turma_id for t in s.get(f"/api/admin/classes?course_id={c['id']}", s.tk["admin"]).j["classes"])
@@ -1573,11 +1573,11 @@ def test_j_ges_01_8n_arquivar(s, navegador):
     ativo, novo = s.aluno("Aluno Antigo"), s.aluno("Aluno Novo")
     enrollment, _ = s.matricula(ativo.id, curso=c["id"])
     gestao = tela(navegador)
-    gestao.on("dialog", lambda dialogo: dialogo.accept())
     entrar(gestao, s, *GESTAO, "admin")
     aba(gestao, "Cadastro de cursos")
     linha = linha_curso(gestao, c["id"])
     linha.locator('[data-testid="curso-archive"]').click()
+    confirmar_no_app(gestao)
     expect(linha.locator('[data-testid="curso-arquivado"]')).to_have_text("Arquivado")
     foto(gestao, "J-GES-01 Negativos", "8N: arquiva o curso", "Selo Arquivado na lista")
 
@@ -1609,7 +1609,6 @@ def test_j_ges_02_acompanhar_aluno(s, navegador):
     entrar_em(estudante, s, joao.email, SENHA)
     fluxo = "J-GES-02 Acompanhar e atender um aluno"
     gestao = tela(navegador)
-    gestao.on("dialog", lambda dialogo: dialogo.accept())
     entrar(gestao, s, *GESTAO, "admin")
 
     # 1. Alunos: busca e detalhe com curso, turma, status em português, pagamentos e conversas.
@@ -1677,6 +1676,7 @@ def test_j_ges_02_acompanhar_aluno(s, navegador):
     campo(gestao, "alunos-busca").press("Enter")
     gestao.get_by_role("button", name="João Ação Teste").click()
     campo(gestao, "aluno-desativar").click()
+    confirmar_no_app(gestao)
     expect(campo(gestao, "aluno-desativado")).to_have_text("Desativado")
     estudante.reload()
     expect(campo(estudante, "login-sessao-expirada")).to_have_text(MSG_SESSAO_EXPIRADA)
@@ -1724,7 +1724,6 @@ def test_j_ges_03_equipe_e_auditoria(s, navegador):
     email = f"equipe{_hex(8)}@qa.test"
     fluxo = "J-GES-03 Montar a equipe e auditar"
     gestao = tela(navegador)
-    gestao.on("dialog", lambda dialogo: dialogo.accept())
     entrar(gestao, s, *GESTAO, "admin")
 
     # 1. Convida como Suporte: convite listado e link enviado.
@@ -1779,7 +1778,8 @@ def test_j_ges_03_equipe_e_auditoria(s, navegador):
     aba(gestao, "Observabilidade de IA")
     for marcador in ("obs-requests", "obs-cost", "ia-handoff-total", "obs-guardrails", "obs-feedback-up"):
         expect(campo(gestao, marcador)).to_be_visible()
-    expect(campo(gestao, "obs-guardrails").locator("h5")).to_have_text("Guardrails")
+    # DS5 (4.3, D115 → D119 → DS5): a DS3 promoveu o título a <h3 class="h5">; o seletor não depende mais do nível.
+    expect(campo(gestao, "obs-guardrails").get_by_role("heading")).to_have_text("Guardrails")
     expect(campo(gestao, "obs-cost")).to_contain_text("$")
     foto(gestao, fluxo, "Abre a Observabilidade de IA", "Números do chat, custo, encaminhamentos e Guardrails")
 
@@ -1800,7 +1800,6 @@ def test_j_ges_03_6n_desativada(s, navegador):
     s.limpar_limites()
     email = f"desativa{_hex(8)}@qa.test"
     gestao = tela(navegador)
-    gestao.on("dialog", lambda dialogo: dialogo.accept())
     entrar(gestao, s, *GESTAO, "admin")
     antes = s.outbox_tokens()
     _convidar(gestao, email, "Dora Desativa")
@@ -1808,6 +1807,7 @@ def test_j_ges_03_6n_desativada(s, navegador):
     _definir_senha(navegador, s, novo_token(s, antes))
     linha = campo(gestao, "equipe-row").filter(has_text=email)
     linha.locator('[data-testid="equipe-desativar"]').click()
+    confirmar_no_app(gestao)
     expect(linha.locator('[data-testid="equipe-desativada"]')).to_have_text("Desativada")
     pessoa = tela(navegador)
     # D108: o texto completo é "Sua conta está desativada. Fale com o suporte."
@@ -1879,7 +1879,6 @@ def test_j_fin_02_decidir_cancelamentos(s, navegador):
         assert s.post(f"/api/student/enrollments/{e}/cancel-request", {"reason": "Desisti"}, aluno.tk).s == 200
     fluxo = "J-FIN-02 Decidir pedidos de cancelamento"
     financeiro = tela(navegador)
-    financeiro.on("dialog", lambda dialogo: dialogo.accept())
     entrar(financeiro, s, *FIN, "admin")
     aba(financeiro, "Financeiro")
 
@@ -1897,6 +1896,7 @@ def test_j_fin_02_decidir_cancelamentos(s, navegador):
     # 2. Aprovar e reembolsar: pagamento Reembolsado e matrícula sem acesso.
     linha = campo(financeiro, "cancelamento-row").filter(has_text=aprova.email)
     linha.locator('[data-testid="cancelamento-aprovar"]').click()
+    confirmar_no_app(financeiro)
     linha.wait_for(state="detached")
     campo(financeiro, "financeiro-busca").fill(aprova.email)
     campo(financeiro, "financeiro-busca").press("Enter")
@@ -2060,7 +2060,6 @@ def test_j_int_01_do_curso_ao_reembolso(s, navegador, tmp_path):
 
     # 1. Gestão publica curso, material e turma pela tela (J-GES-01).
     gestao = vigiar(tela(navegador))
-    gestao.on("dialog", lambda dialogo: dialogo.accept())
     entrar(gestao, s, *GESTAO, "admin")
     ui_criar_curso(gestao, ident, nome)
     campo(gestao, "curso-save").click()
@@ -2133,11 +2132,9 @@ def test_j_int_01_do_curso_ao_reembolso(s, navegador, tmp_path):
     foto(visitante, fluxo, "4. Conclui o curso e pergunta ao assistente", "Certificado baixado e atalho para pagamentos")
 
     # 5. Pede cancelamento; o Financeiro recusa e depois aprova com reembolso (J-ALU-05, J-FIN-02).
-    visitante.on("dialog", lambda dialogo: dialogo.accept())
     _pedir_cancelamento(visitante, nome, "Mudança de planos")
     estados.append(estado())
     financeiro = vigiar(tela(navegador))
-    financeiro.on("dialog", lambda dialogo: dialogo.accept())
     entrar(financeiro, s, *FIN, "admin")
     _financeiro_decide(financeiro, email, aprovar=False, motivo="Curso concluído")
     visitante.reload()

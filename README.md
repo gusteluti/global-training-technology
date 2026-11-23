@@ -66,6 +66,46 @@ Crie um arquivo em `backend/courses/seu_curso.json` com a estrutura de `example_
 ✅ CORS configurado
 ✅ SQL Injection prevenido (prepared statements)
 
+### Configuração de produção (SG2)
+
+Defina `APP_ENV=production` explicitamente. No startup o app valida a configuração e **não sobe** se faltar ou estiver
+insegura (a mensagem lista as variáveis, nunca os valores): `JWT_SECRET_KEY` (mínimo de 32 caracteres),
+`ADMIN_TOKEN_SECRET` (próprio, diferente das senhas de perfil), senhas de perfil com 12 caracteres ou mais e diferentes
+das senhas públicas do `seed_demo`, `PAYMENTS_MOCK` desligado, `MERCADO_PAGO_WEBHOOK_SECRET` e
+`MERCADO_PAGO_ACCESS_TOKEN` preenchidos, e `CORS_ALLOWED_ORIGINS` só com origens `https://` (sem localhost). Fora de
+produção o app sobe e registra `[AVISO]` para cada problema. Em produção o login legado por senha única
+(`POST /api/admin/login`) fica desligado (404) e o token legado de funcionário não vale.
+
+### IP real atrás de proxy (SG3)
+
+Atrás de nginx, Caddy ou NAT todos chegam com o IP do proxy, e os limites por IP (chat, checkout, checagem de token de
+senha e bloqueio de login) passariam a valer para todos juntos. A variável opcional `TRUSTED_PROXIES` (IPs e CIDRs
+separados por vírgula, IPv4 ou IPv6) diz quais pares TCP são proxies confiáveis. **Padrão vazio**: vale o par TCP e o
+cabeçalho `X-Forwarded-For` é ignorado. Com a lista preenchida e o par TCP nela, o IP do cliente é o primeiro item do
+cabeçalho, lendo da direita para a esquerda, que não seja um proxy confiável; cabeçalho malformado volta ao par TCP, e
+par fora da lista tem o cabeçalho ignorado. Entradas inválidas da lista são ignoradas.
+
+> **Aviso (uvicorn):** o uvicorn 0.24 liga `--proxy-headers` por padrão e confia em `127.0.0.1`. Em produção, atrás de
+> proxy, o app deve rodar com `proxy_headers=False` (`--no-proxy-headers`) para valer só a regra do projeto. Essa
+> mudança de execução será feita na SG5; por ora está apenas documentada.
+
+### Teto de custo e de abuso do chat anônimo (SG4)
+
+O chat da landing (`POST /api/chat`) é público e gasta a chave do Groq. Três variáveis opcionais, **desligadas por
+padrão** (ausente, vazia, `0`, inválida ou negativa = desligado) e lidas a cada requisição, limitam o custo e o abuso.
+Não afetam o chat do aluno logado.
+
+| Variável | O que faz | Sugestão de produção |
+|---|---|---|
+| `CHAT_ANON_DAILY_TOKEN_BUDGET` | Soma os tokens de `ai_usage` do canal anônimo no dia de São Paulo. Ao atingir o teto, o chat anônimo responde o texto fixo "O assistente está com muitas conversas agora. Fale com a nossa equipe pelo WhatsApp ou tente de novo amanhã." (HTTP 200, com o botão de WhatsApp quando `WHATSAPP_HANDOFF_NUMBER` é válido), **sem chamar o LLM**. A soma vem do banco (sobrevive a restart); se o banco não puder ser lido, o chat segue. | 300000 tokens/dia |
+| `CHAT_ANON_DAILY_MESSAGES_PER_IP` | Mensagens por IP em janela deslizante de 24 h; acima do teto, 429. | 200 mensagens/IP/dia |
+| `CHAT_ANON_NEW_SESSIONS_PER_IP_HOUR` | Sessões novas por IP em janela deslizante de 1 h; acima do teto, 429. Continuar uma sessão existente não conta. | 20 sessões novas/IP/hora |
+
+Os dois limites por IP usam o IP efetivo da SG3 (`TRUSTED_PROXIES`) e guardam o estado **em memória do processo**:
+rode **um único worker** (com vários, cada um teria o seu contador) e saiba que um restart zera as janelas. Os 429
+vêm antes de qualquer outra coisa; o teto de tokens vem depois e antes dos guardrails de entrada. Cada resposta fixa do
+teto aparece na aba Observabilidade de IA como bloqueio do tipo `budget`.
+
 ## 🧭 Fase 2 - Área do Funcionário e Governança
 
 A Fase 2 evolui o MVP com o painel administrativo completo descrito no
@@ -83,8 +123,10 @@ a Área do Funcionário:
   aplicação Angular (`frontend/`), que é a interface oficial: abas de
   Financeiro, Alunos, Cursos, Observabilidade de IA e Auditoria, filtradas
   pelo perfil do usuário logado.
-- **Legado**: `frontend/admin.html` continua funcionando, com o login por
-  senha de perfil (`/api/admin/login`), mas não é mais a tela de entrega.
+- **Legado**: `frontend/admin.html` continua funcionando fora de produção, com o login por
+  senha de perfil (`/api/admin/login`), mas não é mais a tela de entrega. Com
+  `APP_ENV=production` esse login responde 404 (SG2): em produção só entram contas
+  de funcionário (`POST /api/token`).
   Cadastro e edição de cursos ainda estão só nele.
 - **Trilhas de auditoria**: tabela `audit_logs` no SQLite; toda alteração
   de preço, criação/edição/remoção de curso e reembolso é registrada com

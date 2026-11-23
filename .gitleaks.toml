@@ -1,0 +1,12 @@
+# Configuracao do gitleaks (SG0). Mantem as regras padrao e libera apenas valores ficticios de teste.
+title = "global-training-technology"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Valores ficticios usados pelos testes de configuracao de producao (SG2) e de IP confiavel (SG3). Nao sao credenciais reais."
+paths = [
+  '''backend/tests/test_sg2_configuracao_producao\.py''',
+  '''backend/tests/test_sg3_ip_confiavel\.py''',
+]

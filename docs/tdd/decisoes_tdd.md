@@ -1803,3 +1803,250 @@ dois casos de UI da sala no QA falham só neste ambiente, que bloqueia o YouTube
 **Para revisão do PM:** "Link inválido ou expirado. Peça um novo link para continuar.", "Pedir um novo link", "Conversas no
 chat"; para funcionário com convite expirado, "Pedir um novo link" leva à recuperação de senha do aluno (talvez devesse ser
 "peça novo convite à Gestão").
+
+## D109 — Plano SG: segurança da superfície pública (13/11/2026, pedido do PM)
+O PM pediu uma solução para a landing pública compartilhar banco com dados de alunos e funcionários e um levantamento das
+demais aberturas. Plano completo em `docs/tdd/PLANO_SG.md` (entregas SG0 a SG10). O PM aprovou o plano em 13/11/2026
+("implemente o plano") sem alterar as recomendações P1 a P10; vale o que está lá:
+- P1 remover `GET /api/chat/courses-debug`; P2 `/health` público mínimo e detalhe em `GET /api/dashboard/saude` só para a
+  Gestão; P3 login legado `/api/admin/login` desligado em produção; P4 `TRUSTED_PROXIES` (padrão vazio = D79 intacta);
+  P5 tetos do chat anônimo (300.000 tokens/dia, 200 msgs/IP/dia, 20 sessões novas/IP/hora; padrão desligado); P8 SG7 entra;
+  P10 base na `main` depois do merge do PR #8 (`985e352`).
+- **Escopo desta rodada:** SG0 a SG7. SG8 (Turnstile), SG9 (TOTP) e SG10 (retenção e backup cifrado) são opcionais e ficam
+  para decisão do PM depois da onda 3.
+- **Risco aceito (SG0):** o histórico do repositório não é reescrito (decisão anterior do grupo); credenciais vazadas
+  precisam ser rotacionadas por Victor e Gustavo (manual).
+- **Processo:** branch de projeto `feature/fase2-seguranca` (a partir da `main` `985e352`); sub-branch `feature/sg<N>-...`
+  por entrega; regressão completa ao fim de cada onda (1: SG1–SG4; 2: SG5–SG6; 3: SG7); falhas conhecidas da D107 continuam
+  registradas e não bloqueiam.
+
+## D110 — SG0: CI e higiene do repositório (13/11/2026)
+Entregue conforme o plano SG. `.github/workflows/ci.yml` (gatilhos `pull_request` e `push`, `permissions: contents: read`, sem
+`secrets.` e sem `pull_request_target`): suíte completa do backend **informativa** (`continue-on-error`, por causa das 13 falhas
+conhecidas da D107) e passo **obrigatório** `pytest tests/test_sg*.py`; `pip-audit` e `npm audit --omit=dev` **informativos**;
+gitleaks 8.21.2 (hash conferido) só no evento `pull_request` e só na faixa `origin/<base>..HEAD`, nunca no histórico.
+`pyyaml` entrou no `requirements-dev.txt`. Testes: `test_sg0_higiene.py` (36: 12 do workflow, 9 de padrões de segredo em
+arquivos rastreados, 17 de `.gitignore` e arquivos rastreados). Padrão de `SMTP_PASSWORD=` ajustado para ignorar prosa e
+placeholders; sem exceção por caminho. **Ciclo:** red `a457c9b`; workflow `d25abc5`; 36/36.
+**Não verificado (só dá para ver no GitHub):** `cache: pip/npm`, `pip install pip-audit`, `npm ci` do Angular 15 com Node 18 e
+`origin/<base>` com `fetch-depth: 0`. **Manual, com Victor e Gustavo:** rotacionar token do Mercado Pago, senha de app do Gmail
+e token do GitHub; ativar Secret scanning, Push protection e Dependabot; branch protection em `main` (PR obrigatório, 1
+aprovação, sem force-push). **Pendência registrada:** tornar `pip-audit`, `npm audit` e a suíte completa obrigatórios depois de
+corrigir as falhas da D107 e as vulnerabilidades apontadas.
+
+## D111 — SG1: superfície de descoberta e cabeçalhos da API (13/11/2026)
+Entregue conforme o plano SG e as decisões P1/P2 da D109:
+- `/docs`, `/redoc` e `/openapi.json` só existem com `APP_ENV` = `development` ou `test` (ausente conta como produção: 404);
+- `GET /api/chat/courses-debug` removido (404);
+- `/health` e `/api/health` públicos devolvem só `{"status": "ok"|"degraded"}` (`{"status": "error"}` sem texto de exceção);
+  o detalhe (`services`, `courses_loaded`, `llm`, `available_models`, `payments_mock`) está em `GET /api/dashboard/saude`, só Gestão;
+- toda resposta da API (inclusive 401/404/405/422/429, preflight CORS e 500 tratado) leva `nosniff`, `X-Frame-Options: DENY`,
+  `Referrer-Policy: no-referrer` e `Permissions-Policy`; respostas JSON (inclusive o download `meus-dados.json`) levam
+  `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`; PDF e CSV não levam CSP (quebraria o visualizador);
+  `Cache-Control: no-store` em `/api/token`, `/api/auth/*`, `/api/admin/*`, `/api/dashboard/*`, `/api/student/*`;
+  HSTS só com `APP_ENV=production`. Código em `core/cabecalhos.py` (middleware ASGI puro + handler de `Exception`).
+- **Tela (decisão do orquestrador, para revisão do PM):** o cartão "Saúde do sistema" da aba Observabilidade de IA agora só
+  aparece para a Gestão e lê `/api/dashboard/saude`; Financeiro e Suporte deixam de vê-lo (consequência direta da P2).
+**Ajustes mecânicos (4.3, D109 → D111):** `test_x3_x4_operacao.py` e `test_o0_checkout_aluno.py` (leem `payments_mock` da rota
+nova com token da Gestão); `test_qa_istqb.py` (courses-debug agora afirma 404; matriz RBAC ganhou `/api/dashboard/saude`);
+`test_x4_saude_angular.py` (entra como Gestão).
+**Ciclo:** red `9763a3a`, `272f298`, `f3be491`; backend `0694f24`; frontend `db78039`. Suítes da entrega 283 passed;
+regressão completa do backend 2793 passed e as 13 falhas conhecidas da D107; e2e SG1 5/5, X4, E7, GR5 painel, F6, X5 e admin
+verdes; builds de desenvolvimento e produção limpos. **Observado:** `test_gr5_feedback_chat` (A3, POST de feedback) é
+intermitente, falhou também com a mudança guardada, então não é desta entrega.
+**Fora do escopo, aberto:** `GET /` ainda lista `/docs` e `/health`; README, `backend/README.md` e a documentação técnica ainda
+descrevem o `/health` antigo (atualizar na entrega de documentação do deploy, SG5).
+
+## D112 — SG2: configuração de produção que não sobe insegura (13/11/2026)
+Entregue conforme o plano SG e a decisão P3 da D109:
+- `core/configuracao.py`: `validar_configuracao(env=None)` lista todos os problemas (cada um cita só o nome da variável, nunca o
+  valor) e `exigir_configuracao_segura()` levanta `RuntimeError` **no startup** quando `APP_ENV=production` (normalizado como na
+  SG1). Recusa: `JWT_SECRET_KEY` com menos de 32 caracteres; `ADMIN_TOKEN_SECRET` ausente ou igual a uma senha de perfil;
+  senha de perfil com menos de 12 caracteres ou igual à do `seed_demo`; `PAYMENTS_MOCK` ligado; `MERCADO_PAGO_WEBHOOK_SECRET` ou
+  `MERCADO_PAGO_ACCESS_TOKEN` vazios; `CORS_ALLOWED_ORIGINS` ausente, com localhost ou com origem `http://`. Fora de produção
+  só `[AVISO]` por problema.
+- `POST /api/admin/login` (legado) responde 404 em produção (sem falha, auditoria nem tentativa registrada); em `development` e
+  `test` igual a hoje. Em produção o token administrativo legado é recusado (401) e `get_admin_secret()` não cai para
+  `ADMIN_PASSWORD`. Os funcionários entram por conta individual (`POST /api/token`, S3).
+- `codigo_validacao` do certificado sem o fallback `"gt"`: sem `JWT_SECRET_KEY` levanta erro; com a chave, o código é idêntico
+  ao de antes (8 valores de referência no teste), então certificados já emitidos continuam válidos.
+- Documentação: `AGENTS.md` 6.1, `README.md`, `backend/README.md` e `.env.example` (comentário).
+**Ciclo:** red `1795254`; backend `b087d25`. Suíte SG2 158/158; SG0+SG1+SG2 349 passed; regressão completa do backend 2951 passed e
+as 13 falhas conhecidas da D107.
+**Para revisão do PM:**
+1. `frontend/admin.html` (painel da Fase 1, fora do Angular) usa o login legado e **deixa de funcionar em produção**; o painel
+   oficial é o Angular. Decidir se `admin.html` sai do repositório ou fica só para demonstração local.
+2. Com `APP_ENV` **ausente**, o app se comporta como fora de produção (só avisos, login legado ativo): os e2e removem
+   `APP_ENV`. O checklist de deploy (SG5) vai exigir `APP_ENV=production` explícito.
+3. Os placeholders do `.env.example` (`troque_essa_senha` etc.) **não** são recusados; sugestão: tratá-los como valores públicos,
+   como a senha do seed. É política nova, fica para decisão.
+4. Textos das mensagens de problema (o que o operador vê no log de subida).
+5. `SENHAS_PUBLICAS_DO_SEED` está duplicada em `core/configuracao.py` (o `seed_demo` carrega `.env` e banco ao importar); trocar
+   nos dois lugares se a senha do seed mudar.
+**Fora do escopo, aberto:** `DOCUMENTACAO_TECNICA_TCC*` e `README_PHASE2.md` ainda não descrevem a validação de produção.
+
+## D113 — SG3: IP real atrás de proxy confiável (13/11/2026)
+Entregue conforme o plano SG e a decisão P4 da D109 (revisa a D79):
+- `TRUSTED_PROXIES` (IPs e CIDRs, IPv4 e IPv6, lida a cada requisição; **padrão vazio = comportamento da D79**: `X-Forwarded-For`
+  ignorado). Função única `core/cliente_ip.py: ip_do_cliente(request)`, usada por `rate_limit` (chat, checkout, checagem de link
+  de senha) e `login_limit` (bloqueio por IP, `login_attempts`, evento `auth.locked`).
+- Regra (decisão do orquestrador): se o par TCP está na lista, lê o `X-Forwarded-For` **da direita para a esquerda**, pula os
+  proxies confiáveis, e o primeiro item que não é proxy é o cliente; se ele for malformado vale o par TCP; tudo à esquerda dele é
+  ignorado (controlado pelo atacante); se todos são proxies, o mais à esquerda. Par TCP fora da lista ignora o cabeçalho
+  (anti-spoof). Várias linhas do cabeçalho são juntadas na ordem. Só `X-Forwarded-For` conta. Entradas inválidas na lista são
+  ignoradas e nunca derrubam o app.
+- Testes: `test_sg3_ip_confiavel.py` (101 casos); `conftest.py` isola `TRUSTED_PROXIES`; ajuste mecânico 4.3 (D109 → D113) nos
+  docstrings e na fixture de `test_s2_limites_seguranca.py`.
+**Ciclo:** red `f1a0c03`, `20b2eb5`, `ae8c38e`; backend `ae9c41c`. SG3 101/101; S2 e relacionadas verdes; regressão completa do backend
+3052 passed e as 13 falhas conhecidas da D107.
+**Aberto, entra no SG5:** o uvicorn 0.24 liga `--proxy-headers` por padrão e confia em `127.0.0.1`; atrás de proxy local ele pode
+reescrever `request.client` antes da regra do projeto. O deploy deve rodar com `proxy_headers=False` (o `uvicorn.run` do `app.py`
+ainda não foi alterado). Não testado: IPv4 mapeado em IPv6, host bits em CIDR, execução real atrás de nginx/Caddy.
+Os limites de chat e checkout continuam em memória: o serviço roda com **um** worker.
+
+## D114 — SG4: teto de custo e de abuso do chat anônimo (13/11/2026)
+Entregue conforme o plano SG e a decisão P5 da D109 (todos os tetos **desligados por padrão**; valores de produção sugeridos ficam
+na documentação):
+- `CHAT_ANON_DAILY_TOKEN_BUDGET`: soma de `ai_usage` do canal anônimo no dia de São Paulo; ao atingir o teto, a próxima mensagem do
+  chat anônimo recebe `CHAT_INDISPONIVEL` ("O assistente está com muitas conversas agora. Fale com a nossa equipe pelo WhatsApp ou
+  tente de novo amanhã.") com 200, sem nenhuma chamada ao LLM, `outcome='unresolved'`, `guard='budget'` (valor novo do vocabulário
+  fechado) e a ação de handoff da F6 quando há número. O chat do aluno logado não é afetado. Falha ao ler o banco para o teto:
+  o chat segue (fail-open).
+- `CHAT_ANON_DAILY_MESSAGES_PER_IP` (janela deslizante de 24 h) e `CHAT_ANON_NEW_SESSIONS_PER_IP_HOUR` (1 h): 429 com `ERRO_CHAT`,
+  pelo IP efetivo da SG3; mensagem barrada não conta nem estende a janela; estado em memória (um worker), zerado por
+  `redefinir_limites()`.
+- Ordem no `POST /api/chat`: 429 por IP (minuto, diário, sessões novas) → mensagem vazia/longa → sessão → **teto de tokens** →
+  guardrails de entrada e LLM. Escolha do dev: o teto vem antes dos guardrails de entrada para garantir zero chamadas (o
+  classificador externo `GUARD_MODEL` gasta tokens). Consequência para o PM: com o teto estourado, injeção, fora do assunto e
+  pedido de dado pessoal também recebem `CHAT_INDISPONIVEL` e contam como `budget`. Toda mensagem que passa o limite por minuto
+  conta nos tetos diários, inclusive a resposta fixa.
+- Painel: o cartão "Guardrails" ganha a linha "Teto diário atingido" (`budget`; `guards.by_type` passa a 11 chaves).
+**Ajustes mecânicos (4.3, D109 → D114):** `test_gr5_avaliacao_feedback.py` (P1/P2, `GUARDS_PAINEL`) e
+`test_gr5_painel_guardrails_angular.py` (`GUARDS` ganha `budget`); `conftest.py` isola as três variáveis.
+**Ciclo:** red `04c0109`; backend `ff5c2fe`; frontend `053468e`. Backend SG4 100/100; regressão completa 3152 passed e as 13
+falhas conhecidas da D107; e2e SG4 6/6, GR5 painel 10/10, GR5 feedback, E7, SG1, F6 (landing e Angular) verdes; builds limpos.
+**Para revisão do PM:** o texto `CHAT_INDISPONIVEL`; o rótulo "Teto diário atingido"; a ordem acima; valores de produção
+(300.000 tokens/dia, 200 msgs/IP/dia, 20 sessões novas/IP/hora). **Não verificado:** mais de um worker; custo do `SUM` em
+`ai_usage` grande (índice só em `created_at`); comportamento no uvicorn real.
+
+## D115 — Plano de design aprovado (PLANO_DESIGN, DS0 a DS5) (22/11/2026)
+O PM aprovou o `docs/tdd/PLANO_DESIGN.md` com a ordem "implemente o plano, não altere nenhuma lógica e funcionalidade. Utilize
+o nosso framework de agentes de teste e de implementação". Branch do projeto: `feature/fase2-design`, criada a partir de
+`feature/fase2-seguranca` (`9461073`, onda 1 do SG) para não divergir do código mais novo; sub-branches por entrega
+(`feature/fase2-design-ds0` …), merge `--no-ff` na branch do projeto, push só dela, nunca na `main`.
+**Regra que vale em todas as entregas DS:** nenhuma mudança de backend, rota, contrato, permissão, texto de erro ou fluxo. O dev
+mantém os `data-testid`, ids, classes e textos que os e2e existentes usam; se um e2e antigo quebrar por motivo visual, o ajuste é
+do agente-testes (4.3, D115 → D-entrega), nunca do dev. A troca do `confirm()` do navegador pela janela do próprio app preserva o
+comportamento (confirmar executa, voltar não faz nada); os e2e que aceitavam o diálogo nativo passam a clicar no botão da janela
+(ajuste mecânico 4.3).
+**Decisões D-A a D-G** (tabela "Decisões resolvidas" do plano): logo derivada para fundo claro aprovada; laranja só no botão de
+conversão com texto escuro; números ilustrativos do hero trocados por garantias verificáveis (revoga essa parte da D106); campos
+novos de turma/vagas/carga horária na API **rejeitados** (sem mudança de lógica); "Área do funcionário" só no rodapé da landing;
+landing refeita nesta onda sem tocar no script inline; fonte hospedada fica para o SG6.
+**Critérios medidos:** contraste AA (≥ 4,5:1 em texto normal), um `h1` por tela, rótulo em cada campo, alvo de toque ≥ 44 px,
+nenhum `confirm()`, nenhuma rolagem horizontal a 390 px.
+
+## D116 — DS0: fundação do design (22/11/2026)
+Entregue conforme o PLANO_DESIGN e a D115: logo oficial (`frontend/src/assets/brand/`, versão de fundo escuro na barra, 52 px;
+44 px no celular) no lugar do disco "GT" em CSS; tokens `--gt-link #0077a3` e `--gt-link-hover #005f84` para todo texto azul
+(links, aba ativa, `.btn-outline-primary`), `.btn-primary` com fundo `#0077a3` e texto branco (5,04:1); `#0096c7` só em
+preenchimento, borda e foco; piso de 14 px em `.form-label`, rodapé e rótulo de perfil; `angular.json` com `assets`;
+`docs/DESIGN.md` atualizado (pares de contraste, logo, pisos, 44 px, D-B e D-C). Helper `frontend/e2e/apoio_contraste.py`
+(varredura WCAG AA) para as próximas entregas.
+**Ajustes mecânicos (4.3, D115 → D116):** D1 V2 (logo vira imagem), V4 (botão Entrar em azul da marca com AA), V7 (aba ativa com
+AA); D3 G5 (preço em azul da marca com AA para texto grande).
+**Ciclo:** red `cf2dc93`; frontend `fb2c379`. e2e DS0 2/2 (A1–A4, F1–F14), D1 10/10, D3 10/10, D4 2/2, D2 10/10, B1 10/10,
+admin 34/34; build limpo. **Fica para DS2/DS3:** `#0096c7` como texto no CSS de `student-dashboard` e `course-catalog`; textos de
+12–13 px em telas logadas (cabeçalho de tabela, nota do chat da sala); logo no rodapé (D1 V6 lê o texto do rodapé).
+
+## D117 — DS1: componentes base (22/11/2026)
+Entregue conforme o PLANO_DESIGN e a D115: `ConfirmacaoService` + `ConfirmacaoComponent` (um só, na casca) substituem as 8
+chamadas de `confirm()` do navegador. A janela tem `role="alertdialog"`, `aria-modal`, título e texto com a pergunta de antes
+palavra por palavra, foco inicial em "Voltar", Tab preso, Esc = Voltar, foco devolvido à origem; confirmar executa exatamente o
+código que vinha depois do `confirm()`, voltar não faz requisição. Destrutivas (`#b42318`, texto branco): excluir conta, desativar
+conta (equipe e aluno), excluir turma, excluir curso, aprovar e reembolsar, confirmar reembolso. Não destrutivas: pedir
+cancelamento, reativar, arquivar e desarquivar. Clicar no fundo não fecha (alertdialog).
+Um `h1` por tela (títulos existentes promovidos com a classe de tamanho antiga; no `/admin`, "Painel administrativo" é o único
+`h1` de todas as abas — a hierarquia interna das abas fica para a DS3); `label[for]`/`aria-label` em todos os campos; alvos
+≥ 44 px por CSS global (`.btn`, `.nav-link`, `.btn-sm`, atalhos, lista da sala); `flex-wrap` nos dois subpainéis que estouravam
+a 390 px (detalhe do aluno 485 px, alunos do curso 411 px).
+**Ajustes mecânicos (4.3, D115 → D117):** diálogo nativo → janela do app (helper `apoio_confirmacao.py`) em admin, f1,
+jornadas_usabilidade, qa_fluxos, qa_istqb, s3, s4, u5, u7, u8, x5; J-VIS-02 lê o título de Termos/Privacidade em `h1`.
+**Ciclo:** red `834685a`; frontend `cd7b245`; ajuste `f6838a0`. e2e DS1 2/2 (19 checks) e estático 2/2; admin 34/34, f1 11/11,
+s3, s4 12/12, u5 8/8, u7, u8 10/10, x5 10/10, f7 11/11, l2 24/24, b1 10/10, b2 8/8, d1 10/10, d2 10/10, d4 2/2, e2 8/8,
+e3 7/7, ds0 2/2, jornadas 74/74, qa_fluxos 18/18, qa_istqb 524/526, o0, x1, x2, f3 11/11, u1 13/13, l1 16/16, u4 7/7, s2 5/5,
+d3 10/10, e7 11/11, e8 17/17; build limpo. **Não verificado (ambiente):** CT-UI-14, CT-UI-15 e `test_c_sala_curso` dependem do
+player do YouTube, bloqueado pelo proxy do sandbox; falham igual em `fa81ca7` (antes da DS1). Rodar na máquina do PM.
+**Riscos anotados:** o rótulo do botão de confirmar repete o botão de origem com a janela aberta; a atualização automática de 30 s
+(X5) não pausa com a janela aberta (não alterado por ser comportamento).
+
+## D118 — DS2: área do aluno (22/11/2026)
+Entregue conforme o PLANO_DESIGN e a D115: topo da área do aluno e do catálogo em fundo sólido (sem gradiente atrás do texto);
+resumo vira faixa de números (`<dl data-testid="aluno-resumo">`, borda única, divisórias, valores `#17212b` tabulares; empilha no
+celular); status de curso e de pagamento com ponto (`.badge-status::before`, sem texto, os textos "Ativa"/"Em análise" seguem
+exatos); laranja de conversão (`--gt-cta`, `.btn-cta`, texto `#17212b`, 6,25:1) só em "Comprar cursos" e no botão de compra do
+catálogo (D-B); estados vazios de "Meus cursos" e do histórico com o texto de antes e o link "Ver cursos" para `/catalogo`;
+"Baixar certificado" em estilo secundário (uma ação principal por cartão); balão do aluno em `#0077a3`; preço do catálogo em
+`#0077a3`; piso de 14 px em badges, cabeçalho de tabela, rótulos do resumo, notas do chat e da sala; botões de feedback do chat com
+44 × 44 px; histórico empilhado no celular sem herdar `min-width` da tabela. Uma coluna no computador largo (escolha conservadora).
+**Ciclo:** red `de8b480`; frontend `70e2b0a`. e2e DS2 2/2 (V 3/3, 20/20); ds1, ds0, d2 10/10, d3 10/10, d4, e3 7/7, e5 11/11,
+b2 8/8, o0 7/7, s1 7/7, f5a 8/8, f6 7/7, gr1, gr4, gr5, x1, x2, u5 8/8, s4 12/12, f2 10/10; build limpo.
+**Falhas que já existiam (não vêm da DS2; idênticas com o código de antes, `de8b480`):** GR3 P3/L3 (o chat mostra a mensagem
+mascarada e o teste procura a pergunta original) e F5b G5 (resposta do bot não aparece). Ficam como pendência fora do plano de
+design.
+
+## D119 — DS3: painel da equipe (23/11/2026)
+Entregue conforme o PLANO_DESIGN e a D115, sem mudança de abas por perfil: `h2` no topo de cada aba (Financeiro, Cursos, Cadastro
+de cursos e Observabilidade de IA ganharam um `h2` visível com o nome da aba; Alunos, Auditoria e Equipe tiveram o título atual
+promovido) e nos subpainéis (aluno, alunos do curso, conteúdos, Novo/Editar curso); seções em `h3`/`h4` com a aparência antiga;
+toda tabela com `aria-labelledby` para o título da seção e `scope="col"` em todo `th` (ações com "Ações" visualmente oculto);
+`.badge-status` em todos os status (transações, arquivado, desativado, saúde, equipe); KPIs do Financeiro numa faixa
+(`dl.gt-faixa`, classes globais em `styles.css`); `code` em tabela com 14 px; no `/admin`, cartões com raio 10 px sem sombra e
+cabeçalho de tabela `#f3f6f9`/`#3b4652`.
+**Correção da D117:** excluir curso e excluir conteúdo **não** usam a janela da DS1; continuam com a confirmação em dois passos
+na própria linha (fluxo da F1/L2, mantido pela regra da D115).
+**Ciclo:** red `1003a5f`; frontend `8efa94a`. e2e DS3 2/2 (4/4, 21/21); admin 34/34, d3, d4, ds0, ds1, ds2, e5 9/9, e7 11/11,
+e8 17/17, f1 11/11, f3 11/11, f7 11/11, gr5 10/10, l1 16/16, l2 24/24, s3, sg1, u1 13/13, u4 7/7, u5 8/8, u8 10/10, x4; build
+limpo. **Para revisão do PM:** o `h2` visível com o nome da aba em quatro abas (as outras três já tinham título próprio).
+**Fica para a DS5:** unificar a faixa da DS2 (`.aluno-resumo`) com `.gt-faixa`.
+
+## D120 — DS4: landing como catálogo (23/11/2026)
+Entregue conforme o PLANO_DESIGN e as decisões D-B a D-F da D115, só em `frontend/landing_global_training.html`: logo oficial
+embutida (`data:` URI) na barra e no rodapé; barra com links de seção (Cursos, Como funciona, Dúvidas; ocultos por CSS abaixo de
+720 px) e "Área do aluno"; "Área do funcionário" só no rodapé (D-E); hero escuro `#212830` com grade em pseudo-elemento, CTA
+laranja "Ver cursos abertos" e garantias verificáveis no lugar de 10k+/500+/100% (D-C); `#cursos` logo depois do hero, cartões com
+"Matricular agora" laranja (D-B) e "Tirar dúvidas com IA" secundário; bloco "Treinamento para a sua empresa" (abre o chat);
+passos; "Em todos os cursos" com "Certificado de conclusão" no lugar de "Certificado reconhecido pelo mercado" (a base diz que é
+certificado de curso livre); "Dúvidas frequentes" (`#duvidas`) com respostas tiradas de `backend/knowledge`; faixa final; piso
+14 px, alvos 44 px, balão do usuário `#0077a3`. **Script inline idêntico a `c6f3342`** (guarda estática `test_ds4_script_inalterado`);
+só a string de template do cartão mudou de marcação. Sem filtros e sem campo novo de API (D-D).
+**Ajuste mecânico (4.3, D115 → D120):** D3 vitrine passa a procurar "Área do funcionário" no rodapé (D-E).
+**Ciclo:** red `9942c74`; landing `b608a76`. ds4 16/16, guarda 7/7, d4 2/2, d3 vitrine 5/5, d1, e6 8/8, f6 5/5, gr2 6/6, sg4 6/6;
+build limpo. **Falhas que não vêm da DS4:** F5b L4 (falha igual com a landing de `c6f3342`), GR3 P3/L3 (D118); J-GES-03 da
+jornada procura `[data-testid=obs-guardrails] h5`, que a DS3 promoveu (ajuste mecânico pendente para a DS5).
+**Para revisão do PM:** os textos novos do bloco de empresas, das dúvidas e da faixa final; Termos/Privacidade ficaram fora do
+rodapé da landing (são rotas do Angular e um link estático não segue o `APP_URL` sem script novo).
+
+## D121 — DS5: fechamento da onda de design (23/11/2026)
+Regressão completa depois de DS0–DS4, feita pelo agente-testes na sub-branch `feature/fase2-design-ds5` (commit `ffb11ad`,
+merge `2f22a65`). **Nenhuma regressão causada pela onda de design.**
+**Ajuste mecânico (4.3, D115 → D119 → DS5):** `test_jornadas_usabilidade.py::test_j_ges_03_equipe_e_auditoria` lia o título do
+cartão Guardrails por `h5`; a DS3 promoveu esse título para `<h3 class="h5">`. O seletor passou a `get_by_role("heading")`,
+que continua estrito (falha com mais de um título no cartão). Prova: com o seletor antigo o teste falha em `3ba3b95`; com o
+novo, a jornada passa 74/74. Nenhum outro seletor por tag de título aponta para telas da DS3.
+**Resultados:** backend 3152 passed e 13 failed (gr4 ×6, gr5 ×7), igual à D114 (as 13 da D107). `ng build` limpo (mesmos
+avisos da base `9461073`: target ES2022 e três seletores do Bootstrap). e2e, um por vez, 60 arquivos: todos verdes, menos as
+falhas abaixo. Varredura final DS0–DS4 verde na árvore `ffb11ad`.
+**Falhas que não vêm da onda (provadas numa worktree em `9461073`, com a mesma mensagem):**
+- ambiente: `test_c_sala_curso` e `qa_istqb` CT-UI-14/CT-UI-15 esperam o player do YouTube, e o proxy do sandbox bloqueia
+  `youtube.com` (403);
+- já existiam: GR3 P3/L3, F5b G5 e F5b L4 (D118, D120).
+**Não executados aqui:** `test_video_real_angular` e `test_qa_chat_llm_real` (internet e LLM reais), e os três testes do
+YouTube com acesso liberado. Ficam para a máquina do PM.
+**Varredura de contraste e `h1`:** coberta pelos e2e DS0–DS4, que medem contraste AA pelo estilo computado e um `h1` em cada
+rota do aluno, no painel da equipe e na landing. **Capturas antes e depois:** não feitas nesta entrega (opcional, a pedido).
+**`docs/DESIGN.md` final:** cores novas (`--gt-cta-hover`, `#cbd5df`, `#7fd8f0`, `#b42318`), `.btn-cta`, janela de
+confirmação, `.badge-status`, `.gt-faixa`, tabelas, estado vazio, títulos por tela, ordem dos blocos da landing e D-C aplicada.
+**Fica em aberto (não bloqueia):** unificar `.aluno-resumo` com `.gt-faixa` (refatoração de CSS, D119); o rótulo do botão de
+confirmar repete o texto do botão de origem; a atualização automática de 30 s não pausa com a janela aberta (o formulário
+aberto já pausa, a janela não). Itens para revisão do PM listados na D119 e na D120.

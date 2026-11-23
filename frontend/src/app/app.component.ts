@@ -2,7 +2,8 @@ import { Component } from '@angular/core';
 import { Router } from '@angular/router';
 import { AuthService } from './services/auth.service';
 
-// Casca da SPA no design da landing page (D66): barra escura com o logo "GT", conteúdo e rodapé escuro.
+// Casca da SPA no design da landing page (D66): barra escura com o logo oficial (D115, versão de fundo escuro),
+// conteúdo e rodapé escuro. A janela de confirmação do app (DS1, D115) fica aqui, uma vez só, fora das telas roteadas.
 // O logo não é link: o link "voltar ao login" das telas de senha é verificado pelo e2e da B1 e não pode
 // ficar trivialmente satisfeito pela barra.
 @Component({
@@ -10,11 +11,8 @@ import { AuthService } from './services/auth.service';
   template: `
     <nav class="gt-nav" data-testid="app-nav">
       <a class="gt-logo gt-logo-link" data-testid="app-logo" [routerLink]="inicio()" aria-label="Ir para a página inicial">
-        <div class="gt-logo-circle" aria-hidden="true">GT</div>
-        <div class="gt-logo-text">
-          <span data-testid="app-logo-nome">Global Training</span>
-          <span>Technology</span>
-        </div>
+        <img class="gt-logo-img" src="assets/brand/gtt-logo-fundo-escuro.webp" alt="Global Training Technology"
+             width="123" height="52">
       </a>
       <div class="gt-nav-actions" *ngIf="auth.isAuthenticated()">
         <span class="gt-nav-role">{{ auth.getRoleLabel() }}</span>
@@ -29,6 +27,7 @@ import { AuthService } from './services/auth.service';
     <footer class="gt-footer" data-testid="app-footer">
       <strong>Global Training Technology</strong> · Plataforma educacional
     </footer>
+    <app-confirmacao></app-confirmacao>
   `
 })
 export class AppComponent {

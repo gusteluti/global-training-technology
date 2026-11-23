@@ -1,21 +1,22 @@
+<h2 class="gt-aba-titulo">Cadastro de cursos</h2>
 <div class="card mb-3">
   <div class="card-body">
-    <h5>Cursos cadastrados</h5>
+    <h3 class="h5" id="cadastro-cursos-titulo">Cursos cadastrados</h3>
     <div class="table-responsive">
-      <table class="table table-hover align-middle mb-0">
+      <table class="table table-hover align-middle mb-0" aria-labelledby="cadastro-cursos-titulo">
         <thead>
           <tr>
-            <th>Curso</th>
-            <th>Preço</th>
-            <th>Duração</th>
-            <th></th>
+            <th scope="col">Curso</th>
+            <th scope="col">Preço</th>
+            <th scope="col">Duração</th>
+            <th scope="col"><span class="visually-hidden">Ações</span></th>
           </tr>
         </thead>
         <tbody>
           <tr *ngFor="let c of courses" data-testid="curso-row" [attr.data-course-id]="c.id">
             <td>
               {{ c.name }}
-              <span class="badge bg-secondary ms-2" data-testid="curso-arquivado" *ngIf="c.archived">Arquivado</span>
+              <span class="badge badge-status bg-secondary ms-2" data-testid="curso-arquivado" *ngIf="c.archived">Arquivado</span>
             </td>
             <td>{{ c.price | currency:'BRL' }}</td>
             <td><ng-container *ngIf="c.duration_hours !== null">{{ c.duration_hours }} h</ng-container></td>
@@ -45,7 +46,7 @@
 
 <div class="card">
   <div class="card-body">
-    <h5>{{ editing ? 'Editar curso' : 'Novo curso' }}</h5>
+    <h2 class="h5">{{ editing ? 'Editar curso' : 'Novo curso' }}</h2>
     <div class="alert alert-danger" *ngIf="error" data-testid="curso-error">{{ error }}</div>
     <div class="alert alert-success" *ngIf="success" data-testid="curso-success">{{ success }}</div>
 

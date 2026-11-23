@@ -2288,12 +2288,26 @@ class Database:
         finally:
             conn.close()
 
+    @staticmethod
+    def get_anonymous_tokens_between(inicio_utc: str, fim_utc: str) -> int:
+        """SG4: soma de total_tokens de ai_usage do canal anônimo (todas as sessões; roteamento e resposta) com
+        created_at em [inicio_utc, fim_utc), textos UTC no formato do banco."""
+        conn = sqlite3.connect(Database.DB_PATH)
+        try:
+            return conn.execute(
+                "SELECT COALESCE(SUM(total_tokens), 0) FROM ai_usage "
+                "WHERE channel = 'anonymous' AND created_at >= ? AND created_at < ?",
+                (inicio_utc, fim_utc),
+            ).fetchone()[0]
+        finally:
+            conn.close()
+
     # --- GR5 (D95): guardrails no painel e feedback das respostas -------------------------------------------------
 
-    # Vocabulário fechado de ai_interactions.guard (PLANO_GR; `input_login` desde a D99).
+    # Vocabulário fechado de ai_interactions.guard (PLANO_GR; `input_login` desde a D99; `budget` desde a SG4).
     AI_GUARDS = (
         "no_source", "input_injection", "input_off_topic", "input_login", "input_pii",
-        "output_leak", "output_offer", "output_link", "output_promise", "output_unverified",
+        "output_leak", "output_offer", "output_link", "output_promise", "output_unverified", "budget",
     )
     AI_RATINGS = ("up", "down")
 

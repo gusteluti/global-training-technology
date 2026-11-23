@@ -3,7 +3,8 @@
 L1 cadastro: "Criar conta" só habilita depois de marcar o aceite; os links levam aos Termos e à Privacidade.
 L2 área do aluno: aviso de gravação no chat.
 L3 Meu perfil → "Baixar meus dados" baixa um JSON com o e-mail do aluno.
-L4 Meu perfil → excluir com a senha certa (confirm aceito) → login com "Sua conta foi excluída." e o login antigo falha.
+L4 Meu perfil → excluir com a senha certa (confirmação aceita na janela do app, DS1/D115) → login com "Sua conta foi
+   excluída." e o login antigo falha.
 """
 
 import json
@@ -12,6 +13,7 @@ import uuid
 import pytest
 from playwright import sync_api
 
+from apoio_confirmacao import confirmar_no_app
 from apoio_harness_h1 import ambiente_isolado
 
 TIMEOUT = 15000
@@ -25,7 +27,6 @@ def test_u7_lgpd():
         try:
             ctx = navegador.new_context(viewport={"width": 1366, "height": 900}, accept_downloads=True)
             page = ctx.new_page()
-            page.on("dialog", lambda d: d.accept())
             base = alvo["base"]
 
             # L1
@@ -65,6 +66,7 @@ def test_u7_lgpd():
             # L4
             page.fill('[data-testid="perfil-excluir-senha"]', SENHA)
             page.click('[data-testid="perfil-excluir"]')
+            confirmar_no_app(page)  # DS1 (4.3, D115): janela do app no lugar do confirm nativo
             page.wait_for_url("**/login?conta=excluida", timeout=TIMEOUT)
             assert "Sua conta foi excluída." in page.inner_text("body")
             page.fill("input[name=email]", email)

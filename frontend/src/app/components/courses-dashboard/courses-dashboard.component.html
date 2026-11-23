@@ -1,10 +1,11 @@
+<h2 class="gt-aba-titulo">Cursos</h2>
 <app-atualizacao-automatica [pausado]="atualizacaoPausada" (atualizar)="atualizar()"></app-atualizacao-automatica>
 
 <div class="alert alert-danger" *ngIf="error">{{ error }}</div>
 
 <div class="card mb-3">
   <div class="card-body">
-    <h5>Inscritos por curso</h5>
+    <h3 class="h5">Inscritos por curso</h3>
     <div style="position: relative; height: 300px;">
       <canvas #enrollmentChart></canvas>
     </div>
@@ -13,18 +14,18 @@
 
 <div class="card">
   <div class="card-body">
-    <h5>Performance do catálogo</h5>
+    <h3 class="h5" id="cursos-performance-titulo">Performance do catálogo</h3>
     <div class="table-responsive">
-      <table class="table table-hover align-middle">
+      <table class="table table-hover align-middle" aria-labelledby="cursos-performance-titulo">
         <thead>
           <tr>
-            <th>Curso</th>
-            <th>Preço</th>
-            <th>Matrículas</th>
-            <th>Aprovadas</th>
-            <th>Pendentes</th>
-            <th>Conversão</th>
-            <th>Avaliação</th>
+            <th scope="col">Curso</th>
+            <th scope="col">Preço</th>
+            <th scope="col">Matrículas</th>
+            <th scope="col">Aprovadas</th>
+            <th scope="col">Pendentes</th>
+            <th scope="col">Conversão</th>
+            <th scope="col">Avaliação</th>
           </tr>
         </thead>
         <tbody>
@@ -51,9 +52,9 @@
 
 <div class="card mt-3" data-testid="curso-alunos" *ngIf="alunosCurso">
   <div class="card-body">
-    <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
-      <h5 class="mb-0">Alunos de {{ alunosCurso.name || alunosCurso.id }}</h5>
-      <div class="d-flex gap-2">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
+      <h2 class="h5 mb-0 text-break" id="curso-alunos-titulo">Alunos de {{ alunosCurso.name || alunosCurso.id }}</h2>
+      <div class="d-flex flex-wrap gap-2">
         <button type="button" class="btn btn-sm btn-primary" data-testid="matricula-manual-abrir" *ngIf="canManage"
                 (click)="abrirMatriculaManual()">Matrícula manual</button>
         <button type="button" class="btn btn-sm btn-outline-primary" data-testid="exportar-csv" *ngIf="podeExportar"
@@ -63,35 +64,35 @@
     </div>
     <div class="alert alert-danger" *ngIf="alunosErro">{{ alunosErro }}</div>
     <div class="border rounded p-3 mb-3" *ngIf="canManage && manualAberto">
-      <h6>Matrícula manual</h6>
+      <h3 class="h6">Matrícula manual</h3>
       <div class="alert alert-success py-2" data-testid="matricula-manual-ok" *ngIf="manualOk">{{ manualOk }}</div>
       <div class="alert alert-danger py-2" data-testid="matricula-manual-erro" *ngIf="manualErro">{{ manualErro }}</div>
       <div class="row g-2 align-items-end">
         <div class="col-12 col-md-4">
-          <label class="form-label small mb-1">E-mail</label>
-          <input class="form-control form-control-sm" type="email" data-testid="matricula-manual-email"
+          <label class="form-label small mb-1" for="matricula-manual-email">E-mail</label>
+          <input id="matricula-manual-email" class="form-control form-control-sm" type="email" data-testid="matricula-manual-email"
                  [(ngModel)]="manualEmail">
         </div>
         <div class="col-12 col-md-4">
-          <label class="form-label small mb-1">Nome</label>
-          <input class="form-control form-control-sm" type="text" data-testid="matricula-manual-nome"
+          <label class="form-label small mb-1" for="matricula-manual-nome">Nome</label>
+          <input id="matricula-manual-nome" class="form-control form-control-sm" type="text" data-testid="matricula-manual-nome"
                  [(ngModel)]="manualNome">
         </div>
         <div class="col-12 col-md-4">
-          <label class="form-label small mb-1">Turma</label>
-          <select class="form-select form-select-sm" data-testid="matricula-manual-turma" [(ngModel)]="manualTurma">
+          <label class="form-label small mb-1" for="matricula-manual-turma">Turma</label>
+          <select id="matricula-manual-turma" class="form-select form-select-sm" data-testid="matricula-manual-turma" [(ngModel)]="manualTurma">
             <option value="">Sem turma</option>
             <option *ngFor="let t of alunosCurso.classes || []" [value]="'' + t.id">{{ t.name }}</option>
           </select>
         </div>
         <div class="col-12 col-md-3">
-          <label class="form-label small mb-1">Valor (R$)</label>
-          <input class="form-control form-control-sm" type="number" min="0" step="0.01"
+          <label class="form-label small mb-1" for="matricula-manual-valor">Valor (R$)</label>
+          <input id="matricula-manual-valor" class="form-control form-control-sm" type="number" min="0" step="0.01"
                  data-testid="matricula-manual-valor" [(ngModel)]="manualValor">
         </div>
         <div class="col-12 col-md-7">
-          <label class="form-label small mb-1">Motivo</label>
-          <input class="form-control form-control-sm" type="text" maxlength="300" data-testid="matricula-manual-motivo"
+          <label class="form-label small mb-1" for="matricula-manual-motivo">Motivo</label>
+          <input id="matricula-manual-motivo" class="form-control form-control-sm" type="text" maxlength="300" data-testid="matricula-manual-motivo"
                  [(ngModel)]="manualMotivo">
         </div>
         <div class="col-12 col-md-2">
@@ -102,16 +103,16 @@
     </div>
     <div class="row g-2 mb-3">
       <div class="col-12 col-md-4">
-        <label class="form-label small mb-1">Status</label>
-        <select class="form-select form-select-sm" data-testid="curso-alunos-filtro-status"
+        <label class="form-label small mb-1" for="curso-alunos-filtro-status">Status</label>
+        <select id="curso-alunos-filtro-status" class="form-select form-select-sm" data-testid="curso-alunos-filtro-status"
                 [(ngModel)]="filtroStatus" (ngModelChange)="carregarAlunosCurso()">
           <option value="">Todos</option>
           <option *ngFor="let st of statusOpcoes" [value]="st">{{ statusLabel(st) }}</option>
         </select>
       </div>
       <div class="col-12 col-md-4">
-        <label class="form-label small mb-1">Turma</label>
-        <select class="form-select form-select-sm" data-testid="curso-alunos-filtro-turma"
+        <label class="form-label small mb-1" for="curso-alunos-filtro-turma">Turma</label>
+        <select id="curso-alunos-filtro-turma" class="form-select form-select-sm" data-testid="curso-alunos-filtro-turma"
                 [(ngModel)]="filtroTurma" (ngModelChange)="carregarAlunosCurso()">
           <option value="">Todas</option>
           <option *ngFor="let t of alunosCurso.classes || []" [value]="'' + t.id">{{ t.name }}</option>
@@ -120,13 +121,13 @@
       </div>
     </div>
     <div class="table-responsive">
-      <table class="table table-sm align-middle mb-0">
+      <table class="table table-sm align-middle mb-0" aria-labelledby="curso-alunos-titulo">
         <thead>
           <tr>
-            <th>Aluno</th>
-            <th>E-mail</th>
-            <th>Turma</th>
-            <th>Status</th>
+            <th scope="col">Aluno</th>
+            <th scope="col">E-mail</th>
+            <th scope="col">Turma</th>
+            <th scope="col">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -147,20 +148,20 @@
 
 <div class="card mt-3">
   <div class="card-body">
-    <h5>Turmas por curso</h5>
+    <h3 class="h5">Turmas por curso</h3>
     <div class="alert alert-danger" data-testid="turma-erro" *ngIf="turmaErro">{{ turmaErro }}</div>
-    <div *ngFor="let c of courses" class="mb-3">
-      <h6 class="mb-1">{{ c.name || c.id }}</h6>
+    <div *ngFor="let c of courses; let i = index" class="mb-3">
+      <h4 class="h6 mb-1" [id]="'turmas-curso-titulo-' + i">{{ c.name || c.id }}</h4>
       <div class="table-responsive">
-        <table class="table table-sm align-middle mb-1">
+        <table class="table table-sm align-middle mb-1" [attr.aria-labelledby]="'turmas-curso-titulo-' + i">
           <thead>
             <tr>
-              <th>Turma</th>
-              <th>Ativas</th>
-              <th>Pendentes</th>
-              <th>Capacidade</th>
-              <th>Período e horário</th>
-              <th *ngIf="canManage"></th>
+              <th scope="col">Turma</th>
+              <th scope="col">Ativas</th>
+              <th scope="col">Pendentes</th>
+              <th scope="col">Capacidade</th>
+              <th scope="col">Período e horário</th>
+              <th scope="col" *ngIf="canManage"><span class="visually-hidden">Ações</span></th>
             </tr>
           </thead>
           <tbody>
@@ -186,24 +187,24 @@
               <td colspan="6">
                 <div class="row g-2 align-items-end">
                   <div class="col-12 col-md-3">
-                    <label class="form-label small mb-1">Nome</label>
-                    <input class="form-control form-control-sm" maxlength="80" data-testid="turma-edit-nome" [(ngModel)]="edicao.name">
+                    <label class="form-label small mb-1" for="turma-edit-nome">Nome</label>
+                    <input id="turma-edit-nome" class="form-control form-control-sm" maxlength="80" data-testid="turma-edit-nome" [(ngModel)]="edicao.name">
                   </div>
                   <div class="col-6 col-md-2">
-                    <label class="form-label small mb-1">Início</label>
-                    <input class="form-control form-control-sm" type="date" data-testid="turma-edit-inicio" [(ngModel)]="edicao.starts_on">
+                    <label class="form-label small mb-1" for="turma-edit-inicio">Início</label>
+                    <input id="turma-edit-inicio" class="form-control form-control-sm" type="date" data-testid="turma-edit-inicio" [(ngModel)]="edicao.starts_on">
                   </div>
                   <div class="col-6 col-md-2">
-                    <label class="form-label small mb-1">Término</label>
-                    <input class="form-control form-control-sm" type="date" data-testid="turma-edit-fim" [(ngModel)]="edicao.ends_on">
+                    <label class="form-label small mb-1" for="turma-edit-fim">Término</label>
+                    <input id="turma-edit-fim" class="form-control form-control-sm" type="date" data-testid="turma-edit-fim" [(ngModel)]="edicao.ends_on">
                   </div>
                   <div class="col-12 col-md-2">
-                    <label class="form-label small mb-1">Horário</label>
-                    <input class="form-control form-control-sm" maxlength="120" data-testid="turma-edit-horario" [(ngModel)]="edicao.schedule">
+                    <label class="form-label small mb-1" for="turma-edit-horario">Horário</label>
+                    <input id="turma-edit-horario" class="form-control form-control-sm" maxlength="120" data-testid="turma-edit-horario" [(ngModel)]="edicao.schedule">
                   </div>
                   <div class="col-6 col-md-1">
-                    <label class="form-label small mb-1">Vagas</label>
-                    <input class="form-control form-control-sm" type="number" min="1" data-testid="turma-edit-capacidade" [(ngModel)]="edicao.capacity">
+                    <label class="form-label small mb-1" for="turma-edit-capacidade">Vagas</label>
+                    <input id="turma-edit-capacidade" class="form-control form-control-sm" type="number" min="1" data-testid="turma-edit-capacidade" [(ngModel)]="edicao.capacity">
                   </div>
                   <div class="col-6 col-md-2 d-flex gap-1">
                     <button type="button" class="btn btn-sm btn-primary" data-testid="turma-edit-salvar" (click)="salvarTurma()">Salvar</button>
@@ -230,37 +231,37 @@
 
 <div class="card mt-3" *ngIf="canManage">
   <div class="card-body">
-    <h5>Gerenciar turmas</h5>
+    <h3 class="h5">Gerenciar turmas</h3>
     <div class="alert alert-danger" data-testid="turma-error" *ngIf="turmaError">{{ turmaError }}</div>
 
     <div class="row g-2 align-items-end mb-3">
       <div class="col-12 col-md-3">
-        <label class="form-label small mb-1">Curso</label>
-        <select class="form-select" data-testid="turma-new-course" [(ngModel)]="manageCourseId"
+        <label class="form-label small mb-1" for="turma-new-course">Curso</label>
+        <select id="turma-new-course" class="form-select" data-testid="turma-new-course" [(ngModel)]="manageCourseId"
                 (ngModelChange)="onManageCourseChange()">
           <option value="">Selecione um curso</option>
           <option *ngFor="let c of courses" [value]="c.id">{{ c.name || c.id }}</option>
         </select>
       </div>
       <div class="col-12 col-md-3">
-        <label class="form-label small mb-1">Nome da turma</label>
-        <input class="form-control" type="text" maxlength="80" data-testid="turma-new-name" [(ngModel)]="newName">
+        <label class="form-label small mb-1" for="turma-new-name">Nome da turma</label>
+        <input id="turma-new-name" class="form-control" type="text" maxlength="80" data-testid="turma-new-name" [(ngModel)]="newName">
       </div>
       <div class="col-6 col-md-2">
-        <label class="form-label small mb-1">Início</label>
-        <input class="form-control" type="date" data-testid="turma-new-start" [(ngModel)]="newStart">
+        <label class="form-label small mb-1" for="turma-new-start">Início</label>
+        <input id="turma-new-start" class="form-control" type="date" data-testid="turma-new-start" [(ngModel)]="newStart">
       </div>
       <div class="col-6 col-md-2">
-        <label class="form-label small mb-1">Término</label>
-        <input class="form-control" type="date" data-testid="turma-new-end" [(ngModel)]="newEnd">
+        <label class="form-label small mb-1" for="turma-new-end">Término</label>
+        <input id="turma-new-end" class="form-control" type="date" data-testid="turma-new-end" [(ngModel)]="newEnd">
       </div>
       <div class="col-6 col-md-3">
-        <label class="form-label small mb-1">Horário (ex.: Seg e Qua, 19h às 22h)</label>
-        <input class="form-control" type="text" maxlength="120" data-testid="turma-new-schedule" [(ngModel)]="newSchedule">
+        <label class="form-label small mb-1" for="turma-new-schedule">Horário (ex.: Seg e Qua, 19h às 22h)</label>
+        <input id="turma-new-schedule" class="form-control" type="text" maxlength="120" data-testid="turma-new-schedule" [(ngModel)]="newSchedule">
       </div>
       <div class="col-6 col-md-2">
-        <label class="form-label small mb-1">Capacidade</label>
-        <input class="form-control" type="number" min="1" data-testid="turma-new-capacity" [(ngModel)]="newCapacity">
+        <label class="form-label small mb-1" for="turma-new-capacity">Capacidade</label>
+        <input id="turma-new-capacity" class="form-control" type="number" min="1" data-testid="turma-new-capacity" [(ngModel)]="newCapacity">
       </div>
       <div class="col-12 col-md-2">
         <button type="button" class="btn btn-primary w-100" data-testid="turma-create"
@@ -268,15 +269,15 @@
       </div>
     </div>
 
-    <h6>Matrículas do curso</h6>
+    <h4 class="h6" id="cursos-matriculas-titulo">Matrículas do curso</h4>
     <div class="table-responsive" *ngIf="manageCourseId">
-      <table class="table table-sm align-middle">
+      <table class="table table-sm align-middle" aria-labelledby="cursos-matriculas-titulo">
         <thead>
           <tr>
-            <th>Aluno</th>
-            <th>E-mail</th>
-            <th>Status</th>
-            <th>Turma</th>
+            <th scope="col">Aluno</th>
+            <th scope="col">E-mail</th>
+            <th scope="col">Status</th>
+            <th scope="col">Turma</th>
           </tr>
         </thead>
         <tbody>
@@ -286,6 +287,7 @@
             <td>{{ statusLabel(e.status) }}</td>
             <td>
               <select class="form-select form-select-sm" data-testid="enrollment-class-select"
+                      [attr.aria-label]="'Turma de ' + e.student_name"
                       [disabled]="e.status !== 'active' && e.status !== 'pending'"
                       (change)="assignClass(e, $event)">
                 <option value="" [selected]="e.class_id === null || e.class_id === undefined">Sem turma</option>

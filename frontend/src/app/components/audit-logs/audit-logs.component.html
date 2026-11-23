@@ -4,7 +4,7 @@
 
 <div class="card">
   <div class="card-body">
-    <h5>Trilha de auditoria</h5>
+    <h2 class="h5" id="auditoria-titulo">Trilha de auditoria</h2>
     <p class="text-muted small">
       Eventos críticos da área do funcionário: alterações cadastrais, mudança de preço de cursos e reembolsos,
       com o responsável (pessoa e perfil), o que mudou (antes e depois) e a data/hora de cada ação.
@@ -28,14 +28,14 @@
       </div>
     </div>
     <div class="table-responsive">
-      <table class="table table-hover align-middle">
+      <table class="table table-hover align-middle" aria-labelledby="auditoria-titulo">
         <thead>
           <tr>
-            <th>Data</th>
-            <th>Responsável</th>
-            <th>Ação</th>
-            <th>Alteração</th>
-            <th>Detalhe</th>
+            <th scope="col">Data</th>
+            <th scope="col">Responsável</th>
+            <th scope="col">Ação</th>
+            <th scope="col">Alteração</th>
+            <th scope="col">Detalhe</th>
           </tr>
         </thead>
         <tbody>

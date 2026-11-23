@@ -57,6 +57,14 @@ AVISO_PII = (
 # GR4 (D95, PLANO_GR): pedido de dado pessoal no chat anônimo. Texto para revisão do PM.
 LOGIN_NECESSARIO = "Para consultar seus dados (pagamentos, turmas e progresso), entre na Área do aluno."
 
+# SG4 (D109 P5): teto diário de tokens do chat anônimo. Resposta fixa, sem LLM. Texto para revisão do PM.
+CHAT_INDISPONIVEL = (
+    "O assistente está com muitas conversas agora. Fale com a nossa equipe pelo WhatsApp ou tente de novo amanhã."
+)
+# SG4: variável (lida a cada requisição) com o teto de tokens por dia de São Paulo; ausente, vazia, 0, inválida ou
+# negativa = desligado.
+VAR_TETO_DIARIO_TOKENS = "CHAT_ANON_DAILY_TOKEN_BUDGET"
+
 # Vocabulário fechado de `ai_interactions.guard` usado pelos filtros de entrada (GR3) e de saída (PLANO_GR).
 GUARD_INJECTION = "input_injection"
 GUARD_OFF_TOPIC = "input_off_topic"
@@ -68,6 +76,19 @@ GUARD_UNVERIFIED = "output_unverified"
 GUARD_LINK = "output_link"
 # GR4: pedido de dado pessoal no chat anônimo (resposta fixa LOGIN_NECESSARIO, sem LLM).
 GUARD_LOGIN = "input_login"
+# SG4: teto diário de tokens do chat anônimo atingido (resposta fixa CHAT_INDISPONIVEL, sem LLM).
+GUARD_BUDGET = "budget"
+
+
+
+def teto_diario_de_tokens() -> int:
+    """Teto diário de tokens do chat anônimo (SG4), lido do ambiente a cada chamada. 0 = desligado (variável ausente,
+    vazia, 0, inválida ou negativa)."""
+    bruto = (os.getenv(VAR_TETO_DIARIO_TOKENS) or "").strip()
+    if not bruto.isascii() or not bruto.isdecimal():
+        return 0
+    return int(bruto)
+
 
 # GR2: temperatura das chamadas de resposta (o roteamento já usa 0,3).
 TEMPERATURA_RESPOSTA = 0.3

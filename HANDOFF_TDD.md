@@ -2,6 +2,11 @@
 
 Documento escrito para quem nunca viu a sessão original. Estado verificado por leitura do git e dos arquivos em 05/10/2026, depois do resgate do log de decisões.
 
+**Atualização de 23/11/2026 (plano DS de design, D115 a D121):** DS0–DS5 entregues na branch `feature/fase2-design`, só design
+(nenhuma regra, rota ou API mudou). Sistema visual final em `docs/DESIGN.md`; plano em `docs/tdd/PLANO_DESIGN.md`; estado e
+itens para revisão do PM em `docs/tdd/PENDENCIAS.md`, seção "Plano DS". Regressão de fechamento na D121: backend 3152 passed
+(+13 conhecidas da D107), 60 e2e sem falha nova.
+
 **Atualização de 04/11/2026 (D4, polimento visual, D102):** landing e SPA seguem `docs/DESIGN.md`; e2e novo `frontend/e2e/test_d4_polimento_visual.py`. Branch `claude/project-thread-97ett2`, commits `0b53ef6`, `7806080`, `7caf8c3`.
 
 **Atualização de 06/10/2026 (noite autônoma D40, entregas D37 a D59):** E5 a E9, dívidas de segurança, turmas, cadastro de cursos no Angular, interceptor e harness dos e2e entregues e publicadas; ver `docs/tdd/RELATORIO_NOITE.md`. Os comandos de e2e da seção 9 estão desatualizados: valem os do `AGENTS.md`, seção 6.3.

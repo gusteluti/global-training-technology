@@ -1,5 +1,6 @@
 import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { ApiService } from '../../services/api.service';
+import { AuthService } from '../../services/auth.service';
 import { Chart } from '../../charts';
 
 const MOTIVOS_HANDOFF: { key: string; label: string }[] = [
@@ -20,7 +21,8 @@ const TIPOS_GUARD: { key: string; label: string }[] = [
   { key: 'output_offer', label: 'Desconto ou preço não oficial' },
   { key: 'output_link', label: 'Link removido' },
   { key: 'output_promise', label: 'Promessa bloqueada' },
-  { key: 'output_unverified', label: 'Data ou turma não verificada' }
+  { key: 'output_unverified', label: 'Data ou turma não verificada' },
+  { key: 'budget', label: 'Teto diário atingido' }
 ];
 
 @Component({
@@ -38,7 +40,7 @@ export class AiObservabilityComponent implements OnInit, OnDestroy {
   private chart?: Chart;
   private dayChart?: Chart;
 
-  constructor(private api: ApiService) { }
+  constructor(private api: ApiService, private auth: AuthService) { }
 
   saude: any = null;
   servicos: { rotulo: string; valor: string; texto: string }[] = [];
@@ -51,7 +53,7 @@ export class AiObservabilityComponent implements OnInit, OnDestroy {
       ok: 'ok', erro: 'erro', configurado: 'configurado', nao_configurado: 'não configurado',
       desligado: 'desligado', nenhum: 'nenhum'
     };
-    this.api.getHealth().subscribe({
+    this.api.getSaudeSistema().subscribe({
       next: (r: any) => {
         this.saude = r;
         this.servicos = Object.keys(rotulos).filter(k => r?.services && k in r.services).map(k => ({
@@ -63,7 +65,10 @@ export class AiObservabilityComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    this.carregarSaude();
+    // SG1 (D109, P2): o detalhe de saúde é só da Gestão; Suporte e Financeiro nem chamam a rota.
+    if (this.auth.getRole() === 'admin') {
+      this.carregarSaude();
+    }
     this.carregar();
   }
 
