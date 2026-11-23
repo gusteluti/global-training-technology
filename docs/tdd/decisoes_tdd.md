@@ -2075,7 +2075,7 @@ numa primeira rodada e 74/74 ao repetir isolada; causa não investigada (parece 
 o azul não passava AA sobre `#f7f9fb` (4,29:1). Capturas conferidas a 1366 e 390 px.
 
 ## Registro do agente-testes: R3-1, ajuste mecânico do guarda do script da landing (23/11/2026)
-**Origem (a numerar pelo orquestrador):** relato do PM de que o chat da landing não funciona quando ele abre a página. O
+**Origem (D123):** relato do PM de que o chat da landing não funciona quando ele abre a página. O
 e2e E6 passava porque o harness troca o literal `BACKEND_URL` na cópia servida; nenhum teste cobria o endereço real. Contrato
 da R3-1, decidido pelo PM: `<meta name="gtt-api-url">` no head (meta preenchida > `http://localhost:8000` em file:/localhost/
 127.0.0.1 > `window.location.origin`), constante `BACKEND_URL` e literal mantidos, três erros distintos do chat (rede, resposta que
@@ -2095,3 +2095,25 @@ isso a exceção ficaria aberta para as próximas entregas.
 **Escolhas do agente-testes (modo autônomo, D40):** A2 e A4 (ramo "localhost" do endereço) passam no red porque o ramo é o
 comportamento de hoje; protegem contra uma implementação que passe a usar sempre a origem. O red do endereço está em S1 (meta no
 head), A1, A1b e A3. Um JSON sem `status` (ex.: `{"detail": ...}` de um 500) não é testado: o contrato não o define.
+
+## D123 — R3-1: chat da landing com endereço da API configurável e erros distintos (23/11/2026)
+Pedido do PM: "o chatbot na landing não está funcionando". Em teste (backend de teste, LLM simulado) o chat funcionava, porque os
+e2e trocavam a constante `BACKEND_URL`, fixa em `http://localhost:8000`; nenhum teste cobria o endereço real. Causas prováveis no
+ambiente do PM (abre a landing sem servidor próprio ou por outra porta): endereço fixo, CORS do backend liberando só
+`localhost:8000`/`4200` e `127.0.0.1`, e toda falha virando "não foi possível conectar". `localhost:8000` é a API (o `/` devolve
+JSON), não serve a landing.
+**Mudança (só `frontend/landing_global_training.html`):** `<meta name="gtt-api-url">` (valor aparado, sem barra final); meta
+vazia em `file:`/localhost/127.0.0.1 -> `http://localhost:8000`; senão a própria origem. Três erros distintos: sem conexão
+("Não consegui falar com o servidor..."), resposta que não é JSON do chat, inclusive `{"detail":...}` ("O servidor teve um
+problema..."), e erro do servidor em JSON (texto do servidor, como antes). Diagnóstico só no console, com a URL completa e a dica
+`CORS_ALLOWED_ORIGINS`. Sessão, feedback, ações e markdown não mudaram; `fetch(` continua 3.
+**Ciclo:** red `2e261c1` (17 testes, 9 vermelhos pelo motivo certo); frontend `36a7e94`; merge `f7dc262` (sub-branch
+`feature/fase2-design-r3-chat`, projeto `feature/fase2-design-r3`, a partir da `main` em `3d94f6c`). e2e R3a 17/17; e6, f5b,
+f6, ds4 (landing e script), d3, d4, d1, gr1, gr2, gr4, gr5, sg4, qa_fluxos verdes. Falhas conhecidas, provadas iguais sem a
+mudança: GR3 P3/L3 e F5b L4.
+**Ajuste mecânico (4.3, D120 -> R3-1):** `test_ds4_script_inalterado.py` passou a usar a landing da `main` (`3d94f6c`) como
+referência e aceita só as quatro regiões desta entrega. **Re-base obrigatório na próxima entrega:** trocar `REFERENCIA` pelo
+merge `f7dc262` e esvaziar `REGIOES_DECLARADAS`.
+**Para o PM:** em produção, com a meta vazia a landing chama a própria origem; isso exige proxy reverso encaminhando `/api/` ao
+backend, ou a meta preenchida com a URL da API e a origem da página em `CORS_ALLOWED_ORIGINS`. Não foi possível reproduzir o
+defeito do PM aqui; falta saber o endereço exato da barra do navegador e a mensagem mostrada no balão.
