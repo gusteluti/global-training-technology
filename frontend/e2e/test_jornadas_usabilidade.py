@@ -1778,7 +1778,8 @@ def test_j_ges_03_equipe_e_auditoria(s, navegador):
     aba(gestao, "Observabilidade de IA")
     for marcador in ("obs-requests", "obs-cost", "ia-handoff-total", "obs-guardrails", "obs-feedback-up"):
         expect(campo(gestao, marcador)).to_be_visible()
-    expect(campo(gestao, "obs-guardrails").locator("h5")).to_have_text("Guardrails")
+    # DS5 (4.3, D115 → D119 → DS5): a DS3 promoveu o título a <h3 class="h5">; o seletor não depende mais do nível.
+    expect(campo(gestao, "obs-guardrails").get_by_role("heading")).to_have_text("Guardrails")
     expect(campo(gestao, "obs-cost")).to_contain_text("$")
     foto(gestao, fluxo, "Abre a Observabilidade de IA", "Números do chat, custo, encaminhamentos e Guardrails")
 
