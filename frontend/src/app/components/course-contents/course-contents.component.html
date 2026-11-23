@@ -1,7 +1,7 @@
 <div class="card mb-3" data-testid="conteudos-painel">
   <div class="card-body">
     <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
-      <h5 class="text-break mb-0">Conteúdos de {{ curso.name }}</h5>
+      <h2 class="h5 text-break mb-0" id="conteudos-titulo">Conteúdos de {{ curso.name }}</h2>
       <button type="button" class="btn btn-sm btn-outline-secondary" data-testid="conteudos-fechar" (click)="fechar.emit()">Fechar</button>
     </div>
     <p class="small text-muted">Os alunos veem estes conteúdos na sala do curso.</p>
@@ -10,7 +10,7 @@
     <div class="alert alert-success" *ngIf="aviso" data-testid="conteudo-aviso">{{ aviso }}</div>
 
     <div class="mb-3" *ngIf="materiais.length" data-testid="conteudos-materiais">
-      <h6>Materiais do cadastro</h6>
+      <h3 class="h6">Materiais do cadastro</h3>
       <p class="small text-muted mb-1">Aparecem primeiro na sala, no módulo "Materiais". Para alterá-los, use Editar na lista de cursos.</p>
       <ul class="small mb-0">
         <li class="text-break" *ngFor="let m of materiais">{{ m.title }}</li>
@@ -18,9 +18,9 @@
     </div>
 
     <div class="table-responsive mb-3" *ngIf="conteudos.length; else semConteudos">
-      <table class="table table-sm align-middle">
+      <table class="table table-sm align-middle" aria-labelledby="conteudos-titulo">
         <thead>
-          <tr><th>Módulo</th><th>Título</th><th>Tipo</th><th>Situação</th><th></th></tr>
+          <tr><th scope="col">Módulo</th><th scope="col">Título</th><th scope="col">Tipo</th><th scope="col">Situação</th><th scope="col"><span class="visually-hidden">Ações</span></th></tr>
         </thead>
         <tbody>
           <tr *ngFor="let c of conteudos; let i = index" data-testid="conteudo-linha">
@@ -52,7 +52,7 @@
     </div>
     <ng-container *ngFor="let c of conteudos">
       <div class="mb-3" *ngIf="previaId === c.id && c.embed_url" data-testid="conteudo-previa-painel">
-        <h6 class="text-break">Prévia: {{ c.title }}</h6>
+        <h3 class="h6 text-break">Prévia: {{ c.title }}</h3>
         <div class="previa-video">
           <app-video-player *ngIf="!previaComFalha" [embedUrl]="c.embed_url" [titulo]="c.title" (falha)="previaComFalha = true"></app-video-player>
         </div>
@@ -63,7 +63,7 @@
     </ng-container>
     <ng-template #semConteudos><p class="text-muted" data-testid="conteudos-vazio" *ngIf="!materiais.length">Nenhum conteúdo cadastrado.</p></ng-template>
 
-    <h6>{{ editandoId ? 'Editar conteúdo' : 'Novo conteúdo' }}</h6>
+    <h3 class="h6">{{ editandoId ? 'Editar conteúdo' : 'Novo conteúdo' }}</h3>
     <form (ngSubmit)="salvar()">
       <div class="row g-2">
         <div class="col-md-4" *ngIf="!form.is_extra">

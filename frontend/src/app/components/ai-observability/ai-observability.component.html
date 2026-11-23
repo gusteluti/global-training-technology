@@ -1,3 +1,4 @@
+<h2 class="gt-aba-titulo">Observabilidade de IA</h2>
 <app-atualizacao-automatica (atualizar)="carregar()"></app-atualizacao-automatica>
 
 <div class="alert alert-danger" *ngIf="error">{{ error }}</div>
@@ -5,7 +6,7 @@
 <div class="card mb-3" data-testid="saude-sistema" *ngIf="saude">
   <div class="card-body py-2 d-flex flex-wrap gap-3 align-items-center small">
     <strong>Saúde do sistema</strong>
-    <span [class]="saude.status === 'ok' ? 'badge bg-success' : 'badge bg-danger'">{{ saude.status === 'ok' ? 'No ar' : 'Com problema' }}</span>
+    <span [class]="saude.status === 'ok' ? 'badge badge-status bg-success' : 'badge badge-status bg-danger'">{{ saude.status === 'ok' ? 'No ar' : 'Com problema' }}</span>
     <span *ngFor="let s of servicos">{{ s.rotulo }}: <strong [class.text-danger]="s.valor === 'erro'">{{ s.texto }}</strong></span>
   </div>
 </div>
@@ -91,7 +92,7 @@
 
 <div class="card mb-3" *ngIf="metrics">
   <div class="card-body">
-    <h5>Encaminhamentos ao WhatsApp</h5>
+    <h3 class="h5" id="ia-encaminhamentos-titulo">Encaminhamentos ao WhatsApp</h3>
     <div class="row g-3">
       <div class="col-md-3">
         <div class="text-muted small">Total</div>
@@ -102,7 +103,7 @@
         <div class="gt-kpi">{{ handoffRateText }}</div>
       </div>
       <div class="col-md-6">
-        <table class="table table-sm mb-0">
+        <table class="table table-sm mb-0" aria-labelledby="ia-encaminhamentos-titulo">
           <tbody>
             <tr *ngFor="let m of handoffReasons">
               <td>{{ m.label }}</td>
@@ -117,7 +118,7 @@
 
 <div class="card mb-3" data-testid="obs-guardrails" *ngIf="metrics">
   <div class="card-body">
-    <h5>Guardrails</h5>
+    <h3 class="h5" id="ia-guardrails-titulo">Guardrails</h3>
     <div class="row g-3">
       <div class="col-md-6">
         <div class="row g-3">
@@ -144,7 +145,7 @@
         </div>
       </div>
       <div class="col-md-6">
-        <table class="table table-sm mb-0">
+        <table class="table table-sm mb-0" aria-labelledby="ia-guardrails-titulo">
           <tbody>
             <tr *ngFor="let g of guardTypes">
               <td>{{ g.label }}</td>
@@ -159,7 +160,7 @@
 
 <div class="card mb-3">
   <div class="card-body">
-    <h5>Mensagens por curso</h5>
+    <h3 class="h5">Mensagens por curso</h3>
     <div style="position: relative; height: 300px;">
       <canvas #messagesChart></canvas>
     </div>
@@ -168,7 +169,7 @@
 
 <div class="card mb-3">
   <div class="card-body">
-    <h5>Requisições por dia</h5>
+    <h3 class="h5">Requisições por dia</h3>
     <div style="position: relative; height: 300px;">
       <canvas #perDayChart></canvas>
     </div>
@@ -177,11 +178,11 @@
 
 <div class="card" *ngIf="metrics">
   <div class="card-body">
-    <h5>Tópicos não compreendidos</h5>
+    <h3 class="h5" id="ia-topicos-titulo">Tópicos não compreendidos</h3>
     <p class="text-muted small" *ngIf="!topics.length">Nenhum tópico de visitante registrado. Por privacidade, as conversas de alunos não são listadas.</p>
-    <table class="table table-sm mb-0" *ngIf="topics.length">
+    <table class="table table-sm mb-0" *ngIf="topics.length" aria-labelledby="ia-topicos-titulo">
       <thead>
-        <tr><th>Tópico</th><th class="text-end">Ocorrências</th></tr>
+        <tr><th scope="col">Tópico</th><th scope="col" class="text-end">Ocorrências</th></tr>
       </thead>
       <tbody>
         <tr *ngFor="let t of topics" data-testid="obs-topic">
