@@ -6,6 +6,10 @@
 <!-- D93: endereço da aplicação (SPA Angular). Vazio: http://localhost:4200 em desenvolvimento local e a própria
      origem da página em qualquer outro host. Preencha só se a SPA ficar em outro endereço. -->
 <meta name="gtt-app-url" content="">
+<!-- R3-1: endereço da API (chat, cursos e feedback). Vazio: o backend local em desenvolvimento (página em file:,
+     localhost ou 127.0.0.1) e a própria origem da página em qualquer outro host. Preencha só se a API ficar em outro
+     endereço; a origem desta página precisa estar em CORS_ALLOWED_ORIGINS no backend. -->
+<meta name="gtt-api-url" content="">
 <title>Global Training Technology</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;900&family=Barlow+Condensed:wght@700;900&display=swap" rel="stylesheet">
 <style>
@@ -766,7 +770,14 @@ window.addEventListener('resize', () => {
 
 // CHATBOT
 let chatOpen = false;
-const BACKEND_URL = 'http://localhost:8000';
+// R3-1: endereço da API, resolvido como o APP_URL (meta `gtt-api-url` > backend local > mesma origem).
+const BACKEND_URL = (function () {
+  const meta = document.querySelector('meta[name="gtt-api-url"]');
+  const configurada = meta && meta.content.trim();
+  if (configurada) return configurada.replace(/\/+$/, '');
+  const local = window.location.protocol === 'file:' || ['localhost', '127.0.0.1', ''].includes(window.location.hostname);
+  return local ? 'http://localhost:8000' : window.location.origin;
+})();
 // A landing é só vitrine (Parte 1): comprar/entrar leva à aplicação Angular (login).
 // O login roteia por perfil: aluno -> /student, funcionário -> /admin.
 const APP_URL = (function () {
@@ -1018,6 +1029,36 @@ function getChatSessionId() {
 function saveChatSessionId(id) {
   try { sessionStorage.setItem(CHAT_SESSION_KEY, id); } catch (e) { /* sem sessionStorage: segue sem guardar */ }
 }
+// R3-1: erros do chat. (i) sem resposta do servidor; (ii) resposta que não é JSON do chat. Na tela só estes textos
+// fixos; o diagnóstico (URL, status HTTP, dica de CORS) vai só para o console.
+const MSG_CHAT_SEM_REDE = 'Não consegui falar com o servidor. Verifique sua conexão e tente de novo em instantes.';
+const MSG_CHAT_SERVIDOR = 'O servidor teve um problema para responder. Tente de novo em instantes.';
+// Troca o balão "Processando…" pelo texto do erro (nunca fica preso) e marca o chat como offline.
+function mostrarErroDoChat(texto) {
+  const msgs = document.getElementById('chat-messages');
+  const ultimo = msgs.lastElementChild;
+  const pendente = (ultimo && ultimo.classList.contains('msg-processando')) ? ultimo : msgs.querySelector('.msg-processando');
+  if (pendente) {
+    pendente.textContent = texto;
+    pendente.classList.replace('msg-processando', 'msg-revelar');
+  } else {
+    addMsg(texto, 'bot');
+  }
+  setChatStatus('Offline');
+}
+function falhaDeRedeNoChat(url, erro) {
+  mostrarErroDoChat(MSG_CHAT_SEM_REDE);
+  console.error(`Não foi possível alcançar ${url}. Confirme que o backend está rodando e que a origem desta página `
+    + `(${window.location.origin}) está em CORS_ALLOWED_ORIGINS.`, erro);
+}
+function respostaInvalidaNoChat(url, statusHttp, erro) {
+  mostrarErroDoChat(MSG_CHAT_SERVIDOR);
+  console.error(`A resposta de ${url} não é uma resposta do chat (HTTP ${statusHttp}).`, ...(erro ? [erro] : []));
+}
+// Só um objeto JSON com status "success" ou "error" é resposta do chat; o resto é falha do servidor ou de um proxy.
+function ehRespostaDoChat(data) {
+  return !!data && typeof data === 'object' && (data.status === 'success' || data.status === 'error');
+}
 async function sendMsg() {
   const input = document.getElementById('chat-input');
   const text = input.value.trim();
@@ -1029,13 +1070,30 @@ async function sendMsg() {
   setChatStatus('Conectando...');
 
   const sessionId = getChatSessionId();
+  const urlChat = `${BACKEND_URL}/api/chat`;
+  let response;
   try {
-    const response = await fetch(`${BACKEND_URL}/api/chat`, {
+    response = await fetch(urlChat, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(sessionId ? { message: text, session_id: sessionId } : { message: text })
     });
-    const data = await response.json();
+  } catch (error) {
+    falhaDeRedeNoChat(urlChat, error);
+    return;
+  }
+  let data = null;
+  let erroDeLeitura = null;
+  try {
+    data = await response.json();
+  } catch (error) {
+    erroDeLeitura = error;
+  }
+  if (!ehRespostaDoChat(data)) {
+    respostaInvalidaNoChat(urlChat, response.status, erroDeLeitura);
+    return;
+  }
+  try {
     if (data && typeof data.session_id === 'string' && data.session_id) saveChatSessionId(data.session_id);
     const botMsg = data.status === 'success' ? data.message : `Erro: ${data.message || 'não foi possível responder'}`;
     const msgs = document.getElementById('chat-messages');
@@ -1058,17 +1116,9 @@ async function sendMsg() {
     if (data) addHandoffAction(data.actions);
     setChatStatus('Online agora');
   } catch (error) {
-    const msgs = document.getElementById('chat-messages');
-    const lastMsg = msgs.lastElementChild;
-    const errorText = 'Desculpe, não foi possível conectar ao servidor.';
-    if (lastMsg && lastMsg.classList.contains('msg-processando')) {
-      lastMsg.textContent = errorText;
-      lastMsg.classList.replace('msg-processando', 'msg-revelar');
-    } else {
-      addMsg(errorText, 'bot');
-    }
-    setChatStatus('Offline');
-    console.error(error);
+    // O servidor respondeu com um JSON do chat, mas a página não conseguiu montá-lo: mesmo texto da resposta inválida.
+    mostrarErroDoChat(MSG_CHAT_SERVIDOR);
+    console.error(`Não foi possível exibir a resposta de ${urlChat}.`, error);
   }
 }
 function quickReply(text) {

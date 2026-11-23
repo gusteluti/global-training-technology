@@ -4,26 +4,43 @@ Regra (D115, PLANO_DESIGN "Decisões resolvidas" D-D e D-F): só design e conte�
 com as mesmas funções, chamadas `fetch`, ids, `data-testid`, `onclick` e fluxo do chat, da matrícula e do login. O dev
 pode mudar só classes e marcação DENTRO das strings de template (entre crases) que montam o cartão e a planilha.
 
-Referência: a landing no commit `c6f3342` (antes da DS4), lida com `git show`.
+Referência: a landing na `main` em `3d94f6c` (já com a DS4, lida com `git show`). Fora das templates do cartão e da
+planilha, o script de `3d94f6c` é o de `c6f3342` (antes da DS4): a troca de referência não afrouxa a regra.
+
+MUDANÇA DECLARADA DA R3-1 (D? a numerar; autoridade 4.3, encadeamento D115 D-F -> D120 -> R3-1): por decisão do PM o script
+da landing muda para (1) resolver o endereço da API (`BACKEND_URL`, meta `gtt-api-url`) e (2) distinguir os erros do chat.
+O verificador aceita EXATAMENTE essa mudança, e só ela: em `REGIOES_DECLARADAS` ficam quatro trechos entre âncoras de
+texto; o miolo de cada trecho pode mudar, e todo o resto do script continua idêntico (S1). As âncoras também têm de ficar.
+  1. `let chatOpen = false;` ... `const APP_URL = (function () {`  -> o resolvedor do endereço da API e suas constantes;
+  2. fim de `saveChatSessionId` ... `async function sendMsg() {`    -> constantes e funções auxiliares dos erros do chat;
+  3. `const sessionId = getChatSessionId();` ... `if (data && typeof data.session_id === 'string' && data.session_id)
+     saveChatSessionId(data.session_id);`                           -> a chamada do POST e a leitura do JSON;
+  4. `setChatStatus('Online agora');` ... `function quickReply(text) {` -> o tratamento dos erros.
+O bloco de sucesso (do `if (data && typeof data.session_id ...` até `setChatStatus('Online agora');`) e o resto do script
+não mudam. Complementos: o número de `fetch(` e de outras formas de rede no script não pode crescer.
+RE-BASE (obrigatório quando a R3-1 for mergeada na `main`): trocar `REFERENCIA` pelo merge da R3-1 e esvaziar
+`REGIOES_DECLARADAS`; sem isso a exceção ficaria aberta para as próximas entregas.
 
 Cenários (sem servidor nem navegador):
-  S0 (e S0b, sobre o script real de c6f3342) o verificador funciona: mudar o código fora das crases é detectado; mudar só espaços, ou só o texto de dentro de
+  S0 (e S0b, sobre o script real da referência) o verificador funciona: mudar o código fora das crases é detectado; mudar só espaços, ou só o texto de dentro de
      uma template, é tolerado; crase dentro de comentário, de string e de regex não confunde o leitor        [passa no red]
-  S1 o conteúdo do único <script> inline, sem as strings de template, é idêntico ao de `c6f3342` (tolerando só espaços
+  S0c a exceção da R3-1 é estreita (sobre o script real da referência): a mudança declarada é aceita; qualquer outra
+     mudança fora das quatro regiões, fetch novo ou âncora que sumiu é detectada                              [passa no red]
+  S1 o conteúdo do único <script> inline, sem as strings de template, é idêntico ao da referência (tolerando só espaços
      em branco); a página continua com exatamente um <script> e nenhum <script src>. Complemento do agente-testes:
      como as URLs do `fetch` e o destino do login também estão em templates (`${BACKEND_URL}/api/chat`,
      `${APP_URL}/login?area=...`), as templates que NÃO são o cartão, a linha da planilha ou o total da planilha
      também têm de ficar idênticas (comparadas na ordem, sem espaços)
-  S2 atributos de evento (on*) da marcação estática: o conjunto de valores é o mesmo de `c6f3342` (pode repetir um
+  S2 atributos de evento (on*) da marcação estática: o conjunto de valores é o mesmo da referência (pode repetir um
      valor que já existia, ex.: outro botão com `toggleChat()`; não pode sumir nem aparecer handler novo)
-  S3 dentro das templates: todo `onclick`, `id`, `data-testid` e `data-curso` de `c6f3342` continua presente, igual,
+  S3 dentro das templates: todo `onclick`, `id`, `data-testid` e `data-curso` da referência continua presente, igual,
      e nenhum atributo de evento novo aparece
   S4 ids e `data-testid` que o script usa continuam na marcação estática (courses-grid, planilha-linhas, chat-*, ...),
      e o `<meta name="gtt-app-url">` continua lá
   S5 nenhum número nem link de WhatsApp na marcação estática (o atendimento humano só vem das `actions` do servidor)
 
 Escolha do agente-testes: comentários do script contam como código (a regra é "tolerando só espaços"); se o dev mexer
-num comentário, S1 aponta. Isso é deliberado: o script não deve ser tocado nesta onda (D-F).
+num comentário fora das regiões declaradas, S1 aponta. Isso é deliberado: o script só muda onde o PM autorizou (D-F, R3-1).
 
 Execução (da raiz do repo): python3 -m pytest frontend/e2e/test_ds4_script_inalterado.py -q
 """
@@ -37,7 +54,7 @@ import pytest
 E2E_DIR = Path(__file__).resolve().parent
 REPO = E2E_DIR.parent.parent
 LANDING = REPO / "frontend" / "landing_global_training.html"
-REFERENCIA = "c6f3342"
+REFERENCIA = "3d94f6c"  # main depois da DS4 (R3-1: antes era c6f3342; o script é o mesmo fora das templates do cartão)
 CAMINHO_GIT = "frontend/landing_global_training.html"
 
 # Ids e data-testid que o script lê com getElementById/querySelector (c6f3342).
@@ -273,6 +290,60 @@ def _diferencas_do_script(script_antigo, script_novo):
             if not _template_do_cartao_ou_planilha(v) and _normalizar(v) != _normalizar(n)]
 
 
+# ---------------------------------------------------------------------- exceção declarada da R3-1 (ver o docstring)
+# (rótulo, âncora de início, âncora de fim). O texto ENTRE as âncoras pode mudar; as âncoras, não. As âncoras são
+# procuradas em sequência (a primeira ocorrência depois do trecho anterior) e comparadas sem diferença de espaços.
+REGIOES_DECLARADAS = (
+    ("endereço da API (BACKEND_URL)", "let chatOpen = false;", "const APP_URL = (function () {"),
+    ("auxiliares dos erros do chat",
+     "function saveChatSessionId(id) { try { sessionStorage.setItem(CHAT_SESSION_KEY, id); } "
+     "catch (e) { /* sem sessionStorage: segue sem guardar */ } }",
+     "async function sendMsg() {"),
+    ("POST do chat e leitura do JSON", "const sessionId = getChatSessionId();",
+     "if (data && typeof data.session_id === 'string' && data.session_id) saveChatSessionId(data.session_id);"),
+    ("tratamento dos erros do chat", "setChatStatus('Online agora');", "function quickReply(text) {"),
+)
+# A mudança não pode criar caminho de rede novo: estas formas têm de aparecer o mesmo número de vezes que na referência.
+FORMAS_DE_REDE = (r"\bfetch\s*\(", r"\bXMLHttpRequest\b", r"\bsendBeacon\b", r"\bWebSocket\b", r"\bEventSource\b",
+                  r"\beval\s*\(", r"\bnew\s+Function\b", r"\bimportScripts\b")
+
+
+def _padrao_ancora(texto):
+    return r"\s*".join(re.escape(parte) for parte in texto.split())
+
+
+def _recortar_regioes(script, regioes=REGIOES_DECLARADAS):
+    """Tira o miolo de cada região declarada (entre as âncoras, que ficam). ErroLeitura se uma âncora não existir, na ordem."""
+    partes, cursor = [], 0
+    for rotulo, inicio, fim in regioes:
+        a = re.search(_padrao_ancora(inicio), script[cursor:])
+        if not a:
+            raise ErroLeitura(f"âncora de início da região '{rotulo}' não encontrada: {inicio[:60]!r}")
+        fim_do_inicio = cursor + a.end()
+        b = re.search(_padrao_ancora(fim), script[fim_do_inicio:])
+        if not b:
+            raise ErroLeitura(f"âncora de fim da região '{rotulo}' não encontrada depois do início: {fim[:60]!r}")
+        partes.append(script[cursor:fim_do_inicio])
+        cursor = fim_do_inicio + b.start()
+    partes.append(script[cursor:])
+    return "".join(partes)
+
+
+def _diferencas_com_excecao(script_antigo, script_novo, regioes=REGIOES_DECLARADAS):
+    """Como `_diferencas_do_script`, mas aceitando a mudança declarada: só o miolo das regiões pode mudar."""
+    try:
+        velho, novo = _recortar_regioes(script_antigo, regioes), _recortar_regioes(script_novo, regioes)
+    except ErroLeitura as erro:
+        return [str(erro)]
+    problemas = _diferencas_do_script(velho, novo)
+    for forma in FORMAS_DE_REDE:
+        antes, agora = len(re.findall(forma, script_antigo)), len(re.findall(forma, script_novo))
+        if agora != antes:
+            problemas.append(f"a mudança declarada não pode criar caminho de rede novo: {forma!r} aparece {agora} vez(es), "
+                             f"eram {antes}")
+    return problemas
+
+
 def test_s0b_o_verificador_no_script_real(versoes):
     antiga, _ = versoes
     script = _script_inline(antiga)
@@ -289,13 +360,82 @@ def test_s0b_o_verificador_no_script_real(versoes):
         assert _diferencas_do_script(script, alterado), f"mudança não detectada: {antes!r} -> {depois!r}"
 
 
+def _aplicar_a_mudanca_da_r3_1(script):
+    """O que o dev faz na R3-1, simulado sobre o script da referência (só dentro das quatro regiões)."""
+    novo = script.replace("const BACKEND_URL = 'http://localhost:8000';", """// R3-1
+const BACKEND_URL = (function () {
+  const meta = document.querySelector('meta[name="gtt-api-url"]');
+  const configurada = meta && meta.content.trim();
+  if (configurada) return configurada.replace(/\\/+$/, '');
+  const local = window.location.protocol === 'file:' || ['localhost', '127.0.0.1', ''].includes(window.location.hostname);
+  return local ? 'http://localhost:8000' : window.location.origin;
+})();""", 1)
+    assert novo != script, f"pré-condição: BACKEND_URL não encontrado no script de {REFERENCIA}"
+    ancora = "async function sendMsg() {"
+    assert ancora in novo
+    novo = novo.replace(ancora, """const MSG_REDE = 'Não consegui falar com o servidor.';
+function mostrarErroDoChat(texto) { addMsg(texto, 'bot'); setChatStatus('Offline'); }
+""" + ancora, 1)
+    inicio = novo.index("const sessionId = getChatSessionId();") + len("const sessionId = getChatSessionId();")
+    fim = novo.index("if (data && typeof data.session_id === 'string' && data.session_id) saveChatSessionId(data.session_id);")
+    novo = novo[:inicio] + """
+  const urlChat = `${BACKEND_URL}/api/chat`;
+  let response;
+  try {
+    response = await fetch(urlChat, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(sessionId ? { message: text, session_id: sessionId } : { message: text }) });
+  } catch (erro) {
+    mostrarErroDoChat(MSG_REDE);
+    console.error(`sem resposta de ${urlChat} (CORS_ALLOWED_ORIGINS)`, erro);
+    return;
+  }
+  const data = await response.json();
+  try {
+    """ + novo[fim:]
+    inicio = novo.index("setChatStatus('Online agora');") + len("setChatStatus('Online agora');")
+    fim = novo.index("function quickReply(text) {")
+    return novo[:inicio] + "\n  } catch (erro) {\n    console.error(erro);\n  }\n}\n" + novo[fim:]
+
+
+def test_s0c_a_excecao_da_r3_1_e_estreita(versoes):
+    antiga, _ = versoes
+    script = _script_inline(antiga)
+    assert _diferencas_com_excecao(script, script) == []
+    mudado = _aplicar_a_mudanca_da_r3_1(script)
+    assert mudado != script
+    assert _diferencas_com_excecao(script, mudado) == [], "a mudança declarada deveria ser aceita"
+    assert _diferencas_do_script(script, mudado), "pré-condição: a regra estrita (S0b) continua vendo essa mudança"
+    for rotulo, antes, depois in (
+        ("linha do bloco de sucesso removida", "    if (data.status === 'success') addEnrollActions(data.actions);\n", ""),
+        ("destino do login (APP_URL)", "return local ? 'http://localhost:4200' : window.location.origin;",
+         "return local ? 'http://localhost:4300' : window.location.origin;"),
+        ("URL do feedback", "`${BACKEND_URL}/api/chat/feedback`", "`${BACKEND_URL}/api/chat/feedback2`"),
+        ("URL dos cursos", "`${BACKEND_URL}/api/courses`", "`${BACKEND_URL}/api/cursos`"),
+        ("função nova fora das regiões", "\nloadCoursesFromBackend();", "\nfunction filtrar() {}\nloadCoursesFromBackend();"),
+        ("texto do aviso de dados pessoais", "Para sua segurança, removemos dados pessoais", "Para sua segurança, removemos dados"),
+        ("status 'Online agora' no bloco de sucesso", "    setChatStatus('Online agora');", "    setChatStatus('Online');"),
+    ):
+        alterado = mudado.replace(antes, depois, 1)
+        assert alterado != mudado, f"pré-condição: trecho de {rotulo!r} não encontrado"
+        assert _diferencas_com_excecao(script, alterado), f"mudança fora das regiões não detectada: {rotulo}"
+    # caminho de rede novo, mesmo dentro de uma região declarada
+    com_fetch = mudado.replace("mostrarErroDoChat(MSG_REDE);", "fetch('https://exemplo.invalido/x'); mostrarErroDoChat(MSG_REDE);", 1)
+    assert com_fetch != mudado
+    assert any("caminho de rede novo" in p for p in _diferencas_com_excecao(script, com_fetch))
+    # âncora que sumiu: o verificador reprova em vez de aceitar tudo
+    sem_ancora = mudado.replace("function quickReply(text) {", "function responderRapido(text) {", 1)
+    assert any("âncora" in p for p in _diferencas_com_excecao(script, sem_ancora)), "âncora ausente não foi apontada"
+    sem_ancora_inicio = mudado.replace("let chatOpen = false;", "let chatAberto = false;", 1)
+    assert any("âncora" in p for p in _diferencas_com_excecao(script, sem_ancora_inicio))
+
+
 def test_s1_script_inline_identico_fora_das_templates(versoes):
     antiga, atual = versoes
     tags = _scripts(atual)
     externos = [a.strip() for a, _ in tags if "src=" in a.lower()]
-    assert not externos, f"a landing ganhou <script src> ({externos}); a DS4 não adiciona script"
+    assert not externos, f"a landing ganhou <script src> ({externos}); a landing não adiciona script externo"
     assert len(tags) == 1, f"{len(tags)} <script> na landing (esperado 1, como em {REFERENCIA})"
-    problemas = _diferencas_do_script(_script_inline(antiga), _script_inline(atual))
+    problemas = _diferencas_com_excecao(_script_inline(antiga), _script_inline(atual))
     assert not problemas, " | ".join(problemas)
 
 
