@@ -2050,3 +2050,11 @@ confirmação, `.badge-status`, `.gt-faixa`, tabelas, estado vazio, títulos por
 **Fica em aberto (não bloqueia):** unificar `.aluno-resumo` com `.gt-faixa` (refatoração de CSS, D119); o rótulo do botão de
 confirmar repete o texto do botão de origem; a atualização automática de 30 s não pausa com a janela aberta (o formulário
 aberto já pausa, a janela não). Itens para revisão do PM listados na D119 e na D120.
+
+## Registro do agente-testes: DS2b, ajuste mecânico de teste antigo (23/11/2026)
+`test_d3_ajustes_design_angular.py` G2 comparava borda, peso, cor e raio de "Comprar cursos" com os do atalho "Cursos". Com o
+CTA fora da fileira de atalhos (retangular, raio 8 px, laranja; pedido do PM, D115 e D118), a comparação passa a valer só entre
+"Cursos" e "Meu perfil"; o CTA mantém a checagem de não ter sublinhado. Intenção preservada (atalhos de seção com estilo
+uniforme). Encadeamento: D93 (G2) -> D115 -> D118 -> DS2b. Contratos que o dev precisa manter por causa dos e2e antigos:
+`h1.aluno-titulo`, `.progress-bar` com `style="width: N%"` (D3 G6 aceita fundo `#0096c7` ou `#0077a3`, ajuste mecânico do mesmo registro), `.curso-nome`,
+`.curso-icone`, `.curso-aviso`, `.badge` no cartão.
