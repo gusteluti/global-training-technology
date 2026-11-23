@@ -5,6 +5,9 @@ Contrato (D93):
     (localhost, 127.0.0.1 ou file://) e a própria origem da página em qualquer outro host.
   - "Matricular agora" de um curso leva a `<APP_URL>/login?area=aluno&next=/catalogo?curso=<id>` (next codificado).
   - "Área do aluno" e "Área do funcionário" continuam levando ao login, sem `next`.
+    Ajuste mecânico 4.3 (D115 -> DS4, decisão D-E): "Área do funcionário" saiu da barra e fica no rodapé; o teste
+    procura "Área do aluno" na barra (nav[aria-label="Principal"]) e "Área do funcionário" no rodapé (footer). A
+    intenção (os dois levam ao login da área certa, sem `next`) não muda.
 
 Harness: backend da F5b sem Angular (CORS para o servidor estático) e a landing servida pelo helper da E6.
 Execução (da raiz do repo): py -3 -m pytest frontend/e2e/test_d3_landing_vitrine.py -s
@@ -95,12 +98,13 @@ def test_matricular_agora_leva_o_curso_ao_login(browser, servidores):
         ctx.close()
 
 
-@pytest.mark.parametrize("texto,area", [("Área do aluno", "aluno"), ("Área do funcionário", "funcionario")])
-def test_botoes_da_barra_continuam_no_login(browser, servidores, texto, area):
+@pytest.mark.parametrize("texto,area,onde", [("Área do aluno", "aluno", 'nav[aria-label="Principal"]'),
+                                             ("Área do funcionário", "funcionario", "footer")])
+def test_botoes_da_barra_continuam_no_login(browser, servidores, texto, area, onde):
     ctx, page = _pagina(browser, servidores["landing"])
     try:
         with page.expect_navigation(timeout=TIMEOUT):
-            page.locator("nav a", has_text=texto).first.click()
+            page.locator(f"{onde} a", has_text=texto).first.click()
         destino = urllib.parse.urlparse(page.url)
         assert destino.path == "/login" and urllib.parse.parse_qs(destino.query) == {"area": [area]}, page.url
     finally:
