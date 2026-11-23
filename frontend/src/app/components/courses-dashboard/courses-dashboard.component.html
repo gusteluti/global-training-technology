@@ -1,10 +1,11 @@
+<h2 class="gt-aba-titulo">Cursos</h2>
 <app-atualizacao-automatica [pausado]="atualizacaoPausada" (atualizar)="atualizar()"></app-atualizacao-automatica>
 
 <div class="alert alert-danger" *ngIf="error">{{ error }}</div>
 
 <div class="card mb-3">
   <div class="card-body">
-    <h5>Inscritos por curso</h5>
+    <h3 class="h5">Inscritos por curso</h3>
     <div style="position: relative; height: 300px;">
       <canvas #enrollmentChart></canvas>
     </div>
@@ -13,18 +14,18 @@
 
 <div class="card">
   <div class="card-body">
-    <h5>Performance do catálogo</h5>
+    <h3 class="h5" id="cursos-performance-titulo">Performance do catálogo</h3>
     <div class="table-responsive">
-      <table class="table table-hover align-middle">
+      <table class="table table-hover align-middle" aria-labelledby="cursos-performance-titulo">
         <thead>
           <tr>
-            <th>Curso</th>
-            <th>Preço</th>
-            <th>Matrículas</th>
-            <th>Aprovadas</th>
-            <th>Pendentes</th>
-            <th>Conversão</th>
-            <th>Avaliação</th>
+            <th scope="col">Curso</th>
+            <th scope="col">Preço</th>
+            <th scope="col">Matrículas</th>
+            <th scope="col">Aprovadas</th>
+            <th scope="col">Pendentes</th>
+            <th scope="col">Conversão</th>
+            <th scope="col">Avaliação</th>
           </tr>
         </thead>
         <tbody>
@@ -52,7 +53,7 @@
 <div class="card mt-3" data-testid="curso-alunos" *ngIf="alunosCurso">
   <div class="card-body">
     <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
-      <h5 class="mb-0 text-break">Alunos de {{ alunosCurso.name || alunosCurso.id }}</h5>
+      <h2 class="h5 mb-0 text-break" id="curso-alunos-titulo">Alunos de {{ alunosCurso.name || alunosCurso.id }}</h2>
       <div class="d-flex flex-wrap gap-2">
         <button type="button" class="btn btn-sm btn-primary" data-testid="matricula-manual-abrir" *ngIf="canManage"
                 (click)="abrirMatriculaManual()">Matrícula manual</button>
@@ -63,7 +64,7 @@
     </div>
     <div class="alert alert-danger" *ngIf="alunosErro">{{ alunosErro }}</div>
     <div class="border rounded p-3 mb-3" *ngIf="canManage && manualAberto">
-      <h6>Matrícula manual</h6>
+      <h3 class="h6">Matrícula manual</h3>
       <div class="alert alert-success py-2" data-testid="matricula-manual-ok" *ngIf="manualOk">{{ manualOk }}</div>
       <div class="alert alert-danger py-2" data-testid="matricula-manual-erro" *ngIf="manualErro">{{ manualErro }}</div>
       <div class="row g-2 align-items-end">
@@ -120,13 +121,13 @@
       </div>
     </div>
     <div class="table-responsive">
-      <table class="table table-sm align-middle mb-0">
+      <table class="table table-sm align-middle mb-0" aria-labelledby="curso-alunos-titulo">
         <thead>
           <tr>
-            <th>Aluno</th>
-            <th>E-mail</th>
-            <th>Turma</th>
-            <th>Status</th>
+            <th scope="col">Aluno</th>
+            <th scope="col">E-mail</th>
+            <th scope="col">Turma</th>
+            <th scope="col">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -147,20 +148,20 @@
 
 <div class="card mt-3">
   <div class="card-body">
-    <h5>Turmas por curso</h5>
+    <h3 class="h5">Turmas por curso</h3>
     <div class="alert alert-danger" data-testid="turma-erro" *ngIf="turmaErro">{{ turmaErro }}</div>
-    <div *ngFor="let c of courses" class="mb-3">
-      <h6 class="mb-1">{{ c.name || c.id }}</h6>
+    <div *ngFor="let c of courses; let i = index" class="mb-3">
+      <h4 class="h6 mb-1" [id]="'turmas-curso-titulo-' + i">{{ c.name || c.id }}</h4>
       <div class="table-responsive">
-        <table class="table table-sm align-middle mb-1">
+        <table class="table table-sm align-middle mb-1" [attr.aria-labelledby]="'turmas-curso-titulo-' + i">
           <thead>
             <tr>
-              <th>Turma</th>
-              <th>Ativas</th>
-              <th>Pendentes</th>
-              <th>Capacidade</th>
-              <th>Período e horário</th>
-              <th *ngIf="canManage"></th>
+              <th scope="col">Turma</th>
+              <th scope="col">Ativas</th>
+              <th scope="col">Pendentes</th>
+              <th scope="col">Capacidade</th>
+              <th scope="col">Período e horário</th>
+              <th scope="col" *ngIf="canManage"><span class="visually-hidden">Ações</span></th>
             </tr>
           </thead>
           <tbody>
@@ -230,7 +231,7 @@
 
 <div class="card mt-3" *ngIf="canManage">
   <div class="card-body">
-    <h5>Gerenciar turmas</h5>
+    <h3 class="h5">Gerenciar turmas</h3>
     <div class="alert alert-danger" data-testid="turma-error" *ngIf="turmaError">{{ turmaError }}</div>
 
     <div class="row g-2 align-items-end mb-3">
@@ -268,15 +269,15 @@
       </div>
     </div>
 
-    <h6>Matrículas do curso</h6>
+    <h4 class="h6" id="cursos-matriculas-titulo">Matrículas do curso</h4>
     <div class="table-responsive" *ngIf="manageCourseId">
-      <table class="table table-sm align-middle">
+      <table class="table table-sm align-middle" aria-labelledby="cursos-matriculas-titulo">
         <thead>
           <tr>
-            <th>Aluno</th>
-            <th>E-mail</th>
-            <th>Status</th>
-            <th>Turma</th>
+            <th scope="col">Aluno</th>
+            <th scope="col">E-mail</th>
+            <th scope="col">Status</th>
+            <th scope="col">Turma</th>
           </tr>
         </thead>
         <tbody>

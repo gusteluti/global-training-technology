@@ -58,6 +58,10 @@ h1, h2, h3, h4, .card-title, .gt-title {
   letter-spacing: 0.2px;
 }
 h5, h6 { font-weight: 700; }
+/* DS3 (D115): títulos promovidos (h2/h3/h4) que mantêm a aparência de h5/h6 ficam com a fonte e o peso de antes. */
+h2.h5, h3.h5, h4.h5, h2.h6, h3.h6, h4.h6 { font-family: var(--gt-font); font-weight: 700; letter-spacing: normal; }
+/* DS3 (D115): título da aba do painel (h2) quando a aba não tinha um título com o nome dela. */
+.gt-aba-titulo { font-size: 24px; line-height: 1.2; margin-bottom: 0.5rem; }
 .text-muted { color: var(--gt-muted) !important; }
 a { color: var(--gt-link); }
 a:hover { color: var(--gt-link-hover); }
@@ -216,6 +220,36 @@ a.btn, label.btn { display: inline-flex; align-items: center; justify-content: c
   color: var(--gt-text); font-variant-numeric: tabular-nums;
 }
 .table td, .table th { font-variant-numeric: tabular-nums; }
+/* DS3 (D115): nome de campo em <code> dentro de tabela (coluna Alteração da Auditoria) com 14 px no mínimo. */
+.table code { font-size: 14px; }
+
+/* DS3 (D115): faixa de números (KPIs) única. Borda e raio de 10 px só no contêiner; divisória por border-left entre os
+   itens (border-top quando empilha no celular); sem cartão nem sombra por item. Rótulo ligado ao valor por dl/dt/dd. */
+.gt-faixa {
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr);
+  margin: 0 0 1rem; background: #ffffff; border: 1px solid var(--gt-border); border-radius: 10px;
+}
+.gt-faixa-item { min-width: 0; padding: 16px 20px; }
+.gt-faixa-item + .gt-faixa-item { border-left: 1px solid var(--gt-border); }
+.gt-faixa-rotulo { font-size: 14px; font-weight: 600; color: var(--gt-muted); margin: 0; }
+.gt-faixa-valor { margin: 4px 0 0; overflow-wrap: anywhere; }
+.gt-faixa-nota { font-size: 14px; color: var(--gt-muted); margin: 2px 0 0; }
+@media (max-width: 991.98px) {
+  .gt-faixa .gt-faixa-valor { font-size: 26px; }
+}
+@media (max-width: 767.98px) {
+  .gt-faixa { grid-auto-flow: row; grid-auto-columns: auto; grid-template-columns: minmax(0, 1fr); }
+  .gt-faixa-item { padding: 14px 16px; }
+  .gt-faixa-item + .gt-faixa-item { border-left: 0; border-top: 1px solid var(--gt-border); }
+}
+
+/* DS3 (D115): painel da equipe. Cartões com borda #d8e0e8, raio de 10 px e sem sombra pesada; cabeçalho de tabela em
+   #f3f6f9 com texto #3b4652 (8,9:1). */
+app-admin-dashboard .card { border-radius: 10px; box-shadow: none; }
+/* O texto oculto "Ações" (.visually-hidden, position absolute) do cabeçalho fica preso à rolagem da própria tabela;
+   sem isso ele escapa do overflow e cria rolagem horizontal na página a 390 px. */
+.table-responsive { position: relative; }
+app-admin-dashboard .table > thead > tr > th { background-color: #f3f6f9; color: #3b4652; }
 
 /* D93: botão do WhatsApp com o verde do botão de chat da landing (#40c351), não o verde padrão do Bootstrap. */
 .btn-whatsapp {

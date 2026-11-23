@@ -1,49 +1,35 @@
+<h2 class="gt-aba-titulo">Financeiro</h2>
 <app-atualizacao-automatica [pausado]="atualizacaoPausada" (atualizar)="atualizar()"></app-atualizacao-automatica>
 
 <div class="alert alert-danger" *ngIf="error">{{ error }}</div>
 
-<div class="row g-3 mb-3" *ngIf="totals">
-  <div class="col-md-3">
-    <div class="card h-100">
-      <div class="card-body">
-        <div class="text-muted small">Receita aprovada</div>
-        <div class="gt-kpi" data-testid="kpi-valor">{{ totals.revenue_approved | currency:'BRL':'symbol':'1.2-2' }}</div>
-        <div class="small text-muted">{{ totals.approved_count }} transação(ões)</div>
-      </div>
-    </div>
+<!-- DS3 (D115): faixa de números única (dl/dt/dd), borda no contêiner e divisória entre os itens. -->
+<dl class="gt-faixa" *ngIf="totals">
+  <div class="gt-faixa-item">
+    <dt class="gt-faixa-rotulo">Receita aprovada</dt>
+    <dd class="gt-kpi gt-faixa-valor" data-testid="kpi-valor">{{ totals.revenue_approved | currency:'BRL':'symbol':'1.2-2' }}</dd>
+    <dd class="gt-faixa-nota">{{ totals.approved_count }} transação(ões)</dd>
   </div>
-  <div class="col-md-3">
-    <div class="card h-100">
-      <div class="card-body">
-        <div class="text-muted small">Pendente</div>
-        <div class="gt-kpi" data-testid="kpi-valor">{{ totals.revenue_pending | currency:'BRL':'symbol':'1.2-2' }}</div>
-        <div class="small text-muted">{{ totals.pending_count }} transação(ões)</div>
-      </div>
-    </div>
+  <div class="gt-faixa-item">
+    <dt class="gt-faixa-rotulo">Pendente</dt>
+    <dd class="gt-kpi gt-faixa-valor" data-testid="kpi-valor">{{ totals.revenue_pending | currency:'BRL':'symbol':'1.2-2' }}</dd>
+    <dd class="gt-faixa-nota">{{ totals.pending_count }} transação(ões)</dd>
   </div>
-  <div class="col-md-3">
-    <div class="card h-100">
-      <div class="card-body">
-        <div class="text-muted small">Reembolsado</div>
-        <div class="gt-kpi" data-testid="kpi-valor">{{ totals.revenue_refunded | currency:'BRL':'symbol':'1.2-2' }}</div>
-        <div class="small text-muted">{{ totals.refunded_count }} transação(ões)</div>
-      </div>
-    </div>
+  <div class="gt-faixa-item">
+    <dt class="gt-faixa-rotulo">Reembolsado</dt>
+    <dd class="gt-kpi gt-faixa-valor" data-testid="kpi-valor">{{ totals.revenue_refunded | currency:'BRL':'symbol':'1.2-2' }}</dd>
+    <dd class="gt-faixa-nota">{{ totals.refunded_count }} transação(ões)</dd>
   </div>
-  <div class="col-md-3">
-    <div class="card h-100">
-      <div class="card-body">
-        <div class="text-muted small">Projeção próximo mês</div>
-        <div class="gt-kpi" data-testid="kpi-valor">{{ totals.projected_next_month | currency:'BRL':'symbol':'1.2-2' }}</div>
-        <div class="small text-muted">Média dos últimos meses</div>
-      </div>
-    </div>
+  <div class="gt-faixa-item">
+    <dt class="gt-faixa-rotulo">Projeção próximo mês</dt>
+    <dd class="gt-kpi gt-faixa-valor" data-testid="kpi-valor">{{ totals.projected_next_month | currency:'BRL':'symbol':'1.2-2' }}</dd>
+    <dd class="gt-faixa-nota">Média dos últimos meses</dd>
   </div>
-</div>
+</dl>
 
 <div class="card mb-3">
   <div class="card-body">
-    <h5>Receita aprovada por mês</h5>
+    <h3 class="h5">Receita aprovada por mês</h3>
     <div style="position: relative; height: 300px;">
       <canvas #revenueChart></canvas>
     </div>
@@ -52,18 +38,18 @@
 
 <div class="card mb-3">
   <div class="card-body">
-    <h5>Solicitações de cancelamento</h5>
+    <h3 class="h5" id="fin-cancelamentos-titulo">Solicitações de cancelamento</h3>
     <div class="alert alert-danger" *ngIf="erroCancelamentos">{{ erroCancelamentos }}</div>
     <div class="table-responsive">
-      <table class="table align-middle mb-0">
+      <table class="table align-middle mb-0" aria-labelledby="fin-cancelamentos-titulo">
         <thead>
           <tr>
-            <th>Aluno</th>
-            <th>Curso</th>
-            <th>Valor</th>
-            <th>Data</th>
-            <th>Motivo</th>
-            <th></th>
+            <th scope="col">Aluno</th>
+            <th scope="col">Curso</th>
+            <th scope="col">Valor</th>
+            <th scope="col">Data</th>
+            <th scope="col">Motivo</th>
+            <th scope="col"><span class="visually-hidden">Ações</span></th>
           </tr>
         </thead>
         <tbody>
@@ -100,7 +86,7 @@
 <div class="card">
   <div class="card-body">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-      <h5 class="mb-0">Transações</h5>
+      <h3 class="h5 mb-0" id="fin-transacoes-titulo">Transações</h3>
       <button type="button" class="btn btn-sm btn-outline-primary" data-testid="exportar-csv"
               [disabled]="exportando" (click)="exportarCsv()">Exportar CSV</button>
     </div>
@@ -119,15 +105,15 @@
       </div>
     </div>
     <div class="table-responsive">
-      <table class="table table-hover align-middle">
+      <table class="table table-hover align-middle" aria-labelledby="fin-transacoes-titulo">
         <thead>
           <tr>
-            <th>Aluno</th>
-            <th>Curso</th>
-            <th>Valor</th>
-            <th>Status</th>
-            <th>Data</th>
-            <th></th>
+            <th scope="col">Aluno</th>
+            <th scope="col">Curso</th>
+            <th scope="col">Valor</th>
+            <th scope="col">Status</th>
+            <th scope="col">Data</th>
+            <th scope="col"><span class="visually-hidden">Ações</span></th>
           </tr>
         </thead>
         <tbody>
@@ -138,7 +124,7 @@
             </td>
             <td class="text-break">{{ p.course_name || p.course_id }}</td>
             <td>{{ p.amount | currency:'BRL':'symbol':'1.2-2' }}</td>
-            <td><span class="badge" [ngClass]="p.status === 'approved' ? 'bg-success' : (p.status === 'refunded' ? 'bg-danger' : 'bg-warning text-dark')">{{ rotuloPagamento(p.status) }}</span></td>
+            <td><span class="badge badge-status" [ngClass]="p.status === 'approved' ? 'bg-success' : (p.status === 'refunded' ? 'bg-danger' : 'bg-warning text-dark')">{{ rotuloPagamento(p.status) }}</span></td>
             <td>{{ p.created_at | dataSP }}</td>
             <td class="text-end">
               <button class="btn btn-sm btn-outline-danger" type="button"
