@@ -1,21 +1,22 @@
 <!-- Área do Aluno (D2/D67): design da landing, escopo Fase 2 seção 1.1 (RF21, RF22).
      Preserva os contratos de tela da E3 (Meus cursos, .badge, links de material), E4/B2 (tabela, Ver recibo,
      recibo-pdf, card.border-primary, h3 ~ .alert-danger) e E5 (chat-panel, chat-input, chat-send, chat-message). -->
-<section class="card aluno-hero">
-  <div class="card-body">
+<header class="aluno-cabecalho">
+  <div class="aluno-cabecalho-texto">
     <div class="gt-tag">Área do aluno</div>
     <h1 class="aluno-titulo" *ngIf="primeiroNome; else saudacaoGenerica">Olá, {{ primeiroNome }}!</h1>
     <ng-template #saudacaoGenerica><h1 class="aluno-titulo">Olá! Que bom ter você de volta.</h1></ng-template>
-    <p class="text-muted mb-3">Conectado como <strong class="text-break" data-testid="aluno-email">{{ email }}</strong></p>
-    <nav class="aluno-atalhos" aria-label="Seções da área do aluno">
-      <button type="button" class="aluno-atalho" data-testid="atalho-cursos" (click)="irPara('secao-cursos')">Cursos</button>
-      <button type="button" class="aluno-atalho" data-testid="atalho-financeiro" (click)="irPara('secao-financeiro')">Financeiro</button>
-      <button type="button" class="aluno-atalho" data-testid="atalho-assistente" (click)="irPara('secao-assistente')">Assistente</button>
-      <a class="aluno-atalho btn-cta" data-testid="atalho-catalogo" routerLink="/catalogo">Comprar cursos</a>
-      <a class="aluno-atalho" data-testid="atalho-perfil" routerLink="/student/perfil">Meu perfil</a>
-    </nav>
+    <p class="text-muted mb-0">Conectado como <strong class="text-break" data-testid="aluno-email">{{ email }}</strong></p>
   </div>
-</section>
+  <a class="btn-cta" data-testid="atalho-catalogo" routerLink="/catalogo">Comprar cursos</a>
+</header>
+<nav class="aluno-atalhos" aria-label="Seções da área do aluno">
+  <button type="button" class="aluno-atalho" data-testid="atalho-cursos" (click)="irPara('secao-cursos')">Cursos</button>
+  <button type="button" class="aluno-atalho" data-testid="atalho-financeiro" (click)="irPara('secao-financeiro')">Financeiro</button>
+  <button type="button" class="aluno-atalho" data-testid="atalho-assistente" (click)="irPara('secao-assistente')">Assistente</button>
+  <a class="aluno-atalho" data-testid="atalho-perfil" routerLink="/student/perfil">Meu perfil</a>
+</nav>
+
 
 <!-- DS2 (D115): faixa de números única (dl/dt/dd), borda no contêiner e divisória entre os itens. -->
 <dl class="aluno-resumo" data-testid="aluno-resumo" aria-label="Resumo">
@@ -40,106 +41,119 @@
     <span>Você ainda não tem matrículas.</span>
     <a class="btn btn-outline-primary btn-sm" routerLink="/catalogo">Ver cursos</a>
   </div>
-  <div class="row g-3">
-    <div class="col-12 col-md-6 col-xl-4" *ngFor="let m of enrollments">
-      <div class="card h-100 mb-0 curso-card" data-testid="curso-card">
-        <div class="card-body d-flex flex-column">
-          <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
-            <div class="curso-icone" aria-hidden="true">{{ iniciais(m.course_name) }}</div>
-            <span class="badge badge-status" [ngClass]="classeStatus(m.status)">{{ rotuloStatus(m.status) }}</span>
-          </div>
-          <h5 class="curso-nome text-break">{{ m.course_name }}</h5>
-          <p class="small text-muted mb-3" data-testid="curso-data">Matrícula em {{ dataBr(m.enrolled_at) }}</p>
-          <p class="small mb-3" data-testid="curso-turma" *ngIf="m.class_name">
-            Turma: {{ m.class_name }}<ng-container *ngIf="m.class_starts_on"> · início em {{ m.class_starts_on | dataSP:'dia' }}</ng-container><ng-container *ngIf="m.class_schedule"> · {{ m.class_schedule }}</ng-container><ng-container *ngIf="m.class_ends_on"> · término em {{ m.class_ends_on | dataSP:'dia' }}</ng-container>
-          </p>
-
-          <ng-container *ngIf="m.status === 'active'; else semAcesso">
-            <a class="btn btn-primary btn-sm mb-3 align-self-start" data-testid="curso-entrar" [routerLink]="['/student/curso', m.id]">Entrar no curso</a>
-            <h6 class="curso-subtitulo" *ngIf="m.materials?.length">Materiais</h6>
-            <div class="list-group" *ngIf="m.materials?.length; else semMateriais">
-              <a *ngFor="let mat of m.materials"
-                 class="list-group-item list-group-item-action text-break"
-                 [href]="mat.url"
-                 target="_blank"
-                 rel="noopener noreferrer">{{ mat.title }}</a>
+  <div class="cursos-lista">
+    <div class="curso-item" *ngFor="let m of enrollments">
+      <div class="card mb-0 curso-card" data-testid="curso-card">
+        <div class="curso-linha">
+          <div class="curso-icone" aria-hidden="true">{{ iniciais(m.course_name) }}</div>
+          <div class="curso-corpo">
+            <div class="curso-titulo-linha">
+              <h5 class="curso-nome text-break">{{ m.course_name }}</h5>
+              <span class="badge badge-status" [ngClass]="classeStatus(m.status)">{{ rotuloStatus(m.status) }}</span>
             </div>
-            <ng-template #semMateriais>
-              <p class="text-muted small mb-0" *ngIf="!m.progress?.total">Este curso ainda não tem materiais.</p>
-            </ng-template>
-            <div class="mt-3" *ngIf="m.progress?.total">
-              <div class="d-flex justify-content-between small mb-1">
-                <strong>Seu progresso</strong>
+            <p class="small text-muted mb-1" data-testid="curso-data">Matrícula em {{ dataBr(m.enrolled_at) }}</p>
+            <p class="small mb-1" data-testid="curso-turma" *ngIf="m.class_name">
+              Turma: {{ m.class_name }}<ng-container *ngIf="m.class_starts_on"> · início em {{ m.class_starts_on | dataSP:'dia' }}</ng-container><ng-container *ngIf="m.class_schedule"> · {{ m.class_schedule }}</ng-container><ng-container *ngIf="m.class_ends_on"> · término em {{ m.class_ends_on | dataSP:'dia' }}</ng-container>
+            </p>
+            <div class="curso-progresso-bloco" *ngIf="m.status === 'active' && m.progress?.total">
+              <div class="small mb-1">
+                <strong>Seu progresso</strong> ·
                 <span data-testid="curso-progresso">{{ m.progress.done }} de {{ m.progress.total }} concluídos</span>
               </div>
-              <div class="progress curso-progresso mb-2">
-                <div class="progress-bar" [style.width.%]="m.progress.percent"></div>
+              <div class="curso-progresso-linha">
+                <div class="progress curso-progresso" role="progressbar" aria-label="Progresso do curso"
+                     [attr.aria-valuenow]="m.progress.percent" aria-valuemin="0" aria-valuemax="100">
+                  <div class="progress-bar" [style.width.%]="m.progress.percent"></div>
+                </div>
+                <span class="curso-percentual">{{ m.progress.percent }}%</span>
               </div>
-              <p class="small text-muted mb-2" data-testid="curso-progresso-sala" *ngIf="m.progress.total !== m.materials.length">Marque as aulas como concluídas dentro do curso.</p>
-              <ng-container *ngIf="m.progress.total === m.materials.length">
-              <div class="form-check small" *ngFor="let mat of m.materials">
-                <input class="form-check-input" type="checkbox" data-testid="material-concluido"
-                       [id]="'mat-' + m.id + '-' + mat.url" [checked]="m.progress.completed.includes(mat.url)"
-                       (change)="marcarMaterial(m, mat.url, $any($event.target).checked)">
-                <label class="form-check-label" [for]="'mat-' + m.id + '-' + mat.url">{{ mat.title }}</label>
-              </div>
-              </ng-container>
-              <button type="button" class="btn btn-outline-primary btn-sm mt-2" data-testid="curso-certificado"
-                      *ngIf="m.progress.certificate_available" (click)="baixarCertificado(m)">Baixar certificado</button>
             </div>
-            <div class="mt-3 border-top pt-2">
-              <div class="small mb-1"><strong>Avalie o curso</strong>
-                <span class="text-muted" data-testid="curso-avaliacao-atual" *ngIf="m.review"> · sua nota: {{ m.review.rating }} ★</span>
-              </div>
-              <input class="form-control form-control-sm mb-2" maxlength="500" placeholder="Comentário (opcional)"
+          </div>
+          <div class="curso-acao">
+            <a *ngIf="m.status === 'active'; else semAcesso" class="btn btn-primary" data-testid="curso-entrar" [routerLink]="['/student/curso', m.id]">Entrar no curso</a>
+            <ng-template #semAcesso>
+              <p class="text-muted small mb-0 curso-aviso">{{ mensagemSemAcesso(m.status) }}</p>
+            </ng-template>
+          </div>
+        </div>
+
+        <div class="curso-secundario" *ngIf="m.status === 'active'">
+          <h6 class="curso-subtitulo" *ngIf="m.materials?.length">Materiais</h6>
+          <div class="list-group" *ngIf="m.materials?.length; else semMateriais">
+            <a *ngFor="let mat of m.materials"
+               class="list-group-item list-group-item-action text-break"
+               [href]="mat.url"
+               target="_blank"
+               rel="noopener noreferrer">{{ mat.title }}</a>
+          </div>
+          <ng-template #semMateriais>
+            <p class="text-muted small mb-0" *ngIf="!m.progress?.total">Este curso ainda não tem materiais.</p>
+          </ng-template>
+          <div class="mt-3" *ngIf="m.progress?.total">
+            <p class="small text-muted mb-2" data-testid="curso-progresso-sala" *ngIf="m.progress.total !== m.materials.length">Marque as aulas como concluídas dentro do curso.</p>
+            <ng-container *ngIf="m.progress.total === m.materials.length">
+            <div class="form-check small" *ngFor="let mat of m.materials">
+              <input class="form-check-input" type="checkbox" data-testid="material-concluido"
+                     [id]="'mat-' + m.id + '-' + mat.url" [checked]="m.progress.completed.includes(mat.url)"
+                     (change)="marcarMaterial(m, mat.url, $any($event.target).checked)">
+              <label class="form-check-label" [for]="'mat-' + m.id + '-' + mat.url">{{ mat.title }}</label>
+            </div>
+            </ng-container>
+            <button type="button" class="btn btn-outline-primary btn-sm mt-2" data-testid="curso-certificado"
+                    *ngIf="m.progress.certificate_available" (click)="baixarCertificado(m)">Baixar certificado</button>
+          </div>
+          <div class="mt-3 curso-avaliacao">
+            <div class="small mb-1"><strong>Avalie o curso</strong>
+              <span class="text-muted" data-testid="curso-avaliacao-atual" *ngIf="m.review"> · sua nota: {{ m.review.rating }} ★</span>
+            </div>
+            <div class="avaliacao-linha">
+              <input class="form-control form-control-sm avaliacao-comentario" maxlength="500" placeholder="Comentário (opcional)"
                      aria-label="Comentário da avaliação" data-testid="curso-avaliacao-comentario"
                      [ngModel]="comentarioDe(m)" (ngModelChange)="comentarioAvaliacao[m.id] = $event"
                      [ngModelOptions]="{standalone: true}">
-              <div class="d-flex gap-2 align-items-center">
-                <select class="form-select form-select-sm avaliacao-nota" data-testid="curso-avaliacao-nota"
-                        aria-label="Nota do curso" [ngModel]="notaDe(m)" (ngModelChange)="notaAvaliacao[m.id] = $event"
-                        [ngModelOptions]="{standalone: true}">
-                  <option *ngFor="let n of [5,4,3,2,1]" [ngValue]="n">{{ n }} ★</option>
-                </select>
-                <button type="button" class="btn btn-outline-primary btn-sm" data-testid="curso-avaliacao-enviar"
-                        [disabled]="avaliandoId === m.id" (click)="avaliar(m)">Enviar</button>
-              </div>
-              <p class="small text-success mt-2 mb-0" data-testid="curso-avaliacao-ok" role="status"
-                 *ngIf="avaliacaoOk[m.id]">{{ avaliacaoOk[m.id] }}</p>
-              <p class="small text-danger mt-2 mb-0" data-testid="curso-avaliacao-erro" role="alert"
-                 *ngIf="avaliacaoErro[m.id]">{{ avaliacaoErro[m.id] }}</p>
+              <select class="form-select form-select-sm avaliacao-nota" data-testid="curso-avaliacao-nota"
+                      aria-label="Nota do curso" [ngModel]="notaDe(m)" (ngModelChange)="notaAvaliacao[m.id] = $event"
+                      [ngModelOptions]="{standalone: true}">
+                <option *ngFor="let n of [5,4,3,2,1]" [ngValue]="n">{{ n }} ★</option>
+              </select>
+              <button type="button" class="btn btn-outline-primary btn-sm" data-testid="curso-avaliacao-enviar"
+                      [disabled]="avaliandoId === m.id" (click)="avaliar(m)">Enviar</button>
             </div>
-          </ng-container>
-
-          <ng-template #semAcesso>
-            <p class="text-muted small mb-0 curso-aviso">{{ mensagemSemAcesso(m.status) }}</p>
-          </ng-template>
-
-          <div class="mt-3" *ngIf="m.cancellation || m.can_request_cancellation || erroCancelamento[m.id]">
-            <p class="small mb-2" data-testid="curso-cancelamento-status" *ngIf="textoCancelamento(m.cancellation)">{{ textoCancelamento(m.cancellation) }}</p>
-            <div class="alert alert-danger small py-2 mb-2" *ngIf="erroCancelamento[m.id]">{{ erroCancelamento[m.id] }}</div>
-            <ng-container *ngIf="m.can_request_cancellation">
-              <button type="button" class="btn btn-outline-danger btn-sm" data-testid="curso-cancelar"
-                      *ngIf="cancelarAbertoId !== m.id" (click)="abrirCancelamento(m)">Pedir cancelamento</button>
-              <div *ngIf="cancelarAbertoId === m.id">
-                <textarea class="form-control form-control-sm mb-2" rows="3" maxlength="500"
-                          data-testid="curso-cancelar-motivo" [name]="'motivo-cancelamento-' + m.id"
-                          placeholder="Motivo (opcional)" aria-label="Motivo do cancelamento"
-                          [(ngModel)]="motivoCancelamento"></textarea>
-                <div class="d-flex gap-2">
-                  <button type="button" class="btn btn-danger btn-sm" data-testid="curso-cancelar-enviar"
-                          [disabled]="enviandoCancelamento" (click)="enviarCancelamento(m)">Enviar pedido</button>
-                  <button type="button" class="btn btn-outline-secondary btn-sm"
-                          [disabled]="enviandoCancelamento" (click)="cancelarAbertoId = null">Voltar</button>
-                </div>
-              </div>
-            </ng-container>
+            <p class="small text-success mt-2 mb-0" data-testid="curso-avaliacao-ok" role="status"
+               *ngIf="avaliacaoOk[m.id]">{{ avaliacaoOk[m.id] }}</p>
+            <p class="small text-danger mt-2 mb-0" data-testid="curso-avaliacao-erro" role="alert"
+               *ngIf="avaliacaoErro[m.id]">{{ avaliacaoErro[m.id] }}</p>
           </div>
+          <ng-container *ngTemplateOutlet="cancelamento; context: { $implicit: m }"></ng-container>
+        </div>
+        <div class="curso-cancelamento-solto" *ngIf="m.status !== 'active'">
+          <ng-container *ngTemplateOutlet="cancelamento; context: { $implicit: m }"></ng-container>
         </div>
       </div>
     </div>
   </div>
-</section>
+  <ng-template #cancelamento let-m>
+    <div class="mt-3" *ngIf="m.cancellation || m.can_request_cancellation || erroCancelamento[m.id]">
+      <p class="small mb-2" data-testid="curso-cancelamento-status" *ngIf="textoCancelamento(m.cancellation)">{{ textoCancelamento(m.cancellation) }}</p>
+      <div class="alert alert-danger small py-2 mb-2" *ngIf="erroCancelamento[m.id]">{{ erroCancelamento[m.id] }}</div>
+      <ng-container *ngIf="m.can_request_cancellation">
+        <button type="button" class="btn btn-outline-danger btn-sm" data-testid="curso-cancelar"
+                *ngIf="cancelarAbertoId !== m.id" (click)="abrirCancelamento(m)">Pedir cancelamento</button>
+        <div *ngIf="cancelarAbertoId === m.id">
+          <textarea class="form-control form-control-sm mb-2" rows="3" maxlength="500"
+                    data-testid="curso-cancelar-motivo" [name]="'motivo-cancelamento-' + m.id"
+                    placeholder="Motivo (opcional)" aria-label="Motivo do cancelamento"
+                    [(ngModel)]="motivoCancelamento"></textarea>
+          <div class="d-flex gap-2">
+            <button type="button" class="btn btn-danger btn-sm" data-testid="curso-cancelar-enviar"
+                    [disabled]="enviandoCancelamento" (click)="enviarCancelamento(m)">Enviar pedido</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm"
+                    [disabled]="enviandoCancelamento" (click)="cancelarAbertoId = null">Voltar</button>
+          </div>
+        </div>
+      </ng-container>
+    </div>
+  </ng-template>
 
 <section id="secao-financeiro" class="aluno-secao" data-testid="secao-financeiro">
   <h3>Histórico financeiro</h3>

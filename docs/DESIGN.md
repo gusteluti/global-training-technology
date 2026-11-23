@@ -77,8 +77,13 @@ Regras:
 
 - **Botões:** primário azul `--gt-link` com texto branco (hover `--gt-link-hover`; uma ação principal por área); secundário
   com borda e texto `--gt-link`; raio 8 px. O laranja (`.btn-cta`) só aparece no botão principal de matrícula/conversão, com
-  texto `#17212b` (D-B): na SPA, "Ver cursos" no atalho do aluno e "Comprar" no catálogo; na landing, o CTA do hero e
+  texto `#17212b` (D-B): na SPA, "Comprar cursos" no cabeçalho da área do aluno (botão retangular, fora da barra de atalhos) e "Comprar" no catálogo; na landing, o CTA do hero e
   "Matricular agora" nos cartões. Um cartão nunca tem dois botões laranja.
+- **Área do aluno (DS2b, D122):** sem cartão em volta da saudação; o h1 "Olá, <nome>!" fica direto sobre o fundo, com o CTA
+  laranja à direita (largura total no celular). Os atalhos de seção são uma barra de texto com sublinhado de 2 px no
+  hover/foco, não pílulas. "Meus cursos" é uma coluna de largura total, um curso por linha: ícone, nome com o status ao lado,
+  matrícula/turma, barra de progresso (`role="progressbar"`) com o percentual, e a ação "Entrar no curso" à direita. Materiais,
+  avaliação (numa linha), certificado e cancelamento ficam num bloco secundário `#f7f9fb` dentro do cartão.
 - **Janela de confirmação (DS1):** toda ação destrutiva ou irreversível usa `ConfirmacaoService.confirmar({titulo, texto?,
   rotuloConfirmar, destrutiva?})`, que abre o `ConfirmacaoComponent` único da casca (`role="alertdialog"`,
   `[data-testid=confirmacao]`, botões `confirmacao-voltar` e `confirmacao-confirmar`). Foco preso na janela, Esc = Voltar,

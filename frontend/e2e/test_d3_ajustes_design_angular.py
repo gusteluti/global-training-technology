@@ -210,10 +210,15 @@ def test_d3_ajustes_design_angular_e2e(servidores, browser):
     def g2():
         page = aluno()
         referencia = page.locator('[data-testid="atalho-cursos"]')
+        # DS2b (autoridade 4.3, D115/D118 + pedido do PM): "Comprar cursos" saiu da fileira de atalhos e virou o CTA do
+        # cabeçalho (retangular, laranja). A igualdade de estilo vale entre os atalhos de seção que continuam na barra
+        # (Cursos e Meu perfil); no CTA fica a regra de não ter sublinhado em repouso.
         for testid in ("atalho-catalogo", "atalho-perfil"):
             alvo = page.locator(f'[data-testid="{testid}"]')
             if estilo(alvo, "text-decoration-line") != "none":
                 raise Falha(f"{testid} está sublinhado")
+            if testid == "atalho-catalogo":
+                continue
             for prop in ("border-top-color", "font-weight", "color", "border-radius"):
                 if estilo(alvo, prop) != estilo(referencia, prop):
                     raise Falha(f"{testid}: {prop} = {estilo(alvo, prop)!r}, diferente do atalho Cursos "
@@ -280,8 +285,9 @@ def test_d3_ajustes_design_angular_e2e(servidores, browser):
         barra = card_ativo(page).locator(".progress-bar")
         # Com 0% a barra tem largura zero (não "visível" para o Playwright): basta estar no DOM.
         cor = estilo(barra, "background-color", "attached")
-        if cor != TEAL:
-            raise Falha(f"barra de progresso com {cor} (esperado teal)")
+        # DS2b: o preenchimento pode ser o teal da marca (#0096c7) ou o azul de texto #0077a3 (nunca o azul do Bootstrap).
+        if cor not in (TEAL, "rgb(0, 119, 163)"):
+            raise Falha(f"barra de progresso com {cor} (esperado teal #0096c7 ou #0077a3)")
         linha = page.locator("tbody tr").filter(has_text=cursos["analise"]["nome"])
         badge = linha.locator('[data-testid="pagamento-status"]')
         if badge.first.inner_text().strip() != "Em análise":
