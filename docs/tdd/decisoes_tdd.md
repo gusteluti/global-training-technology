@@ -2058,3 +2058,18 @@ CTA fora da fileira de atalhos (retangular, raio 8 px, laranja; pedido do PM, D1
 uniforme). Encadeamento: D93 (G2) -> D115 -> D118 -> DS2b. Contratos que o dev precisa manter por causa dos e2e antigos:
 `h1.aluno-titulo`, `.progress-bar` com `style="width: N%"` (D3 G6 aceita fundo `#0096c7` ou `#0077a3`, ajuste mecânico do mesmo registro), `.curso-nome`,
 `.curso-icone`, `.curso-aviso`, `.badge` no cartão.
+
+## D122 — DS2b: área do aluno redesenhada (23/11/2026)
+Pedido do PM depois do merge da onda DS0–DS5: "a página do aluno não mudou" e "o botão 'Comprar cursos' está laranja estático"
+(pílula laranja no meio de pílulas brancas). A DS2 (D118) tinha sido conservadora. Só design; nenhuma lógica, rota, API ou dado
+mudou (o `.ts` não foi tocado). Cabeçalho sem cartão com o CTA laranja à direita; atalhos em barra de texto; "Meus cursos" em
+uma coluna, um curso por linha, com barra de progresso e percentual (de `progress.percent`, que o template já tinha); materiais,
+avaliação, certificado e cancelamento num bloco secundário. Não entrou a "Próxima aula" do protótipo (não há esse dado; seria
+funcionalidade nova). **Ciclo:** red `34126a7`; frontend `6d201a0`; merge `08b4653` (sub-branch `feature/fase2-design-r2-aluno`,
+projeto `feature/fase2-design-r2`, ambas a partir da `main` em `5fdf5ea`). e2e DS2b 28/28; build limpo; d2, d3, d4, ds0–ds2,
+e3, e5, b2, x1, x2, u5, u7, u8, s4, gr1, gr4, gr5, qa_fluxos e jornadas (74/74 isolada) verdes. Falhas que não vêm da DS2b:
+GR3 P3/L3, F5b G5 (já existiam, D118/D121) e `c_sala_curso` (YouTube bloqueado). A `jornadas_usabilidade` deu 13 falhas
+numa primeira rodada e 74/74 ao repetir isolada; causa não investigada (parece instabilidade da execução).
+**Ajuste mecânico de teste (4.3, D93 → D115 → D118 → DS2b):** D3 G2 e G6 (registrado acima pelo agente-testes).
+**Escolha do dev para o PM confirmar:** o botão "Pedir cancelamento" no bloco cinza usa `#b42318` (vermelho da D115) porque
+o azul não passava AA sobre `#f7f9fb` (4,29:1). Capturas conferidas a 1366 e 390 px.
