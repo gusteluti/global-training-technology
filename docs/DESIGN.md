@@ -3,7 +3,8 @@
 Sistema visual da landing (`frontend/landing_global_training.html`) e da SPA Angular (`frontend/src`). Serve para pessoas e
 agentes de IA que forem mexer em qualquer tela: siga este arquivo para que as duas partes continuem parecendo um produto só.
 Os valores abaixo são os mesmos de `frontend/src/styles.css` (tokens `--gt-*`) e do `:root` da landing. Decisões: D66, D93, D106,
-D115 (plano de design `docs/tdd/PLANO_DESIGN.md`, DS0 a DS5), D124 (depoimentos e rodapé da landing).
+D115 (plano de design `docs/tdd/PLANO_DESIGN.md`, DS0 a DS5), D124 (depoimentos e rodapé da landing), D125 (área do aluno em
+abas e cartões), D126 (assistente flutuante).
 
 ## Assunto e público
 
@@ -33,7 +34,8 @@ O visual parte desse assunto. O elemento marcante da landing é uma **planilha**
 | `--gt-border` | `#d8e0e8` | bordas de cartões e campos | — |
 | `--gt-bg-soft` | `#f7f9fb` | fundo da SPA e de seções alternadas | — |
 | `--gt-soft-blue` | `#eaf8fc` | fundos suaves (ícone de iniciais, hover de tabela, `.alert-info`) | — |
-| verde WhatsApp | `#40c351` | só o botão de chat e o botão do WhatsApp | — |
+| verde WhatsApp | `#40c351` | só o botão de chat **da landing** e o fundo do botão do WhatsApp. No painel do assistente da SPA o texto desse botão é `#0b2e13` (D126) | branco sobre ele 2,3:1 (abaixo do AA, por isso não é usado como texto); `#0b2e13` sobre ele 6,46:1 e sobre o hover `#34a845` 4,83:1 |
+| verde do assistente | `#1f9d3a` | **só** o fundo do botão flutuante do assistente na área do aluno (D126), sempre com ícone branco | ícone branco sobre ele 3,5:1 (D115 pede >= 3:1 para ícone); o `#40c351` da landing daria 2,3:1 |
 
 No Bootstrap, `--bs-primary`/`--bs-primary-rgb` e `--bs-link-color` apontam para `#0077a3` e `--bs-link-hover-color` para
 `#005f84`; `.btn-primary` e `.btn-outline-primary` definem as variáveis `--bs-btn-*` com `--gt-link`/`--gt-link-hover` em
@@ -87,9 +89,10 @@ Regras:
   visível, e então a barra de abas no mesmo padrão do painel da gestão (`ul.nav.nav-tabs.gt-abas`, botões `.nav-link` com
   `aria-current="page"` na ativa e o indicador `li.gt-abas-indicador` deslizante, recalculado em `window:resize`): "Meus cursos"
   (inicial) e "Financeiro". Só o painel da aba ativa existe no DOM (`*ngIf`); trocar de aba não chama a API nem limpa o recibo
-  aberto. No fim da mesma barra, à direita, ficam "Meu perfil" (link para `/student/perfil`) e, até o assistente flutuante da
-  entrega 4, "Assistente" (rola até o chat): não são abas (sem `data-aba`, `aria-current` nem `active`) e têm a aparência das
-  abas inativas. O chat continua abaixo do painel, em qualquer aba. Em "Meus cursos" cada matrícula é um **cartão em grade**
+  aberto. No fim da mesma barra, à direita, fica "Meu perfil" (link para `/student/perfil`): não é aba (sem `data-aba`,
+  `aria-current` nem `active`) e tem a aparência das abas inativas. A barra tem **3 itens** (a D122/D125 chegaram a ter o
+  "Assistente" nela e o chat abaixo do painel; isso acabou na D126: o chat não fica mais embaixo da tela, ver "Assistente
+  flutuante"). Em "Meus cursos" cada matrícula é um **cartão em grade**
   (`.cursos-lista`: `repeat(auto-fill, minmax(min(100%, 320px), 1fr))`, `gap` de 16 px; 3 colunas ou mais a 1280 px, 2 a 768 px,
   1 a 390 px; `auto-fill` e não `auto-fit` para o cartão único ocupar uma coluna, e `min(100%, 320px)` para não estourar a 320 px).
   Tudo fica dentro do cartão, em coluna: linha do ícone de iniciais com o selo de status à direita, nome, "Matrícula em ...",
@@ -99,6 +102,39 @@ Regras:
   secundário também ficam à mesma altura de um cartão para o outro, e sem subgrade o cartão em coluna (`flex`, `height: 100%`,
   ação com `margin-top: auto`) mantém o bloco secundário na base. A avaliação quebra em linhas (`flex-wrap`): o comentário ocupa a
   linha e a nota e o Enviar vêm embaixo. Nenhum `overflow` no cartão: nada é cortado.
+- **Assistente flutuante (R3-4, D126):** na área do aluno (`/student`, e só nela) o assistente é um botão circular fixo no canto
+  inferior direito, como o `#chat-btn` da landing, que abre um painel de chat. Nada de chat embaixo da tela nem de item
+  "Assistente" na barra de abas.
+  - **Botão** (`<button type="button" id="assistente-btn" data-testid="assistente-botao" aria-controls="assistente-painel"
+    aria-expanded>`): `position: fixed`, **58 x 58 px**, círculo, `right`/`bottom` **28 px** (janela de até 600 px: **16 px**),
+    fundo **`#1f9d3a`** com ícone branco (balão de conversa em SVG inline desenhado à mão, `aria-hidden`, sem emoji nem
+    biblioteca de ícones), sombra `0 4px 24px rgba(31,157,58,.35)`, `z-index: 200` (acima da barra, que é 100, e abaixo da janela
+    de confirmação, 1080). O verde é mais escuro que o `#40c351` da landing porque o ícone branco precisa de >= 3:1 (D115):
+    `#1f9d3a` dá 3,5:1 e `#40c351` só 2,3:1. `aria-label` "Abrir o chat com o assistente" / "Fechar o chat com o assistente"
+    conforme o estado. Foco visível (contorno teal de 2 px, afastado 3 px). Sem animação em repouso: só o hover, com
+    `transform: scale(1.06)` em 0,2 s (a regra global de `prefers-reduced-motion` zera a duração).
+  - **Painel** (`<div id="assistente-painel" role="dialog" aria-label="Chat com o assistente" data-testid="chat-panel">`): só existe
+    no DOM enquanto aberto (`*ngIf`). `position: fixed` acima do botão: `right: 28px; bottom: 96px; width: 360px;
+    max-width: calc(100vw - 32px); max-height: calc(100vh - 112px)` e, na janela de até 600 px, `right: 16px; bottom: 84px;
+    max-height: calc(100vh - 100px)`. Coluna flex com `overflow: hidden`: cabeçalho escuro `--gt-nav` (título "Assistente
+    virtual" em `h2` de 16 px, branco, e o botão de fechar `data-testid="assistente-fechar"`, 44 x 44 px, `aria-label="Fechar o
+    chat"`), aviso de erro (`.alert-danger`, quando houver), **área de mensagens** (`aria-live="polite"`, `flex: 1 1 auto;
+    min-height: 0; overflow-y: auto`: é a única parte que rola, sem `max-height` próprio), aviso de gravação e formulário. O campo
+    e o Enviar ficam sempre visíveis, com qualquer número de mensagens. Raio de 16 px, sombra `0 20px 60px rgba(20,35,50,.22)`.
+    Diálogo **não modal**: sem `aria-modal` e sem trava de foco. A 390 px o painel aberto cobre a barra de abas (aceito: quem
+    quiser trocar de aba fecha o painel antes).
+  - **Foco e teclado:** abrir leva o foco ao campo do chat; o botão, o X e `Esc` fecham e devolvem o foco ao botão
+    (`focus({ preventScroll: true })`). Se a janela de confirmação da casca tratou o `Esc`, o painel não fecha por causa dele.
+  - **Estado:** `painelAberto` só controla a exibição. As mensagens, fontes, avisos, ações e feedback ficam no componente e
+    sobrevivem a fechar, reabrir e trocar de aba; abrir, fechar e trocar de aba não chamam a API; trocar de aba não fecha o painel.
+    Uma ação `open` do assistente (ir para Financeiro ou Cursos) seleciona a aba e, com a janela de até 600 px, fecha o painel
+    (ele cobriria a tela); acima disso o painel continua aberto.
+  - **Botão do WhatsApp no painel:** o `btn-whatsapp` mantém o fundo `#40c351`, mas dentro do painel o texto é `#0b2e13` (6,46:1;
+    4,83:1 no hover), porque o branco dá 2,3:1 (abaixo do AA da D115). A regra vale só para `.assistente-painel`.
+  - **Rodapé:** a 390 e 320 px o botão cobriria o texto do rodapé da casca no fim da página. Enquanto `/student` está aberta o
+    componente põe a classe `gt-assistente-flutuante` no `<body>` (`ngOnInit`/`ngOnDestroy`) e seu CSS dá `padding-bottom: 96px`
+    ao `.gt-footer` (`::ng-deep body.gt-assistente-flutuante .gt-footer`). Em `/student/perfil`, na sala, no catálogo e no login
+    o rodapé mantém a altura de sempre.
 - **Janela de confirmação (DS1):** toda ação destrutiva ou irreversível usa `ConfirmacaoService.confirmar({titulo, texto?,
   rotuloConfirmar, destrutiva?})`, que abre o `ConfirmacaoComponent` único da casca (`role="alertdialog"`,
   `[data-testid=confirmacao]`, botões `confirmacao-voltar` e `confirmacao-confirmar`). Foco preso na janela, Esc = Voltar,
@@ -124,7 +160,8 @@ Regras:
   o visual não mudar.
 - **Abas do painel:** a aba ativa tem o texto em `--gt-link` e um indicador teal (preenchimento) desliza até ela
   (`.gt-abas-indicador`). Vale para o painel da gestão e para a área do aluno (R3-3, D125).
-- **Chat:** bolhas; resposta do assistente revelada de cima para baixo; avatar "GT".
+- **Chat:** bolhas; resposta do assistente revelada de cima para baixo; avatar "GT" (landing). Na área do aluno o chat vive no
+  painel do assistente flutuante (abaixo).
 
 ## Landing (DS4, D124)
 
@@ -166,7 +203,8 @@ Três momentos, todos desligados com `prefers-reduced-motion: reduce`:
 2. o indicador das abas desliza até a aba clicada;
 3. a resposta do chat é revelada de cima para baixo (o texto inteiro já está no DOM desde o início).
 
-Fora isso, só transições curtas (0,2 s) de cor, borda e sombra no hover. Nunca `transition: all`; nunca fade em cada seção.
+Fora isso, só transições curtas (0,2 s) de cor, borda e sombra no hover (e a escala do botão flutuante do assistente, D126).
+Nunca `transition: all`; nunca fade em cada seção.
 
 ## Acessibilidade (piso)
 
@@ -196,6 +234,8 @@ Fora isso, só transições curtas (0,2 s) de cor, borda e sombra no hover. Nunc
 `py -3 -m pytest frontend/e2e/test_d4_polimento_visual.py -s` confere as regras acima no navegador (estilo computado).
 `py -3 -m pytest frontend/e2e/test_ds0_fundacao_angular.py -s` confere logo, contraste AA dos tokens e o piso de 14 px (D115).
 `py -3 -m pytest frontend/e2e/test_r3b_landing_depoimentos_rodape.py -s` confere os depoimentos e o rodapé da landing (D124).
+`py -3 -m pytest frontend/e2e/test_r3c_area_aluno_abas_cartoes.py -s` confere as abas e os cartões da área do aluno (D125).
+`py -3 -m pytest frontend/e2e/test_r3d_assistente_flutuante.py -s` confere o botão flutuante e o painel do assistente (D126).
 Os e2e `test_ds1_*`, `test_ds2_area_aluno_angular.py`, `test_ds3_painel_equipe_angular.py`, `test_ds4_landing.py` e
 `test_ds4_script_inalterado.py` conferem, tela a tela, contraste AA pelo estilo computado, um `h1`, rótulos de campo, alvos de
 44 px, ausência de `confirm()` e de rolagem horizontal em 390 px (apoio em `frontend/e2e/apoio_contraste.py` e

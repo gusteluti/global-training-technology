@@ -5,6 +5,9 @@ visível "Assistente virtual". Seletores data-testid: chat-panel (contêiner), c
 chat-send (botão enviar), chat-message (uma por mensagem, atributo data-role="user" | "assistant",
 em ordem cronológica crescente).
 
+[R3-4, D126: a seção virou o painel de um botão flutuante ([data-testid=assistente-botao]); `exigir_painel` abre o painel antes de cada
+cenário que usa o chat. O título "Assistente virtual", os testids e o histórico não mudaram.]
+
 Cenários (checks numerados):
   S1 pré-condição (anterior ao chat): login do aluno em / chega a /student e a tela carrega "Meus cursos".
      Garante que o red do chat é por falta do chat, e não por servidor, login ou fixture.
@@ -67,6 +70,7 @@ E2E_DIR = Path(__file__).resolve().parent
 if str(E2E_DIR) not in sys.path:
     sys.path.insert(0, str(E2E_DIR))
 
+from apoio_assistente_flutuante import AssistenteIndisponivel, abrir_assistente  # noqa: E402
 from servidor_e2e_e5 import ADMIN_EMAIL, ADMIN_PASSWORD, PREFIXO_RESPOSTA  # noqa: E402
 
 REPO = E2E_DIR.parents[1]
@@ -304,10 +308,11 @@ def esperar_mensagens(page, quantidade, rotulo, limite_s=10):
 
 
 def exigir_painel(page, rotulo):
+    # R3-4 (D126): o painel do chat abre pelo botão flutuante do assistente (idempotente: só clica se o painel não existe).
     try:
-        page.locator(SEL_PAINEL).first.wait_for(state="visible", timeout=TIMEOUT)
-    except sync_api.TimeoutError:
-        raise Falha(f"{rotulo}: [data-testid=chat-panel] não está visível em {page.url}; a seção de chat não existe na tela")
+        abrir_assistente(page, TIMEOUT)
+    except (AssistenteIndisponivel, sync_api.TimeoutError) as erro:
+        raise Falha(f"{rotulo}: [data-testid=chat-panel] não está visível em {page.url}; o chat não abre ({str(erro).splitlines()[0]})")
 
 
 def papeis(lista):

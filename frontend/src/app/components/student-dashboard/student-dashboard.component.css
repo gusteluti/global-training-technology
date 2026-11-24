@@ -9,8 +9,9 @@
 }
 .btn-cta:hover, .btn-cta:focus-visible { background: var(--gt-cta-hover); color: var(--gt-text); text-decoration: none; }
 
-/* R3-3 (D125): as abas são as da gestão (.nav-tabs.gt-abas e o indicador estão no styles.css). "Meu perfil" e "Assistente" não são
-   abas: ficam no fim da mesma barra, à direita, com a aparência das abas inativas (nenhuma regra própria de cor, fonte ou borda). */
+/* R3-3 (D125): as abas são as da gestão (.nav-tabs.gt-abas e o indicador estão no styles.css). "Meu perfil" não é aba: fica no fim
+   da mesma barra, à direita, com a aparência das abas inativas (nenhuma regra própria de cor, fonte ou borda). O assistente saiu da
+   barra e virou o botão flutuante (R3-4, D126, no fim deste arquivo). */
 .aluno-abas-extra { margin-left: auto; }
 
 /* DS2 (D115): faixa de números única. Borda só no contêiner; divisória por border-left entre os itens
@@ -35,7 +36,7 @@
 
 /* R3-3 (D125): um cartão por curso, em grade (>= 3 colunas a 1280 px, 2 a 768 px, 1 a 390 px). `min(100%, 320px)` evita o estouro em
    telas de 320 px; `auto-fill` (não `auto-fit`) mantém o cartão único na largura de uma coluna. */
-.curso-card, .chat-card, .aluno-secao > .card { border-radius: 10px; box-shadow: none; }
+.curso-card, .aluno-secao > .card { border-radius: 10px; box-shadow: none; }
 .cursos-lista {
   display: grid; gap: 16px;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
@@ -83,10 +84,12 @@
 
 .aluno-recibo { border-width: 1.5px; }
 
-.chat-card { overflow: hidden; }
+/* R3-4 (D126): a área de mensagens é a única que rola dentro do painel flex (sem max-height próprio): `flex: 1 1 auto` com
+   `min-height: 0` deixa o painel crescer até o máximo e o formulário nunca sai da vista. */
 .chat-mensagens {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto;
   display: flex; flex-direction: column; gap: 12px;
-  max-height: 360px; overflow-y: auto; padding: 16px; background: #ffffff;
+  padding: 16px; background: #ffffff;
 }
 .chat-bolha {
   max-width: 80%; padding: 10px 14px; border-radius: 12px;
@@ -113,9 +116,9 @@
 .chat-feedback-btn:hover:not(:disabled) { border-color: #0096c7; }
 .chat-feedback-btn:disabled { cursor: default; opacity: 0.55; }
 .chat-feedback-btn.ativo, .chat-feedback-btn.ativo:disabled { opacity: 1; border-color: #0096c7; background: #eaf8fc; }
-.chat-aviso { margin: 0; padding: 10px 16px 0; }
+.chat-aviso { flex: 0 0 auto; margin: 0; padding: 10px 16px 0; background: #ffffff; }
 .chat-acoes { display: flex; flex-wrap: wrap; gap: 8px; align-self: flex-start; }
-.chat-form { padding: 12px 16px; border-top: 1px solid #d8e0e8; background: #ffffff; }
+.chat-form { flex: 0 0 auto; padding: 12px 16px; border-top: 1px solid #d8e0e8; background: #ffffff; }
 
 .curso-card .list-group-item-action { color: #0077a3; font-weight: 600; display: flex; justify-content: space-between; gap: 8px; }
 /* Seta em ::after: conteúdo gerado não entra no innerText, e o título do material segue exato (e2e L2). */
@@ -175,4 +178,62 @@
   --bs-btn-hover-bg: #b42318; --bs-btn-hover-border-color: #b42318; --bs-btn-hover-color: #ffffff;
   --bs-btn-active-bg: #b42318; --bs-btn-active-border-color: #b42318; --bs-btn-active-color: #ffffff;
   min-height: 44px;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------------
+   R3-4 (D126): assistente como botão flutuante à direita (como o #chat-btn da landing) e painel de chat.
+   --------------------------------------------------------------------------------------------------------------------- */
+/* Botão: círculo de 58 px, canto inferior direito. Fundo #1f9d3a (o #40c351 da landing dá só 2,3:1 com ícone branco; o #1f9d3a dá
+   3,5:1, acima do 3:1 que a D115 pede para ícone). z-index 200: acima do conteúdo e da barra (100), abaixo da janela de confirmação. */
+.assistente-btn {
+  position: fixed; right: 28px; bottom: 28px; z-index: 200;
+  box-sizing: border-box; width: 58px; height: 58px; padding: 0; border: 0; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: #1f9d3a; color: #ffffff; cursor: pointer;
+  box-shadow: 0 4px 24px rgba(31, 157, 58, 0.35);
+  transition: transform .2s; /* só o hover; a regra global de prefers-reduced-motion zera a duração */
+}
+.assistente-btn svg { width: 28px; height: 28px; }
+.assistente-btn:hover { transform: scale(1.06); }
+.assistente-btn:focus-visible { outline: 2px solid var(--gt-teal); outline-offset: 3px; }
+
+/* Painel: diálogo não modal acima do botão. Flex em coluna com overflow oculto; só a área de mensagens rola. */
+.assistente-painel {
+  position: fixed; right: 28px; bottom: 96px; z-index: 200;
+  display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box;
+  width: 360px; max-width: calc(100vw - 32px); max-height: calc(100vh - 112px);
+  background: #ffffff; border: 1px solid var(--gt-border); border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(20, 35, 50, 0.22);
+}
+.assistente-cabecalho {
+  flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 12px 12px 20px; background: var(--gt-nav);
+}
+.assistente-titulo {
+  margin: 0; font-family: var(--gt-font); font-size: 16px; font-weight: 700; line-height: 1.3;
+  letter-spacing: normal; color: #ffffff;
+}
+.assistente-fechar {
+  flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; padding: 0; border: 0; border-radius: 8px;
+  background: none; color: #ffffff; cursor: pointer; transition: background-color .2s;
+}
+.assistente-fechar:hover { background: rgba(255, 255, 255, 0.1); }
+.assistente-fechar:focus-visible { outline: 2px solid #7fd8f0; outline-offset: 2px; } /* foco no escuro (DESIGN.md) */
+.assistente-fechar svg { width: 18px; height: 18px; }
+.assistente-erro { flex: 0 0 auto; margin: 12px 16px 0; padding: 8px 12px; }
+
+/* WhatsApp no painel: o branco sobre #40c351 dá 2,3:1 (abaixo do AA da D115); texto escuro #0b2e13 dá 6,5:1 (4,8:1 no hover).
+   Só dentro do painel: o resto do app mantém o botão como está. */
+.assistente-painel .btn-whatsapp {
+  --bs-btn-color: #0b2e13; --bs-btn-hover-color: #0b2e13; --bs-btn-active-color: #0b2e13;
+}
+
+/* Rodapé da casca (.gt-footer fica no AppComponent): a 390 e 320 px o texto ocupa a largura e o botão o cobriria no fim da página.
+   Folga embaixo só enquanto esta tela está aberta: a classe do <body> é posta no ngOnInit e removida no ngOnDestroy. */
+::ng-deep body.gt-assistente-flutuante .gt-footer { padding-bottom: 96px; }
+
+@media (max-width: 600px) {
+  .assistente-btn { right: 16px; bottom: 16px; }
+  .assistente-painel { right: 16px; bottom: 84px; max-height: calc(100vh - 100px); }
 }

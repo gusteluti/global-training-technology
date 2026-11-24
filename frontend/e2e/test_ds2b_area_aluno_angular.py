@@ -18,7 +18,8 @@ Cenários (cada um lista TODAS as violações de todas as telas):
   C2 CTA no hover: fundo #e86a0c e texto legível (>= 4,5:1)
   C3 CTA no celular: largura toda abaixo da saudação
   C4 laranja só no CTA: nenhum outro elemento laranja na tela [passa no red; é a guarda]
-  N1 atalhos de seção: 4 elementos, mesmos testids e textos, dentro de nav[aria-label], altura >= 44 px, sem formato de pílula
+  N1 atalhos de seção: 3 elementos (R3-4, D126: o "Assistente" saiu da barra e virou o botão flutuante), mesmos testids e textos,
+     dentro de nav[aria-label], altura >= 44 px, sem formato de pílula
      (raio >= 12 px com borda ou fundo), sem o CTA entre eles
      [R3-3/D125: contêiner = ul.nav.nav-tabs.gt-abas; texto da aba atalho-cursos = "Meus cursos"]
   N2 atalhos: sublinhado ou indicador (border-bottom >= 2 px, sublinhado ou sombra) no hover
@@ -144,7 +145,7 @@ _JS_GEO = _JS_UTIL + r"""
                 raio: parseFloat(cs.borderTopLeftRadius) || 0, noNav: !!cta.closest('nav') };
   }
   // atalhos de seção
-  const ids = ['atalho-cursos', 'atalho-financeiro', 'atalho-assistente', 'atalho-perfil'];
+  const ids = ['atalho-cursos', 'atalho-financeiro', 'atalho-perfil'];  // R3-4 (D126): sem 'atalho-assistente' (botão flutuante)
   out.atalhos = ids.map(id => {
     const els = document.querySelectorAll(`[data-testid="${id}"]`);
     if (els.length !== 1) return { id, n: els.length };
@@ -641,7 +642,7 @@ def test_ds2b_area_aluno(browser, spa):
 
     # --- N atalhos ---------------------------------------------------------------------------------------------
     TEXTOS = {"atalho-cursos": "Meus cursos",  # R3-3 (D125): o rótulo da aba é "Meus cursos" (contrato do orquestrador)
-              "atalho-financeiro": "Financeiro", "atalho-assistente": "Assistente", "atalho-perfil": "Meu perfil"}
+              "atalho-financeiro": "Financeiro", "atalho-perfil": "Meu perfil"}  # R3-4 (D126): sem "Assistente"
 
     def n1(m, rotulo):
         v = []
@@ -660,7 +661,7 @@ def test_ds2b_area_aluno(browser, spa):
                          f"{'borda' if a['algumaBorda'] else 'fundo ' + a['fundo']}); esperado link/aba em texto")
         navs = {a["navId"] for a in m["atalhos"] if a["n"] == 1}
         if len(navs) != 1:
-            v.append(f"os 4 atalhos não estão na mesma barra de abas ({navs})")
+            v.append(f"os 3 atalhos não estão na mesma barra de abas ({navs})")
         if any(a.get("contemCta") for a in m["atalhos"]):
             v.append("o CTA 'Comprar cursos' continua dentro da navegação dos atalhos")
         return v
@@ -1048,7 +1049,7 @@ def test_ds2b_area_aluno(browser, spa):
             ("C2", "CTA no hover: #e86a0c e texto legível", c2),
             ("C3", "CTA no celular: largura toda abaixo da saudação", para(COM, M, c3, "CTA no celular")),
             ("C4", "laranja só no CTA", para(COM, LARGURAS, c4, "laranja fora do CTA")),
-            ("N1", "4 atalhos na barra de abas, em texto (sem pílula, sem CTA)", para(COM, LARGURAS, n1, "atalhos de seção")),
+            ("N1", "3 atalhos na barra de abas, em texto (sem pílula, sem CTA)", para(COM, LARGURAS, n1, "atalhos de seção")),
             ("N2", "abas com indicador sob a ativa e retorno no hover da inativa", n2),
             ("N3", "atalhos mantêm a ação (perfil, aba Financeiro à vista)", n3),
             ("H1", "cabeçalho sem cartão: h1 direto, rótulo, e-mail", para(COM, LARGURAS, h1_, "cabeçalho")),

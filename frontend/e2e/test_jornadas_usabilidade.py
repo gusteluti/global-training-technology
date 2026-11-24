@@ -38,6 +38,7 @@ import pytest
 from playwright import sync_api
 from playwright.sync_api import expect
 
+from apoio_assistente_flutuante import abrir_assistente  # R3-4 (D126): o chat do aluno abre pelo botão flutuante
 from apoio_confirmacao import confirmar_no_app  # DS1 (4.3, D115): janela de confirmação do app
 from apoio_harness_h1 import ambiente_isolado
 from apoio_webhook_mp import enviar_webhook, id_de_pagamento
@@ -270,6 +271,7 @@ def entrar_aqui(pagina, email):
 # --- chat da Área do aluno
 
 def perguntar(pagina, mensagem):
+    abrir_assistente(pagina)  # R3-4 (D126): idempotente; depois de goto/reload o painel nasce fechado
     respostas = pagina.locator('[data-testid="chat-message"][data-role="assistant"]')
     antes = respostas.count()
     campo(pagina, "chat-input").fill(mensagem)
@@ -279,9 +281,11 @@ def perguntar(pagina, mensagem):
 
 
 def secao_no_topo(pagina, secao):
+    # R3-4 (D126): limite de 50% -> 60% da janela, o mesmo "na vista" do contrato da R3-3 (D125). Sem a seção do chat embaixo, a
+    # página da conta com um só pagamento mal rola (18 px a 1280x800) e a seção do Financeiro para a ~51% do topo.
     pagina.wait_for_function(
         "id => { const r = document.getElementById(id).getBoundingClientRect();"
-        " return r.top >= -5 && r.top < window.innerHeight * 0.5; }", arg=secao)
+        " return r.top >= -5 && r.top < window.innerHeight * 0.6; }", arg=secao)
 
 
 # --- landing (vitrine e chat do visitante)
@@ -1106,7 +1110,7 @@ def test_j_alu_03_assistente_dados(s, navegador):
     fluxo = "J-ALU-03 Assistente com os próprios dados"
     pagina = tela(navegador)
     entrar_em(pagina, s, aluno.email, SENHA)
-    campo(pagina, "atalho-assistente").click()
+    abrir_assistente(pagina)  # R3-4 (D126): o atalho "Assistente" da barra saiu; o chat abre pelo botão flutuante
 
     # 1. Pagamento: resposta e botão "Ver meus pagamentos".
     # Limite do harness: o modelo dublê responde texto fixo, então os dados do pagamento no texto não são conferidos
@@ -1166,6 +1170,7 @@ def test_j_alu_03_2n_cartao(s, navegador):
     perguntar(pagina, f"Posso pagar com o cartão {CARTAO}?")
     expect(campo(pagina, "chat-aviso-pii").last).to_contain_text("removemos dados pessoais")
     pagina.reload()
+    abrir_assistente(pagina)  # R3-4 (D126): depois do reload o painel nasce fechado
     expect(campo(pagina, "chat-message")).to_have_count(2)
     historico = pagina.locator('[data-testid="chat-panel"]').inner_text()
     assert CARTAO not in historico and "4111" not in historico and "[cartao]" in historico
@@ -1179,6 +1184,7 @@ def _chat_no_limite(s, navegador):
     # Pré-condição: as 30 mensagens do minuto vão pela API do próprio aluno (o limite é por aluno, GR3).
     for numero in range(30):
         assert s.post("/api/student/chat", {"message": f"Quais cursos vocês têm? {numero}"}, aluno.tk).s == 200
+    abrir_assistente(pagina)  # R3-4 (D126)
     campo(pagina, "chat-input").fill("Quais cursos vocês têm? (31)")
     with pagina.expect_response("**/api/student/chat") as resposta:
         campo(pagina, "chat-send").click()
@@ -2125,7 +2131,7 @@ def test_j_int_01_do_curso_ao_reembolso(s, navegador, tmp_path):
         campo(visitante, "sala-certificado").click()
     assert b"Iris Integrada" in Path(baixado.value.path()).read_bytes()
     campo(visitante, "sala-voltar").click()
-    campo(visitante, "atalho-assistente").click()
+    abrir_assistente(visitante)  # R3-4 (D126): o atalho "Assistente" da barra saiu; o chat abre pelo botão flutuante
     perguntar(visitante, "Meu pagamento foi aprovado?")
     expect(campo(visitante, "chat-acao-abrir").filter(has_text="Ver meus pagamentos")).to_be_visible()
     obs_antes = s.get("/api/dashboard/observabilidade-ia", s.tk["admin"]).j["metrics"]["feedback"]

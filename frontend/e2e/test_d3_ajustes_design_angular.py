@@ -7,6 +7,7 @@ Contrato de tela (D93), verificado por estilo COMPUTADO no Chromium:
   G3 avaliação: sem avaliação, o seletor já mostra "5 ★"; enviar mostra [data-testid=curso-avaliacao-ok];
      com avaliação 4, ao recarregar o seletor mostra "4 ★"; o comentário tem largura útil (>= 200 px)
   G4 aviso de gravação do chat com respiro lateral (padding-left >= 12 px, igual ao das mensagens)
+     [R3-4, D126: o chat abre pelo botão flutuante; o respiro é medido em relação ao contêiner mais próximo (cartão ou painel)]
   G5 catálogo: rótulo de seção "Catálogo", ícone com as iniciais em cada cartão e preço em Barlow Condensed no azul
      da marca, com contraste AA (ajuste mecânico 4.3, D115 -> DS0: o teal #0096c7 só vale como texto grande; o azul
      de texto passa a #0077a3/#005f84)
@@ -36,6 +37,7 @@ E2E_DIR = Path(__file__).resolve().parent
 if str(E2E_DIR) not in sys.path:
     sys.path.insert(0, str(E2E_DIR))
 
+from apoio_assistente_flutuante import abrir_assistente  # noqa: E402
 from apoio_contraste import descrever, varrer_contraste  # noqa: E402
 from apoio_harness_h1 import abrir_banco, ambiente_isolado  # noqa: E402
 from servidor_e2e_h1 import GESTAO_EMAIL, GESTAO_SENHA  # noqa: E402
@@ -254,9 +256,10 @@ def test_d3_ajustes_design_angular_e2e(servidores, browser):
     # --- G4 aviso do chat ---------------------------------------------------------------------------------
     def g4():
         page = aluno()
+        abrir_assistente(page)
         aviso = page.locator('[data-testid="chat-aviso-gravacao"]')
         borda = aviso.first.evaluate(
-            "e => e.getBoundingClientRect().left - e.closest('.card').getBoundingClientRect().left"
+            "e => e.getBoundingClientRect().left - e.closest('.card, [data-testid=\"chat-panel\"]').getBoundingClientRect().left"
             " + parseFloat(getComputedStyle(e).paddingLeft)")
         if borda < 12:
             raise Falha(f"aviso do chat a {borda:.0f}px da borda do cartão (esperado >= 12px)")

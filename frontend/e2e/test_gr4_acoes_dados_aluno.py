@@ -42,6 +42,10 @@ Cenários — landing (test_gr4_acao_login_landing):
   L4 clique no link leva a <APP_URL>/login?area=aluno
   L5 sem erros de console nem exceções de página
 
+[R3-4, D126: na Área do aluno (A0 a A6) o chat abre pelo botão flutuante [data-testid=assistente-botao]; os cenários o abrem antes de
+usá-lo. Os botões [data-testid=chat-acao-abrir] continuam selecionando a aba e rolando até a seção (a 1366 px o painel fica aberto). A landing
+(L0 a L5) não mudou.]
+
 Execução (da raiz do repo): py -3 -m pytest frontend/e2e/test_gr4_acoes_dados_aluno.py -s
 """
 
@@ -59,6 +63,7 @@ E2E_DIR = Path(__file__).resolve().parent
 if str(E2E_DIR) not in sys.path:
     sys.path.insert(0, str(E2E_DIR))
 
+from apoio_assistente_flutuante import abrir_assistente  # noqa: E402
 from apoio_harness_f5b import SENHA_ALUNO, ambiente_f5b, semear_aluno  # noqa: E402
 from apoio_harness_h1 import abrir_banco  # noqa: E402
 from test_e6_landing_chat import _porta_livre, _servidor_da_landing  # noqa: E402
@@ -192,10 +197,7 @@ def test_gr4_acoes_area_do_aluno(servidores_angular, browser):
         except sync_api.TimeoutError:
             raise Falha(f"login de {email} não levou a /student (URL {page.url})")
         page.wait_for_load_state("networkidle")
-        try:
-            page.locator(SEL_PAINEL).first.wait_for(state="visible", timeout=TIMEOUT)
-        except sync_api.TimeoutError:
-            raise Falha("[data-testid=chat-panel] não está visível em /student")
+        abrir_assistente(page, TIMEOUT)  # R3-4 (D126): o chat abre pelo botão flutuante do assistente
         return page
 
     def pagina():
@@ -315,7 +317,7 @@ def test_gr4_acoes_area_do_aluno(servidores_angular, browser):
         page = pagina()
         if urlsplit(page.url).path.rstrip("/") != "/student":
             page.goto(base + "/student", wait_until="networkidle")
-            page.locator(SEL_PAINEL).first.wait_for(state="visible", timeout=TIMEOUT)
+            abrir_assistente(page, TIMEOUT)  # R3-4 (D126): depois do goto o painel nasce fechado
         label = "Abrir Meu perfil GR4"
         enviar("Quero ver meu perfil (A5)", "A5",
                _resposta("Resposta interceptada GR4 A5", [{"type": "open", "target": "perfil", "label": label}]))

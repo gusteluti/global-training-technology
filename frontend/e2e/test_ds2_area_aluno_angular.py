@@ -14,7 +14,9 @@ Seed (harness isolado D58; como o seed da D2/D3, com dados de tamanho realista):
                    é escolhida antes da medida, para o botão de compra ficar habilitado
 
 Telas (cada uma a 1366 e a 390 px de largura, mouse parado no canto, movimento reduzido):
-  /student                (aluna principal; aba "Meus cursos"; o chat do aluno com uma troca respondida na tela)
+  /student                (aluna principal; aba "Meus cursos"; o chat do aluno com uma troca respondida na tela. R3-4, D126: o chat
+                           é o painel do botão flutuante, aberto durante a medida desta tela e fechado antes de abrir a aba Financeiro: a 390 px o painel
+                           cobre a barra de abas)
   /student (aba Financeiro) (a mesma aluna, depois de clicar na aba "Financeiro": R3-3, D125, só o painel da aba ativa
                            existe no DOM)
   /student (sem matrícula) (conta vazia; estado vazio de "Meus cursos")
@@ -89,6 +91,7 @@ E2E_DIR = Path(__file__).resolve().parent
 if str(E2E_DIR) not in sys.path:
     sys.path.insert(0, str(E2E_DIR))
 
+from apoio_assistente_flutuante import abrir_assistente, fechar_assistente  # noqa: E402
 from apoio_contraste import descrever, fontes_abaixo_de, razao_contraste, varrer_contraste  # noqa: E402
 from apoio_harness_h1 import abrir_banco, ambiente_isolado  # noqa: E402
 from servidor_e2e_h1 import GESTAO_EMAIL, GESTAO_SENHA  # noqa: E402
@@ -665,8 +668,9 @@ def test_ds2_area_aluno(browser, spa):
 
     # --- preparo de cada tela ------------------------------------------------------------------------------
     def chat_aluno(page):
-        painel = page.locator('[data-testid="chat-panel"]')
-        painel.wait_for(state="visible", timeout=TIMEOUT)
+        # R3-4 (D126): o chat abre pelo botão flutuante; o painel fica aberto durante a medida de /student (as mesmas regras de
+        # contraste, fonte, alvo e rolagem valem com o painel aberto e com a troca respondida) e é fechado em abrir_financeiro.
+        abrir_assistente(page, TIMEOUT)
         antes = page.locator('[data-testid="chat-message"][data-role="assistant"]').count()
         page.locator('[data-testid="chat-input"]').fill(PERGUNTA_CHAT)
         page.locator('[data-testid="chat-send"]').click(timeout=TIMEOUT)
@@ -756,6 +760,7 @@ def test_ds2_area_aluno(browser, spa):
         }
 
     def abrir_financeiro(page):
+        fechar_assistente(page, TIMEOUT)  # R3-4 (D126): a 390 px o painel aberto cobre a barra de abas; o aluno o fecha antes
         page.locator('[data-testid="atalho-financeiro"]').click(timeout=TIMEOUT)
         page.locator('[data-testid="secao-financeiro"]').wait_for(state="visible", timeout=TIMEOUT)
 
