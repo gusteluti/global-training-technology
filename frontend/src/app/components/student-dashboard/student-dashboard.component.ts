@@ -1,4 +1,5 @@
-import { AfterViewInit, Component, ElementRef, HostListener, OnInit, ViewChild } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
+import { AfterViewInit, Component, ElementRef, HostListener, Inject, OnDestroy, OnInit, Renderer2, ViewChild } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { PainelMatriculas } from '../../resolvers/enrollments.resolver';
 import { salvarArquivo } from '../../services/salvar-arquivo';
@@ -25,6 +26,13 @@ interface AcaoWhatsapp {
 
 const PREFIXO_WHATSAPP = 'https://wa.me/';
 
+// Até esta largura de janela (px) o painel do assistente é a tela inteira e o CSS usa as medidas de celular (16/84 px); é o mesmo
+// limite do `@media (max-width: 600px)` do CSS do componente.
+const LARGURA_MAXIMA_CELULAR = 600;
+// Classe posta no <body> enquanto a área do aluno está aberta: o CSS do componente dá folga embaixo ao rodapé da casca
+// (`.gt-footer`, de outro componente) para o botão flutuante não cobrir o texto dele. Sai no ngOnDestroy.
+const CLASSE_BODY_ASSISTENTE = 'gt-assistente-flutuante';
+
 type NotaFeedback = 'up' | 'down';
 
 interface MensagemChat {
@@ -44,7 +52,7 @@ interface AcaoAbrir {
   label: string;
 }
 
-// Abas da área do aluno (R3-3, D125), no padrão do painel da gestão. "Meu perfil" e "Assistente" não são abas.
+// Abas da área do aluno (R3-3, D125), no padrão do painel da gestão. "Meu perfil" não é aba (o assistente saiu da barra, D126).
 type ChaveAba = 'cursos' | 'financeiro';
 interface AbaAluno {
   chave: ChaveAba;
@@ -113,9 +121,12 @@ const MSG_FALHA_PDF = 'Não foi possível baixar o recibo.';
   templateUrl: './student-dashboard.component.html',
   styleUrls: ['./student-dashboard.component.css']
 })
-export class StudentDashboardComponent implements OnInit, AfterViewInit {
+export class StudentDashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('abas') listaAbas?: ElementRef<HTMLElement>;
   @ViewChild('indicador') indicador?: ElementRef<HTMLElement>;
+  // O botão flutuante fica sempre no DOM; o campo do chat só existe com o painel aberto (*ngIf), por isso a busca é dinâmica.
+  @ViewChild('botaoAssistente') botaoAssistente?: ElementRef<HTMLButtonElement>;
+  @ViewChild('campoChat') campoChat?: ElementRef<HTMLInputElement>;
 
   readonly tabs: AbaAluno[] = [
     { chave: 'cursos', rotulo: 'Meus cursos' },
@@ -134,6 +145,8 @@ export class StudentDashboardComponent implements OnInit, AfterViewInit {
   // `replyId`/`feedback`/`enviandoFeedback` (GR5): só respostas desta sessão com reply_id ganham 👍/👎; o histórico
   // do servidor não traz reply_id, então não mostra botões.
   chatMessages: MensagemChat[] = [];
+  // Painel do assistente aberto (R3-4, D126). Só controla a exibição: chatMessages e o resto do estado do chat nunca são zerados.
+  painelAberto = false;
   chatInput = '';
   chatEnviando = false;
   // Ações de matrícula da última resposta (F5b, D76). Montadas pelo servidor e não persistidas no histórico.
@@ -153,7 +166,8 @@ export class StudentDashboardComponent implements OnInit, AfterViewInit {
   erroCancelamento: { [enrollmentId: number]: string } = {};
 
   constructor(private route: ActivatedRoute, private router: Router, private api: ApiService, auth: AuthService,
-              private confirmacao: ConfirmacaoService) {
+              private confirmacao: ConfirmacaoService, private renderer: Renderer2,
+              @Inject(DOCUMENT) private documento: Document) {
     // E-mail do próprio token (nunca de outro aluno): mostrado só no cabeçalho.
     this.email = auth.decodeToken()?.email || '';
     // Dados vindos do EnrollmentsResolver (rota /student).
@@ -165,6 +179,7 @@ export class StudentDashboardComponent implements OnInit, AfterViewInit {
   }
 
   ngOnInit(): void {
+    this.renderer.addClass(this.documento.body, CLASSE_BODY_ASSISTENTE);
     this.api.getMyProfile().subscribe({
       next: (res: any) => this.primeiroNome = String(res?.name || '').trim().split(/\s+/)[0] || '',
       error: () => this.primeiroNome = ''
@@ -183,6 +198,43 @@ export class StudentDashboardComponent implements OnInit, AfterViewInit {
     this.moverIndicador();
     // A fonte da interface pode terminar de carregar depois da primeira medida e mudar a largura das abas.
     document.fonts?.ready.then(() => this.moverIndicador());
+  }
+
+  ngOnDestroy(): void {
+    this.renderer.removeClass(this.documento.body, CLASSE_BODY_ASSISTENTE);
+  }
+
+  // ---- Assistente flutuante (R3-4, D126) -------------------------------------------------------------
+  // O painel não é modal (sem aria-modal nem trava de foco). Abrir leva o foco ao campo; fechar (botão, X ou Esc) devolve o foco ao
+  // botão. Nenhuma chamada à API: o histórico já foi carregado no ngOnInit e fica guardado no componente.
+  alternarPainel(): void {
+    if (this.painelAberto) {
+      this.fecharPainel();
+    } else {
+      this.abrirPainel();
+    }
+  }
+
+  abrirPainel(): void {
+    this.painelAberto = true;
+    // O campo só existe no ciclo de detecção seguinte (*ngIf).
+    setTimeout(() => this.campoChat?.nativeElement.focus({ preventScroll: true }));
+  }
+
+  fecharPainel(): void {
+    if (!this.painelAberto) {
+      return;
+    }
+    this.painelAberto = false;
+    this.botaoAssistente?.nativeElement.focus({ preventScroll: true });
+  }
+
+  // Esc fecha o painel aberto. Se a janela de confirmação da casca tratou o Esc (ela chama preventDefault), o painel fica como está.
+  @HostListener('document:keydown.escape', ['$event'])
+  aoApertarEsc(evento: Event): void {
+    if (this.painelAberto && !evento.defaultPrevented) {
+      this.fecharPainel();
+    }
   }
 
   // ---- Abas (R3-3, D125) -----------------------------------------------------------------------------
@@ -514,7 +566,8 @@ export class StudentDashboardComponent implements OnInit, AfterViewInit {
   }
 
   // Financeiro e cursos selecionam a aba e rolam até o painel (R3-3, D125); perfil navega pela rota /student/perfil.
-  // O painel da aba só nasce no ciclo seguinte (*ngIf), por isso a rolagem espera a renderização.
+  // O painel da aba só nasce no ciclo seguinte (*ngIf), por isso a rolagem espera a renderização. Com a janela de celular
+  // (<= 600 px) o painel do assistente cobriria a tela e fecha depois da ação; acima disso continua aberto (R3-4, D126).
   abrirAtalho(acao: AcaoAbrir): void {
     if (acao.target === 'perfil') {
       this.router.navigate(['/student/perfil']);
@@ -523,6 +576,9 @@ export class StudentDashboardComponent implements OnInit, AfterViewInit {
     const secao = SECOES_ABRIR[acao.target];
     if (secao) {
       this.selecionarAba(acao.target as ChaveAba);
+      if (window.innerWidth <= LARGURA_MAXIMA_CELULAR) {
+        this.fecharPainel();
+      }
       setTimeout(() => this.irPara(secao));
     }
   }
