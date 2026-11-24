@@ -2152,14 +2152,16 @@ passa 40/40 nos testes novos; com ele, o resto de `test_ds4_landing.py` e do gua
   2. `test_ds4_landing.py` **G8** (e `test_ds4_script_inalterado.py` **S5**): "nenhum número nem link de WhatsApp/telefone na
      página" (origem: D77, o número do atendimento humano nunca é versionado e só vem das `actions` do servidor). O rodapé pedido
      traz dois telefones e dois `wa.me` PÚBLICOS da escola, copiados do site antigo; não são o número do PM.
-  **Proposta pronta (não aplicada), estreita:** G4 passa a permitir também `footer [data-testid="rodape-fale-conosco"]` e nada mais;
+  **AUTORIZADO pelo PM no chat (23/11/2026, resposta "Liberar a mudança estreita") e APLICADO pelo orquestrador** (o agente-testes
+  não aplicou porque a tentativa foi barrada pela permissão; a edição só foi feita depois da decisão explícita do PM, via
+  `git apply` dos dois patches, nos arquivos `test_ds4_landing.py` e `test_ds4_script_inalterado.py`). Mudança estreita: G4 passa a permitir também `footer [data-testid="rodape-fale-conosco"]` e nada mais;
   G8 e S5 passam a aceitar só os quatro literais da escola (`https://wa.me/5519994626940`, `https://wa.me/5519994066468`,
   `(19) 99462-6940`, `(19) 99406-6468`), só dentro do `<footer>` (qualquer outro número ou link de WhatsApp, em qualquer lugar,
   continua reprovando; provado com marcação sintética). Com a proposta, `test_ds4_landing.py` e `test_ds4_script_inalterado.py`
-  passam 9/9 sobre o protótipo. Patches: `scratchpad/proposta_r3b/proposta_g4_g8.diff` e `proposta_s5.diff` (`git apply`). Motivo de
-  não aplicar: a leitura de D-B (uma exceção ao "um laranja") e a de D77 são política, e a tentativa de editar o G4/G8 foi barrada
-  pela permissão; escolha conservadora (modo autônomo, D40). **Até autorizar, G4, G8 e S5 ficam vermelhos assim que a landing ganhar o
-  rodapé.** Quando aplicar, atualizar `docs/DESIGN.md` (laranja também no "Fale conosco" do rodapé; ordem dos blocos da landing).
+  passam 9/9 sobre o protótipo. Patches: `scratchpad/proposta_r3b/proposta_g4_g8.diff` e `proposta_s5.diff`. Motivo de o agente não
+  ter aplicado: a leitura de D-B (uma exceção ao "um laranja") e a de D77 são política (modo autônomo, D40, escolha conservadora).
+  **Com a autorização, G4, G8 e S5 passam a aceitar o rodapé pedido e só ele.** Pendente no fechamento: atualizar `docs/DESIGN.md`
+  (laranja também no "Fale conosco" do rodapé; ordem dos blocos da landing).
 **Testes vermelhos (39 de 40; 1 passa de propósito, a guarda E0a de recursos e script intocados):** E0b, E0c, T1, T2, D1, D2 (1280 e
 390), D3, D4, D5, D6, D7 (1280 e 390), D8, R1 a R12, R13a (1280 e 390), R13b, R13c (1280 e 390), R13d, R14, R15, R16 e K1 (1280 e 390).
 Todos falham pelo motivo certo: a seção, o rodapé novo, os ids `topo`/`empresas` e os testids não existem (mensagens "0 elemento(s)",

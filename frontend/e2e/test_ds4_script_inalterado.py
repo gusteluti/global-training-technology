@@ -32,10 +32,16 @@ Cenários (sem servidor nem navegador):
      e nenhum atributo de evento novo aparece
   S4 ids e `data-testid` que o script usa continuam na marcação estática (courses-grid, planilha-linhas, chat-*, ...),
      e o `<meta name="gtt-app-url">` continua lá
-  S5 nenhum número nem link de WhatsApp na marcação estática (o atendimento humano só vem das `actions` do servidor)
+  S5 nenhum número nem link de WhatsApp na marcação estática (o atendimento humano só vem das `actions` do servidor),
+     salvo os quatro contatos públicos da escola, só dentro do <footer> (R3-2, D124; ver abaixo)
 
 Escolha do agente-testes: comentários do script contam como código (a regra é "tolerando só espaços"); se o dev mexer
 num comentário do script, S1 aponta. Isso é deliberado: o script só muda onde o PM autorizou (D-F; desde a R3-2, em lugar nenhum).
+
+S5 (R3-2, D124): os dois números de WhatsApp da escola e os dois links `wa.me`, copiados do site antigo por decisão do PM para
+o rodapé, são aceitos DENTRO do <footer> e só eles; qualquer outro número ou link de WhatsApp, em qualquer lugar, continua
+reprovando (o atendimento humano do chat só vem das `actions` do servidor). Os links exatos do rodapé estão no
+`test_r3b_landing_depoimentos_rodape.py`.
 
 Execução (da raiz do repo): python3 -m pytest frontend/e2e/test_ds4_script_inalterado.py -q
 """
@@ -439,9 +445,24 @@ def test_s4_ids_e_testids_usados_pelo_script_continuam(versoes):
     assert not faltam, f"a marcação perdeu o que o script usa: {faltam}"
 
 
+# R3-2 (D124, decisão do PM): o rodapé copia do site antigo os contatos públicos da escola. Só estes quatro literais
+# são aceitos, e só dentro do <footer>; nada mais de WhatsApp ou telefone passa (os links exatos: test_r3b_...).
+CONTATOS_DA_ESCOLA_NO_RODAPE = ("https://wa.me/5519994626940", "https://wa.me/5519994066468", "(19) 99462-6940",
+                                "(19) 99406-6468")
+
+
+def _sem_contatos_da_escola_no_rodape(marcacao):
+    def limpar(m):
+        bloco = re.sub(r"\s+", " ", m.group(0).replace("&nbsp;", " ").replace("\xa0", " "))
+        for literal in CONTATOS_DA_ESCOLA_NO_RODAPE:
+            bloco = bloco.replace(literal, "")
+        return bloco
+    return re.sub(r"<footer\b.*?</footer\s*>", limpar, marcacao, flags=re.S | re.I)
+
+
 def test_s5_sem_numero_nem_link_de_whatsapp_na_marcacao(versoes):
     _, atual = versoes
-    marcacao = _marcacao_estatica(atual)
+    marcacao = _sem_contatos_da_escola_no_rodape(_marcacao_estatica(atual))
     achados = re.findall(r"wa\.me|api\.whatsapp\.com|whatsapp\.com/send|href=\"tel:", marcacao, re.I)
     texto = re.sub(r"<[^>]+>", " ", marcacao)
     achados += re.findall(r"(?:\+?55\s?)?\(?\d{2}\)?\s?9?\d{4}[-\s]?\d{4}", texto)
