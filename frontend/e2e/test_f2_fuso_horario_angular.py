@@ -27,6 +27,7 @@ Cenários:
   E1 área do aluno: curso-data mostra '07/10/2026' (dia de São Paulo), não '08/10/2026'
   E2 área do aluno: a data do pagamento no histórico é '07/10/2026'
   E3 área do aluno: o recibo na tela mostra "Emitido em" com '07/10/2026'
+     (R3-3/D125: E1 clica na aba Meus cursos e E2/E3 na aba Financeiro, os painéis só existem no DOM da aba ativa)
   K1 sem erros de console de /api (4xx/5xx) nem exceções de página
 
 Execução (da raiz do repo, um por vez): py -3 -m pytest frontend/e2e/test_f2_fuso_horario_angular.py -s
@@ -357,6 +358,7 @@ def test_f2_fuso_horario_angular_e2e(servidores, browser):
 
     def e1():
         page = pagina_aluno()
+        page.locator('[data-testid="atalho-cursos"]').click(timeout=TIMEOUT)  # R3-3 (D125): "Meus cursos" é uma aba
         card = esperar(page.locator('[data-testid="curso-card"]', has_text=curso["nome"]), "E1",
                        "o cartão do curso do aluno")
         data = _normalizar(card.locator('[data-testid="curso-data"]').first.inner_text())
@@ -366,6 +368,7 @@ def test_f2_fuso_horario_angular_e2e(servidores, browser):
 
     def e2():
         page = pagina_aluno()
+        page.locator('[data-testid="atalho-financeiro"]').click(timeout=TIMEOUT)  # R3-3 (D125): o histórico é a aba Financeiro
         linha = esperar(page.locator("tbody tr", has_text=curso["nome"]), "E2", "a linha do pagamento no histórico")
         data = _normalizar(linha.locator("td.pg-data").first.inner_text())
         if DIA_SP not in data:
@@ -374,6 +377,7 @@ def test_f2_fuso_horario_angular_e2e(servidores, browser):
 
     def e3():
         page = pagina_aluno()
+        page.locator('[data-testid="atalho-financeiro"]').click(timeout=TIMEOUT)  # R3-3 (D125): o histórico é a aba Financeiro
         linha = esperar(page.locator("tbody tr", has_text=curso["nome"]), "E3", "a linha do pagamento no histórico")
         linha.get_by_role("button", name="Ver recibo").click(timeout=TIMEOUT)
         cartao = esperar(page.locator("div.card.border-primary"), "E3", "o cartão do recibo")

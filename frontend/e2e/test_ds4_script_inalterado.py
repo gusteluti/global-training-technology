@@ -4,26 +4,44 @@ Regra (D115, PLANO_DESIGN "Decisões resolvidas" D-D e D-F): só design e conte�
 com as mesmas funções, chamadas `fetch`, ids, `data-testid`, `onclick` e fluxo do chat, da matrícula e do login. O dev
 pode mudar só classes e marcação DENTRO das strings de template (entre crases) que montam o cartão e a planilha.
 
-Referência: a landing no commit `c6f3342` (antes da DS4), lida com `git show`.
+Referência: a landing no merge da R3-1, `f7dc262` (já com a DS4 e com o script da R3-1; lida com `git show`). Fora das
+templates do cartão e da planilha, o script de `f7dc262` é o de `3d94f6c` mais a mudança da R3-1, que já está nele.
+
+RE-BASE DA R3-2 (D124; autoridade 4.3, encadeamento D115 D-F -> D120 -> R3-1 -> R3-2): a exceção da R3-1 (quatro regiões
+entre âncoras de texto) foi FECHADA. `REFERENCIA` passou de `3d94f6c` para `f7dc262` e `REGIOES_DECLARADAS` ficou vazio: desde
+a R3-2 o script inline da landing tem de ser IDÊNTICO ao de `f7dc262` (tolerando só espaços em branco e o texto dentro das
+templates do cartão e da planilha), sem nenhuma região aberta. A R3-2 (depoimentos e rodapé) é só marcação e CSS. O mecanismo
+de regiões (`_recortar_regioes`, `_diferencas_com_excecao`) continua no arquivo para uma futura mudança declarada pelo PM, e
+o S0c prova que, por padrão, ele não aceita nada. Complementos: o número de `fetch(` e de outras formas de rede no script
+não pode crescer.
 
 Cenários (sem servidor nem navegador):
-  S0 (e S0b, sobre o script real de c6f3342) o verificador funciona: mudar o código fora das crases é detectado; mudar só espaços, ou só o texto de dentro de
+  S0 (e S0b, sobre o script real da referência) o verificador funciona: mudar o código fora das crases é detectado; mudar só espaços, ou só o texto de dentro de
      uma template, é tolerado; crase dentro de comentário, de string e de regex não confunde o leitor        [passa no red]
-  S1 o conteúdo do único <script> inline, sem as strings de template, é idêntico ao de `c6f3342` (tolerando só espaços
+  S0c a exceção está FECHADA (sobre o script real de `f7dc262`): `REGIOES_DECLARADAS` é vazio; qualquer mudança no script
+     (inclusive nos trechos que a R3-1 tinha aberto), `fetch` novo ou função nova é detectada; e o mecanismo, quando
+     recebe uma região explícita, aceita só o miolo dela                                                        [passa no red]
+  S1 o conteúdo do único <script> inline, sem as strings de template, é idêntico ao da referência (tolerando só espaços
      em branco); a página continua com exatamente um <script> e nenhum <script src>. Complemento do agente-testes:
      como as URLs do `fetch` e o destino do login também estão em templates (`${BACKEND_URL}/api/chat`,
      `${APP_URL}/login?area=...`), as templates que NÃO são o cartão, a linha da planilha ou o total da planilha
      também têm de ficar idênticas (comparadas na ordem, sem espaços)
-  S2 atributos de evento (on*) da marcação estática: o conjunto de valores é o mesmo de `c6f3342` (pode repetir um
+  S2 atributos de evento (on*) da marcação estática: o conjunto de valores é o mesmo da referência (pode repetir um
      valor que já existia, ex.: outro botão com `toggleChat()`; não pode sumir nem aparecer handler novo)
-  S3 dentro das templates: todo `onclick`, `id`, `data-testid` e `data-curso` de `c6f3342` continua presente, igual,
+  S3 dentro das templates: todo `onclick`, `id`, `data-testid` e `data-curso` da referência continua presente, igual,
      e nenhum atributo de evento novo aparece
   S4 ids e `data-testid` que o script usa continuam na marcação estática (courses-grid, planilha-linhas, chat-*, ...),
      e o `<meta name="gtt-app-url">` continua lá
-  S5 nenhum número nem link de WhatsApp na marcação estática (o atendimento humano só vem das `actions` do servidor)
+  S5 nenhum número nem link de WhatsApp na marcação estática (o atendimento humano só vem das `actions` do servidor),
+     salvo os quatro contatos públicos da escola, só dentro do <footer> (R3-2, D124; ver abaixo)
 
 Escolha do agente-testes: comentários do script contam como código (a regra é "tolerando só espaços"); se o dev mexer
-num comentário, S1 aponta. Isso é deliberado: o script não deve ser tocado nesta onda (D-F).
+num comentário do script, S1 aponta. Isso é deliberado: o script só muda onde o PM autorizou (D-F; desde a R3-2, em lugar nenhum).
+
+S5 (R3-2, D124): os dois números de WhatsApp da escola e os dois links `wa.me`, copiados do site antigo por decisão do PM para
+o rodapé, são aceitos DENTRO do <footer> e só eles; qualquer outro número ou link de WhatsApp, em qualquer lugar, continua
+reprovando (o atendimento humano do chat só vem das `actions` do servidor). Os links exatos do rodapé estão no
+`test_r3b_landing_depoimentos_rodape.py`.
 
 Execução (da raiz do repo): python3 -m pytest frontend/e2e/test_ds4_script_inalterado.py -q
 """
@@ -37,7 +55,7 @@ import pytest
 E2E_DIR = Path(__file__).resolve().parent
 REPO = E2E_DIR.parent.parent
 LANDING = REPO / "frontend" / "landing_global_training.html"
-REFERENCIA = "c6f3342"
+REFERENCIA = "f7dc262"  # merge da R3-1 (R3-2: antes era 3d94f6c, a main da DS4); já contém o script da R3-1
 CAMINHO_GIT = "frontend/landing_global_training.html"
 
 # Ids e data-testid que o script lê com getElementById/querySelector (c6f3342).
@@ -273,6 +291,52 @@ def _diferencas_do_script(script_antigo, script_novo):
             if not _template_do_cartao_ou_planilha(v) and _normalizar(v) != _normalizar(n)]
 
 
+# ------------------------------------------------------------------ exceções declaradas (mecanismo; hoje nenhuma)
+# (rótulo, âncora de início, âncora de fim). O texto ENTRE as âncoras pode mudar; as âncoras, não. As âncoras são
+# procuradas em sequência (a primeira ocorrência depois do trecho anterior) e comparadas sem diferença de espaços.
+# Vazio desde a R3-2 (D124): o script de `f7dc262` já traz a mudança da R3-1, e nenhuma outra foi autorizada.
+REGIOES_DECLARADAS = ()
+# A mudança não pode criar caminho de rede novo: estas formas têm de aparecer o mesmo número de vezes que na referência.
+FORMAS_DE_REDE = (r"\bfetch\s*\(", r"\bXMLHttpRequest\b", r"\bsendBeacon\b", r"\bWebSocket\b", r"\bEventSource\b",
+                  r"\beval\s*\(", r"\bnew\s+Function\b", r"\bimportScripts\b")
+
+
+def _padrao_ancora(texto):
+    return r"\s*".join(re.escape(parte) for parte in texto.split())
+
+
+def _recortar_regioes(script, regioes=REGIOES_DECLARADAS):
+    """Tira o miolo de cada região declarada (entre as âncoras, que ficam). ErroLeitura se uma âncora não existir, na ordem."""
+    partes, cursor = [], 0
+    for rotulo, inicio, fim in regioes:
+        a = re.search(_padrao_ancora(inicio), script[cursor:])
+        if not a:
+            raise ErroLeitura(f"âncora de início da região '{rotulo}' não encontrada: {inicio[:60]!r}")
+        fim_do_inicio = cursor + a.end()
+        b = re.search(_padrao_ancora(fim), script[fim_do_inicio:])
+        if not b:
+            raise ErroLeitura(f"âncora de fim da região '{rotulo}' não encontrada depois do início: {fim[:60]!r}")
+        partes.append(script[cursor:fim_do_inicio])
+        cursor = fim_do_inicio + b.start()
+    partes.append(script[cursor:])
+    return "".join(partes)
+
+
+def _diferencas_com_excecao(script_antigo, script_novo, regioes=REGIOES_DECLARADAS):
+    """Como `_diferencas_do_script`, mas aceitando a mudança declarada: só o miolo das regiões pode mudar."""
+    try:
+        velho, novo = _recortar_regioes(script_antigo, regioes), _recortar_regioes(script_novo, regioes)
+    except ErroLeitura as erro:
+        return [str(erro)]
+    problemas = _diferencas_do_script(velho, novo)
+    for forma in FORMAS_DE_REDE:
+        antes, agora = len(re.findall(forma, script_antigo)), len(re.findall(forma, script_novo))
+        if agora != antes:
+            problemas.append(f"a mudança declarada não pode criar caminho de rede novo: {forma!r} aparece {agora} vez(es), "
+                             f"eram {antes}")
+    return problemas
+
+
 def test_s0b_o_verificador_no_script_real(versoes):
     antiga, _ = versoes
     script = _script_inline(antiga)
@@ -289,13 +353,59 @@ def test_s0b_o_verificador_no_script_real(versoes):
         assert _diferencas_do_script(script, alterado), f"mudança não detectada: {antes!r} -> {depois!r}"
 
 
+def test_s0c_a_excecao_esta_fechada(versoes):
+    """Re-base da R3-2 (D124): sem região declarada, qualquer mudança no script real de `f7dc262` é detectada."""
+    antiga, _ = versoes
+    script = _script_inline(antiga)
+    assert REGIOES_DECLARADAS == (), "a exceção da R3-1 deveria estar fechada (REGIOES_DECLARADAS vazio)"
+    assert _diferencas_com_excecao(script, script) == []
+    mutacoes = (
+        ("endereço padrão da API (antiga região 1)", "'http://localhost:8000'", "'http://localhost:8001'"),
+        ("resolvedor do endereço, ramo da própria origem", "window.location.origin", "window.location.host"),
+        ("texto do erro de rede do chat (antiga região 2)",
+         "Não consegui falar com o servidor. Verifique sua conexão", "Não consegui falar com o servidor."),
+        ("status do erro do chat (antiga região 4)", "setChatStatus('Offline');", "setChatStatus('Sem conexão');"),
+        ("leitura do JSON do chat (antiga região 3)", "const urlChat = `${BACKEND_URL}/api/chat`;",
+         "const urlChat = `${BACKEND_URL}/api/chat2`;"),
+        ("linha do bloco de sucesso removida", "    if (data.status === 'success') addEnrollActions(data.actions);\n", ""),
+        ("destino do login (APP_URL)", "return local ? 'http://localhost:4200' : window.location.origin;",
+         "return local ? 'http://localhost:4300' : window.location.origin;"),
+        ("URL do feedback", "`${BACKEND_URL}/api/chat/feedback`", "`${BACKEND_URL}/api/chat/feedback2`"),
+        ("URL dos cursos", "`${BACKEND_URL}/api/courses`", "`${BACKEND_URL}/api/cursos`"),
+        ("função nova", "\nloadCoursesFromBackend();", "\nfunction filtrar() {}\nloadCoursesFromBackend();"),
+        ("texto do aviso de dados pessoais", "Para sua segurança, removemos dados pessoais", "Para sua segurança, removemos dados"),
+        ("status 'Online agora' no bloco de sucesso", "    setChatStatus('Online agora');", "    setChatStatus('Online');"),
+        ("âncora antiga: função quickReply renomeada", "function quickReply(text) {", "function responderRapido(text) {"),
+        ("âncora antiga: chatOpen renomeado", "let chatOpen = false;", "let chatAberto = false;"),
+    )
+    for rotulo, antes, depois in mutacoes:
+        assert antes in script, f"pré-condição: trecho de {rotulo!r} não encontrado no script de {REFERENCIA}"
+        alterado = script.replace(antes, depois, 1)
+        assert alterado != script
+        assert _diferencas_com_excecao(script, alterado), f"mudança não detectada com a exceção fechada: {rotulo}"
+    # caminho de rede novo
+    com_fetch = script.replace("function quickReply(text) {", "function quickReply(text) { fetch('https://exemplo.invalido/x');", 1)
+    assert com_fetch != script and any("caminho de rede novo" in p for p in _diferencas_com_excecao(script, com_fetch))
+    # o mecanismo continua estreito quando alguém declara uma região no futuro: só o miolo entre as âncoras é aceito
+    regiao = (("região de teste", "let chatOpen = false;", "const APP_URL = (function () {"),)
+    ancora_i, ancora_f = "let chatOpen = false;", "const APP_URL = (function () {"
+    i = script.index(ancora_i) + len(ancora_i)
+    f = script.index(ancora_f)
+    assert i < f, "pré-condição: as âncoras do teste do mecanismo estão na ordem esperada"
+    no_miolo = script[:i] + "\nconst MIOLO_NOVO = 1;\n" + script[f:]
+    assert _diferencas_com_excecao(script, no_miolo), "com a exceção fechada o miolo não pode mudar"
+    assert _diferencas_com_excecao(script, no_miolo, regiao) == [], "uma região explícita deveria aceitar o miolo"
+    fora = no_miolo.replace("\nloadCoursesFromBackend();", "\nfiltrar();\nloadCoursesFromBackend();", 1)
+    assert fora != no_miolo and _diferencas_com_excecao(script, fora, regiao), "fora da região explícita nada é aceito"
+
+
 def test_s1_script_inline_identico_fora_das_templates(versoes):
     antiga, atual = versoes
     tags = _scripts(atual)
     externos = [a.strip() for a, _ in tags if "src=" in a.lower()]
-    assert not externos, f"a landing ganhou <script src> ({externos}); a DS4 não adiciona script"
+    assert not externos, f"a landing ganhou <script src> ({externos}); a landing não adiciona script externo"
     assert len(tags) == 1, f"{len(tags)} <script> na landing (esperado 1, como em {REFERENCIA})"
-    problemas = _diferencas_do_script(_script_inline(antiga), _script_inline(atual))
+    problemas = _diferencas_com_excecao(_script_inline(antiga), _script_inline(atual))
     assert not problemas, " | ".join(problemas)
 
 
@@ -335,9 +445,24 @@ def test_s4_ids_e_testids_usados_pelo_script_continuam(versoes):
     assert not faltam, f"a marcação perdeu o que o script usa: {faltam}"
 
 
+# R3-2 (D124, decisão do PM): o rodapé copia do site antigo os contatos públicos da escola. Só estes quatro literais
+# são aceitos, e só dentro do <footer>; nada mais de WhatsApp ou telefone passa (os links exatos: test_r3b_...).
+CONTATOS_DA_ESCOLA_NO_RODAPE = ("https://wa.me/5519994626940", "https://wa.me/5519994066468", "(19) 99462-6940",
+                                "(19) 99406-6468")
+
+
+def _sem_contatos_da_escola_no_rodape(marcacao):
+    def limpar(m):
+        bloco = re.sub(r"\s+", " ", m.group(0).replace("&nbsp;", " ").replace("\xa0", " "))
+        for literal in CONTATOS_DA_ESCOLA_NO_RODAPE:
+            bloco = bloco.replace(literal, "")
+        return bloco
+    return re.sub(r"<footer\b.*?</footer\s*>", limpar, marcacao, flags=re.S | re.I)
+
+
 def test_s5_sem_numero_nem_link_de_whatsapp_na_marcacao(versoes):
     _, atual = versoes
-    marcacao = _marcacao_estatica(atual)
+    marcacao = _sem_contatos_da_escola_no_rodape(_marcacao_estatica(atual))
     achados = re.findall(r"wa\.me|api\.whatsapp\.com|whatsapp\.com/send|href=\"tel:", marcacao, re.I)
     texto = re.sub(r"<[^>]+>", " ", marcacao)
     achados += re.findall(r"(?:\+?55\s?)?\(?\d{2}\)?\s?9?\d{4}[-\s]?\d{4}", texto)

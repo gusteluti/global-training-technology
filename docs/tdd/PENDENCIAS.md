@@ -199,3 +199,27 @@ funcionalidade nova); logo embutido duas vezes na landing (~99 KB) até a SG6.
 **Aberto:** unificar `.aluno-resumo` com `.gt-faixa`; atualização de 30 s não pausa com a janela de confirmação aberta;
 rodar na máquina do PM os testes que dependem de YouTube, internet e LLM reais; capturas antes e depois, se o PM quiser.
 
+
+---
+
+## Onda R3 — site antigo na landing e ajustes de tela do aluno (D123 a D126)
+
+Pedido do PM de 23/11/2026. Branch `feature/fase2-design-r3` (a partir da `main` em `3d94f6c`), PR aberto para a `main` e NÃO mergeado.
+Só configuração do chat da landing, design e estrutura de tela: nenhuma regra de negócio, rota, API ou dado mudou.
+
+| Entrega | Estado |
+|---|---|
+| R3-1 — chat da landing (D123) | Entregue: endereço da API configurável (`<meta name="gtt-api-url">`), três erros distintos, diagnóstico no console. **A causa real do "não funciona" no ambiente do PM continua não confirmada.** |
+| R3-2 — landing (D124) | Entregue: aba/seção "Depoimentos" e rodapé copiados de gtcursos.com.br; só os links das redes sociais, sem Global EAD, A Global Training e Contato (decisão do PM). |
+| R3-3 — área do aluno (D125) | Entregue: abas como as da gestão ("Meus cursos", "Financeiro", mais "Meu perfil" no fim da barra) e cada curso em um cartão, tudo dentro dele. |
+| R3-4 — assistente (D126) | Entregue: botão verde flutuante à direita (`/student`) que abre o painel do chat; sai a seção do chat embaixo da tela e o atalho "Assistente" da barra. |
+
+**Para revisão do PM:**
+- **Chat da landing:** preciso do endereço exato da barra do navegador e da mensagem mostrada no balão para confirmar a causa. Em produção, com a meta vazia a landing chama a própria origem: exige proxy reverso para `/api/` ou a meta preenchida com a URL da API e a origem da página em `CORS_ALLOWED_ORIGINS` (D123).
+- **Depoimentos e rodapé (D124):** a escola precisa confirmar que pode reutilizar os nomes e os depoimentos de alunos reais e publicar os 2 números de WhatsApp, o endereço e o e-mail copiados do site antigo.
+- **Cartões do aluno (D125):** cartões da mesma linha têm a mesma altura, então os mais curtos mostram espaço em branco; a avaliação do curso deixou de ficar numa linha só (a D125 revogou esse trecho da D122); a aba se chama "Meus cursos".
+- **Assistente flutuante (D126):** o botão é verde escuro `#1f9d3a`, não o `#40c351` da landing (com ícone branco o `#40c351` dá só 2,3:1 e a D115 pede 3:1); a janela de até 600 px fecha o painel depois de uma ação "Abrir Financeiro/Cursos" do assistente; `Esc` fecha e devolve o foco ao botão; o rodapé de `/student` ganha 96 px de folga embaixo para o botão não cobri-lo; o botão "Falar com um atendente" do painel tem texto escuro `#0b2e13` (o da landing não mudou); a 390 px o painel aberto cobre a barra de abas.
+- **Não feito:** a área de mensagens do painel abre rolada ao topo, e não até a última mensagem, ao abrir ou ao chegar resposta (já era assim no chat de antes); rolar até o fim seria comportamento novo.
+
+**Falhas que já existiam e não vêm da onda R3:** `test_f5b_chat_turmas_angular` G5; `test_gr3_aviso_pii_chat` P3 e L3; `test_qa_istqb` CT-UI-14 e CT-UI-15; `test_c_sala_curso_angular` (YouTube bloqueado no ambiente); as 13 falhas de backend da D107 (gr4 x6, gr5 x7). `test_qa_istqb::test_arquivo_limite[0-201]` e `test_e6_landing_chat::test_p0` são intermitentes: o P0 falha de vez em quando porque o uuid da mensagem tem uma sequência longa de dígitos que o filtro de PII mascara como `[cartao]`; passa na repetição. A correção (trocar o uuid por texto sem sequência longa de dígitos) é mudança de teste e ficou aberta.
+**Aberto:** rodar na máquina do PM os testes que dependem de YouTube, internet e LLM reais (`test_video_real_angular`, `test_qa_chat_llm_real`, `c_sala_curso`, CT-UI-14 e CT-UI-15); validação do PM das ondas SG1–SG4 antes de SG5–SG7; ações manuais de segurança (rotacionar credenciais vazadas, ativar secret scanning, push protection e Dependabot, proteger a `main`).

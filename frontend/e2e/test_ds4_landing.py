@@ -108,6 +108,10 @@ PROIBIDOS = ("10k+", "500+", "100%", "alunos formados", "empresas parceiras", "d
 GARANTIAS = ("Certificado de conclusão", "Pagamento pelo Mercado Pago", "Cancelamento em até 7 dias")
 PERGUNTA_OMEGA = "Quais sao as turmas e as datas de Omega Analytics?"
 ALVO_MIN = 44.0
+# R3-2 (D124, PROPOSTA ainda nao aplicada): contatos publicos da escola no rodape. So estes literais, so dentro do <footer>.
+RODAPE_WHATSAPP_HREFS = ("https://wa.me/5519994626940", "https://wa.me/5519994066468")
+RODAPE_TELEFONES = ("(19) 99462-6940", "(19) 99406-6468")
+SEL_FALE_CONOSCO = 'footer [data-testid="rodape-fale-conosco"]'
 
 
 class Falha(Exception):
@@ -227,6 +231,7 @@ _JS_LARGURA = _JS_BASE + r"""
 _JS_LARANJA = _JS_BASE + r"""
 (args) => {
   const permitidos = Array.from(document.querySelectorAll('.btn-enroll'));
+  permitidos.push(...Array.from(document.querySelectorAll(args.faleConosco)));  // R3-2 (D124): unico laranja a mais
   const hero = heroDe();
   if (hero) permitidos.push(...Array.from(hero.querySelectorAll('a, button')).filter(e => txt(e) === 'Ver cursos abertos'));
   const v = [];
@@ -402,7 +407,7 @@ def test_ds4_landing(browser, landing):
             "fontes": fontes_abaixo_de(page, 14),
             "alvos": page.evaluate(_JS_ALVOS, alvos_sel),
             "largura": page.evaluate(_JS_LARGURA, None),
-            "laranja": page.evaluate(_JS_LARANJA, {"laranja": LARANJA}),
+            "laranja": page.evaluate(_JS_LARANJA, {"laranja": LARANJA, "faleConosco": SEL_FALE_CONOSCO}),
         }
 
     def coletar():
@@ -732,9 +737,14 @@ def test_ds4_landing(browser, landing):
                     page.locator("#chat-bubble.open").wait_for(timeout=3000)
                 except Exception:
                     v.append("o botão do bloco de empresas não abriu o chat")
-        texto = page.evaluate(_JS_TEXTO_SEM_SCRIPT)
+        texto = _norm(page.evaluate(_JS_TEXTO_SEM_SCRIPT))
+        for telefone in RODAPE_TELEFONES:  # R3-2 (D124): os dois telefones da escola no rodape, e so eles
+            texto = texto.replace(telefone, "")
         numeros = re.findall(r"(?:\+?55\s?)?\(?\d{2}\)?\s?9?\d{4}[-\s]?\d{4}", texto)
-        links = page.locator('a[href*="wa.me"], a[href*="whatsapp.com"], a[href^="tel:"]').count()
+        links = page.evaluate("""(permitidos) => Array.from(document.querySelectorAll(
+            'a[href*="wa.me"], a[href*="whatsapp.com"], a[href^="tel:"]')).filter(
+            a => !(a.closest('footer') && permitidos.includes(a.getAttribute('href')))).length""",
+                              list(RODAPE_WHATSAPP_HREFS))
         if numeros or links:
             v.append(f"número ou link de WhatsApp/telefone na página ({numeros[:3]}, {links} link(s))")
         _exigir(v)

@@ -1,4 +1,7 @@
-<!-- Área do Aluno (D2/D67): design da landing, escopo Fase 2 seção 1.1 (RF21, RF22).
+<!-- Área do Aluno (D2/D67, D122, R3-3/D125, R3-4/D126): design da landing, escopo Fase 2 seção 1.1 (RF21, RF22).
+     Faixa de números acima das abas; abas "Meus cursos" e "Financeiro" no padrão do painel da gestão (só o painel da aba ativa
+     existe no DOM); cada curso é um cartão em grade com tudo dentro; o assistente é um botão flutuante à direita (como o da
+     landing) que abre o painel do chat, no fim deste arquivo.
      Preserva os contratos de tela da E3 (Meus cursos, .badge, links de material), E4/B2 (tabela, Ver recibo,
      recibo-pdf, card.border-primary, h3 ~ .alert-danger) e E5 (chat-panel, chat-input, chat-send, chat-message). -->
 <header class="aluno-cabecalho">
@@ -10,12 +13,6 @@
   </div>
   <a class="btn-cta" data-testid="atalho-catalogo" routerLink="/catalogo">Comprar cursos</a>
 </header>
-<nav class="aluno-atalhos" aria-label="Seções da área do aluno">
-  <button type="button" class="aluno-atalho" data-testid="atalho-cursos" (click)="irPara('secao-cursos')">Cursos</button>
-  <button type="button" class="aluno-atalho" data-testid="atalho-financeiro" (click)="irPara('secao-financeiro')">Financeiro</button>
-  <button type="button" class="aluno-atalho" data-testid="atalho-assistente" (click)="irPara('secao-assistente')">Assistente</button>
-  <a class="aluno-atalho" data-testid="atalho-perfil" routerLink="/student/perfil">Meu perfil</a>
-</nav>
 
 
 <!-- DS2 (D115): faixa de números única (dl/dt/dd), borda no contêiner e divisória entre os itens. -->
@@ -34,101 +31,111 @@
   </div>
 </dl>
 
-<section id="secao-cursos" class="aluno-secao" data-testid="secao-cursos">
+<!-- R3-3 (D125): abas no padrão do painel da gestão (ul.nav.nav-tabs.gt-abas com indicador). "Meu perfil" não é aba (sem
+     data-aba, aria-current nem active): é um atalho com a mesma aparência da barra. O assistente saiu da barra (R3-4, D126). -->
+<ul class="nav nav-tabs gt-abas mb-3" #abas>
+  <li class="nav-item" *ngFor="let aba of tabs">
+    <button type="button" class="nav-link" [class.active]="abaAtiva === aba.chave"
+            [attr.aria-current]="abaAtiva === aba.chave ? 'page' : null" [attr.data-aba]="aba.chave"
+            [attr.data-testid]="'atalho-' + aba.chave" (click)="selecionarAba(aba.chave)">{{ aba.rotulo }}</button>
+  </li>
+  <li class="nav-item aluno-abas-extra"><a class="nav-link" data-testid="atalho-perfil" routerLink="/student/perfil">Meu perfil</a></li>
+  <li class="gt-abas-indicador" data-testid="abas-indicador" aria-hidden="true" #indicador></li>
+</ul>
+
+<section id="secao-cursos" class="aluno-secao" data-testid="secao-cursos" *ngIf="abaAtiva === 'cursos'">
   <h3>Meus cursos</h3>
   <div *ngIf="erro" class="alert alert-danger">{{ erro }}</div>
   <div *ngIf="!erro && enrollments.length === 0" class="alert alert-info aluno-vazio">
     <span>Você ainda não tem matrículas.</span>
     <a class="btn btn-outline-primary btn-sm" routerLink="/catalogo">Ver cursos</a>
   </div>
+  <!-- Um cartão por matrícula, em grade. Dentro do cartão: parte de cima (ícone, selo, nome, data, turma, progresso e a ação ou o
+       aviso de sem acesso) e, só com matrícula ativa, o bloco secundário (materiais, certificado, avaliação, cancelamento). -->
   <div class="cursos-lista">
-    <div class="curso-item" *ngFor="let m of enrollments">
-      <div class="card mb-0 curso-card" data-testid="curso-card">
-        <div class="curso-linha">
+    <div class="card mb-0 curso-card" data-testid="curso-card" *ngFor="let m of enrollments">
+      <div class="curso-topo">
+        <div class="curso-cabeca">
           <div class="curso-icone" aria-hidden="true">{{ iniciais(m.course_name) }}</div>
-          <div class="curso-corpo">
-            <div class="curso-titulo-linha">
-              <h5 class="curso-nome text-break">{{ m.course_name }}</h5>
-              <span class="badge badge-status" [ngClass]="classeStatus(m.status)">{{ rotuloStatus(m.status) }}</span>
-            </div>
-            <p class="small text-muted mb-1" data-testid="curso-data">Matrícula em {{ dataBr(m.enrolled_at) }}</p>
-            <p class="small mb-1" data-testid="curso-turma" *ngIf="m.class_name">
-              Turma: {{ m.class_name }}<ng-container *ngIf="m.class_starts_on"> · início em {{ m.class_starts_on | dataSP:'dia' }}</ng-container><ng-container *ngIf="m.class_schedule"> · {{ m.class_schedule }}</ng-container><ng-container *ngIf="m.class_ends_on"> · término em {{ m.class_ends_on | dataSP:'dia' }}</ng-container>
-            </p>
-            <div class="curso-progresso-bloco" *ngIf="m.status === 'active' && m.progress?.total">
-              <div class="small mb-1">
-                <strong>Seu progresso</strong> ·
-                <span data-testid="curso-progresso">{{ m.progress.done }} de {{ m.progress.total }} concluídos</span>
-              </div>
-              <div class="curso-progresso-linha">
-                <div class="progress curso-progresso" role="progressbar" aria-label="Progresso do curso"
-                     [attr.aria-valuenow]="m.progress.percent" aria-valuemin="0" aria-valuemax="100">
-                  <div class="progress-bar" [style.width.%]="m.progress.percent"></div>
-                </div>
-                <span class="curso-percentual">{{ m.progress.percent }}%</span>
-              </div>
-            </div>
+          <span class="badge badge-status" [ngClass]="classeStatus(m.status)">{{ rotuloStatus(m.status) }}</span>
+        </div>
+        <h5 class="curso-nome text-break">{{ m.course_name }}</h5>
+        <p class="small text-muted mb-1" data-testid="curso-data">Matrícula em {{ dataBr(m.enrolled_at) }}</p>
+        <p class="small mb-1" data-testid="curso-turma" *ngIf="m.class_name">
+          Turma: {{ m.class_name }}<ng-container *ngIf="m.class_starts_on"> · início em {{ m.class_starts_on | dataSP:'dia' }}</ng-container><ng-container *ngIf="m.class_schedule"> · {{ m.class_schedule }}</ng-container><ng-container *ngIf="m.class_ends_on"> · término em {{ m.class_ends_on | dataSP:'dia' }}</ng-container>
+        </p>
+        <div class="curso-progresso-bloco" *ngIf="m.status === 'active' && m.progress?.total">
+          <div class="small mb-1">
+            <strong>Seu progresso</strong> ·
+            <span data-testid="curso-progresso">{{ m.progress.done }} de {{ m.progress.total }} concluídos</span>
           </div>
-          <div class="curso-acao">
-            <a *ngIf="m.status === 'active'; else semAcesso" class="btn btn-primary" data-testid="curso-entrar" [routerLink]="['/student/curso', m.id]">Entrar no curso</a>
-            <ng-template #semAcesso>
-              <p class="text-muted small mb-0 curso-aviso">{{ mensagemSemAcesso(m.status) }}</p>
-            </ng-template>
+          <div class="curso-progresso-linha">
+            <div class="progress curso-progresso" role="progressbar" aria-label="Progresso do curso"
+                 [attr.aria-valuenow]="m.progress.percent" aria-valuemin="0" aria-valuemax="100">
+              <div class="progress-bar" [style.width.%]="m.progress.percent"></div>
+            </div>
+            <span class="curso-percentual">{{ m.progress.percent }}%</span>
           </div>
         </div>
-
-        <div class="curso-secundario" *ngIf="m.status === 'active'">
-          <h6 class="curso-subtitulo" *ngIf="m.materials?.length">Materiais</h6>
-          <div class="list-group" *ngIf="m.materials?.length; else semMateriais">
-            <a *ngFor="let mat of m.materials"
-               class="list-group-item list-group-item-action text-break"
-               [href]="mat.url"
-               target="_blank"
-               rel="noopener noreferrer">{{ mat.title }}</a>
-          </div>
-          <ng-template #semMateriais>
-            <p class="text-muted small mb-0" *ngIf="!m.progress?.total">Este curso ainda não tem materiais.</p>
+        <div class="curso-acao">
+          <a *ngIf="m.status === 'active'; else semAcesso" class="btn btn-primary" data-testid="curso-entrar" [routerLink]="['/student/curso', m.id]">Entrar no curso</a>
+          <ng-template #semAcesso>
+            <p class="text-muted small mb-0 curso-aviso">{{ mensagemSemAcesso(m.status) }}</p>
           </ng-template>
-          <div class="mt-3" *ngIf="m.progress?.total">
-            <p class="small text-muted mb-2" data-testid="curso-progresso-sala" *ngIf="m.progress.total !== m.materials.length">Marque as aulas como concluídas dentro do curso.</p>
-            <ng-container *ngIf="m.progress.total === m.materials.length">
-            <div class="form-check small" *ngFor="let mat of m.materials">
-              <input class="form-check-input" type="checkbox" data-testid="material-concluido"
-                     [id]="'mat-' + m.id + '-' + mat.url" [checked]="m.progress.completed.includes(mat.url)"
-                     (change)="marcarMaterial(m, mat.url, $any($event.target).checked)">
-              <label class="form-check-label" [for]="'mat-' + m.id + '-' + mat.url">{{ mat.title }}</label>
-            </div>
-            </ng-container>
-            <button type="button" class="btn btn-outline-primary btn-sm mt-2" data-testid="curso-certificado"
-                    *ngIf="m.progress.certificate_available" (click)="baixarCertificado(m)">Baixar certificado</button>
-          </div>
-          <div class="mt-3 curso-avaliacao">
-            <div class="small mb-1"><strong>Avalie o curso</strong>
-              <span class="text-muted" data-testid="curso-avaliacao-atual" *ngIf="m.review"> · sua nota: {{ m.review.rating }} ★</span>
-            </div>
-            <div class="avaliacao-linha">
-              <input class="form-control form-control-sm avaliacao-comentario" maxlength="500" placeholder="Comentário (opcional)"
-                     aria-label="Comentário da avaliação" data-testid="curso-avaliacao-comentario"
-                     [ngModel]="comentarioDe(m)" (ngModelChange)="comentarioAvaliacao[m.id] = $event"
-                     [ngModelOptions]="{standalone: true}">
-              <select class="form-select form-select-sm avaliacao-nota" data-testid="curso-avaliacao-nota"
-                      aria-label="Nota do curso" [ngModel]="notaDe(m)" (ngModelChange)="notaAvaliacao[m.id] = $event"
-                      [ngModelOptions]="{standalone: true}">
-                <option *ngFor="let n of [5,4,3,2,1]" [ngValue]="n">{{ n }} ★</option>
-              </select>
-              <button type="button" class="btn btn-outline-primary btn-sm" data-testid="curso-avaliacao-enviar"
-                      [disabled]="avaliandoId === m.id" (click)="avaliar(m)">Enviar</button>
-            </div>
-            <p class="small text-success mt-2 mb-0" data-testid="curso-avaliacao-ok" role="status"
-               *ngIf="avaliacaoOk[m.id]">{{ avaliacaoOk[m.id] }}</p>
-            <p class="small text-danger mt-2 mb-0" data-testid="curso-avaliacao-erro" role="alert"
-               *ngIf="avaliacaoErro[m.id]">{{ avaliacaoErro[m.id] }}</p>
-          </div>
-          <ng-container *ngTemplateOutlet="cancelamento; context: { $implicit: m }"></ng-container>
         </div>
-        <div class="curso-cancelamento-solto" *ngIf="m.status !== 'active'">
-          <ng-container *ngTemplateOutlet="cancelamento; context: { $implicit: m }"></ng-container>
+      </div>
+
+      <div class="curso-secundario" *ngIf="m.status === 'active'">
+        <h6 class="curso-subtitulo" *ngIf="m.materials?.length">Materiais</h6>
+        <div class="list-group" *ngIf="m.materials?.length; else semMateriais">
+          <a *ngFor="let mat of m.materials"
+             class="list-group-item list-group-item-action text-break"
+             [href]="mat.url"
+             target="_blank"
+             rel="noopener noreferrer">{{ mat.title }}</a>
         </div>
+        <ng-template #semMateriais>
+          <p class="text-muted small mb-0" *ngIf="!m.progress?.total">Este curso ainda não tem materiais.</p>
+        </ng-template>
+        <div class="mt-3" *ngIf="m.progress?.total">
+          <p class="small text-muted mb-2" data-testid="curso-progresso-sala" *ngIf="m.progress.total !== m.materials.length">Marque as aulas como concluídas dentro do curso.</p>
+          <ng-container *ngIf="m.progress.total === m.materials.length">
+          <div class="form-check small" *ngFor="let mat of m.materials">
+            <input class="form-check-input" type="checkbox" data-testid="material-concluido"
+                   [id]="'mat-' + m.id + '-' + mat.url" [checked]="m.progress.completed.includes(mat.url)"
+                   (change)="marcarMaterial(m, mat.url, $any($event.target).checked)">
+            <label class="form-check-label" [for]="'mat-' + m.id + '-' + mat.url">{{ mat.title }}</label>
+          </div>
+          </ng-container>
+          <button type="button" class="btn btn-outline-primary btn-sm mt-2" data-testid="curso-certificado"
+                  *ngIf="m.progress.certificate_available" (click)="baixarCertificado(m)">Baixar certificado</button>
+        </div>
+        <div class="mt-3 curso-avaliacao">
+          <div class="small mb-1"><strong>Avalie o curso</strong>
+            <span class="text-muted" data-testid="curso-avaliacao-atual" *ngIf="m.review"> · sua nota: {{ m.review.rating }} ★</span>
+          </div>
+          <div class="avaliacao-linha">
+            <input class="form-control form-control-sm avaliacao-comentario" maxlength="500" placeholder="Comentário (opcional)"
+                   aria-label="Comentário da avaliação" data-testid="curso-avaliacao-comentario"
+                   [ngModel]="comentarioDe(m)" (ngModelChange)="comentarioAvaliacao[m.id] = $event"
+                   [ngModelOptions]="{standalone: true}">
+            <select class="form-select form-select-sm avaliacao-nota" data-testid="curso-avaliacao-nota"
+                    aria-label="Nota do curso" [ngModel]="notaDe(m)" (ngModelChange)="notaAvaliacao[m.id] = $event"
+                    [ngModelOptions]="{standalone: true}">
+              <option *ngFor="let n of [5,4,3,2,1]" [ngValue]="n">{{ n }} ★</option>
+            </select>
+            <button type="button" class="btn btn-outline-primary btn-sm" data-testid="curso-avaliacao-enviar"
+                    [disabled]="avaliandoId === m.id" (click)="avaliar(m)">Enviar</button>
+          </div>
+          <p class="small text-success mt-2 mb-0" data-testid="curso-avaliacao-ok" role="status"
+             *ngIf="avaliacaoOk[m.id]">{{ avaliacaoOk[m.id] }}</p>
+          <p class="small text-danger mt-2 mb-0" data-testid="curso-avaliacao-erro" role="alert"
+             *ngIf="avaliacaoErro[m.id]">{{ avaliacaoErro[m.id] }}</p>
+        </div>
+        <ng-container *ngTemplateOutlet="cancelamento; context: { $implicit: m }"></ng-container>
+      </div>
+      <div class="curso-cancelamento-solto" *ngIf="m.status !== 'active'">
+        <ng-container *ngTemplateOutlet="cancelamento; context: { $implicit: m }"></ng-container>
       </div>
     </div>
   </div>
@@ -154,8 +161,9 @@
       </ng-container>
     </div>
   </ng-template>
+</section>
 
-<section id="secao-financeiro" class="aluno-secao" data-testid="secao-financeiro">
+<section id="secao-financeiro" class="aluno-secao" data-testid="secao-financeiro" *ngIf="abaAtiva === 'financeiro'">
   <h3>Histórico financeiro</h3>
   <div *ngIf="erroFinanceiro" class="alert alert-danger">{{ erroFinanceiro }}</div>
   <div *ngIf="!erroFinanceiro && payments.length === 0" class="alert alert-info aluno-vazio">
@@ -197,57 +205,77 @@
   </div>
 </section>
 
-<section id="secao-assistente" class="aluno-secao" data-testid="chat-panel">
-  <h3>Assistente virtual</h3>
-  <div *ngIf="erroChat" class="alert alert-danger">{{ erroChat }}</div>
-  <div class="card mb-0 chat-card">
-    <div class="chat-mensagens">
-      <p *ngIf="chatMessages.length === 0" class="text-muted small mb-0">Nenhuma mensagem ainda. Pergunte algo ao assistente.</p>
-      <ng-container *ngFor="let msg of chatMessages">
-        <div data-testid="chat-message"
-             [attr.data-role]="msg.role"
-             class="chat-bolha text-break"
-             [ngClass]="msg.role === 'user' ? 'chat-bolha-aluno' : 'chat-bolha-bot'">
-          <ng-container *ngIf="msg.role === 'user'; else respostaFormatada">{{ msg.content }}</ng-container>
-          <ng-template #respostaFormatada><div class="chat-texto" [innerHTML]="msg.content | chatMarkdown"></div></ng-template>
-        </div>
-        <p *ngIf="msg.role === 'assistant' && msg.fontes?.length" class="chat-fonte"
-           data-testid="chat-fonte">Fonte: {{ msg.fontes?.join(', ') }}</p>
-        <p *ngIf="msg.role === 'assistant' && msg.piiMasked" class="chat-aviso-pii"
-           data-testid="chat-aviso-pii">Para sua segurança, removemos dados pessoais (CPF, cartão, telefone ou e-mail) da
-          sua mensagem antes de enviá-la ao assistente.</p>
-        <div *ngIf="msg.role === 'assistant' && msg.replyId" class="chat-feedback">
-          <button type="button" class="chat-feedback-btn" data-testid="chat-feedback-up"
-                  aria-label="Resposta útil" title="Resposta útil"
-                  [attr.aria-pressed]="msg.feedback === 'up' ? 'true' : 'false'"
-                  [class.ativo]="msg.feedback === 'up'"
-                  [disabled]="!!msg.feedback || msg.enviandoFeedback"
-                  (click)="enviarFeedback(msg, 'up')">👍</button>
-          <button type="button" class="chat-feedback-btn" data-testid="chat-feedback-down"
-                  aria-label="Resposta não útil" title="Resposta não útil"
-                  [attr.aria-pressed]="msg.feedback === 'down' ? 'true' : 'false'"
-                  [class.ativo]="msg.feedback === 'down'"
-                  [disabled]="!!msg.feedback || msg.enviandoFeedback"
-                  (click)="enviarFeedback(msg, 'down')">👎</button>
-        </div>
-      </ng-container>
-      <div *ngIf="chatAcoes.length || chatWhatsapp || chatAbrir.length" class="chat-acoes">
-        <button *ngFor="let acao of chatAbrir" type="button" class="btn btn-sm btn-outline-primary"
-                data-testid="chat-acao-abrir" (click)="abrirAtalho(acao)">{{ acao.label }}</button>
-        <button *ngFor="let acao of chatAcoes" type="button" class="btn btn-sm btn-outline-primary"
-                data-testid="chat-acao-matricular" (click)="abrirMatricula(acao)">{{ acao.label }}</button>
-        <a *ngIf="chatWhatsapp" class="btn btn-sm btn-whatsapp" data-testid="chat-acao-whatsapp"
-           [href]="chatWhatsapp.url" target="_blank" rel="noopener noreferrer">{{ chatWhatsapp.label }}</a>
-      </div>
-    </div>
-    <p class="small text-muted chat-aviso" data-testid="chat-aviso-gravacao">As conversas com o assistente são gravadas
-      para melhorar o atendimento. Não envie dados sensíveis (documentos, cartões, senhas).</p>
-    <form class="input-group chat-form" (ngSubmit)="enviarChat()">
-      <input type="text" class="form-control" name="chatInput" data-testid="chat-input"
-             placeholder="Digite sua mensagem" aria-label="Digite sua mensagem" autocomplete="off"
-             [(ngModel)]="chatInput">
-      <button type="submit" class="btn btn-primary" data-testid="chat-send"
-              [disabled]="!podeEnviarChat()">Enviar</button>
-    </form>
+<!-- R3-4 (D126): assistente como botão flutuante (círculo verde #1f9d3a, canto inferior direito, como o #chat-btn da landing) e
+     painel de chat (diálogo não modal) que só existe no DOM enquanto aberto. O histórico (chatMessages, fontes, ações, feedback)
+     é do componente e sobrevive a fechar, reabrir e trocar de aba. O painel vem depois do botão para o Tab seguir do botão ao painel. -->
+<button type="button" id="assistente-btn" class="assistente-btn" data-testid="assistente-botao" #botaoAssistente
+        aria-controls="assistente-painel" [attr.aria-expanded]="painelAberto"
+        [attr.aria-label]="painelAberto ? 'Fechar o chat com o assistente' : 'Abrir o chat com o assistente'"
+        (click)="alternarPainel()">
+  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+    <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-4.2 3.6c-.5.4-1.3 0-1.3-.6V16A2.5 2.5 0 0 1 4 13.5z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M8.5 9.5h7M8.5 12.5h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+  </svg>
+</button>
+
+<div id="assistente-painel" class="assistente-painel" role="dialog" aria-label="Chat com o assistente"
+     data-testid="chat-panel" *ngIf="painelAberto">
+  <div class="assistente-cabecalho">
+    <h2 class="assistente-titulo">Assistente virtual</h2>
+    <button type="button" class="assistente-fechar" data-testid="assistente-fechar" aria-label="Fechar o chat"
+            (click)="fecharPainel()">
+      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false">
+        <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </button>
   </div>
-</section>
+  <div *ngIf="erroChat" class="alert alert-danger small assistente-erro">{{ erroChat }}</div>
+  <div class="chat-mensagens" aria-live="polite">
+    <p *ngIf="chatMessages.length === 0" class="text-muted small mb-0">Nenhuma mensagem ainda. Pergunte algo ao assistente.</p>
+    <ng-container *ngFor="let msg of chatMessages">
+      <div data-testid="chat-message"
+           [attr.data-role]="msg.role"
+           class="chat-bolha text-break"
+           [ngClass]="msg.role === 'user' ? 'chat-bolha-aluno' : 'chat-bolha-bot'">
+        <ng-container *ngIf="msg.role === 'user'; else respostaFormatada">{{ msg.content }}</ng-container>
+        <ng-template #respostaFormatada><div class="chat-texto" [innerHTML]="msg.content | chatMarkdown"></div></ng-template>
+      </div>
+      <p *ngIf="msg.role === 'assistant' && msg.fontes?.length" class="chat-fonte"
+         data-testid="chat-fonte">Fonte: {{ msg.fontes?.join(', ') }}</p>
+      <p *ngIf="msg.role === 'assistant' && msg.piiMasked" class="chat-aviso-pii"
+         data-testid="chat-aviso-pii">Para sua segurança, removemos dados pessoais (CPF, cartão, telefone ou e-mail) da
+        sua mensagem antes de enviá-la ao assistente.</p>
+      <div *ngIf="msg.role === 'assistant' && msg.replyId" class="chat-feedback">
+        <button type="button" class="chat-feedback-btn" data-testid="chat-feedback-up"
+                aria-label="Resposta útil" title="Resposta útil"
+                [attr.aria-pressed]="msg.feedback === 'up' ? 'true' : 'false'"
+                [class.ativo]="msg.feedback === 'up'"
+                [disabled]="!!msg.feedback || msg.enviandoFeedback"
+                (click)="enviarFeedback(msg, 'up')">👍</button>
+        <button type="button" class="chat-feedback-btn" data-testid="chat-feedback-down"
+                aria-label="Resposta não útil" title="Resposta não útil"
+                [attr.aria-pressed]="msg.feedback === 'down' ? 'true' : 'false'"
+                [class.ativo]="msg.feedback === 'down'"
+                [disabled]="!!msg.feedback || msg.enviandoFeedback"
+                (click)="enviarFeedback(msg, 'down')">👎</button>
+      </div>
+    </ng-container>
+    <div *ngIf="chatAcoes.length || chatWhatsapp || chatAbrir.length" class="chat-acoes">
+      <button *ngFor="let acao of chatAbrir" type="button" class="btn btn-sm btn-outline-primary"
+              data-testid="chat-acao-abrir" (click)="abrirAtalho(acao)">{{ acao.label }}</button>
+      <button *ngFor="let acao of chatAcoes" type="button" class="btn btn-sm btn-outline-primary"
+              data-testid="chat-acao-matricular" (click)="abrirMatricula(acao)">{{ acao.label }}</button>
+      <a *ngIf="chatWhatsapp" class="btn btn-sm btn-whatsapp" data-testid="chat-acao-whatsapp"
+         [href]="chatWhatsapp.url" target="_blank" rel="noopener noreferrer">{{ chatWhatsapp.label }}</a>
+    </div>
+  </div>
+  <p class="small text-muted chat-aviso" data-testid="chat-aviso-gravacao">As conversas com o assistente são gravadas
+    para melhorar o atendimento. Não envie dados sensíveis (documentos, cartões, senhas).</p>
+  <form class="input-group chat-form" (ngSubmit)="enviarChat()">
+    <input type="text" class="form-control" name="chatInput" data-testid="chat-input" #campoChat
+           placeholder="Digite sua mensagem" aria-label="Digite sua mensagem" autocomplete="off"
+           [(ngModel)]="chatInput">
+    <button type="submit" class="btn btn-primary" data-testid="chat-send"
+            [disabled]="!podeEnviarChat()">Enviar</button>
+  </form>
+</div>

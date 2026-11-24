@@ -1,7 +1,7 @@
 """E2E da U7 — LGPD (D89, processo enxuto D84). Harness D58.
 
 L1 cadastro: "Criar conta" só habilita depois de marcar o aceite; os links levam aos Termos e à Privacidade.
-L2 área do aluno: aviso de gravação no chat.
+L2 área do aluno: aviso de gravação no chat. (R3-4, D126: o chat abre pelo botão flutuante do assistente.)
 L3 Meu perfil → "Baixar meus dados" baixa um JSON com o e-mail do aluno.
 L4 Meu perfil → excluir com a senha certa (confirmação aceita na janela do app, DS1/D115) → login com "Sua conta foi
    excluída." e o login antigo falha.
@@ -13,6 +13,7 @@ import uuid
 import pytest
 from playwright import sync_api
 
+from apoio_assistente_flutuante import abrir_assistente
 from apoio_confirmacao import confirmar_no_app
 from apoio_harness_h1 import ambiente_isolado
 
@@ -51,6 +52,7 @@ def test_u7_lgpd():
             page.fill("input[name=password]", SENHA)
             page.click("button[type=submit]")
             page.wait_for_url("**/student", timeout=TIMEOUT)
+            abrir_assistente(page, TIMEOUT)  # R3-4 (D126): o aviso está no painel do botão flutuante
             aviso = page.locator('[data-testid="chat-aviso-gravacao"]')
             aviso.wait_for(timeout=TIMEOUT)
             assert "gravadas" in aviso.inner_text()

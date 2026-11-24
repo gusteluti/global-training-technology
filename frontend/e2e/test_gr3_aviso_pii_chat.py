@@ -36,6 +36,9 @@ Cenários — landing (test_gr3_aviso_pii_landing):
   L3 ponta a ponta: CPF na mensagem -> backend devolve pii_masked: true, o eco não traz o CPF cru, novo aviso
   L4 sem erros de console nem exceções de página
 
+[R3-4, D126: na Área do aluno (P0 a P5) o chat abre pelo botão flutuante [data-testid=assistente-botao]; os cenários o abrem antes
+de usá-lo. As variantes da landing (L0 a L4) não mudaram.]
+
 Execução (da raiz do repo): py -3 -m pytest frontend/e2e/test_gr3_aviso_pii_chat.py -s
 """
 
@@ -54,6 +57,7 @@ E2E_DIR = Path(__file__).resolve().parent
 if str(E2E_DIR) not in sys.path:
     sys.path.insert(0, str(E2E_DIR))
 
+from apoio_assistente_flutuante import abrir_assistente  # noqa: E402
 from apoio_harness_f5b import SENHA_ALUNO, ambiente_f5b, semear_aluno  # noqa: E402
 from test_e6_landing_chat import _porta_livre, _servidor_da_landing  # noqa: E402
 
@@ -251,10 +255,7 @@ def test_gr3_aviso_pii_area_do_aluno(servidores_angular, browser):
         except sync_api.TimeoutError:
             raise Falha(f"login de {email} não levou a /student (URL {page.url})")
         page.wait_for_load_state("networkidle")
-        try:
-            page.locator(SEL_PAINEL).first.wait_for(state="visible", timeout=TIMEOUT)
-        except sync_api.TimeoutError:
-            raise Falha("[data-testid=chat-panel] não está visível em /student")
+        abrir_assistente(page, TIMEOUT)  # R3-4 (D126): o chat abre pelo botão flutuante do assistente
         return page
 
     def pagina():
@@ -322,7 +323,7 @@ def test_gr3_aviso_pii_area_do_aluno(servidores_angular, browser):
     def p4():
         page = pagina()
         page.reload(wait_until="networkidle")
-        page.locator(SEL_PAINEL).first.wait_for(state="visible", timeout=TIMEOUT)
+        abrir_assistente(page, TIMEOUT)  # R3-4 (D126): depois do reload o painel nasce fechado
         fim = time.time() + 8
         while time.time() < fim and page.locator(SEL_MENSAGEM).count() == 0:
             page.wait_for_timeout(150)

@@ -2,6 +2,11 @@
 
 Documento escrito para quem nunca viu a sessão original. Estado verificado por leitura do git e dos arquivos em 05/10/2026, depois do resgate do log de decisões.
 
+**Atualização de 24/11/2026 (onda R3, D123 a D126):** chat da landing com endereço da API configurável, depoimentos e rodapé da landing copiados
+do site antigo, área do aluno em abas com um cartão por curso e assistente como botão flutuante, na branch `feature/fase2-design-r3` (PR para a
+`main`, não mergeado). Só design e estrutura de tela; nenhuma regra, rota ou API mudou. Estado e itens para revisão do PM em
+`docs/tdd/PENDENCIAS.md`, seção "Onda R3"; contrato visual em `docs/DESIGN.md`.
+
 **Atualização de 23/11/2026 (plano DS de design, D115 a D121):** DS0–DS5 entregues na branch `feature/fase2-design`, só design
 (nenhuma regra, rota ou API mudou). Sistema visual final em `docs/DESIGN.md`; plano em `docs/tdd/PLANO_DESIGN.md`; estado e
 itens para revisão do PM em `docs/tdd/PENDENCIAS.md`, seção "Plano DS". Regressão de fechamento na D121: backend 3152 passed

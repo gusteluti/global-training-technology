@@ -29,6 +29,7 @@ Cenarios:
   F1 Financeiro abre a lista de alunos do curso A e nao ve matricula-manual-abrir
   S1 Suporte abre a lista de alunos do curso A e nao ve matricula-manual-abrir
   R1 Lia, matriculada manualmente pela API no curso B, abre "Ver recibo": "Forma de pagamento: Matrícula manual"
+     (R3-3/D125: o histórico financeiro é a aba Financeiro; o teste clica nela antes de procurar a linha do pagamento)
   K1 sem erros de console de /api (4xx/5xx) nem excecoes de pagina, exceto 4xx de /api/admin/enrollments em M2
 
 Execucao (da raiz do repo, um por vez): py -3 -m pytest frontend/e2e/test_u4_matricula_manual_angular.py -s
@@ -468,6 +469,7 @@ def test_u4_matricula_manual_angular_e2e(servidores, browser):
             raise Falha(f"R1: POST /api/admin/enrollments respondeu HTTP {status}: {corpo}")
         page = pagina("lia")
         page.goto(ALVO["base"] + "/student", wait_until="networkidle")
+        page.locator('[data-testid="atalho-financeiro"]').click(timeout=TIMEOUT)  # R3-3 (D125): o histórico é a aba Financeiro
         linha = esperar(page.locator("tr", has_text=s["b"]["nome"]), "R1",
                         f"a linha do pagamento do curso {s['b']['nome']!r} no historico financeiro")
         linha.get_by_role("button", name="Ver recibo").first.click(timeout=TIMEOUT)

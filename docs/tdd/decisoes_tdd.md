@@ -2073,3 +2073,361 @@ numa primeira rodada e 74/74 ao repetir isolada; causa não investigada (parece 
 **Ajuste mecânico de teste (4.3, D93 → D115 → D118 → DS2b):** D3 G2 e G6 (registrado acima pelo agente-testes).
 **Escolha do dev para o PM confirmar:** o botão "Pedir cancelamento" no bloco cinza usa `#b42318` (vermelho da D115) porque
 o azul não passava AA sobre `#f7f9fb` (4,29:1). Capturas conferidas a 1366 e 390 px.
+
+## Registro do agente-testes: R3-1, ajuste mecânico do guarda do script da landing (23/11/2026)
+**Origem (D123):** relato do PM de que o chat da landing não funciona quando ele abre a página. O
+e2e E6 passava porque o harness troca o literal `BACKEND_URL` na cópia servida; nenhum teste cobria o endereço real. Contrato
+da R3-1, decidido pelo PM: `<meta name="gtt-api-url">` no head (meta preenchida > `http://localhost:8000` em file:/localhost/
+127.0.0.1 > `window.location.origin`), constante `BACKEND_URL` e literal mantidos, três erros distintos do chat (rede, resposta que
+não é JSON, JSON com `status: error`) e diagnóstico só no console. Testes: `frontend/e2e/test_r3a_landing_chat_config.py`.
+**Ajuste mecânico (4.3):** `frontend/e2e/test_ds4_script_inalterado.py` comparava o script inline com o de `c6f3342` e a R3-1
+muda o script por decisão do PM. O verificador passa a (1) usar como referência a landing da `main` em `3d94f6c` (provado que
+não afrouxa: S1 passa nos dois, o script de `3d94f6c` é o de `c6f3342` fora das templates do cartão e da planilha, e a regra
+"só essas templates diferem" continua); (2) aceitar EXATAMENTE a mudança declarada, por `REGIOES_DECLARADAS`: quatro trechos
+entre âncoras de texto (resolvedor do endereço; auxiliares dos erros; POST e leitura do JSON; tratamento dos erros), com o
+miolo livre e as âncoras e todo o resto idênticos; o bloco de sucesso do chat não pode mudar; o número de `fetch(` (e de
+XMLHttpRequest, WebSocket, sendBeacon etc.) não pode crescer; (3) ganhar o cenário S0c, que prova sobre o script real que a
+exceção é estreita (mudança fora das regiões, `fetch` novo e âncora que sumiu são detectados). S0 e S0b ficaram intactos e
+continuam estritos. **Intenção preservada:** o script da landing só muda onde o PM autorizou; qualquer outra mudança continua
+reprovando. **Encadeamento:** D115 (D-F) -> D120 (guarda S1) -> R3-1.
+**Re-base obrigatório:** quando a R3-1 for mergeada, trocar `REFERENCIA` pelo merge da R3-1 e esvaziar `REGIOES_DECLARADAS`; sem
+isso a exceção ficaria aberta para as próximas entregas.
+**Escolhas do agente-testes (modo autônomo, D40):** A2 e A4 (ramo "localhost" do endereço) passam no red porque o ramo é o
+comportamento de hoje; protegem contra uma implementação que passe a usar sempre a origem. O red do endereço está em S1 (meta no
+head), A1, A1b e A3. Um JSON sem `status` (ex.: `{"detail": ...}` de um 500) não é testado: o contrato não o define.
+
+## D123 — R3-1: chat da landing com endereço da API configurável e erros distintos (23/11/2026)
+Pedido do PM: "o chatbot na landing não está funcionando". Em teste (backend de teste, LLM simulado) o chat funcionava, porque os
+e2e trocavam a constante `BACKEND_URL`, fixa em `http://localhost:8000`; nenhum teste cobria o endereço real. Causas prováveis no
+ambiente do PM (abre a landing sem servidor próprio ou por outra porta): endereço fixo, CORS do backend liberando só
+`localhost:8000`/`4200` e `127.0.0.1`, e toda falha virando "não foi possível conectar". `localhost:8000` é a API (o `/` devolve
+JSON), não serve a landing.
+**Mudança (só `frontend/landing_global_training.html`):** `<meta name="gtt-api-url">` (valor aparado, sem barra final); meta
+vazia em `file:`/localhost/127.0.0.1 -> `http://localhost:8000`; senão a própria origem. Três erros distintos: sem conexão
+("Não consegui falar com o servidor..."), resposta que não é JSON do chat, inclusive `{"detail":...}` ("O servidor teve um
+problema..."), e erro do servidor em JSON (texto do servidor, como antes). Diagnóstico só no console, com a URL completa e a dica
+`CORS_ALLOWED_ORIGINS`. Sessão, feedback, ações e markdown não mudaram; `fetch(` continua 3.
+**Ciclo:** red `2e261c1` (17 testes, 9 vermelhos pelo motivo certo); frontend `36a7e94`; merge `f7dc262` (sub-branch
+`feature/fase2-design-r3-chat`, projeto `feature/fase2-design-r3`, a partir da `main` em `3d94f6c`). e2e R3a 17/17; e6, f5b,
+f6, ds4 (landing e script), d3, d4, d1, gr1, gr2, gr4, gr5, sg4, qa_fluxos verdes. Falhas conhecidas, provadas iguais sem a
+mudança: GR3 P3/L3 e F5b L4.
+**Ajuste mecânico (4.3, D120 -> R3-1):** `test_ds4_script_inalterado.py` passou a usar a landing da `main` (`3d94f6c`) como
+referência e aceita só as quatro regiões desta entrega. **Re-base obrigatório na próxima entrega:** trocar `REFERENCIA` pelo
+merge `f7dc262` e esvaziar `REGIOES_DECLARADAS`.
+**Para o PM:** em produção, com a meta vazia a landing chama a própria origem; isso exige proxy reverso encaminhando `/api/` ao
+backend, ou a meta preenchida com a URL da API e a origem da página em `CORS_ALLOWED_ORIGINS`. Não foi possível reproduzir o
+defeito do PM aqui; falta saber o endereço exato da barra do navegador e a mensagem mostrada no balão.
+
+## D124 — R3-2: depoimentos e rodapé da landing, copiados do site antigo (23/11/2026)
+Pedido do PM (entrega 2 de 4 da onda R3, só em `frontend/landing_global_training.html`): copiar do site antigo
+(https://gtcursos.com.br/) a aba **Depoimentos**, com os mesmos depoimentos, e o **rodapé**, com as mesmas informações (logo,
+descrição, ícones de redes, Contato, Navegação, Atendimento, botão "Fale conosco"). Textos lidos pelo navegador em 23/11/2026.
+**Decisões do PM:** os depoimentos são copiados SEM correção ortográfica ("Solidwork", "pessoal!!!", "dia dia", "Global training
+Technology"); no rodapé ficam só os links das redes; FORA do rodapé "Global EAD", "A Global Training" e "Contato" (como links de
+navegação); Navegação = Home, Cursos e Treinamentos In Company, apontando para seções da própria landing; "Fale conosco" = laranja
+do projeto (`.btn-cta`, texto `#17212b`); rodapé continua escuro (`#212830`), não o azul-marinho do site antigo. **Invariantes
+(D115):** entrega só de marcação e CSS; o script inline não muda um byte; `http://localhost:8000` continua no script; sem recurso
+externo, fonte nova, emoji nem carrossel; um `h1`; AA; alvos de 44 px; texto de 14 px; 390 px sem rolagem horizontal.
+**Contrato testado** (detalhe completo no docstring de `frontend/e2e/test_r3b_landing_depoimentos_rodape.py`):
+`id="topo"` no início e `id="empresas"` na seção de empresas; `<section id="depoimentos" aria-labelledby="depoimentos-titulo">`
+no `<main>`, entre `#empresas` e `#como-funciona`, com h2 "Depoimentos" (sem subtítulo) e 5 cartões `depoimento-card` (Sônia Costa,
+Flavio Antonio de Jesus Serafim, Cláudia Silva, Jeiel Lopes, Rodrigo Andrade), cada um com `depoimento-texto` (`<blockquote>`,
+literal) e `depoimento-autor` (só o nome), sem foto, estrela, data nem botão; um só `<footer data-testid="rodape">` (filho do
+`<body>`) com logo, `rodape-descricao`, `rodape-social-facebook|instagram|youtube`, títulos Contato/Navegação/Atendimento,
+`rodape-endereco`, `rodape-whatsapp-escola`, `rodape-whatsapp-empresas`, `rodape-email`, um `<nav aria-label>` com exatamente
+`rodape-nav-home` (`#topo`), `rodape-nav-cursos` (`#cursos`), `rodape-nav-incompany` (`#empresas`), `rodape-atendimento` (duas
+linhas), `rodape-fale-conosco` (`.btn-cta`, `https://wa.me/5519994626940`, nova aba com `noopener noreferrer`) e, numa faixa
+inferior, `rodape-copyright`, `rodape-prototipo` e `rodape-area-funcionario` (o link atual). Os links do rodapé são exatamente 12.
+**Ajuste mecânico (4.3, D115 D-F -> D120 -> R3-1 -> R3-2), feito:** `frontend/e2e/test_ds4_script_inalterado.py` — `REFERENCIA`
+passou de `3d94f6c` para `f7dc262` (L52); `REGIOES_DECLARADAS` ficou vazio (L292) e o docstring registra o re-base; o cenário S0c
+(L350), que aceitava as quatro regiões da R3-1, virou "a exceção está fechada": prova, sobre o script real de `f7dc262`, que 14
+mudanças (inclusive nos trechos que a R3-1 tinha aberto), um `fetch` novo e uma função nova são detectados, e que o mecanismo, quando
+recebe uma região explícita, aceita só o miolo dela. `_aplicar_a_mudanca_da_r3_1` saiu (era só do S0c). **Intenção preservada e
+reforçada:** o script da landing só muda onde o PM autorizar; desde agora em lugar nenhum. S0, S0b, S1–S4 intactos; 8/8 verdes.
+**CONFLITO que o orquestrador precisa autorizar (não ajustado; o ajuste muda o que três guardas antigas proíbem):** um rodapé
+conforme o contrato reprova, e SÓ ele, estas três guardas (provado com um protótipo descartável do rodapé, fora do repositório, que
+passa 40/40 nos testes novos; com ele, o resto de `test_ds4_landing.py` e do guarda passa: G1, G2, G10, G11, G13, G14, G15, K1, S0–S4):
+  1. `test_ds4_landing.py` **G4** (D-B, "laranja só na conversão"): varre todo o DOM e só aceita laranja em "Ver cursos abertos" do hero
+     e nos `.btn-enroll`; o "Fale conosco" é um terceiro laranja (decisão do PM). Não conta CTAs; é uma lista de permitidos.
+  2. `test_ds4_landing.py` **G8** (e `test_ds4_script_inalterado.py` **S5**): "nenhum número nem link de WhatsApp/telefone na
+     página" (origem: D77, o número do atendimento humano nunca é versionado e só vem das `actions` do servidor). O rodapé pedido
+     traz dois telefones e dois `wa.me` PÚBLICOS da escola, copiados do site antigo; não são o número do PM.
+  **AUTORIZADO pelo PM no chat (23/11/2026, resposta "Liberar a mudança estreita") e APLICADO pelo orquestrador** (o agente-testes
+  não aplicou porque a tentativa foi barrada pela permissão; a edição só foi feita depois da decisão explícita do PM, via
+  `git apply` dos dois patches, nos arquivos `test_ds4_landing.py` e `test_ds4_script_inalterado.py`). Mudança estreita: G4 passa a permitir também `footer [data-testid="rodape-fale-conosco"]` e nada mais;
+  G8 e S5 passam a aceitar só os quatro literais da escola (`https://wa.me/5519994626940`, `https://wa.me/5519994066468`,
+  `(19) 99462-6940`, `(19) 99406-6468`), só dentro do `<footer>` (qualquer outro número ou link de WhatsApp, em qualquer lugar,
+  continua reprovando; provado com marcação sintética). Com a proposta, `test_ds4_landing.py` e `test_ds4_script_inalterado.py`
+  passam 9/9 sobre o protótipo. Patches: `scratchpad/proposta_r3b/proposta_g4_g8.diff` e `proposta_s5.diff`. Motivo de o agente não
+  ter aplicado: a leitura de D-B (uma exceção ao "um laranja") e a de D77 são política (modo autônomo, D40, escolha conservadora).
+  **Com a autorização, G4, G8 e S5 passam a aceitar o rodapé pedido e só ele.** Pendente no fechamento: atualizar `docs/DESIGN.md`
+  (laranja também no "Fale conosco" do rodapé; ordem dos blocos da landing).
+**Testes vermelhos (39 de 40; 1 passa de propósito, a guarda E0a de recursos e script intocados):** E0b, E0c, T1, T2, D1, D2 (1280 e
+390), D3, D4, D5, D6, D7 (1280 e 390), D8, R1 a R12, R13a (1280 e 390), R13b, R13c (1280 e 390), R13d, R14, R15, R16 e K1 (1280 e 390).
+Todos falham pelo motivo certo: a seção, o rodapé novo, os ids `topo`/`empresas` e os testids não existem (mensagens "0 elemento(s)",
+"não existe a seção #depoimentos", "h2 do <main> ... sem 'Depoimentos'"); nenhum falha por import, fixture, sintaxe ou timeout.
+**Prova de que o contrato é satisfazível e de que os testes pegam erro:** num worktree descartável (removido), um protótipo do
+markup e do CSS passou os 40 testes; 20 mutações (ortografia "corrigida", `rel` sem `noreferrer`, SVG vazio, link "Contato" na
+navegação, texto branco sobre o laranja, título h4, grade de uma coluna, animação nos cartões, `<footer>` dentro do cartão, id
+`empresas` ausente, seção fora de ordem, subtítulo inventado, estrelas, `?text=` no href, colunas empilhadas em 1280, rolagem
+horizontal em 390, foco removido, texto de apoio sem contraste, copyright acima das colunas, JavaScript gerando cartões) foram
+todas reprovadas pelo teste esperado. Antigos sobre o protótipo: d1, d3 vitrine, r3a 17/17, e6 8/8, d4 (landing), gr2, f6, sg4
+verdes.
+**Para o dev-frontend (descoberto no protótipo):** (a) o laranja da landing hoje é `.btn-primary`; `.btn-cta` ainda não existe, e o
+rodapé precisa dele; (b) o alvo de 44 px vale nas duas dimensões, então "Home" precisa de `min-width: 44px` (mesma regra do G13);
+(c) só pode haver um `<footer>` na página (os e2e antigos usam `document.querySelector('footer')`); (d) o `h4` do chat é ignorado
+na ordem de títulos, os títulos do rodapé podem ser h2, h3 ou h4 sem pular nível; (e) em `rodape-whatsapp-*` o travessão é
+U+2013 e no copyright o ponto médio é U+00B7, como no arquivo de textos lidos.
+**Escolhas do agente-testes (modo autônomo, D40):** testids `rodape-copyright`, `rodape-prototipo` e `rodape-area-funcionario`
+acrescentados (não estavam no pedido); "Área do funcionário" só precisa estar no rodapé, sem posição fixa; colunas lado a lado só
+exigidas para Contato, Navegação e Atendimento; sem backend (a API é respondida por `page.route`).
+**Para o PM:** o time da escola precisa confirmar que pode reutilizar os nomes e os depoimentos reais dos alunos do site antigo
+(são nomes completos de pessoas reais, copiados sem alteração) e que os dois WhatsApp, o endereço e o e-mail podem ficar públicos
+na landing do protótipo. **Ciclo:** red no commit `test(r3b)` desta sub-branch (`feature/fase2-design-r3-landing`, a partir de
+`feature/fase2-design-r3` em `b89b09f`); frontend e merge a preencher.
+
+## D125 — R3-3: área do aluno em abas e com cada curso em um cartão (23/11/2026)
+Pedido do PM (23/11/2026, 19:28 e 19:36; entrega 3 de 4 da onda R3, só `/student`:
+`student-dashboard.component.{html,ts,css}`): "em vez de deixar todas as funcionalidades em um monólito, deixe em abas igual é na aba da
+gestão"; "na aba de cursos matriculados coloque cada curso em formato de cards em vez de um em cima do outro" e, perguntado onde
+ficam materiais, avaliação e cancelamento, "Coloque tudo dentro de cada cartão". O assistente flutuante é a entrega 4 e NÃO entra
+aqui. Só design e estrutura de tela: nenhuma lógica de negócio, endpoint ou texto de negócio muda.
+**Decisões do PM:** abas no padrão do painel da gestão (`ul.nav.nav-tabs.gt-abas`, indicador, `aria-current`, `*ngIf`); cada curso
+em um cartão em grade; materiais, avaliação, certificado e cancelamento DENTRO do cartão. **Revoga o layout de linhas da DS2b (D122):**
+um curso por linha, ícone-corpo-ação lado a lado e avaliação numa linha só deixam de valer; os testes que os exigiam passam a afirmar
+cartões (ver "Ajustes", revogação decidida pelo PM em 23/11/2026).
+**Contrato testado** (detalhe completo, com a forma decidida pelo orquestrador, no docstring de
+`frontend/e2e/test_r3c_area_aluno_abas_cartoes.py`): (1) barra `ul.nav.nav-tabs.gt-abas.mb-3` com duas abas reais, "Meus cursos"
+(`atalho-cursos`, `data-aba=cursos`) e "Financeiro" (`atalho-financeiro`, `data-aba=financeiro`), inicial = Meus cursos,
+`active` + `aria-current="page"` só na ativa, `li.gt-abas-indicador[data-testid=abas-indicador]` na base da aba ativa (x e largura a 2 px)
+e recalculado no `resize`; no fim da MESMA `ul`, "Meu perfil" (`<a>`, `atalho-perfil`, `/student/perfil`) e, transitoriamente (a entrega 4
+o remove), "Assistente" (`<button>`, `atalho-assistente`, rola até o chat); os dois NÃO são abas (sem `data-aba`, `aria-current` nem
+`active`) mas têm a mesma aparência das abas inativas; o `nav.aluno-atalhos` antigo some. (2) Só o painel da aba ativa existe no DOM;
+`.aluno-resumo` (3 KPIs) fica ACIMA das abas e visível nas duas; o chat (`#secao-assistente`, todos os testids) continua sempre
+ABAIXO do painel; trocar de aba NÃO chama a API. (3) O recibo aberto sobrevive à troca de aba; avaliação em edição e cancelamento
+aberto não dão erro de console ao trocar. (4) Ações `open` do chat: `financeiro` e `cursos` selecionam a aba (indicador, `aria-current`,
+seção rolada para a vista, topo entre -5 px e 60% da janela); `perfil` navega. (5) `.cursos-lista` em grade: >= 3 colunas a 1280 px,
+2 a 768 px, 1 a 390 px; cartões da mesma linha com o mesmo topo e a mesma altura (>= 8 px entre eles); TUDO dentro de cada
+`curso-card` (DOM e geometria); "Entrar no curso" >= 44 px, sem rolagem interna, na base do cartão (mesma distância da base na
+linha) ou na metade de cima; layout vertical; a avaliação quebra a 390 px sem estourar; um só curso ocupa UMA coluna. (6) Mantidos
+todos os testids, ids, classes e textos que os e2e antigos leem; D115 (AA, 44 px, 14 px, foco, um `h1`, sem `confirm()`, sem emoji,
+sem animação em repouso). (7) Estados: sem matrículas, pendente/cancelada/reembolsada (mensagem de sempre, nenhuma URL de material:
+AGENTS.md, item 4), erro de carga ("Não foi possível carregar suas matrículas.") e um só curso.
+**Ajustes de testes antigos (autoridade permanente 4.3; feitos pelo agente-testes, um por linha; todos passam sobre o protótipo):**
+- `test_d2_area_aluno_angular.py` A5 (D67 -> D125, mecânico): clica em `atalho-financeiro` antes de ler a tabela; docstring de A5 e A7.
+- `test_d3_ajustes_design_angular.py` G2 (D93 -> D115 -> D118 -> D122 -> D125): a referência de estilo passa de "Cursos" (agora a aba
+  ATIVA, com cor e borda de aba ativa por desenho) para a aba inativa "Financeiro"; as propriedades comparadas e a regra de não
+  sublinhar são as mesmas. G6 (mecânico): clica em `atalho-financeiro` antes de ler `pagamento-status`.
+- `test_ds2_area_aluno_angular.py` (D118 -> D122 -> D125): `/student` tem duas abas e só o painel da ativa existe no DOM; o coletor
+  mede cada estado como uma "tela" (`/student`, `/student (aba Financeiro)`, e o mesmo para a conta vazia); as MESMAS regras de
+  contraste, fonte, alvo, cor e texto valem em cada tela (nada foi afrouxado); P0 lê os pagamentos da tela do Financeiro.
+- `test_b2_recibo_pdf_angular.py` (D63 -> D125, mecânico): `login_na_tela` termina clicando em `atalho-financeiro` (a tabela e o
+  `recibo-pdf` são do painel Financeiro).
+- `test_f2_fuso_horario_angular.py` E1 a E3 (mecânico): E1 clica em `atalho-cursos`; E2 e E3 clicam em `atalho-financeiro`.
+- `test_u4_matricula_manual_angular.py` R1 (mecânico): clica em `atalho-financeiro` antes de procurar a linha do pagamento.
+- `test_qa_fluxos_angular.py` CT-FLX-02 (mecânico): clica em `atalho-financeiro` antes de `recibo-pdf`.
+- `test_jornadas_usabilidade.py` J-ALU-01/3N-c e J-ALU-05 (mecânico): clicam em `atalho-financeiro` antes de ler `pagamento-status`
+  (a foto de J-ALU-01/3N-c passa a mostrar a aba Financeiro).
+- `test_ds2b_area_aluno_angular.py` (**revogação decidida pelo PM**, D122 -> D125), os cenários N1, N2, N3, M1, M2, M3 e B2:
+  N1 mede os 4 atalhos dentro da barra de abas (antes `nav[aria-label]`) e o rótulo de `atalho-cursos` é "Meus cursos" (antes "Cursos");
+  N2 passa a exigir o indicador `li.gt-abas-indicador` visível sob a aba ativa e algum retorno visual no hover da aba inativa (antes:
+  sublinhado de 2 px no hover de "Cursos"; a gestão não tem esse sublinhado); N3 exige que "Financeiro" selecione a aba e deixe a
+  seção à vista sem sair de `/student` (deixa de exigir `scrollY > 0`); M1 mantém 1 cartão por linha a 390 px e passa a exigir grade a
+  1366 px (cartão <= 50% da seção, cartões na mesma linha); M2 vira "cartão em coluna" (ícone, selo, data, turma e barra dentro do
+  cartão, data e barra abaixo do nome; sai "badge ao lado do nome" e "coluna à direita do ícone"); M3 mantém texto e 44 px e, a
+  1366 px, exige a ação abaixo do nome e dentro do cartão (sai "à direita e à altura do nome"); B2 deixa de exigir a avaliação numa
+  única linha (cartões de ~375 px não comportam comentário >= 200 px, nota e Enviar lado a lado) e passa a exigir comentário >= 200 px,
+  ordem de leitura comentário, nota, Enviar, e nada fora do cartão. B1, B3, P1 a P3, M4, F1, R1, E1, A1, A2, G1, G3, G4 e K1 ficam
+  como estavam. Sobre a árvore ATUAL (sem a mudança) N1, N2, N3, M1 e M3 reprovam, pelo motivo certo (sem barra de abas; cartões de 100%).
+- Não foi preciso ajustar: `test_gr4_acoes_dados_aluno.py` A1/A2 passam, mas a cobertura de "a ação seleciona a aba" está em O1 e O2;
+  e2, e3, e5, f3, x1, x2, u5, u7, u8, s4, ds1, ds0, d1, d4, ds3, gr1, gr5 e as demais passam sobre o protótipo sem mudança.
+**Linha de base (árvore atual, antes de qualquer ajuste), falhas que já existiam e não vêm da R3-3:** GR3 P3/L3, F5b G5,
+`c_sala_curso` (YouTube bloqueado) e `qa_istqb` CT-UI-14 (`test_ui_sala_320`) e CT-UI-15 (`test_ui_sala_reembolso`). Não rodaram:
+`video_real` e `qa_chat_llm_real` (precisam de internet e de LLM).
+**Testes vermelhos (32 de 61 casos; 29 passam de propósito, são as guardas e os testes que só têm efeito com a grade):** T1, T2, T3,
+T4 (1280, 768 e 390), T5, T6 (1280 e 390), T7, T8, T9, T10, T11, T12, T13, O1, O2, O3, C1 (1280 e 768), C2 (carla), A1, A2 e A3 (1280 e
+390), A4, A5, A7 e A8. Todos falham pelo motivo certo: a barra de abas não existe ("0 elemento(s) [data-aba] dentro de
+ul.nav.nav-tabs.gt-abas", "o nav.aluno-atalhos antigo continua na tela") ou a grade não existe ("1 coluna(s) a 1280px com 5 cartões
+(esperado >= 3)", "nenhuma linha com 2+ cartões"); nenhum falha por import, fixture, sintaxe ou timeout. Passam (guardas): P0,
+C1 (390), C2 (marina e rafael), C3 a C6 (as três larguras), C7, C8, C9, C10, F1 a F5, A6 e K1.
+**Prova de que o contrato é satisfazível e de que os testes pegam erro:** num protótipo descartável (cópia do repositório fora dele,
+só `student-dashboard.component.{html,ts,css}` alterados) o arquivo novo passa 61/61. Sobre o mesmo protótipo, os antigos que tocam a
+área do aluno, com os ajustes acima: d2, d3, ds2 (2/2), ds2b (28/28), b2, f2, u4, d1, qa_fluxos (18/18), jornadas (74/74) e
+`qa_istqb` CT-UI-11 (3/3). Mutações no protótipo (cada uma reprovada pelo teste esperado): 26 mutações (sem `aria-current`; painéis sempre no DOM; sem `resize`; indicador parado ao trocar; chamada nova à API ao trocar; recibo limpo ao trocar; grade de 1 coluna; alturas desiguais; cartão com altura fixa; "Entrar" fora da base; `open` sem trocar de aba; chat acima do painel; KPIs abaixo das abas; KPIs que somem no Financeiro; Meu perfil com `data-aba`; Meu perfil com estilo próprio; `auto-fit` esticando o cartão único; estouro horizontal a 390 px; foco removido; animação em repouso; "Entrar" na matrícula pendente; avaliação que estoura a 390 px; id `secao-cursos` ausente; selo ausente; avaliação fora do cartão; grade sem `min(100%, ...)` a 320 px) foram todas reprovadas pelo teste esperado (a primeira versão de "avaliação fora do cartão" só a sobrepunha DENTRO do cartão e sobreviveu, por não ser a mutação que o nome diz; refeita com `position: fixed`, C3 reprovou nas três larguras).
+**Para o dev-frontend (descoberto no protótipo):** (a) a `section#secao-cursos` de hoje NÃO fecha a `</section>` (a seção do
+Financeiro fica aninhada nela); a reescrita precisa fechá-la, senão o painel de Cursos contém o do Financeiro (T2 e T3 pegam). (b)
+`abrirAtalho` (ações `open` do chat): selecionar a aba e rolar DEPOIS da renderização (`setTimeout(() => this.irPara(secao))`), porque
+o painel só nasce no ciclo seguinte (`*ngIf`); com `perfil` continua navegando. (c) a grade deve ser
+`repeat(auto-fill, minmax(min(100%, 320px), 1fr))`: `minmax(320px, 1fr)` puro estoura a 320 px (o `qa_istqb` CT-UI-11 já exercita 320 px
+em `/student`; A8 cobre) e `auto-fit` estica o cartão único (C9). (d) cartão `display: flex; flex-direction: column; height: 100%`
+e a ação `margin-top: auto` mantêm "Entrar no curso" na base com a mesma distância em todos os cartões da linha; `overflow: hidden`
+no cartão só vale se nada for cortado (o teste mede o corte). (e) a avaliação precisa de `flex-wrap: wrap`; no protótipo o comentário ocupa a linha (`flex: 1 1 100%`, sempre >= 200 px) e nota e
+Enviar quebram embaixo (B2 e C5). (f)
+Meu perfil (`<a class="nav-link">`) e Assistente (`<button class="nav-link">`) ficam em `li.nav-item` na mesma `ul`; o D3 G2 compara o
+estilo de Meu perfil com o de uma aba INATIVA. (g) `moverIndicador()`: `setTimeout` com `offsetWidth`/`offsetLeft` da aba ativa,
+chamado em `ngAfterViewInit`, em `selecionarAba` e em `@HostListener('window:resize')`; `selecionarAba` não pode limpar `receipt`
+(T11). (h) `docs/DESIGN.md`, seção da D122 ("um curso por linha"), precisa ser atualizada para a grade de cartões e as abas.
+**Escolhas do agente-testes (modo autônomo, D40):** o rótulo "Meus cursos" da aba (antes o atalho se chamava "Cursos") é o do contrato
+do orquestrador; "Meu perfil" e "Assistente" só precisam de fonte, peso, família, padding lateral, raio e fundo iguais aos da aba
+inativa (a cor não é comparada: o contraste é medido em A1); "Entrar no curso" na base = mesma distância da base do cartão em todos os
+cartões da linha (2 px) ou centro na metade de cima, só com 2+ botões na linha; o teste do `resize` injeta CSS que muda o padding
+das abas (o indicador fica velho) antes de redimensionar a janela; "sem animação em repouso" = nenhuma `CSSAnimation`/`CSSTransition` em
+execução 1,5 s depois de abrir a tela; não se afirma `role=tablist` nem `nav` em volta da barra (não estão no contrato, e a gestão
+também não tem); C8 usa `.first` no link "Ver cursos" porque hoje o do Financeiro está aninhado na seção de Cursos; A8 (320 px) foi
+acrescentado depois do protótipo mostrar o estouro, e não estava no pedido; no DS2b o N2 mede o hover na aba inativa (Financeiro).
+**Para o PM:** (1) o DS2b B2 ("avaliação numa linha só a 1366 px") não cabe em cartões de 3 colunas; foi tratado como consequência da
+decisão dos cartões (a quebra segura, sem sobreposição, é exigida em C5). Se a linha única for essencial, a saída é a grade de 2 colunas
+a 1366 px, o que contradiz o contrato de >= 3 colunas a 1280 px; nenhum dos dois foi decidido pelo agente. (2) A aba "Cursos" virou
+"Meus cursos". (3) "Assistente" fica na barra só até a entrega 4. (4) O hover das abas passa a ser o da gestão (indicador deslizante),
+não o sublinhado de 2 px da D122. **Ciclo:** red no commit `test(r3c)` desta sub-branch (`feature/fase2-design-r3-aluno`, a partir de
+`feature/fase2-design-r3` em `8043f6d`); green em `bb7a32e` (dev-frontend: `student-dashboard.component.{html,ts,css}` e `docs/DESIGN.md`; nenhum teste, backend nem landing tocados). Verificado pelo orquestrador: arquivo novo 61/61 (red era 32 falhas e 29 verdes), ds2b e d3 verdes; o dev-frontend rodou a regressão da área do aluno e do chat (ds2b 28/28, ds2, d2, d3, d1, d4, ds1, ds3, b2, f2, u4, qa_fluxos 18/18, jornadas 74/74, qa_istqb CT-UI-11 3/3, e2, f3, x1, x2, u5, s4, e5, gr1, gr4, gr5, f5b, f6 e outros) e `ng build` limpo; únicas falhas, as de antes da mudança (GR3 P3/L3, F5b G5; c_sala_curso e qa_istqb CT-UI-14/15 e as que dependem de internet ou LLM não rodaram aqui). **Escolha de forma do dev (revisada pelo orquestrador):** subgrade (`grid-template-rows: subgrid`, com recuo para flex) para a ação e o bloco secundário ficarem à mesma altura de um cartão para o outro; efeito: nos cartões mais curtos o espaço entre a data e "Entrar no curso" cresce. **Observações:** a 390 px a barra de abas rola na horizontal e "Assistente" aparece cortado na borda (como as abas da gestão no celular; o T6 aceita); some quando a entrega 4 remover o botão "Assistente" da barra. Merge em `feature/fase2-design-r3` com `--no-ff`.
+
+## D126 — R3-4: o assistente da área do aluno vira um botão flutuante à direita (24/11/2026)
+Pedido do PM (23/11/2026; entrega 4 de 4 da onda R3, só `/student`: `student-dashboard.component.{html,ts,css}`): "Troque onde está a
+funcionalidade do assistente: em vez de ficar como se fosse um chat embaixo da tela, deixe um botão na direita da tela igual é na
+landing page." Hoje `/student` tem a seção `#secao-assistente` (`data-testid="chat-panel"`) sempre visível ABAIXO do painel das abas e,
+na barra de abas, o atalho transitório `atalho-assistente` (a D125 já o marcou como transitório). Só design e estrutura de tela: nenhuma
+lógica de negócio, endpoint ou texto de negócio muda.
+**Decisões do PM:** o assistente vira um botão verde flutuante à direita, como o da landing (`#chat-btn` de
+`landing_global_training.html`, que NÃO muda); a barra de abas fica só com as duas abas e "Meu perfil". **Revoga, por pedido do PM, o que
+a D125 dizia do assistente:** "o chat (`#secao-assistente`) continua sempre ABAIXO do painel" e o atalho "Assistente" na barra (a própria
+D125 o chamava de transitório); os testes que os exigiam passam a afirmar o contrário (ver "Ajustes").
+**Contrato testado** (a FORMA é do orquestrador; texto completo no docstring de `frontend/e2e/test_r3d_assistente_flutuante.py`):
+(1) saem `#secao-assistente` e `atalho-assistente`; ao abrir `/student` `[data-testid=chat-panel]` tem 0 elementos; a barra
+`ul.nav.nav-tabs.gt-abas` fica com "Meus cursos", "Financeiro" e "Meu perfil" (`<a>`, `atalho-perfil`, sem `data-aba`, `aria-current`
+nem `active`). (2) Botão: `<button type="button" id="assistente-btn" data-testid="assistente-botao" aria-controls="assistente-painel"
+aria-expanded="false|true">` só em `/student` (não em `/student/perfil`, sala, catálogo, login nem painel da equipe), `position: fixed`,
+`right`/`bottom` 28 px (janela <= 600 px: 16 px), círculo de 58x58 px, SVG desenhado à mão `aria-hidden` (sem emoji nem biblioteca),
+sombra, `z-index` entre 10 e 1049 (acima do conteúdo, abaixo dos modais do Bootstrap), fundo `#1f9d3a` com ícone branco (contraste >= 3:1),
+`aria-label` "Abrir o chat com o assistente" / "Fechar o chat com o assistente", foco visível, alvo >= 44 px, sem animação em repouso e
+`prefers-reduced-motion` respeitado. (3) Painel: `<div id="assistente-painel" role="dialog" aria-label="Chat com o assistente"
+data-testid="chat-panel">` só no DOM enquanto aberto (`*ngIf`), `position: fixed` acima do botão (right 28, bottom 96, largura 360,
+`max-width: calc(100vw - 32px)`, `max-height: calc(100vh - 112px)`; <= 600 px: right 16, bottom 84, `max-height: calc(100vh - 100px)`);
+cabeçalho com o título "Assistente virtual" e o botão `assistente-fechar` (`aria-label="Fechar o chat"`, >= 44x44); área de mensagens
+rolável com `aria-live="polite"` e TODOS os testids de hoje; `chat-aviso-gravacao`; formulário (`chat-input`, `chat-send`) sempre visível
+dentro do painel e da janela, mesmo com muitas mensagens; painel inteiro dentro da janela (margem >= 8 px) a 1280, 768, 390 e 320 px, sem
+rolagem horizontal. (4) Clique abre e leva o foco ao `chat-input`; botão, `assistente-fechar` e `Esc` fecham e devolvem o foco ao botão;
+o histórico (mensagens, fontes, avisos, ações, feedback) e o recibo sobrevivem a fechar, reabrir e trocar de aba, sem chamada nova à API;
+ações `open` continuam selecionando a aba (ou navegando para `/student/perfil`) e, com janela <= 600 px, o painel FECHA depois delas
+(a 1280 px permanece aberto); trocar de aba não fecha o painel. (5) Com a página rolada ao fim e o painel fechado, a 1280, 768, 390 e 320 px
+o botão não cobre nenhum texto nem controle, inclusive o rodapé da aplicação. (6) O chat funciona como hoje e a D115 vale com o painel
+aberto (AA, >= 14 px, alvos >= 44 px, um só `h1`, campo rotulado, sem `confirm()`, sem emoji novo, foco visível em botão, fechar, campo e
+Enviar); sem `aria-modal` nem trava de foco. (7) Fora de escopo: landing, chat da sala (`chat-sala`) e backend.
+**Ajustes de testes antigos (autoridade permanente 4.3; feitos pelo agente-testes, um por linha; decisão de origem: pedido do PM de
+23/11/2026 e D125/D126; intenção de cada teste preservada; todos passam sobre o protótipo). Apoio novo:
+`frontend/e2e/apoio_assistente_flutuante.py` (`abrir_assistente(page)`, idempotente, exige o botão e só clica se o painel não existe;
+`fechar_assistente(page)`); os testes antigos o chamam depois de cada `goto`/`reload`, porque o componente nasce com o painel fechado:**
+- `test_d2_area_aluno_angular.py` A7 (D2/D67 -> D125 -> D126): sai o atalho `atalho-assistente`; o atalho Financeiro segue; o assistente
+  passa a abrir pelo botão e o painel tem de aparecer na área visível sem trocar a rota.
+- `test_d3_ajustes_design_angular.py` G4 (D93 -> D126): abre o painel pelo botão; o respiro lateral do aviso é medido contra o contêiner
+  mais próximo (cartão ou painel).
+- `test_u7_lgpd_angular.py` L2 (U7 -> D126, mecânico): abre o painel antes de ler `chat-aviso-gravacao`.
+- `test_f5b_chat_turmas_angular.py` (F5b/D76 -> D126, mecânico): `entrar_no_student` e o reload de G3 abrem o painel.
+- `test_f6_handoff_angular.py` (F6/D77 -> D126, mecânico): `entrar_no_student` e o reload de W3 abrem o painel.
+- `test_gr1_fonte_chat_angular.py`, `test_gr3_aviso_pii_chat.py`, `test_gr4_acoes_dados_aluno.py`, `test_gr5_feedback_chat.py`
+  (GR1/GR3/GR4/GR5 -> D126, mecânico): só as variantes do aluno abrem o painel (antes de cada uso do chat e depois de cada `goto`);
+  as da landing não mudam.
+- `test_e5_chat_aluno_angular.py` (E5 -> D126, mecânico): `exigir_painel` abre o painel pelo botão.
+- `test_ds2_area_aluno_angular.py` (D118 -> D122 -> D125 -> D126): `chat_aluno` abre o painel; o painel fica aberto na medida de
+  `/student` (as mesmas regras de contraste, fonte, alvo e rolagem valem com ele aberto) e `abrir_financeiro` o fecha antes de clicar na aba
+  (a 390 px o painel aberto cobre a barra de abas; achado no protótipo).
+- `test_ds2b_area_aluno_angular.py` N1 (D122 -> D125 -> D126): a barra tem 3 atalhos (sai `atalho-assistente` de `ids` e de `TEXTOS`);
+  a ausência do "Assistente" é afirmada em T7 (r3c) e X1 (r3d).
+- `test_qa_fluxos_angular.py` CT-FLX-12, CT-FLX-13 e CT-FLX-17 (D108 -> D126, mecânico): abrem o painel antes de usar o chat.
+- `test_jornadas_usabilidade.py` (D108 -> D125 -> D126): `perguntar`, J-ALU-03 (e as variantes 2N, 3N e 4N), `_chat_no_limite` e J-INT-01
+  abrem o painel pelo botão (antes clicavam em `atalho-assistente`); `secao_no_topo` passa de 50% para 60% da janela, o mesmo "na vista" do
+  contrato da R3-3 (D125): sem a seção do chat embaixo, a página da conta com um só pagamento mal rola (18 px a 1280x800) e a seção do
+  Financeiro para a ~51% do topo. É a ÚNICA mudança de limiar; a intenção (a seção é rolada para a vista) fica.
+- `test_r3c_area_aluno_abas_cartoes.py` (D125 -> D126): T6 vira `test_t6_perfil_na_barra_fora_das_abas` (só "Meu perfil" no fim da barra);
+  T7 vira `test_t7_sem_atalho_assistente_e_perfil_navega` (o atalho não existe mais; Meu perfil navega); T9 vira
+  `test_t9_chat_pelo_botao_com_a_aba_financeiro` (o chat abre pelo botão nas duas abas, com os testids intactos e funciona com a aba
+  Financeiro ativa; sai "o chat fica abaixo do painel"); `_violacoes_paineis` passa a exigir que `#secao-assistente` NÃO exista (antes
+  exigia que fosse o `chat-panel`); `_pedir_acao` abre o painel antes de usar o chat. Abas, indicador, KPIs, cartões, estados e D115 ficam como estavam.
+- Não foi preciso ajustar: `test_d4_polimento_visual.py`, `test_sg4_teto_chat.py`, `test_qa_istqb.py` e os testes da landing (E6, F5b/F6/GR1
+  a GR5 da landing, R3a etc.); b2, f2, u4, d1, ds0, ds1, ds3, e2, e3, f1, f3, f5a, s1, s4, u5, u8, x1, x2, x5, b1 e o0 passam sobre o
+  protótipo sem mudança.
+**Linha de base (árvore de `343b996`, cópia fora do repositório, antes de qualquer ajuste), falhas que já existiam e não vêm da R3-4:**
+GR3 P3/L3, F5b G5, `c_sala_curso` (YouTube bloqueado) e `qa_istqb` CT-UI-14 (`test_ui_sala_320`) e CT-UI-15 (`test_ui_sala_reembolso`).
+Resultado dos arquivos medidos: r3c 61/61, d2, d3, d4 2/2, ds2 2/2, ds2b, e5, f5b 1 falha (G5), f6, gr1 2/2, gr3 2 falhas (P3 e L3), gr4 2/2,
+gr5 2/2, qa_fluxos 18/18, u7, sg4 6/6, jornadas 74/74, qa_istqb 524 passam e 2 falham (CT-UI-14 e 15). Não rodaram aqui: `video_real` e
+`qa_chat_llm_real` (precisam de internet e de LLM).
+**Testes vermelhos (árvore atual, sem a mudança):** arquivo novo `test_r3d_assistente_flutuante.py`, 45 casos: 43 falham e 2 passam de
+propósito (P0, pré-condição do seed, e K1, console sem erro nem diálogo nativo, que é a guarda). Os 43 falham pelo motivo certo: "[data-testid=
+assistente-botao] aparece 0 vez(es) ... o botão flutuante não existe" (B1 nas 6 larguras, B2, P1 a P8, A1 a A6, C1 nas 4 larguras e P6 pelo
+helper) ou "o que sai da tela" (X1 a 1280 e 390: `#secao-assistente` e `atalho-assistente` continuam, `chat-panel` existe ao abrir a tela, a
+barra tem o "Assistente"; B3: ao voltar da sala, o botão não está de volta); nenhum falha por import, fixture, sintaxe ou timeout. Dos
+antigos ajustados, falham sobre a árvore atual, pelo mesmo motivo (o botão não existe): d2 (A7), d3 (G4), ds2 (18 de 20 cenários, todos
+"/student não ficou pronta: ... assistente-botao aparece 0 vez"), e5, f5b (S0 e dependentes; o G5 conhecido continua), f6, gr1 (variante do
+aluno), gr3 (as duas, a da landing pelo L3 de sempre), gr4 (variante do aluno), gr5 (variante do aluno), u7, qa_fluxos (CT-FLX-12, 13 e 17;
+15 passam), r3c (T2, T3, T7, T9, O1, O2 e O3; 54 passam) e jornadas (J-ALU-03, 2N, 3N x2, 4N e J-INT-01; 68 passam). Passam sobre a árvore atual
+(guardas): ds2b, d4 e sg4.
+**Prova de que o contrato é satisfazível e de que os testes pegam erro:** num protótipo descartável (cópia do repositório fora dele, só
+`student-dashboard.component.{html,ts,css}` alterados, `node_modules` por link) o arquivo novo passa 45/45. Sobre o mesmo protótipo, com os
+ajustes acima: r3c 61/61, d2, d3, d4, ds2 2/2, ds2b, e5, f6, gr1 2/2, gr4 2/2, gr5 2/2, u7, qa_fluxos 18/18, jornadas 74/74, sg4 6/6, b2, f2,
+u4, d1, ds0, ds1, ds3, e2, e3, f1, f3, f5a, s1, s4, u5, u8, x1, x2, x5, b1 e o0 passam; f5b (G5) e gr3 (P3 e L3) falham como na linha de
+base; `c_sala_curso` falha como antes (espera o iframe do YouTube); `qa_istqb` 524 passam e falham os CT-UI-14 e 15 de sempre (numa rodada falhou também `test_arquivo_limite[0-201]`, que espera
+`sala-player` na sala do curso, sala de que o protótipo não toca; passa isolado, 2/2: intermitente, como o `c_sala_curso`). Mutações no
+protótipo (cada uma reprovada pelo teste esperado): 39 mutações (painel sempre no DOM; sem Esc; foco não devolvido; botão cobre o rodapé
+[C1 só a 390 e 320 px: a 1280 e 768 px o rodapé é centrado e não é coberto]; painel estoura a 320 px; formulário some com muitas mensagens;
+cor `#40c351` [B1 nas 6 larguras]; sem `aria-expanded`; histórico perdido ao fechar; `open` não fecha o painel a <= 600 px; `open` fecha o
+painel também a 1280 px; trocar de aba fecha o painel; botão presente em `/student/perfil`; botão de fechar de 30 px; animação em repouso;
+`aria-modal`; `z-index` 2000; `bottom` 20 px; sem foco no campo ao abrir; atalho "Assistente" mantido na barra; ícone emoji; título
+errado; painel cobre o botão; botão do WhatsApp com texto branco [A1b]; sem `aria-live`; fechar sem testid; chamada à API ao trocar de aba;
+chamada à API ao abrir; campo sem rótulo; contraste do aviso; título de 12 px; título `h1`; painel à esquerda; sem foco visível no botão;
+painel sem `role="dialog"`; foco do botão de fechar removido; campo não limpo depois do envio; erro de envio sem alerta; `chat-fonte`
+removido) foram todas reprovadas pelo teste esperado, sem nenhuma sobrevivente. Não têm mutação de interface: P8 (o isolamento entre
+alunos depende do backend, só é medido na tela) e K1.
+**Para o dev-frontend (descoberto no protótipo):** (a) estado `painelAberto` no componente (o histórico já vem de `ngOnInit` e não pode
+ser zerado ao fechar; o painel é `*ngIf`, o botão fica sempre no DOM); ids, testids e `aria-*` exatamente como no contrato. (b) Foco: depois
+de abrir, `setTimeout(() => campo.focus())` (o campo só existe no ciclo seguinte); ao fechar, `@ViewChild` do botão e
+`focus({ preventScroll: true })`; `Esc` por `@HostListener('document:keydown.escape')`. (c) `.chat-mensagens` hoje tem
+`max-height: 360px`: no painel use `display: flex; flex-direction: column` no painel (com `overflow: hidden`) e `flex: 1 1 auto;
+min-height: 0; overflow-y: auto` na área de mensagens, para o formulário não sair da vista. (d) O RODAPÉ fica em `app.component.ts`
+(`.gt-footer`, centrado, 14 px): a 390 e 320 px o texto "Global Training Technology · Plataforma educacional" ocupa a largura e o botão
+(embaixo, à direita) o cobre no fim da página (C1 pega). Folga embaixo no rodapé (o protótipo usou `padding-bottom: 96px` por
+`::ng-deep .gt-footer` dentro de `student-dashboard.component.css`; isso VAZA para as outras rotas depois de visitar `/student`, então o
+dev deve preferir uma regra no `app.component.ts` só para essa rota ou uma classe, o que mexe num arquivo fora da lista da entrega: decisão do
+orquestrador). Folga no `.gt-main` NÃO resolve: o rodapé é o último elemento e fica sob o botão. (e) O botão do WhatsApp do chat
+(`btn-whatsapp`, branco sobre `#40c351`, 2,3:1, D93) já viola o AA da D115 e passa a ser medido (A1b): o protótipo deu texto escuro
+(`--bs-btn-color: #0b2e13`, 6,5:1) só dentro de `.assistente-painel`. (f) A 390 px o painel aberto cobre a barra de abas (o ds2 o fecha antes
+de trocar de aba); P5 e P6 medem a troca de aba com o painel aberto só a 1280 px. (g) `abrirAtalho`: depois de selecionar a aba, fechar o painel
+se `window.innerWidth <= 600` (o mesmo limite do CSS). (h) Sem o chat embaixo as páginas ficam curtas: a de uma conta com um só pagamento rola só 18 px a
+1280x800 (e isso JÁ com os 96 px a mais do rodapé do protótipo); por isso o "na vista" de `open` é de 60% da janela (r3c e jornadas). (i) Transição de hover do botão é permitida (a regra
+global de `prefers-reduced-motion` já zera `transition-duration`). (j) `docs/DESIGN.md` precisa da seção do botão flutuante (cor `#1f9d3a`,
+58 px, 28/16 px, painel de 360 px) e do verde do WhatsApp; a D122/D125 diziam que o chat ficava abaixo.
+**Escolhas do agente-testes (modo autônomo, D40):** janelas de 1280x800, 768x1024, 601x800, 600x800, 390x844 e 320x568; "ícone branco" =
+toda tinta das formas do SVG é branca (ou a cor do fundo, para detalhes vazados) e contraste do branco contra o fundo >= 3:1; foco visível =
+`:focus-visible` com contorno de >= 2 px OU `box-shadow` diferente do de repouso; `Esc` é medido com o foco DENTRO do painel (fora dele o
+contrato não diz nada); não se afirma onde fica o foco depois de uma ação `open` a <= 600 px; o texto digitado e ainda não enviado não faz
+parte do histórico que sobrevive; "não cobre conteúdo" = nenhum retângulo de texto ou de controle (exceto o próprio botão) se sobrepõe ao do
+botão em mais de 1 px nas duas direções, só com o painel fechado; a altura do painel cheio só não pode passar do máximo (o contrato não diz
+que a atinja) e o `z-index` do painel não é medido (só o do botão); o `Falar com um atendente` (WhatsApp) ficou em teste PRÓPRIO (A1b) para
+poder ser dispensado sem mexer em A1; as respostas controladas (fonte, aviso de PII, ações, feedback) são interceptadas por `page.route` e não
+são gravadas no servidor, as trocas reais (P4, P7a, P8) usam o Groq falso do harness h1, que responde sempre "Resposta fixa do dublê e7."; a
+janela de apenas 420 px de altura não é medida; `K1` junta console e diálogos de todo o arquivo e roda por último.
+**Para o PM:** (1) o botão é verde escuro, `#1f9d3a`, e NÃO o `#40c351` da landing: com ícone branco o `#40c351` dá só 2,3:1 e a D115 pede
+>= 3:1 (o `#1f9d3a` dá 3,5:1); se preferir o verde igual ao da landing, o ícone teria de ser escuro e o contrato muda. (2) Com a janela de
+até 600 px o painel FECHA depois de uma ação "Abrir Financeiro/Cursos" do assistente (ele cobriria a tela); acima disso fica aberto. (3)
+`Esc` fecha o painel e o foco vai para o campo ao abrir e volta para o botão ao fechar. (4) O botão "Falar com um atendente" (WhatsApp) do
+chat está com texto branco sobre o verde da landing (D93), 2,3:1, abaixo do AA da D115; o teste A1b exige o AA (a D115 tem número maior);
+se o PM preferir manter a cor, basta dispensar o A1b. (5) O rodapé ganha espaço embaixo para o botão não cobri-lo. (6) A 390 px o painel
+aberto cobre a barra de abas. (7) "Assistente" sai da barra de abas, como a D125 já previa. **Ciclo:** red no commit `test(r3d)` desta
+sub-branch (`feature/fase2-design-r3-assistente`, a partir de `feature/fase2-design-r3` em `343b996`); green no commit `966ea71`
+(`student-dashboard.component.{html,ts,css}` e `docs/DESIGN.md`; build sem erro nem warning novo). **Verificado pelo orquestrador** (24/11/2026):
+`test_r3d_assistente_flutuante.py` 45/45 (antes: 43 vermelhos e 2 guardas); regressão um arquivo por vez: r3c 61/61, d2, d3, d4 2/2, ds2 2/2,
+ds2b, e5, f6, gr1 2/2, gr4 2/2, gr5 2/2, u7, sg4 6/6, qa_fluxos 18/18, jornadas 74/74, e os da landing (r3b 40/40, ds4 landing, ds4 script
+inalterado 8/8, e6 8/8) passam; f5b (só o G5) e gr3 (P3 e L3) falham como na linha de base; `qa_istqb` (rodado pelo dev-frontend): 523 passam e
+3 falham (CT-UI-14, CT-UI-15 e o intermitente `test_arquivo_limite[0-201]`, que passa isolado). Screenshots revistos a 1280, 768 e 390 px, com o
+painel aberto e fechado, e o fim da página a 390 px (botão sobre a folga do rodapé).
+**Decisões do orquestrador sobre os pontos abertos do agente-testes:** (1) `secao_no_topo` de 50% para 60% nos testes de jornadas: aceito
+(mecânico, o mesmo "na vista" da D125). (2) Botão do WhatsApp: texto escuro `#0b2e13` só dentro do painel (6,5:1); fora dele a cor não mudou.
+(3) Rodapé: folga de 96 px por classe `gt-assistente-flutuante` no `<body>`, posta no `ngOnInit` e removida no `ngOnDestroy` do componente, com
+regra `::ng-deep body.gt-assistente-flutuante .gt-footer` no CSS do componente; `app.component.ts` e `styles.css` ficaram intactos; o dev conferiu
+que login, perfil, catálogo e sala mantêm o rodapé de hoje (66 px), inclusive depois de visitar `/student`. (4) A 390 px o painel aberto cobre a
+barra de abas: aceito.
+**Escolhas do dev-frontend:** título do painel em `h2` (a tela segue com um só `h1`); sem avatar nem texto novo no cabeçalho; `Esc` ignora o
+evento já tratado (`defaultPrevented`) pela janela de confirmação da casca, então o primeiro `Esc` fecha só a confirmação; o foco volta ao botão
+também depois de uma ação `open` a <= 600 px; folga do rodapé incondicional (96 px também em desktop em `/student`).
+**Fica para o PM (não implementado):** a área de mensagens abre rolada ao topo e não rola até a última mensagem ao abrir ou ao chegar resposta
+(já era assim no chat de 360 px de antes); rolar até o fim é comportamento novo, fora desta entrega. Merge em `feature/fase2-design-r3` com
+`--no-ff` (hash no log do git).
