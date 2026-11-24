@@ -2185,3 +2185,99 @@ exigidas para Contato, Navegação e Atendimento; sem backend (a API é respondi
 (são nomes completos de pessoas reais, copiados sem alteração) e que os dois WhatsApp, o endereço e o e-mail podem ficar públicos
 na landing do protótipo. **Ciclo:** red no commit `test(r3b)` desta sub-branch (`feature/fase2-design-r3-landing`, a partir de
 `feature/fase2-design-r3` em `b89b09f`); frontend e merge a preencher.
+
+## D125 — R3-3: área do aluno em abas e com cada curso em um cartão (23/11/2026)
+Pedido do PM (23/11/2026, 19:28 e 19:36; entrega 3 de 4 da onda R3, só `/student`:
+`student-dashboard.component.{html,ts,css}`): "em vez de deixar todas as funcionalidades em um monólito, deixe em abas igual é na aba da
+gestão"; "na aba de cursos matriculados coloque cada curso em formato de cards em vez de um em cima do outro" e, perguntado onde
+ficam materiais, avaliação e cancelamento, "Coloque tudo dentro de cada cartão". O assistente flutuante é a entrega 4 e NÃO entra
+aqui. Só design e estrutura de tela: nenhuma lógica de negócio, endpoint ou texto de negócio muda.
+**Decisões do PM:** abas no padrão do painel da gestão (`ul.nav.nav-tabs.gt-abas`, indicador, `aria-current`, `*ngIf`); cada curso
+em um cartão em grade; materiais, avaliação, certificado e cancelamento DENTRO do cartão. **Revoga o layout de linhas da DS2b (D122):**
+um curso por linha, ícone-corpo-ação lado a lado e avaliação numa linha só deixam de valer; os testes que os exigiam passam a afirmar
+cartões (ver "Ajustes", revogação decidida pelo PM em 23/11/2026).
+**Contrato testado** (detalhe completo, com a forma decidida pelo orquestrador, no docstring de
+`frontend/e2e/test_r3c_area_aluno_abas_cartoes.py`): (1) barra `ul.nav.nav-tabs.gt-abas.mb-3` com duas abas reais, "Meus cursos"
+(`atalho-cursos`, `data-aba=cursos`) e "Financeiro" (`atalho-financeiro`, `data-aba=financeiro`), inicial = Meus cursos,
+`active` + `aria-current="page"` só na ativa, `li.gt-abas-indicador[data-testid=abas-indicador]` na base da aba ativa (x e largura a 2 px)
+e recalculado no `resize`; no fim da MESMA `ul`, "Meu perfil" (`<a>`, `atalho-perfil`, `/student/perfil`) e, transitoriamente (a entrega 4
+o remove), "Assistente" (`<button>`, `atalho-assistente`, rola até o chat); os dois NÃO são abas (sem `data-aba`, `aria-current` nem
+`active`) mas têm a mesma aparência das abas inativas; o `nav.aluno-atalhos` antigo some. (2) Só o painel da aba ativa existe no DOM;
+`.aluno-resumo` (3 KPIs) fica ACIMA das abas e visível nas duas; o chat (`#secao-assistente`, todos os testids) continua sempre
+ABAIXO do painel; trocar de aba NÃO chama a API. (3) O recibo aberto sobrevive à troca de aba; avaliação em edição e cancelamento
+aberto não dão erro de console ao trocar. (4) Ações `open` do chat: `financeiro` e `cursos` selecionam a aba (indicador, `aria-current`,
+seção rolada para a vista, topo entre -5 px e 60% da janela); `perfil` navega. (5) `.cursos-lista` em grade: >= 3 colunas a 1280 px,
+2 a 768 px, 1 a 390 px; cartões da mesma linha com o mesmo topo e a mesma altura (>= 8 px entre eles); TUDO dentro de cada
+`curso-card` (DOM e geometria); "Entrar no curso" >= 44 px, sem rolagem interna, na base do cartão (mesma distância da base na
+linha) ou na metade de cima; layout vertical; a avaliação quebra a 390 px sem estourar; um só curso ocupa UMA coluna. (6) Mantidos
+todos os testids, ids, classes e textos que os e2e antigos leem; D115 (AA, 44 px, 14 px, foco, um `h1`, sem `confirm()`, sem emoji,
+sem animação em repouso). (7) Estados: sem matrículas, pendente/cancelada/reembolsada (mensagem de sempre, nenhuma URL de material:
+AGENTS.md, item 4), erro de carga ("Não foi possível carregar suas matrículas.") e um só curso.
+**Ajustes de testes antigos (autoridade permanente 4.3; feitos pelo agente-testes, um por linha; todos passam sobre o protótipo):**
+- `test_d2_area_aluno_angular.py` A5 (D67 -> D125, mecânico): clica em `atalho-financeiro` antes de ler a tabela; docstring de A5 e A7.
+- `test_d3_ajustes_design_angular.py` G2 (D93 -> D115 -> D118 -> D122 -> D125): a referência de estilo passa de "Cursos" (agora a aba
+  ATIVA, com cor e borda de aba ativa por desenho) para a aba inativa "Financeiro"; as propriedades comparadas e a regra de não
+  sublinhar são as mesmas. G6 (mecânico): clica em `atalho-financeiro` antes de ler `pagamento-status`.
+- `test_ds2_area_aluno_angular.py` (D118 -> D122 -> D125): `/student` tem duas abas e só o painel da ativa existe no DOM; o coletor
+  mede cada estado como uma "tela" (`/student`, `/student (aba Financeiro)`, e o mesmo para a conta vazia); as MESMAS regras de
+  contraste, fonte, alvo, cor e texto valem em cada tela (nada foi afrouxado); P0 lê os pagamentos da tela do Financeiro.
+- `test_b2_recibo_pdf_angular.py` (D63 -> D125, mecânico): `login_na_tela` termina clicando em `atalho-financeiro` (a tabela e o
+  `recibo-pdf` são do painel Financeiro).
+- `test_f2_fuso_horario_angular.py` E1 a E3 (mecânico): E1 clica em `atalho-cursos`; E2 e E3 clicam em `atalho-financeiro`.
+- `test_u4_matricula_manual_angular.py` R1 (mecânico): clica em `atalho-financeiro` antes de procurar a linha do pagamento.
+- `test_qa_fluxos_angular.py` CT-FLX-02 (mecânico): clica em `atalho-financeiro` antes de `recibo-pdf`.
+- `test_jornadas_usabilidade.py` J-ALU-01/3N-c e J-ALU-05 (mecânico): clicam em `atalho-financeiro` antes de ler `pagamento-status`
+  (a foto de J-ALU-01/3N-c passa a mostrar a aba Financeiro).
+- `test_ds2b_area_aluno_angular.py` (**revogação decidida pelo PM**, D122 -> D125), os cenários N1, N2, N3, M1, M2, M3 e B2:
+  N1 mede os 4 atalhos dentro da barra de abas (antes `nav[aria-label]`) e o rótulo de `atalho-cursos` é "Meus cursos" (antes "Cursos");
+  N2 passa a exigir o indicador `li.gt-abas-indicador` visível sob a aba ativa e algum retorno visual no hover da aba inativa (antes:
+  sublinhado de 2 px no hover de "Cursos"; a gestão não tem esse sublinhado); N3 exige que "Financeiro" selecione a aba e deixe a
+  seção à vista sem sair de `/student` (deixa de exigir `scrollY > 0`); M1 mantém 1 cartão por linha a 390 px e passa a exigir grade a
+  1366 px (cartão <= 50% da seção, cartões na mesma linha); M2 vira "cartão em coluna" (ícone, selo, data, turma e barra dentro do
+  cartão, data e barra abaixo do nome; sai "badge ao lado do nome" e "coluna à direita do ícone"); M3 mantém texto e 44 px e, a
+  1366 px, exige a ação abaixo do nome e dentro do cartão (sai "à direita e à altura do nome"); B2 deixa de exigir a avaliação numa
+  única linha (cartões de ~375 px não comportam comentário >= 200 px, nota e Enviar lado a lado) e passa a exigir comentário >= 200 px,
+  ordem de leitura comentário, nota, Enviar, e nada fora do cartão. B1, B3, P1 a P3, M4, F1, R1, E1, A1, A2, G1, G3, G4 e K1 ficam
+  como estavam. Sobre a árvore ATUAL (sem a mudança) N1, N2, N3, M1 e M3 reprovam, pelo motivo certo (sem barra de abas; cartões de 100%).
+- Não foi preciso ajustar: `test_gr4_acoes_dados_aluno.py` A1/A2 passam, mas a cobertura de "a ação seleciona a aba" está em O1 e O2;
+  e2, e3, e5, f3, x1, x2, u5, u7, u8, s4, ds1, ds0, d1, d4, ds3, gr1, gr5 e as demais passam sobre o protótipo sem mudança.
+**Linha de base (árvore atual, antes de qualquer ajuste), falhas que já existiam e não vêm da R3-3:** GR3 P3/L3, F5b G5,
+`c_sala_curso` (YouTube bloqueado) e `qa_istqb` CT-UI-14 (`test_ui_sala_320`) e CT-UI-15 (`test_ui_sala_reembolso`). Não rodaram:
+`video_real` e `qa_chat_llm_real` (precisam de internet e de LLM).
+**Testes vermelhos (32 de 61 casos; 29 passam de propósito, são as guardas e os testes que só têm efeito com a grade):** T1, T2, T3,
+T4 (1280, 768 e 390), T5, T6 (1280 e 390), T7, T8, T9, T10, T11, T12, T13, O1, O2, O3, C1 (1280 e 768), C2 (carla), A1, A2 e A3 (1280 e
+390), A4, A5, A7 e A8. Todos falham pelo motivo certo: a barra de abas não existe ("0 elemento(s) [data-aba] dentro de
+ul.nav.nav-tabs.gt-abas", "o nav.aluno-atalhos antigo continua na tela") ou a grade não existe ("1 coluna(s) a 1280px com 5 cartões
+(esperado >= 3)", "nenhuma linha com 2+ cartões"); nenhum falha por import, fixture, sintaxe ou timeout. Passam (guardas): P0,
+C1 (390), C2 (marina e rafael), C3 a C6 (as três larguras), C7, C8, C9, C10, F1 a F5, A6 e K1.
+**Prova de que o contrato é satisfazível e de que os testes pegam erro:** num protótipo descartável (cópia do repositório fora dele,
+só `student-dashboard.component.{html,ts,css}` alterados) o arquivo novo passa 61/61. Sobre o mesmo protótipo, os antigos que tocam a
+área do aluno, com os ajustes acima: d2, d3, ds2 (2/2), ds2b (28/28), b2, f2, u4, d1, qa_fluxos (18/18), jornadas (74/74) e
+`qa_istqb` CT-UI-11 (3/3). Mutações no protótipo (cada uma reprovada pelo teste esperado): 26 mutações (sem `aria-current`; painéis sempre no DOM; sem `resize`; indicador parado ao trocar; chamada nova à API ao trocar; recibo limpo ao trocar; grade de 1 coluna; alturas desiguais; cartão com altura fixa; "Entrar" fora da base; `open` sem trocar de aba; chat acima do painel; KPIs abaixo das abas; KPIs que somem no Financeiro; Meu perfil com `data-aba`; Meu perfil com estilo próprio; `auto-fit` esticando o cartão único; estouro horizontal a 390 px; foco removido; animação em repouso; "Entrar" na matrícula pendente; avaliação que estoura a 390 px; id `secao-cursos` ausente; selo ausente; avaliação fora do cartão; grade sem `min(100%, ...)` a 320 px) foram todas reprovadas pelo teste esperado (a primeira versão de "avaliação fora do cartão" só a sobrepunha DENTRO do cartão e sobreviveu, por não ser a mutação que o nome diz; refeita com `position: fixed`, C3 reprovou nas três larguras).
+**Para o dev-frontend (descoberto no protótipo):** (a) a `section#secao-cursos` de hoje NÃO fecha a `</section>` (a seção do
+Financeiro fica aninhada nela); a reescrita precisa fechá-la, senão o painel de Cursos contém o do Financeiro (T2 e T3 pegam). (b)
+`abrirAtalho` (ações `open` do chat): selecionar a aba e rolar DEPOIS da renderização (`setTimeout(() => this.irPara(secao))`), porque
+o painel só nasce no ciclo seguinte (`*ngIf`); com `perfil` continua navegando. (c) a grade deve ser
+`repeat(auto-fill, minmax(min(100%, 320px), 1fr))`: `minmax(320px, 1fr)` puro estoura a 320 px (o `qa_istqb` CT-UI-11 já exercita 320 px
+em `/student`; A8 cobre) e `auto-fit` estica o cartão único (C9). (d) cartão `display: flex; flex-direction: column; height: 100%`
+e a ação `margin-top: auto` mantêm "Entrar no curso" na base com a mesma distância em todos os cartões da linha; `overflow: hidden`
+no cartão só vale se nada for cortado (o teste mede o corte). (e) a avaliação precisa de `flex-wrap: wrap`; no protótipo o comentário ocupa a linha (`flex: 1 1 100%`, sempre >= 200 px) e nota e
+Enviar quebram embaixo (B2 e C5). (f)
+Meu perfil (`<a class="nav-link">`) e Assistente (`<button class="nav-link">`) ficam em `li.nav-item` na mesma `ul`; o D3 G2 compara o
+estilo de Meu perfil com o de uma aba INATIVA. (g) `moverIndicador()`: `setTimeout` com `offsetWidth`/`offsetLeft` da aba ativa,
+chamado em `ngAfterViewInit`, em `selecionarAba` e em `@HostListener('window:resize')`; `selecionarAba` não pode limpar `receipt`
+(T11). (h) `docs/DESIGN.md`, seção da D122 ("um curso por linha"), precisa ser atualizada para a grade de cartões e as abas.
+**Escolhas do agente-testes (modo autônomo, D40):** o rótulo "Meus cursos" da aba (antes o atalho se chamava "Cursos") é o do contrato
+do orquestrador; "Meu perfil" e "Assistente" só precisam de fonte, peso, família, padding lateral, raio e fundo iguais aos da aba
+inativa (a cor não é comparada: o contraste é medido em A1); "Entrar no curso" na base = mesma distância da base do cartão em todos os
+cartões da linha (2 px) ou centro na metade de cima, só com 2+ botões na linha; o teste do `resize` injeta CSS que muda o padding
+das abas (o indicador fica velho) antes de redimensionar a janela; "sem animação em repouso" = nenhuma `CSSAnimation`/`CSSTransition` em
+execução 1,5 s depois de abrir a tela; não se afirma `role=tablist` nem `nav` em volta da barra (não estão no contrato, e a gestão
+também não tem); C8 usa `.first` no link "Ver cursos" porque hoje o do Financeiro está aninhado na seção de Cursos; A8 (320 px) foi
+acrescentado depois do protótipo mostrar o estouro, e não estava no pedido; no DS2b o N2 mede o hover na aba inativa (Financeiro).
+**Para o PM:** (1) o DS2b B2 ("avaliação numa linha só a 1366 px") não cabe em cartões de 3 colunas; foi tratado como consequência da
+decisão dos cartões (a quebra segura, sem sobreposição, é exigida em C5). Se a linha única for essencial, a saída é a grade de 2 colunas
+a 1366 px, o que contradiz o contrato de >= 3 colunas a 1280 px; nenhum dos dois foi decidido pelo agente. (2) A aba "Cursos" virou
+"Meus cursos". (3) "Assistente" fica na barra só até a entrega 4. (4) O hover das abas passa a ser o da gestão (indicador deslizante),
+não o sublinhado de 2 px da D122. **Ciclo:** red no commit `test(r3c)` desta sub-branch (`feature/fase2-design-r3-aluno`, a partir de
+`feature/fase2-design-r3` em `8043f6d`); frontend e merge a preencher.

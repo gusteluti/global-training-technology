@@ -19,11 +19,13 @@ Cenários:
      no formato dd/mm/aaaa
   A4 só o cartão ativo tem link de material (título e href); a URL do material do curso pendente não está na página
   A5 histórico financeiro com o status em português em [data-testid=pagamento-status]: Aprovado, Pendente e
-     Reembolsado; nenhum valor bruto (approved, pending, refunded) visível na tabela
+     Reembolsado; nenhum valor bruto (approved, pending, refunded) visível na tabela. [R3-3, D125: o histórico fica na
+     aba "Financeiro"; o passo clica em [data-testid=atalho-financeiro] antes de ler a tabela]
   A6 "Ver recibo" do aprovado mostra o cartão do recibo (div.card.border-primary) com "Recibo #<id>", o curso e o
      status "Aprovado"
   A7 atalhos: [data-testid=atalho-financeiro] leva a seção [data-testid=secao-financeiro] para a área visível e a
      URL continua /student (sem navegar para outra rota); idem [data-testid=atalho-assistente] -> chat-panel
+     [R3-3, D125: o atalho Financeiro agora seleciona a aba; a seção visível e a rota são as mesmas]
   A8 isolamento (IDOR na tela): curso, e-mail e URL de material do aluno B não aparecem para A
   A9 celular (390 x 844): sem rolagem horizontal na página, cartões de curso e resumo visíveis
   A10 sem erros de console de /api (4xx/5xx) nem exceções de página
@@ -268,6 +270,8 @@ def test_d2_area_aluno_angular_e2e(servidores, browser):
 
     def a5():
         page = pagina_a()
+        # R3-3 (D125): o histórico financeiro é a aba "Financeiro"; só o painel da aba ativa existe no DOM.
+        page.locator('[data-testid="atalho-financeiro"]').click(timeout=TIMEOUT)
         page.locator("tbody tr").first.wait_for(timeout=TIMEOUT)
         esperado = {"approved": "Aprovado", "pending": "Pendente", "refunded": "Reembolsado"}
         for status, rotulo in esperado.items():

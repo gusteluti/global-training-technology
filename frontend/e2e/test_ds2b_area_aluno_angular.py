@@ -20,13 +20,19 @@ Cenários (cada um lista TODAS as violações de todas as telas):
   C4 laranja só no CTA: nenhum outro elemento laranja na tela [passa no red; é a guarda]
   N1 atalhos de seção: 4 elementos, mesmos testids e textos, dentro de nav[aria-label], altura >= 44 px, sem formato de pílula
      (raio >= 12 px com borda ou fundo), sem o CTA entre eles
+     [R3-3/D125: contêiner = ul.nav.nav-tabs.gt-abas; texto da aba atalho-cursos = "Meus cursos"]
   N2 atalhos: sublinhado ou indicador (border-bottom >= 2 px, sublinhado ou sombra) no hover
+     [R3-3/D125, PM "igual à gestão": indicador li.gt-abas-indicador visível sob a aba ativa + retorno visual no hover da aba inativa]
   N3 atalhos mantêm a ação: Meu perfil leva a /student/perfil; Financeiro rola até a seção sem sair de /student [passa no red]
+     [R3-3/D125: Financeiro seleciona a aba (aria-current), a seção fica à vista, sem sair de /student; scrollY > 0 não é mais exigido]
   H1 cabeçalho: h1 "Olá, <nome>!" direto sobre o fundo (sem .card nem moldura com borda ou sombra ao redor), rótulo "Área do aluno",
      subtítulo "Conectado como <email>", um único h1
   M1 "Meus cursos": cada curso-card com >= 90% da largura da seção e empilhados (a 1366 e a 390 px)
+     [R3-3/D125, revogação do PM: só a 390 px; a 1366 px os cartões ficam em grade (<= 50% da seção, mesma linha)]
   M2 cartão em linha (1366): ícone de iniciais, nome, badge de status ao lado do nome, data/turma e barra na coluna à esquerda
+     [R3-3/D125, revogação do PM: cartão em coluna; badge, data, turma e barra dentro do cartão e abaixo do nome]
   M3 ação "Entrar no curso": >= 44 px; 1366: à direita e à altura do nome; 390: largura toda abaixo do nome
+     [R3-3/D125, revogação do PM: a 1366 px a ação fica abaixo do nome e dentro do cartão]
   M4 sem acesso (pendente): sem "Entrar no curso", mensagem existente no lugar da ação; curso sem materiais mantém o aviso
   P1 progresso: role=progressbar, aria-valuenow/min/max, aria-label "Progresso do curso"; texto "x de y concluídos" mantido;
      curso sem materiais não tem barra
@@ -34,12 +40,18 @@ Cenários (cada um lista TODAS as violações de todas as telas):
   P3 preenchimento em #0077a3 (ou #0096c7)
   B1 materiais, avaliação e cancelamento num bloco secundário do cartão: fundo #f7f9fb, divisória, sem o botão principal
   B2 avaliação (comentário, nota, Enviar) numa única linha a 1366 px, comentário cresce
+     [R3-3/D125, revogação do PM: sem a linha única (cartões de 3 colunas); comentário >= 200 px, ordem de leitura, dentro do cartão]
   B3 "Baixar certificado" continua secundário (outline) e visível; materiais e checkboxes ficam no bloco
   F1 fluxos: avaliar, abrir/fechar cancelamento, baixar certificado; nenhum confirm()/dialog nativo
   R1 faixa de números: contêiner único, 3 itens, sem regressão (guarda da DS2) [passa no red]
   E1 conta vazia: link "Ver cursos" para /catalogo, azul e não laranja [passa no red]
   A1 contraste AA em todo texto visível   A2 piso de 14 px   G1 um h1   G3 alvos >= 44 px   G4 sem rolagem horizontal a 390 px
   K1 sem emojis, sem erros de console
+
+R3-3 (D125, decisão do PM de 23/11/2026: "deixe em abas igual é na aba da gestão" e "cada curso em formato de cards"): este arquivo
+foi ajustado pelo agente-testes (AGENTS.md 4.3). N1, N2 e N3 passam a medir a barra de abas (`ul.nav.nav-tabs.gt-abas`) no lugar
+do `nav.aluno-atalhos`; M1, M2, M3 e B2 deixam de exigir o layout de linhas (um curso por linha, ícone-corpo-ação lado a lado,
+avaliação numa linha) e passam a afirmar o cartão em grade; as demais ficam como estavam. Ver D125 em docs/tdd/decisoes_tdd.md.
 
 Escolhas do agente-testes (modo autônomo D40), registradas no relatório:
   - "À altura do nome" = a faixa vertical do botão cruza a do nome (com folga de 12 px); não exige centralizar no cartão.
@@ -136,11 +148,11 @@ _JS_GEO = _JS_UTIL + r"""
   out.atalhos = ids.map(id => {
     const els = document.querySelectorAll(`[data-testid="${id}"]`);
     if (els.length !== 1) return { id, n: els.length };
-    const el = els[0], cs = getComputedStyle(el), nav = el.closest('nav[aria-label]');
+    const el = els[0], cs = getComputedStyle(el), nav = el.closest('ul.nav.nav-tabs.gt-abas');  // R3-3 (D125): era nav[aria-label]
     const algumaBorda = LADOS.some(l => borda(el, l));
     return { id, n: 1, texto: norm(el.innerText), rect: R(el), tag: el.tagName.toLowerCase(), raio: parseFloat(cs.borderTopLeftRadius) || 0,
-             algumaBorda, fundoAlfa: alfa(cs.backgroundColor), fundo: cs.backgroundColor, nav: nav ? nav.getAttribute('aria-label') : null,
-             navId: nav ? Array.from(document.querySelectorAll('nav')).indexOf(nav) : -1, visivel: visivel(el),
+             algumaBorda, fundoAlfa: alfa(cs.backgroundColor), fundo: cs.backgroundColor, nav: nav ? 'abas' : null,
+             navId: nav ? Array.from(document.querySelectorAll('ul.nav.nav-tabs.gt-abas')).indexOf(nav) : -1, visivel: visivel(el),
              contemCta: nav ? !!(cta && nav.contains(cta)) : false, href: el.getAttribute('href') };
   });
   // cartões de curso
@@ -224,9 +236,20 @@ _JS_ESTILO_ATALHO = r"""
   const alfaBorda = m.length > 3 ? m[3] : 1;
   const bw = parseFloat(cs.borderBottomWidth) || 0;
   return { sublinhado: cs.textDecorationLine.includes('underline'),
+           bordaTodas: [cs.borderTopColor, cs.borderRightColor, cs.borderBottomColor, cs.borderLeftColor].join('|'),
            bordaInf: bw >= 2 && cs.borderBottomStyle !== 'none' && alfaBorda > 0,
            bordaInfTxt: `${cs.borderBottomWidth} ${cs.borderBottomStyle} ${cs.borderBottomColor}`,
            sombra: cs.boxShadow !== 'none', sombraTxt: cs.boxShadow, cor: cs.color, fundo: cs.backgroundColor };
+}
+"""
+
+_JS_INDICADOR = r"""
+() => {
+  const el = document.querySelector('[data-testid="abas-indicador"]');
+  if (!el) return null;
+  const cs = getComputedStyle(el), r = el.getBoundingClientRect();
+  const m = (cs.backgroundColor.match(/[\d.]+/g) || []).map(Number);
+  return { h: r.height, w: r.width, fundo: cs.backgroundColor, alfa: m.length > 3 ? m[3] : 1 };
 }
 """
 
@@ -418,15 +441,20 @@ def test_ds2b_area_aluno(browser, spa):
             f["cta_hover"] = cta.evaluate("e => { const cs = getComputedStyle(e); return {fundo: cs.backgroundColor, cor: cs.color}; }")
             page.mouse.move(1, 1)
             page.wait_for_timeout(200)
-            f["atalho_repouso"] = page.evaluate(_JS_ESTILO_ATALHO, '[data-testid="atalho-cursos"]')
-            page.locator('[data-testid="atalho-cursos"]').hover()
+            # R3-3 (D125): a aba Cursos é a ativa; o retorno do hover mede-se na aba inativa (Financeiro).
+            f["indicador"] = page.evaluate(_JS_INDICADOR)
+            f["atalho_repouso"] = page.evaluate(_JS_ESTILO_ATALHO, '[data-testid="atalho-financeiro"]')
+            page.locator('[data-testid="atalho-financeiro"]').hover()
             page.wait_for_timeout(450)
-            f["atalho_hover"] = page.evaluate(_JS_ESTILO_ATALHO, '[data-testid="atalho-cursos"]')
+            f["atalho_hover"] = page.evaluate(_JS_ESTILO_ATALHO, '[data-testid="atalho-financeiro"]')
             page.mouse.move(1, 1)
             page.locator('[data-testid="atalho-financeiro"]').click()
             page.wait_for_timeout(900)
-            f["fin"] = page.evaluate("() => { const r = document.querySelector('[data-testid=\"secao-financeiro\"]').getBoundingClientRect();"
-                                     " return {topo: r.top, altura: window.innerHeight, scroll: window.scrollY, url: location.pathname}; }")
+            f["fin"] = page.evaluate("() => { const e = document.querySelector('[data-testid=\"secao-financeiro\"]');"
+                                     " if (!e) return {ausente: true, url: location.pathname};"
+                                     " const r = e.getBoundingClientRect(), a = document.querySelector('[data-testid=\"atalho-financeiro\"]');"
+                                     " return {topo: r.top, altura: window.innerHeight, scroll: window.scrollY, url: location.pathname,"
+                                     " ativa: !!a && a.getAttribute('aria-current') === 'page'}; }")
             page.evaluate("() => window.scrollTo(0, 0)")
         except Exception as erro:
             f["erro"] = f"{type(erro).__name__}: {str(erro).splitlines()[0][:160]}"
@@ -612,8 +640,8 @@ def test_ds2b_area_aluno(browser, spa):
         return list(m["laranja"])
 
     # --- N atalhos ---------------------------------------------------------------------------------------------
-    TEXTOS = {"atalho-cursos": "Cursos", "atalho-financeiro": "Financeiro", "atalho-assistente": "Assistente",
-              "atalho-perfil": "Meu perfil"}
+    TEXTOS = {"atalho-cursos": "Meus cursos",  # R3-3 (D125): o rótulo da aba é "Meus cursos" (contrato do orquestrador)
+              "atalho-financeiro": "Financeiro", "atalho-assistente": "Assistente", "atalho-perfil": "Meu perfil"}
 
     def n1(m, rotulo):
         v = []
@@ -624,7 +652,7 @@ def test_ds2b_area_aluno(browser, spa):
             if a["texto"] != TEXTOS[a["id"]]:
                 v.append(f"{a['id']}: texto {a['texto']!r} (esperado {TEXTOS[a['id']]!r})")
             if not a["nav"]:
-                v.append(f"{a['id']}: fora de um nav[aria-label]")
+                v.append(f"{a['id']}: fora da barra ul.nav.nav-tabs.gt-abas")
             if a["rect"]["h"] < 44:
                 v.append(f"{a['id']}: altura {a['rect']['h']:.0f}px (esperado >= 44px)")
             if a["raio"] >= 12 and (a["algumaBorda"] or a["fundoAlfa"] > 0):
@@ -632,20 +660,30 @@ def test_ds2b_area_aluno(browser, spa):
                          f"{'borda' if a['algumaBorda'] else 'fundo ' + a['fundo']}); esperado link/aba em texto")
         navs = {a["navId"] for a in m["atalhos"] if a["n"] == 1}
         if len(navs) != 1:
-            v.append(f"os 4 atalhos não estão no mesmo <nav> ({navs})")
+            v.append(f"os 4 atalhos não estão na mesma barra de abas ({navs})")
         if any(a.get("contemCta") for a in m["atalhos"]):
             v.append("o CTA 'Comprar cursos' continua dentro da navegação dos atalhos")
         return v
 
     def n2():
+        """R3-3 (D125): o retorno visual dos atalhos passa a ser o das abas da gestão: indicador (li.gt-abas-indicador) sob a aba
+        ativa e retorno no hover da aba inativa (sublinhado, borda inferior, sombra, ou mudança de cor, fundo ou borda)."""
         exigir_seed()
         f = fluxos.get("sonda", {})
         if "atalho_hover" not in f:
             raise Falha(f"hover dos atalhos não medido: {f.get('erro')}")
-        h = f["atalho_hover"]
-        if not (h["sublinhado"] or h["bordaInf"] or h["sombra"]):
-            raise Falha(f"atalho Cursos no hover sem sublinhado nem indicador (text-decoration sublinhado: {h['sublinhado']}; "
-                        f"border-bottom {h['bordaInfTxt']}; box-shadow {h['sombraTxt']})")
+        v = []
+        ind = f.get("indicador")
+        if not ind:
+            v.append("indicador da aba ativa ([data-testid=abas-indicador]) ausente")
+        elif ind["h"] < 2 or ind["w"] <= 0 or ind["alfa"] <= 0:
+            v.append(f"indicador da aba ativa invisível (altura {ind['h']:.0f}px, largura {ind['w']:.0f}px, fundo {ind['fundo']})")
+        r, h = f["atalho_repouso"], f["atalho_hover"]
+        mudou = any(r[k] != h[k] for k in ("cor", "fundo", "bordaTodas", "sombraTxt", "sublinhado"))
+        if not (h["sublinhado"] or h["bordaInf"] or h["sombra"] or mudou):
+            v.append(f"aba Financeiro no hover sem retorno visual (text-decoration sublinhado: {h['sublinhado']}; "
+                     f"border-bottom {h['bordaInfTxt']}; box-shadow {h['sombraTxt']}; cor {h['cor']}; fundo {h['fundo']})")
+        _exigir(v, "indicador e hover das abas")
 
     def n3():
         exigir_seed()
@@ -659,10 +697,16 @@ def test_ds2b_area_aluno(browser, spa):
         if not fin:
             v.append(f"clique em Financeiro não medido: {f.get('erro')}")
         else:
+            # R3-3 (D125): Financeiro é uma aba; levar à seção = selecionar a aba e ela ficar à vista, sem sair de /student.
             if fin["url"] != "/student":
                 v.append(f"Financeiro navegou para {fin['url']} (esperado ficar em /student)")
-            if not (-5 <= fin["topo"] < fin["altura"] * 0.6) or fin["scroll"] <= 0:
-                v.append(f"Financeiro não rolou a seção para a vista (topo {fin['topo']:.0f}px, scroll {fin['scroll']:.0f}px)")
+            if fin.get("ausente"):
+                v.append("Financeiro: a seção [data-testid=secao-financeiro] não apareceu depois do clique")
+            else:
+                if not fin["ativa"]:
+                    v.append("Financeiro: a aba não ficou ativa (aria-current=page ausente)")
+                if not (-5 <= fin["topo"] < fin["altura"] * 0.6):
+                    v.append(f"Financeiro não levou a seção para a vista (topo {fin['topo']:.0f}px, janela {fin['altura']:.0f}px)")
         _exigir(v, "ação dos atalhos")
 
     # --- H cabeçalho ---------------------------------------------------------------------------------------------
@@ -684,42 +728,54 @@ def test_ds2b_area_aluno(browser, spa):
 
     # --- M meus cursos --------------------------------------------------------------------------------------------
     def m1(m, rotulo):
+        """R3-3 (D125, revogação decidida pelo PM: "cada curso em formato de cards em vez de um em cima do outro").
+        A 390 px continua 1 cartão por linha na largura toda (como era). A 1366 px os cartões ficam em GRADE: lado a lado, na mesma
+        linha, sem passar de metade da seção (a exigência de >= 3 colunas está no arquivo da R3-3, C1)."""
         v, secao, cards = [], m["secao"], m["cards"]
-        for c in cards:
-            if c["rect"]["w"] < 0.9 * secao["w"]:
-                v.append(f"cartão '{c['nome'][:30]}' com {c['rect']['w']:.0f}px de {secao['w']:.0f}px da seção "
-                         f"({100 * c['rect']['w'] / secao['w']:.0f}%; esperado >= 90%)")
-        for a, b in zip(cards, cards[1:]):
-            if b["rect"]["t"] < a["rect"]["b"] - 1:
-                v.append(f"cartões '{a['nome'][:20]}' e '{b['nome'][:20]}' lado a lado (não empilhados)")
+        if "@390" in rotulo:
+            for c in cards:
+                if c["rect"]["w"] < 0.9 * secao["w"]:
+                    v.append(f"cartão '{c['nome'][:30]}' com {c['rect']['w']:.0f}px de {secao['w']:.0f}px da seção "
+                             f"({100 * c['rect']['w'] / secao['w']:.0f}%; esperado >= 90%)")
+            for a, b in zip(cards, cards[1:]):
+                if b["rect"]["t"] < a["rect"]["b"] - 1:
+                    v.append(f"cartões '{a['nome'][:20]}' e '{b['nome'][:20]}' lado a lado no celular (esperado empilhados)")
+        else:
+            for c in cards:
+                if c["rect"]["w"] > 0.5 * secao["w"]:
+                    v.append(f"cartão '{c['nome'][:30]}' com {c['rect']['w']:.0f}px de {secao['w']:.0f}px da seção "
+                             f"({100 * c['rect']['w'] / secao['w']:.0f}%; esperado <= 50%: cartões em grade, não um por linha)")
+            for a, b in zip(cards, cards[1:]):
+                if abs(b["rect"]["t"] - a["rect"]["t"]) > 2:
+                    v.append(f"cartões '{a['nome'][:20]}' e '{b['nome'][:20]}' em linhas diferentes (topos {a['rect']['t']:.0f} e "
+                             f"{b['rect']['t']:.0f}); esperado lado a lado na grade")
         return v
 
     def m2(m, rotulo):
+        """R3-3 (D125, revogação decidida pelo PM): o cartão deixa de ser uma LINHA (ícone à esquerda, corpo na coluna do meio, badge
+        ao lado do nome, ação à direita) e passa a ser um cartão em coluna. Mantém-se o que o cartão mostra: ícone de iniciais, nome,
+        selo de status, linha de matrícula, turma e barra, tudo dentro do cartão; a linha de matrícula e a barra ficam ABAIXO do nome."""
         v = []
         for c in m["cards"]:
             n = c["nome"][:30]
             if not c["icone"] or not re.fullmatch(r"[^\W_]{1,3}", c["iconeTexto"] or ""):
                 v.append(f"'{n}': ícone de iniciais ausente ({c['iconeTexto']!r})")
                 continue
-            nr = c["nomeRect"]
-            if c["icone"]["r"] > nr["l"] + 1:
-                v.append(f"'{n}': o ícone não fica à esquerda do nome (ícone até x={c['icone']['r']:.0f}, nome a partir de x={nr['l']:.0f})")
-            if c["badge"]:
-                b, nt = c["badge"], c["nomeTexto"]
-                if not (b["t"] < nr["b"] + 4 and b["b"] > nr["t"] - 4) or b["l"] < nt["r"] - 1:
-                    v.append(f"'{n}': badge '{c['badgeTexto'].strip()}' {_r(b)} não está ao lado do nome (texto do nome termina em x={nt['r']:.0f}, y {nr['t']:.0f}-{nr['b']:.0f})")
-            else:
+            nr, cr = c["nomeRect"], c["rect"]
+            if not c["badge"]:
                 v.append(f"'{n}': badge de status ausente")
+            elif not (cr["l"] - 1 <= c["badge"]["l"] and c["badge"]["r"] <= cr["r"] + 1):
+                v.append(f"'{n}': badge '{c['badgeTexto'].strip()}' {_r(c['badge'])} fora do cartão {_r(cr)}")
             for chave, nome_ in (("data", "linha de matrícula"), ("turma", "linha de turma")):
                 if chave == "turma" and not c["turma"]:
                     continue
                 r = c[chave]
                 if not r:
                     v.append(f"'{n}': {nome_} ausente")
-                elif r["l"] < c["icone"]["r"] - 1:
-                    v.append(f"'{n}': {nome_} começa em x={r['l']:.0f}, sob o ícone: deveria ficar na coluna do corpo, à direita do ícone")
-            if c["barra"] and c["barra"]["l"] < c["icone"]["r"] - 1:
-                v.append(f"'{n}': barra começa em x={c['barra']['l']:.0f}, sob o ícone")
+                elif r["t"] < nr["b"] - 2 or not (cr["l"] - 1 <= r["l"] and r["r"] <= cr["r"] + 1):
+                    v.append(f"'{n}': {nome_} {_r(r)} não está abaixo do nome e dentro do cartão (nome termina em y={nr['b']:.0f}, cartão {_r(cr)})")
+            if c["barra"] and c["barra"]["t"] < nr["b"] - 2:
+                v.append(f"'{n}': barra em y={c['barra']['t']:.0f} acima do fim do nome (y={nr['b']:.0f}); esperado abaixo")
         return v
 
     def m3(m, rotulo):
@@ -738,11 +794,12 @@ def test_ds2b_area_aluno(browser, spa):
                 v.append(f"'{n}': 'Entrar no curso' com {e['h']:.0f}px de altura (esperado >= 44px)")
             nr = c["nomeRect"]
             if "@1366" in rotulo:
-                if e["r"] < c["rect"]["r"] - 0.15 * c["rect"]["w"] or e["l"] < c["rect"]["l"] + 0.6 * c["rect"]["w"]:
-                    v.append(f"'{n}': 'Entrar no curso' em x={e['l']:.0f}-{e['r']:.0f} não está alinhado à direita do cartão "
-                             f"(x {c['rect']['l']:.0f}-{c['rect']['r']:.0f})")
-                if not (e["t"] < nr["b"] + 12 and e["b"] > nr["t"] - 12):
-                    v.append(f"'{n}': 'Entrar no curso' em y={e['t']:.0f}-{e['b']:.0f} não está à altura do nome (y {nr['t']:.0f}-{nr['b']:.0f})")
+                # R3-3 (D125, revogação decidida pelo PM): no cartão em coluna a ação fica ABAIXO do nome e dentro do cartão
+                # (não mais à direita e à altura do nome). A posição na base do cartão é exigida no arquivo da R3-3 (C4).
+                if e["t"] < nr["b"] - 1:
+                    v.append(f"'{n}': 'Entrar no curso' em y={e['t']:.0f} acima do fim do nome (y={nr['b']:.0f}); esperado abaixo, no cartão em coluna")
+                if not (c["rect"]["l"] - 1 <= e["l"] and e["r"] <= c["rect"]["r"] + 1):
+                    v.append(f"'{n}': 'Entrar no curso' em x={e['l']:.0f}-{e['r']:.0f} fora do cartão (x {c['rect']['l']:.0f}-{c['rect']['r']:.0f})")
             else:
                 if e["w"] < 0.8 * c["rect"]["w"]:
                     v.append(f"'{n}': 'Entrar no curso' com {e['w']:.0f}px de {c['rect']['w']:.0f}px (esperado largura toda no celular)")
@@ -867,6 +924,10 @@ def test_ds2b_area_aluno(browser, spa):
         return v
 
     def b2(m, rotulo):
+        """R3-3 (D125, revogação decidida pelo PM): "avaliação numa única linha" não cabe em cartões de 3 colunas (cartão de ~375 px:
+        comentário >= 200 px + nota + Enviar passam do corpo do cartão). Passa a valer: comentário continua crescendo (>= 200 px),
+        ordem de leitura comentário, nota, Enviar (na mesma linha ou em linhas seguintes) e nada fora do cartão. A quebra sem
+        sobreposição e a 390 px estão em C5 do arquivo da R3-3."""
         v = []
         if "@1366" not in rotulo:
             return v
@@ -878,13 +939,16 @@ def test_ds2b_area_aluno(browser, spa):
             if not a:
                 v.append("avaliação ausente")
                 continue
-            ys = [(x["t"] + x["b"]) / 2 for x in (a["com"], a["nota"], a["env"])]
-            if max(ys) - min(ys) > 12:
-                v.append(f"comentário, nota e Enviar em linhas diferentes (centros y {', '.join(f'{y:.0f}' for y in ys)})")
-            if not (a["com"]["l"] < a["nota"]["l"] < a["env"]["l"]):
-                v.append("ordem horizontal esperada: comentário, nota, Enviar")
-            if a["com"]["w"] < 200 or a["com"]["w"] < 2 * a["nota"]["w"]:
-                v.append(f"comentário com {a['com']['w']:.0f}px (nota {a['nota']['w']:.0f}px): o campo deve crescer")
+            for antes, depois, nome_ in ((a["com"], a["nota"], "nota"), (a["nota"], a["env"], "Enviar")):
+                mesma_linha = abs((antes["t"] + antes["b"]) / 2 - (depois["t"] + depois["b"]) / 2) <= 12
+                if not ((mesma_linha and antes["l"] < depois["l"]) or depois["t"] >= antes["b"] - 2):
+                    v.append(f"ordem de leitura esperada: comentário, nota, Enviar ({nome_} {_r(depois)} vem antes do item anterior {_r(antes)})")
+            if a["com"]["w"] < 200:
+                v.append(f"comentário com {a['com']['w']:.0f}px (nota {a['nota']['w']:.0f}px): o campo deve continuar usável (>= 200 px)")
+            cr = c["rect"]
+            for nome_, r in (("comentário", a["com"]), ("nota", a["nota"]), ("Enviar", a["env"])):
+                if r["l"] < cr["l"] - 1 or r["r"] > cr["r"] + 1:
+                    v.append(f"{nome_} {_r(r)} estoura o cartão {_r(cr)}")
         return v
 
     def b3(m, rotulo):
@@ -984,13 +1048,13 @@ def test_ds2b_area_aluno(browser, spa):
             ("C2", "CTA no hover: #e86a0c e texto legível", c2),
             ("C3", "CTA no celular: largura toda abaixo da saudação", para(COM, M, c3, "CTA no celular")),
             ("C4", "laranja só no CTA", para(COM, LARGURAS, c4, "laranja fora do CTA")),
-            ("N1", "4 atalhos em barra de navegação em texto (sem pílula, sem CTA)", para(COM, LARGURAS, n1, "atalhos de seção")),
-            ("N2", "atalhos com sublinhado/indicador no hover", n2),
-            ("N3", "atalhos mantêm a ação (perfil, rolagem para Financeiro)", n3),
+            ("N1", "4 atalhos na barra de abas, em texto (sem pílula, sem CTA)", para(COM, LARGURAS, n1, "atalhos de seção")),
+            ("N2", "abas com indicador sob a ativa e retorno no hover da inativa", n2),
+            ("N3", "atalhos mantêm a ação (perfil, aba Financeiro à vista)", n3),
             ("H1", "cabeçalho sem cartão: h1 direto, rótulo, e-mail", para(COM, LARGURAS, h1_, "cabeçalho")),
-            ("M1", "cartões de curso em coluna de largura total, empilhados", para(("marina", "rafael"), LARGURAS, m1, "largura dos cartões")),
-            ("M2", "cartão em linha: ícone, nome, badge ao lado, linhas e barra", para(("marina", "rafael"), D, m2, "layout em linha do cartão")),
-            ("M3", "ação 'Entrar no curso': 44 px, à direita (desktop) / largura toda (celular)",
+            ("M1", "cartões de curso: 1 por linha a 390 px, em grade a 1366 px", para(("marina", "rafael"), LARGURAS, m1, "largura dos cartões")),
+            ("M2", "cartão em coluna: ícone, nome, badge, linhas e barra abaixo do nome", para(("marina", "rafael"), D, m2, "layout em linha do cartão")),
+            ("M3", "ação 'Entrar no curso': 44 px, abaixo do nome (desktop) / largura toda (celular)",
              para(("marina", "rafael"), LARGURAS, m3, "ação principal do cartão")),
             ("M4", "sem acesso mostra a mensagem; curso sem materiais mantém o aviso", para(("marina", "rafael"), LARGURAS, m4, "cartão sem acesso")),
             ("P1", "progressbar acessível e texto 'x de y' mantido", para(("marina", "rafael"), LARGURAS, p1, "barra de progresso (a11y)")),
@@ -998,7 +1062,7 @@ def test_ds2b_area_aluno(browser, spa):
             ("P3", "preenchimento em #0077a3 (ou #0096c7)", para(("marina", "rafael"), LARGURAS, p3, "cor do preenchimento")),
             ("B1", "materiais, avaliação e cancelamento em bloco secundário #f7f9fb com divisória",
              para(("marina", "rafael"), LARGURAS, b1, "bloco secundário")),
-            ("B2", "avaliação numa linha a 1366 px", para(("marina", "rafael"), D, b2, "linha da avaliação")),
+            ("B2", "avaliação a 1366 px: comentário usável, ordem de leitura, dentro do cartão", para(("marina", "rafael"), D, b2, "linha da avaliação")),
             ("B3", "certificado secundário e materiais no bloco", para(("rafael",), LARGURAS, b3, "certificado e materiais")),
             ("F1", "fluxos de avaliar, cancelar e certificado; sem dialog nativo", f1),
             ("R1", "faixa de números sem regressão", para(("marina", "bruno"), LARGURAS, r1, "faixa de números")),

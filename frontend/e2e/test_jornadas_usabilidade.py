@@ -973,6 +973,7 @@ def test_j_alu_01_3n_c_recusado(s, navegador):
     cartao = cartao_do_curso(pagina, c["name"])
     expect(cartao.locator(".badge")).to_have_text("Cancelada")
     assert cartao.locator('[data-testid="curso-entrar"]').count() == 0
+    campo(pagina, "atalho-financeiro").click()  # R3-3 (D125): o histórico de pagamentos é a aba Financeiro
     expect(campo(pagina, "pagamento-status").first).to_have_text("Recusado")
     expect(campo(pagina, "resumo-cursos-ativos")).to_have_text("0")
     foto(pagina, "J-ALU-01 Negativos", "3N-c: pagamento recusado", "Curso Cancelada e pagamento Recusado, sem sala")
@@ -1386,6 +1387,7 @@ def test_j_alu_05_desistir(s, navegador):
     cartao = cartao_do_curso(estudante, c["name"])
     expect(cartao.locator(".badge")).to_have_text("Reembolsada")
     assert cartao.locator('[data-testid="curso-entrar"]').count() == 0
+    campo(estudante, "atalho-financeiro").click()  # R3-3 (D125): o histórico de pagamentos é a aba Financeiro
     expect(campo(estudante, "pagamento-status").first).to_have_text("Reembolsado")
     foto(estudante, fluxo, "Pede de novo e o Financeiro aprova", "Pagamento Reembolsado e curso sem acesso")
     assert s.sql("SELECT status FROM payments WHERE id = ?", pagamento)[0][0] == "refunded"

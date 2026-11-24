@@ -3,6 +3,7 @@
 Contrato de tela (D93), verificado por estilo COMPUTADO no Chromium:
   G1 logo: aluno logado -> href /student e clicar mantém em /student; Gestão -> /admin; sem login -> "/"
   G2 atalhos "Comprar cursos" e "Meu perfil" sem sublinhado, iguais aos botões de rolagem (mesma borda e fonte)
+     [R3-3, D125: a referência passa a ser a aba inativa "Financeiro"; "Cursos" é a aba ativa da barra]
   G3 avaliação: sem avaliação, o seletor já mostra "5 ★"; enviar mostra [data-testid=curso-avaliacao-ok];
      com avaliação 4, ao recarregar o seletor mostra "4 ★"; o comentário tem largura útil (>= 200 px)
   G4 aviso de gravação do chat com respiro lateral (padding-left >= 12 px, igual ao das mensagens)
@@ -10,6 +11,7 @@ Contrato de tela (D93), verificado por estilo COMPUTADO no Chromium:
      da marca, com contraste AA (ajuste mecânico 4.3, D115 -> DS0: o teal #0096c7 só vale como texto grande; o azul
      de texto passa a #0077a3/#005f84)
   G6 paleta: barra de progresso em teal; status "Em análise" com fundo da paleta (não o azul padrão do Bootstrap)
+     [R3-3, D125: o status de pagamento é lido depois de clicar na aba Financeiro]
   G7 observabilidade: custo "US$ 0,0000" (vírgula) numa linha só; percentuais com vírgula
   G8 financeiro: a coluna Curso mostra o NOME do curso, não o id
   G10 celular (390 px): abas do painel numa linha só, com rolagem lateral
@@ -209,10 +211,11 @@ def test_d3_ajustes_design_angular_e2e(servidores, browser):
     # --- G2 atalhos ---------------------------------------------------------------------------------------
     def g2():
         page = aluno()
-        referencia = page.locator('[data-testid="atalho-cursos"]')
-        # DS2b (autoridade 4.3, D115/D118 + pedido do PM): "Comprar cursos" saiu da fileira de atalhos e virou o CTA do
-        # cabeçalho (retangular, laranja). A igualdade de estilo vale entre os atalhos de seção que continuam na barra
-        # (Cursos e Meu perfil); no CTA fica a regra de não ter sublinhado em repouso.
+        # R3-3 (autoridade 4.3, D93 -> D115 -> D118 -> DS2b -> R3-3): "Cursos" virou a aba ATIVA da barra (cor e borda de aba
+        # ativa, por desenho), então deixou de ser a referência do estilo dos atalhos. A igualdade de estilo passa a valer
+        # entre o link "Meu perfil" e uma aba INATIVA da mesma barra (Financeiro). Intenção preservada: atalhos com estilo
+        # uniforme e sem sublinhado em repouso. "Comprar cursos" mantém a regra de não ter sublinhado (DS2b).
+        referencia = page.locator('[data-testid="atalho-financeiro"]')
         for testid in ("atalho-catalogo", "atalho-perfil"):
             alvo = page.locator(f'[data-testid="{testid}"]')
             if estilo(alvo, "text-decoration-line") != "none":
@@ -221,7 +224,7 @@ def test_d3_ajustes_design_angular_e2e(servidores, browser):
                 continue
             for prop in ("border-top-color", "font-weight", "color", "border-radius"):
                 if estilo(alvo, prop) != estilo(referencia, prop):
-                    raise Falha(f"{testid}: {prop} = {estilo(alvo, prop)!r}, diferente do atalho Cursos "
+                    raise Falha(f"{testid}: {prop} = {estilo(alvo, prop)!r}, diferente da aba inativa Financeiro "
                                 f"({estilo(referencia, prop)!r})")
 
     # --- G3 avaliação -------------------------------------------------------------------------------------
@@ -288,6 +291,8 @@ def test_d3_ajustes_design_angular_e2e(servidores, browser):
         # DS2b: o preenchimento pode ser o teal da marca (#0096c7) ou o azul de texto #0077a3 (nunca o azul do Bootstrap).
         if cor not in (TEAL, "rgb(0, 119, 163)"):
             raise Falha(f"barra de progresso com {cor} (esperado teal #0096c7 ou #0077a3)")
+        # R3-3 (D125): a barra de progresso é da aba Meus cursos; o status de pagamento é da aba Financeiro.
+        page.locator('[data-testid="atalho-financeiro"]').click()
         linha = page.locator("tbody tr").filter(has_text=cursos["analise"]["nome"])
         badge = linha.locator('[data-testid="pagamento-status"]')
         if badge.first.inner_text().strip() != "Em análise":

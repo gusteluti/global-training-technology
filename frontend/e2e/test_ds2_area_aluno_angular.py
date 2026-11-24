@@ -14,8 +14,11 @@ Seed (harness isolado D58; como o seed da D2/D3, com dados de tamanho realista):
                    é escolhida antes da medida, para o botão de compra ficar habilitado
 
 Telas (cada uma a 1366 e a 390 px de largura, mouse parado no canto, movimento reduzido):
-  /student                (aluna principal; o chat do aluno com uma troca respondida na tela)
-  /student (sem matrícula) (conta vazia; estado vazio de "Meus cursos" e do histórico financeiro)
+  /student                (aluna principal; aba "Meus cursos"; o chat do aluno com uma troca respondida na tela)
+  /student (aba Financeiro) (a mesma aluna, depois de clicar na aba "Financeiro": R3-3, D125, só o painel da aba ativa
+                           existe no DOM)
+  /student (sem matrícula) (conta vazia; estado vazio de "Meus cursos")
+  /student (sem matrícula, aba Financeiro) (conta vazia; estado vazio do histórico financeiro)
   /student/perfil
   /student/curso/:id      (matrícula ativa; o chat da sala com uma troca respondida na tela)
   /catalogo
@@ -599,7 +602,11 @@ def test_ds2_apoio_verificador(browser):
 
 
 # ------------------------------------------------------------------------------------------------- teste
-TELAS = ("/student", "/student (sem matrícula)", "/student/perfil", "/student/curso/:id", "/catalogo")
+# R3-3 (D125): /student tem duas abas (só o painel da aba ativa existe no DOM); cada estado é uma "tela" medida.
+TELA_FIN = "/student (aba Financeiro)"
+TELA_VAZIO = "/student (sem matrícula)"
+TELA_VAZIO_FIN = "/student (sem matrícula, aba Financeiro)"
+TELAS = ("/student", TELA_FIN, TELA_VAZIO, TELA_VAZIO_FIN, "/student/perfil", "/student/curso/:id", "/catalogo")
 
 
 def test_ds2_area_aluno(browser, spa):
@@ -716,23 +723,41 @@ def test_ds2_area_aluno(browser, spa):
             cartoes[chave] = card.first.evaluate(_JS_CARTAO) if card.count() else None
         return {
             "resumo": page.evaluate(_JS_RESUMO, {"ids": [list(p) for p in RESUMO], "texto": TEXTO}),
-            "badges": page.evaluate(_JS_BADGES, {"sel": '[data-testid="curso-card"] .badge, '
-                                                        '[data-testid="secao-financeiro"] .badge'}),
+            "badges": page.evaluate(_JS_BADGES, {"sel": '[data-testid="curso-card"] .badge'}),
             "badges_contraste": varrer_contraste(page, dentro_de=[".badge"]),
             "cartoes": cartoes,
             "n_cartoes": page.locator('[data-testid="curso-card"]').count(),
-            "pagamentos": [_normalizar(t) for t in page.locator('[data-testid="pagamento-status"]').all_inner_texts()],
             "atalho": botao_cores(page, '[data-testid="atalho-catalogo"]'),
             "chat": page.locator('[data-testid="chat-message"][data-role="assistant"]').count(),
+        }
+
+    def extra_financeiro(page):
+        # R3-3 (D125): o histórico financeiro é a aba "Financeiro" (antes dividia a tela com os cursos).
+        return {
+            "resumo": page.evaluate(_JS_RESUMO, {"ids": [list(p) for p in RESUMO], "texto": TEXTO}),
+            "badges": page.evaluate(_JS_BADGES, {"sel": '[data-testid="secao-financeiro"] .badge'}),
+            "badges_contraste": varrer_contraste(page, dentro_de=[".badge"]),
+            "pagamentos": [_normalizar(t) for t in page.locator('[data-testid="pagamento-status"]').all_inner_texts()],
+            "atalho": botao_cores(page, '[data-testid="atalho-catalogo"]'),
         }
 
     def extra_vazio(page):
         return {
             "resumo": page.evaluate(_JS_RESUMO, {"ids": [list(p) for p in RESUMO], "texto": TEXTO}),
             "vazio_cursos": page.evaluate(_JS_LINK_CATALOGO, '[data-testid="secao-cursos"]'),
+            "atalho": botao_cores(page, '[data-testid="atalho-catalogo"]'),
+        }
+
+    def extra_vazio_financeiro(page):
+        return {
+            "resumo": page.evaluate(_JS_RESUMO, {"ids": [list(p) for p in RESUMO], "texto": TEXTO}),
             "vazio_financeiro": page.evaluate(_JS_LINK_CATALOGO, '[data-testid="secao-financeiro"]'),
             "atalho": botao_cores(page, '[data-testid="atalho-catalogo"]'),
         }
+
+    def abrir_financeiro(page):
+        page.locator('[data-testid="atalho-financeiro"]').click(timeout=TIMEOUT)
+        page.locator('[data-testid="secao-financeiro"]').wait_for(state="visible", timeout=TIMEOUT)
 
     def extra_catalogo(page):
         return {"comprar": botao_cores(page, '[data-testid="catalogo-comprar"]')}
@@ -775,25 +800,41 @@ def test_ds2_area_aluno(browser, spa):
                         falha_de_tela(tela, largura, f"{rota} não ficou pronta: {erro}")
                         continue
                     medir(tela, largura, page, extra)
+                    if tela == "/student":
+                        try:
+                            abrir_financeiro(page)
+                        except Exception as erro:
+                            falha_de_tela(TELA_FIN, largura, f"a aba Financeiro não abriu: {erro}")
+                        else:
+                            medir(TELA_FIN, largura, page, extra_financeiro)
 
             page = nova(largura)
-            tela = "/student (sem matrícula)"
+            tela = TELA_VAZIO
             try:
                 entrar(page, seed["vazio"]["email"])
                 page.locator('[data-testid="secao-cursos"]').wait_for(state="visible", timeout=TIMEOUT)
-                page.locator('[data-testid="secao-financeiro"]').wait_for(state="visible", timeout=TIMEOUT)
             except Exception as erro:
                 falha_de_tela(tela, largura, erro)
+                falha_de_tela(TELA_VAZIO_FIN, largura, erro)
             else:
                 medir(tela, largura, page, extra_vazio)
                 if largura == 1366:
-                    medidas[(tela, largura)]["navega"] = navegacao_vazio(page)
+                    medidas[(tela, largura)]["navega"] = navegacao_vazio(
+                        page, (("vazio_cursos", '[data-testid="secao-cursos"]'),))
+                try:
+                    abrir_financeiro(page)
+                except Exception as erro:
+                    falha_de_tela(TELA_VAZIO_FIN, largura, f"a aba Financeiro não abriu: {erro}")
+                else:
+                    medir(TELA_VAZIO_FIN, largura, page, extra_vazio_financeiro)
+                    if largura == 1366:
+                        medidas[(TELA_VAZIO_FIN, largura)]["navega"] = navegacao_vazio(
+                            page, (("vazio_financeiro", '[data-testid="secao-financeiro"]'),))
 
-    def navegacao_vazio(page):
+    def navegacao_vazio(page, secoes):
         """E1/E2: sem link com href, tenta cada botão visível da seção e vê se leva a /catalogo."""
         resultado = {}
-        for chave, sel in (("vazio_cursos", '[data-testid="secao-cursos"]'),
-                           ("vazio_financeiro", '[data-testid="secao-financeiro"]')):
+        for chave, sel in secoes:
             info = page.evaluate(_JS_LINK_CATALOGO, sel)
             resultado[chave] = bool(info.get("links"))
             if resultado[chave]:
@@ -856,9 +897,13 @@ def test_ds2_area_aluno(browser, spa):
                 for esperado in ("Ativa", "Pendente"):
                     if not any(esperado in b["texto"] for b in m["badges"]):
                         v.append(f"/student @{largura}px: badge {esperado!r} não encontrado ({textos})")
-                for esperado in ("Aprovado", "Pendente"):
-                    if not any(esperado in p for p in m["pagamentos"]):
-                        v.append(f"/student @{largura}px: pagamento {esperado!r} não encontrado ({m['pagamentos']})")
+                mf = medidas.get((TELA_FIN, largura), {"erro": "não medida"})
+                if "erro" in mf:
+                    v.append(f"{TELA_FIN} @{largura}px: {mf['erro']}")
+                else:
+                    for esperado in ("Aprovado", "Pendente"):
+                        if not any(esperado in p for p in mf["pagamentos"]):
+                            v.append(f"{TELA_FIN} @{largura}px: pagamento {esperado!r} não encontrado ({mf['pagamentos']})")
                 if m["chat"] < 1:
                     v.append(f"/student @{largura}px: nenhuma resposta do assistente na tela")
                 if None in m["cartoes"].values():
@@ -868,14 +913,16 @@ def test_ds2_area_aluno(browser, spa):
                 v.append(f"/student/curso/:id @{largura}px: {m['erro']}")
             elif m["chat_sala"] < 1:
                 v.append(f"/student/curso/:id @{largura}px: nenhuma resposta do assistente da sala")
-            m = medidas.get(("/student (sem matrícula)", largura), {"erro": "não medida"})
+            m = medidas.get((TELA_VAZIO, largura), {"erro": "não medida"})
             if "erro" in m:
-                v.append(f"/student (sem matrícula) @{largura}px: {m['erro']}")
-            else:
-                if VAZIO_CURSOS not in m["vazio_cursos"].get("texto", ""):
-                    v.append(f"conta vazia @{largura}px: sem o texto {VAZIO_CURSOS!r}")
-                if VAZIO_PAGAMENTOS not in m["vazio_financeiro"].get("texto", ""):
-                    v.append(f"conta vazia @{largura}px: sem o texto {VAZIO_PAGAMENTOS!r}")
+                v.append(f"{TELA_VAZIO} @{largura}px: {m['erro']}")
+            elif VAZIO_CURSOS not in m["vazio_cursos"].get("texto", ""):
+                v.append(f"conta vazia @{largura}px: sem o texto {VAZIO_CURSOS!r}")
+            m = medidas.get((TELA_VAZIO_FIN, largura), {"erro": "não medida"})
+            if "erro" in m:
+                v.append(f"{TELA_VAZIO_FIN} @{largura}px: {m['erro']}")
+            elif VAZIO_PAGAMENTOS not in m["vazio_financeiro"].get("texto", ""):
+                v.append(f"conta vazia @{largura}px: sem o texto {VAZIO_PAGAMENTOS!r}")
             m = medidas.get(("/catalogo", largura), {"erro": "não medida"})
             if "erro" in m:
                 v.append(f"/catalogo @{largura}px: {m['erro']}")
@@ -956,12 +1003,12 @@ def test_ds2_area_aluno(browser, spa):
         return m["laranja"]
 
     # --- E estado vazio -------------------------------------------------------------------------------------
-    def e(chave, texto):
+    def e(chave, texto, tela):
         def cenario():
             exigir_seed()
             v = []
             for largura in LARGURAS:
-                m = medidas.get(("/student (sem matrícula)", largura), {"erro": "não medida"})
+                m = medidas.get((tela, largura), {"erro": "não medida"})
                 rotulo = f"conta vazia @{largura}px"
                 if "erro" in m:
                     v.append(f"{rotulo}: {m['erro']}")
@@ -970,7 +1017,7 @@ def test_ds2_area_aluno(browser, spa):
                 if texto not in info.get("texto", ""):
                     v.append(f"{rotulo}: o texto {texto!r} sumiu da seção")
                 # link com href na própria largura; botão sem href conferido por clique a 1366 px
-                por_clique = medidas.get(("/student (sem matrícula)", 1366), {}).get("navega", {}).get(chave)
+                por_clique = medidas.get((tela, 1366), {}).get("navega", {}).get(chave)
                 if not (info.get("links") or por_clique):
                     v.append(f"{rotulo}: nenhum link/botão visível na seção leva a /catalogo "
                              f"(links: {info.get('links')}; botões visíveis: {len(info.get('botoes', []))})")
@@ -1039,7 +1086,8 @@ def test_ds2_area_aluno(browser, spa):
         _exigir(list(erros), "erro de console ou exceção de página")
 
     student = ("/student",)
-    com_resumo = ("/student", "/student (sem matrícula)")
+    com_pagamentos_ou_cursos = ("/student", TELA_FIN)
+    com_resumo = ("/student", TELA_FIN, TELA_VAZIO, TELA_VAZIO_FIN)
     try:
         _rodar([
             ("P0", "pré-condição do seed (cartões, pagamentos, vazio, chats)", p0),
@@ -1052,12 +1100,14 @@ def test_ds2_area_aluno(browser, spa):
              por_tela(n("n2"), "faixa de números (valores e rótulos)", telas=com_resumo)),
             ("N3", "faixa de números: sem estouro nem sobreposição",
              por_tela(n("n3"), "faixa de números (largura)", telas=com_resumo)),
-            ("S1", "status com texto e sinal não cromático, AA", por_tela(s1, "status só por cor", telas=student)),
+            ("S1", "status com texto e sinal não cromático, AA",
+             por_tela(s1, "status só por cor", telas=com_pagamentos_ou_cursos)),
             ("L1", "conversão em laranja com texto escuro",
-             por_tela(l1, "botão de conversão", telas=("/student", "/student (sem matrícula)", "/catalogo"))),
+             por_tela(l1, "botão de conversão", telas=com_resumo + ("/catalogo",))),
             ("L2", "laranja só na conversão", por_tela(l2, "laranja fora da conversão")),
-            ("E1", "estado vazio de Meus cursos com link para o catálogo", e("vazio_cursos", VAZIO_CURSOS)),
-            ("E2", "estado vazio do histórico com link para o catálogo", e("vazio_financeiro", VAZIO_PAGAMENTOS)),
+            ("E1", "estado vazio de Meus cursos com link para o catálogo", e("vazio_cursos", VAZIO_CURSOS, TELA_VAZIO)),
+            ("E2", "estado vazio do histórico com link para o catálogo",
+             e("vazio_financeiro", VAZIO_PAGAMENTOS, TELA_VAZIO_FIN)),
             ("C1", "cartão ativo: uma ação principal (Entrar no curso)",
              por_tela(c1, "ação principal (cartão ativo)", telas=student)),
             ("C2", "cartão pendente: principal só se for retomar/pagar",
