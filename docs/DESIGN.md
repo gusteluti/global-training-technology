@@ -3,7 +3,7 @@
 Sistema visual da landing (`frontend/landing_global_training.html`) e da SPA Angular (`frontend/src`). Serve para pessoas e
 agentes de IA que forem mexer em qualquer tela: siga este arquivo para que as duas partes continuem parecendo um produto só.
 Os valores abaixo são os mesmos de `frontend/src/styles.css` (tokens `--gt-*`) e do `:root` da landing. Decisões: D66, D93, D106,
-D115 (plano de design `docs/tdd/PLANO_DESIGN.md`, DS0 a DS5).
+D115 (plano de design `docs/tdd/PLANO_DESIGN.md`, DS0 a DS5), D124 (depoimentos e rodapé da landing).
 
 ## Assunto e público
 
@@ -25,7 +25,7 @@ O visual parte desse assunto. O elemento marcante da landing é uma **planilha**
 | `--gt-link-hover` | `#005f84` | hover de link e do `.btn-primary`; texto azul sobre fundo azulado (`.alert-info`) | 7,07:1 sobre `#ffffff`; 6,70:1 sobre `#f7f9fb`; 6,51:1 sobre `#eaf8fc`; branco sobre ele 7,07:1 |
 | `--gt-teal` | `#0096c7` | **só preenchimento, borda, foco e ícone** (barra de progresso, indicador das abas, contorno de foco). Nunca texto pequeno | 3,39:1 sobre `#ffffff` (abaixo do AA para texto normal; só vale em texto grande, >= 24 px ou >= 18,66 px em negrito) |
 | `--gt-teal-dark` | `#0077a3` | mesmo valor de `--gt-link`; mantido para preenchimentos já existentes (item ativo da sala, bolha do aluno) | branco sobre ele 5,04:1 |
-| `--gt-orange` / `--gt-cta` | `#ff7a18` | nome "Global Training" no logo e **só o botão principal de matrícula/conversão** (`.btn-cta`), sempre com texto `#17212b` (D115, D-B) | texto `#17212b` 6,25:1; texto branco daria 2,61:1 (proibido) |
+| `--gt-orange` / `--gt-cta` | `#ff7a18` | nome "Global Training" no logo e **só o botão principal de matrícula/conversão** (`.btn-cta`), sempre com texto `#17212b` (D115, D-B). Na landing há uma exceção, decidida pelo PM (D124): o "Fale conosco" do rodapé. Fora o hero, os `.btn-enroll` e esse botão, nada mais é laranja | texto `#17212b` 6,25:1; texto branco daria 2,61:1 (proibido) |
 | `--gt-cta-hover` | `#e86a0c` | hover/ativo do `.btn-cta` | texto `#17212b` 5,04:1 |
 | texto de apoio no escuro | `#cbd5df` | texto de apoio sobre `#212830` (hero da landing, rótulo de painel) | 10:1 sobre `#212830` |
 | foco no escuro | `#7fd8f0` | contorno de foco e ícones sobre `#212830` (barra da SPA, hero e rodapé da landing) | — |
@@ -77,8 +77,11 @@ Regras:
 
 - **Botões:** primário azul `--gt-link` com texto branco (hover `--gt-link-hover`; uma ação principal por área); secundário
   com borda e texto `--gt-link`; raio 8 px. O laranja (`.btn-cta`) só aparece no botão principal de matrícula/conversão, com
-  texto `#17212b` (D-B): na SPA, "Comprar cursos" no cabeçalho da área do aluno (botão retangular, fora da barra de atalhos) e "Comprar" no catálogo; na landing, o CTA do hero e
-  "Matricular agora" nos cartões. Um cartão nunca tem dois botões laranja.
+  texto `#17212b` (D-B): na SPA, "Comprar cursos" no cabeçalho da área do aluno (botão retangular, fora da barra de atalhos) e "Comprar" no catálogo; na landing, o CTA do hero
+  (`.btn-primary`, mesmo visual) e "Matricular agora" nos cartões (`.btn-enroll`). Um cartão nunca tem dois botões laranja.
+  **Exceção da landing (D124, decisão do PM):** o "Fale conosco" do rodapé é o único laranja além do hero e dos `.btn-enroll`.
+  Ele usa a classe `.btn-cta` (fundo `--gt-cta` `#ff7a18`, texto `#17212b`, hover `#e86a0c`, altura mínima de 48 px, foco
+  `#7fd8f0` por estar sobre o rodapé escuro) e abre o WhatsApp da escola em nova aba. Não criar outro laranja no rodapé.
 - **Área do aluno (DS2b, D122):** sem cartão em volta da saudação; o h1 "Olá, <nome>!" fica direto sobre o fundo, com o CTA
   laranja à direita (largura total no celular). Os atalhos de seção são uma barra de texto com sublinhado de 2 px no
   hover/foco, não pílulas. "Meus cursos" é uma coluna de largura total, um curso por linha: ícone, nome com o status ao lado,
@@ -111,14 +114,38 @@ Regras:
   (`.gt-abas-indicador`).
 - **Chat:** bolhas; resposta do assistente revelada de cima para baixo; avatar "GT".
 
-## Landing (DS4)
+## Landing (DS4, D124)
 
 Ordem dos blocos, pensada como catálogo que converte: barra escura (logo, links de seção Cursos, Como funciona, Dúvidas,
 ocultos abaixo de 720 px, e "Área do aluno") → hero `#212830` com título direto, CTA laranja "Ver cursos abertos", garantias
 verificáveis e a planilha → `#cursos` (cartões gerados pela API, "Matricular agora" laranja e "Tirar dúvidas com IA"
-secundário) → "Treinamento para a sua empresa" (abre o chat) → passos (`#como-funciona`) → "Em todos os cursos" →
-"Dúvidas frequentes" (`#duvidas`, respostas tiradas de `backend/knowledge`) → faixa final → rodapé com "Área do funcionário"
-(D-E). O script inline é o mesmo de antes da DS4 (guarda `test_ds4_script_inalterado.py`); a remoção dele e a CSP são da SG6.
+secundário) → "Treinamento para a sua empresa" (`#empresas`, abre o chat) → **"Depoimentos" (`#depoimentos`)** → passos
+(`#como-funciona`) → "Em todos os cursos" → "Dúvidas frequentes" (`#duvidas`, respostas tiradas de `backend/knowledge`) →
+faixa final → rodapé. O script inline é o mesmo de antes da DS4 (guarda `test_ds4_script_inalterado.py`); a remoção dele e a
+CSP são da SG6. O `<body>` tem `id="topo"` (destino do "Home" do rodapé).
+
+- **Depoimentos (D124):** seção `#depoimentos` entre `#empresas` e `#como-funciona`, fundo `--gt-bg-soft`, h2 "Depoimentos"
+  (sem subtítulo) e cinco cartões brancos com borda `--gt-border`, raio 10 px: `<figure>` com `<blockquote>` (texto) e
+  `<figcaption>` (só o nome, em negrito, depois de um filete). Os cartões são colunas de texto (`column-width: 320px`: 3 no
+  computador, 2 no tablet, 1 no celular), porque os textos têm tamanhos muito diferentes. Os textos e a ordem são os do site
+  antigo, copiados **sem correção ortográfica** ("Solidwork", "pessoal!!!", "dia dia", "Global training Technology"): não
+  "consertar". Sem foto, estrela, data, botão, carrossel nem animação; HTML estático, sem JavaScript. Texto de 17 px.
+- **Rodapé (D124):** um único `<footer data-testid="rodape">`, filho do `<body>`, fundo `--gt-nav`, texto de apoio
+  `#cbd5df`, links brancos sublinhados (hover e foco `#7fd8f0`). Quatro colunas em 1280 px (marca; Contato; Navegação;
+  Atendimento), três a partir de 960 px com a marca numa linha própria, uma coluna abaixo de 720 px. Marca: logo oficial (o
+  mesmo `data:` URI da barra), descrição e três ícones de rede (Facebook, Instagram, YouTube: SVG inline `aria-hidden`, link com
+  `aria-label`, quadrado de 48 px). Contato: endereço, dois WhatsApp (escola e empresas) e e-mail. Navegação (`<nav
+  aria-label="Navegação do rodapé">`): Home (`#topo`), Cursos (`#cursos`), Treinamentos In Company (`#empresas`); **sem**
+  "Global EAD", "A Global Training" nem "Contato". Atendimento: dois horários e o botão laranja "Fale conosco". Faixa
+  inferior, separada por um filete: copyright, nota "Este é um protótipo de MVP desenvolvido como TCC" e "Área do
+  funcionário" (D-E), alinhados à esquerda para o botão do chat, fixo no canto direito, não cobrir o link; no celular a faixa
+  tem folga embaixo pelo mesmo motivo. Os títulos das colunas são `h2` (Barlow Condensed 24 px, sem maiúsculas espaçadas).
+  São exatamente 12 links no rodapé, todos com 44 x 44 px no mínimo (por isso o `min-width: 44px` até no "Home") e fonte
+  de 14 px ou mais.
+- **Contatos públicos da escola só dentro do `<footer>` (G8 e S5):** os dois telefones e os dois links `wa.me` da escola
+  (D124) são públicos e só podem aparecer no rodapé. Em qualquer outro lugar da página, número ou link de WhatsApp continua
+  proibido (o número do atendimento humano, D77, nunca é versionado e só vem das `actions` do servidor). A decisão do PM
+  de publicar esses contatos precisa ser confirmada pela escola.
 
 ## Movimento
 
@@ -156,6 +183,7 @@ Fora isso, só transições curtas (0,2 s) de cor, borda e sombra no hover. Nunc
 
 `py -3 -m pytest frontend/e2e/test_d4_polimento_visual.py -s` confere as regras acima no navegador (estilo computado).
 `py -3 -m pytest frontend/e2e/test_ds0_fundacao_angular.py -s` confere logo, contraste AA dos tokens e o piso de 14 px (D115).
+`py -3 -m pytest frontend/e2e/test_r3b_landing_depoimentos_rodape.py -s` confere os depoimentos e o rodapé da landing (D124).
 Os e2e `test_ds1_*`, `test_ds2_area_aluno_angular.py`, `test_ds3_painel_equipe_angular.py`, `test_ds4_landing.py` e
 `test_ds4_script_inalterado.py` conferem, tela a tela, contraste AA pelo estilo computado, um `h1`, rótulos de campo, alvos de
 44 px, ausência de `confirm()` e de rolagem horizontal em 390 px (apoio em `frontend/e2e/apoio_contraste.py` e

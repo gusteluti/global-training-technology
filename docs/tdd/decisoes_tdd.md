@@ -2117,3 +2117,71 @@ merge `f7dc262` e esvaziar `REGIOES_DECLARADAS`.
 **Para o PM:** em produção, com a meta vazia a landing chama a própria origem; isso exige proxy reverso encaminhando `/api/` ao
 backend, ou a meta preenchida com a URL da API e a origem da página em `CORS_ALLOWED_ORIGINS`. Não foi possível reproduzir o
 defeito do PM aqui; falta saber o endereço exato da barra do navegador e a mensagem mostrada no balão.
+
+## D124 — R3-2: depoimentos e rodapé da landing, copiados do site antigo (23/11/2026)
+Pedido do PM (entrega 2 de 4 da onda R3, só em `frontend/landing_global_training.html`): copiar do site antigo
+(https://gtcursos.com.br/) a aba **Depoimentos**, com os mesmos depoimentos, e o **rodapé**, com as mesmas informações (logo,
+descrição, ícones de redes, Contato, Navegação, Atendimento, botão "Fale conosco"). Textos lidos pelo navegador em 23/11/2026.
+**Decisões do PM:** os depoimentos são copiados SEM correção ortográfica ("Solidwork", "pessoal!!!", "dia dia", "Global training
+Technology"); no rodapé ficam só os links das redes; FORA do rodapé "Global EAD", "A Global Training" e "Contato" (como links de
+navegação); Navegação = Home, Cursos e Treinamentos In Company, apontando para seções da própria landing; "Fale conosco" = laranja
+do projeto (`.btn-cta`, texto `#17212b`); rodapé continua escuro (`#212830`), não o azul-marinho do site antigo. **Invariantes
+(D115):** entrega só de marcação e CSS; o script inline não muda um byte; `http://localhost:8000` continua no script; sem recurso
+externo, fonte nova, emoji nem carrossel; um `h1`; AA; alvos de 44 px; texto de 14 px; 390 px sem rolagem horizontal.
+**Contrato testado** (detalhe completo no docstring de `frontend/e2e/test_r3b_landing_depoimentos_rodape.py`):
+`id="topo"` no início e `id="empresas"` na seção de empresas; `<section id="depoimentos" aria-labelledby="depoimentos-titulo">`
+no `<main>`, entre `#empresas` e `#como-funciona`, com h2 "Depoimentos" (sem subtítulo) e 5 cartões `depoimento-card` (Sônia Costa,
+Flavio Antonio de Jesus Serafim, Cláudia Silva, Jeiel Lopes, Rodrigo Andrade), cada um com `depoimento-texto` (`<blockquote>`,
+literal) e `depoimento-autor` (só o nome), sem foto, estrela, data nem botão; um só `<footer data-testid="rodape">` (filho do
+`<body>`) com logo, `rodape-descricao`, `rodape-social-facebook|instagram|youtube`, títulos Contato/Navegação/Atendimento,
+`rodape-endereco`, `rodape-whatsapp-escola`, `rodape-whatsapp-empresas`, `rodape-email`, um `<nav aria-label>` com exatamente
+`rodape-nav-home` (`#topo`), `rodape-nav-cursos` (`#cursos`), `rodape-nav-incompany` (`#empresas`), `rodape-atendimento` (duas
+linhas), `rodape-fale-conosco` (`.btn-cta`, `https://wa.me/5519994626940`, nova aba com `noopener noreferrer`) e, numa faixa
+inferior, `rodape-copyright`, `rodape-prototipo` e `rodape-area-funcionario` (o link atual). Os links do rodapé são exatamente 12.
+**Ajuste mecânico (4.3, D115 D-F -> D120 -> R3-1 -> R3-2), feito:** `frontend/e2e/test_ds4_script_inalterado.py` — `REFERENCIA`
+passou de `3d94f6c` para `f7dc262` (L52); `REGIOES_DECLARADAS` ficou vazio (L292) e o docstring registra o re-base; o cenário S0c
+(L350), que aceitava as quatro regiões da R3-1, virou "a exceção está fechada": prova, sobre o script real de `f7dc262`, que 14
+mudanças (inclusive nos trechos que a R3-1 tinha aberto), um `fetch` novo e uma função nova são detectados, e que o mecanismo, quando
+recebe uma região explícita, aceita só o miolo dela. `_aplicar_a_mudanca_da_r3_1` saiu (era só do S0c). **Intenção preservada e
+reforçada:** o script da landing só muda onde o PM autorizar; desde agora em lugar nenhum. S0, S0b, S1–S4 intactos; 8/8 verdes.
+**CONFLITO que o orquestrador precisa autorizar (não ajustado; o ajuste muda o que três guardas antigas proíbem):** um rodapé
+conforme o contrato reprova, e SÓ ele, estas três guardas (provado com um protótipo descartável do rodapé, fora do repositório, que
+passa 40/40 nos testes novos; com ele, o resto de `test_ds4_landing.py` e do guarda passa: G1, G2, G10, G11, G13, G14, G15, K1, S0–S4):
+  1. `test_ds4_landing.py` **G4** (D-B, "laranja só na conversão"): varre todo o DOM e só aceita laranja em "Ver cursos abertos" do hero
+     e nos `.btn-enroll`; o "Fale conosco" é um terceiro laranja (decisão do PM). Não conta CTAs; é uma lista de permitidos.
+  2. `test_ds4_landing.py` **G8** (e `test_ds4_script_inalterado.py` **S5**): "nenhum número nem link de WhatsApp/telefone na
+     página" (origem: D77, o número do atendimento humano nunca é versionado e só vem das `actions` do servidor). O rodapé pedido
+     traz dois telefones e dois `wa.me` PÚBLICOS da escola, copiados do site antigo; não são o número do PM.
+  **AUTORIZADO pelo PM no chat (23/11/2026, resposta "Liberar a mudança estreita") e APLICADO pelo orquestrador** (o agente-testes
+  não aplicou porque a tentativa foi barrada pela permissão; a edição só foi feita depois da decisão explícita do PM, via
+  `git apply` dos dois patches, nos arquivos `test_ds4_landing.py` e `test_ds4_script_inalterado.py`). Mudança estreita: G4 passa a permitir também `footer [data-testid="rodape-fale-conosco"]` e nada mais;
+  G8 e S5 passam a aceitar só os quatro literais da escola (`https://wa.me/5519994626940`, `https://wa.me/5519994066468`,
+  `(19) 99462-6940`, `(19) 99406-6468`), só dentro do `<footer>` (qualquer outro número ou link de WhatsApp, em qualquer lugar,
+  continua reprovando; provado com marcação sintética). Com a proposta, `test_ds4_landing.py` e `test_ds4_script_inalterado.py`
+  passam 9/9 sobre o protótipo. Patches: `scratchpad/proposta_r3b/proposta_g4_g8.diff` e `proposta_s5.diff`. Motivo de o agente não
+  ter aplicado: a leitura de D-B (uma exceção ao "um laranja") e a de D77 são política (modo autônomo, D40, escolha conservadora).
+  **Com a autorização, G4, G8 e S5 passam a aceitar o rodapé pedido e só ele.** Pendente no fechamento: atualizar `docs/DESIGN.md`
+  (laranja também no "Fale conosco" do rodapé; ordem dos blocos da landing).
+**Testes vermelhos (39 de 40; 1 passa de propósito, a guarda E0a de recursos e script intocados):** E0b, E0c, T1, T2, D1, D2 (1280 e
+390), D3, D4, D5, D6, D7 (1280 e 390), D8, R1 a R12, R13a (1280 e 390), R13b, R13c (1280 e 390), R13d, R14, R15, R16 e K1 (1280 e 390).
+Todos falham pelo motivo certo: a seção, o rodapé novo, os ids `topo`/`empresas` e os testids não existem (mensagens "0 elemento(s)",
+"não existe a seção #depoimentos", "h2 do <main> ... sem 'Depoimentos'"); nenhum falha por import, fixture, sintaxe ou timeout.
+**Prova de que o contrato é satisfazível e de que os testes pegam erro:** num worktree descartável (removido), um protótipo do
+markup e do CSS passou os 40 testes; 20 mutações (ortografia "corrigida", `rel` sem `noreferrer`, SVG vazio, link "Contato" na
+navegação, texto branco sobre o laranja, título h4, grade de uma coluna, animação nos cartões, `<footer>` dentro do cartão, id
+`empresas` ausente, seção fora de ordem, subtítulo inventado, estrelas, `?text=` no href, colunas empilhadas em 1280, rolagem
+horizontal em 390, foco removido, texto de apoio sem contraste, copyright acima das colunas, JavaScript gerando cartões) foram
+todas reprovadas pelo teste esperado. Antigos sobre o protótipo: d1, d3 vitrine, r3a 17/17, e6 8/8, d4 (landing), gr2, f6, sg4
+verdes.
+**Para o dev-frontend (descoberto no protótipo):** (a) o laranja da landing hoje é `.btn-primary`; `.btn-cta` ainda não existe, e o
+rodapé precisa dele; (b) o alvo de 44 px vale nas duas dimensões, então "Home" precisa de `min-width: 44px` (mesma regra do G13);
+(c) só pode haver um `<footer>` na página (os e2e antigos usam `document.querySelector('footer')`); (d) o `h4` do chat é ignorado
+na ordem de títulos, os títulos do rodapé podem ser h2, h3 ou h4 sem pular nível; (e) em `rodape-whatsapp-*` o travessão é
+U+2013 e no copyright o ponto médio é U+00B7, como no arquivo de textos lidos.
+**Escolhas do agente-testes (modo autônomo, D40):** testids `rodape-copyright`, `rodape-prototipo` e `rodape-area-funcionario`
+acrescentados (não estavam no pedido); "Área do funcionário" só precisa estar no rodapé, sem posição fixa; colunas lado a lado só
+exigidas para Contato, Navegação e Atendimento; sem backend (a API é respondida por `page.route`).
+**Para o PM:** o time da escola precisa confirmar que pode reutilizar os nomes e os depoimentos reais dos alunos do site antigo
+(são nomes completos de pessoas reais, copiados sem alteração) e que os dois WhatsApp, o endereço e o e-mail podem ficar públicos
+na landing do protótipo. **Ciclo:** red no commit `test(r3b)` desta sub-branch (`feature/fase2-design-r3-landing`, a partir de
+`feature/fase2-design-r3` em `b89b09f`); frontend e merge a preencher.
