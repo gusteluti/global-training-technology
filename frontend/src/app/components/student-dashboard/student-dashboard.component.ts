@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, HostListener, OnInit, ViewChild } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { PainelMatriculas } from '../../resolvers/enrollments.resolver';
 import { salvarArquivo } from '../../services/salvar-arquivo';
@@ -42,6 +42,13 @@ type AlvoAbrir = 'financeiro' | 'cursos' | 'perfil';
 interface AcaoAbrir {
   target: AlvoAbrir;
   label: string;
+}
+
+// Abas da área do aluno (R3-3, D125), no padrão do painel da gestão. "Meu perfil" e "Assistente" não são abas.
+type ChaveAba = 'cursos' | 'financeiro';
+interface AbaAluno {
+  chave: ChaveAba;
+  rotulo: string;
 }
 
 // Só estes alvos e só os campos type/target/label; qualquer outro campo (ex.: `url`) descarta a ação inteira.
@@ -106,7 +113,16 @@ const MSG_FALHA_PDF = 'Não foi possível baixar o recibo.';
   templateUrl: './student-dashboard.component.html',
   styleUrls: ['./student-dashboard.component.css']
 })
-export class StudentDashboardComponent implements OnInit {
+export class StudentDashboardComponent implements OnInit, AfterViewInit {
+  @ViewChild('abas') listaAbas?: ElementRef<HTMLElement>;
+  @ViewChild('indicador') indicador?: ElementRef<HTMLElement>;
+
+  readonly tabs: AbaAluno[] = [
+    { chave: 'cursos', rotulo: 'Meus cursos' },
+    { chave: 'financeiro', rotulo: 'Financeiro' }
+  ];
+  abaAtiva: ChaveAba = 'cursos';
+
   enrollments: any[] = [];
   payments: any[] = [];
   erro = '';
@@ -160,6 +176,35 @@ export class StudentDashboardComponent implements OnInit {
     this.api.getChatHistory().subscribe({
       next: (res: any) => this.chatMessages = res.messages || [],
       error: () => this.erroChat = 'Não foi possível carregar o histórico do chat.'
+    });
+  }
+
+  ngAfterViewInit(): void {
+    this.moverIndicador();
+    // A fonte da interface pode terminar de carregar depois da primeira medida e mudar a largura das abas.
+    document.fonts?.ready.then(() => this.moverIndicador());
+  }
+
+  // ---- Abas (R3-3, D125) -----------------------------------------------------------------------------
+  // Só troca o painel exibido: os dados são carregados uma vez (ngOnInit/resolver) e o estado da tela
+  // (recibo aberto, avaliação em edição, cancelamento aberto) fica como está.
+  selecionarAba(chave: ChaveAba): void {
+    this.abaAtiva = chave;
+    this.moverIndicador();
+  }
+
+  // O indicador desliza até a aba ativa (posição e largura medidas no DOM, inclusive com rolagem lateral), como na gestão.
+  @HostListener('window:resize')
+  moverIndicador(): void {
+    setTimeout(() => {
+      const lista = this.listaAbas?.nativeElement;
+      const indicador = this.indicador?.nativeElement;
+      const ativa = lista?.querySelector<HTMLElement>(`[data-aba="${this.abaAtiva}"]`);
+      if (!lista || !indicador || !ativa) {
+        return;
+      }
+      indicador.style.width = `${ativa.offsetWidth}px`;
+      indicador.style.transform = `translateX(${ativa.offsetLeft}px)`;
     });
   }
 
@@ -468,7 +513,8 @@ export class StudentDashboardComponent implements OnInit {
       .map((a: any) => ({ target: a.target as AlvoAbrir, label: a.label }));
   }
 
-  // Mesma navegação dos atalhos da D2: seção da página com irPara, perfil pela rota /student/perfil.
+  // Financeiro e cursos selecionam a aba e rolam até o painel (R3-3, D125); perfil navega pela rota /student/perfil.
+  // O painel da aba só nasce no ciclo seguinte (*ngIf), por isso a rolagem espera a renderização.
   abrirAtalho(acao: AcaoAbrir): void {
     if (acao.target === 'perfil') {
       this.router.navigate(['/student/perfil']);
@@ -476,7 +522,8 @@ export class StudentDashboardComponent implements OnInit {
     }
     const secao = SECOES_ABRIR[acao.target];
     if (secao) {
-      this.irPara(secao);
+      this.selecionarAba(acao.target as ChaveAba);
+      setTimeout(() => this.irPara(secao));
     }
   }
 

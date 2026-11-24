@@ -77,16 +77,28 @@ Regras:
 
 - **Botões:** primário azul `--gt-link` com texto branco (hover `--gt-link-hover`; uma ação principal por área); secundário
   com borda e texto `--gt-link`; raio 8 px. O laranja (`.btn-cta`) só aparece no botão principal de matrícula/conversão, com
-  texto `#17212b` (D-B): na SPA, "Comprar cursos" no cabeçalho da área do aluno (botão retangular, fora da barra de atalhos) e "Comprar" no catálogo; na landing, o CTA do hero
+  texto `#17212b` (D-B): na SPA, "Comprar cursos" no cabeçalho da área do aluno (botão retangular, fora da barra de abas) e "Comprar" no catálogo; na landing, o CTA do hero
   (`.btn-primary`, mesmo visual) e "Matricular agora" nos cartões (`.btn-enroll`). Um cartão nunca tem dois botões laranja.
   **Exceção da landing (D124, decisão do PM):** o "Fale conosco" do rodapé é o único laranja além do hero e dos `.btn-enroll`.
   Ele usa a classe `.btn-cta` (fundo `--gt-cta` `#ff7a18`, texto `#17212b`, hover `#e86a0c`, altura mínima de 48 px, foco
   `#7fd8f0` por estar sobre o rodapé escuro) e abre o WhatsApp da escola em nova aba. Não criar outro laranja no rodapé.
-- **Área do aluno (DS2b, D122):** sem cartão em volta da saudação; o h1 "Olá, <nome>!" fica direto sobre o fundo, com o CTA
-  laranja à direita (largura total no celular). Os atalhos de seção são uma barra de texto com sublinhado de 2 px no
-  hover/foco, não pílulas. "Meus cursos" é uma coluna de largura total, um curso por linha: ícone, nome com o status ao lado,
-  matrícula/turma, barra de progresso (`role="progressbar"`) com o percentual, e a ação "Entrar no curso" à direita. Materiais,
-  avaliação (numa linha), certificado e cancelamento ficam num bloco secundário `#f7f9fb` dentro do cartão.
+- **Área do aluno (DS2b, D122; abas e cartões na R3-3, D125):** sem cartão em volta da saudação; o h1 "Olá, <nome>!" fica direto
+  sobre o fundo, com o CTA laranja à direita (largura total no celular). Abaixo vem a faixa de números `.aluno-resumo`, sempre
+  visível, e então a barra de abas no mesmo padrão do painel da gestão (`ul.nav.nav-tabs.gt-abas`, botões `.nav-link` com
+  `aria-current="page"` na ativa e o indicador `li.gt-abas-indicador` deslizante, recalculado em `window:resize`): "Meus cursos"
+  (inicial) e "Financeiro". Só o painel da aba ativa existe no DOM (`*ngIf`); trocar de aba não chama a API nem limpa o recibo
+  aberto. No fim da mesma barra, à direita, ficam "Meu perfil" (link para `/student/perfil`) e, até o assistente flutuante da
+  entrega 4, "Assistente" (rola até o chat): não são abas (sem `data-aba`, `aria-current` nem `active`) e têm a aparência das
+  abas inativas. O chat continua abaixo do painel, em qualquer aba. Em "Meus cursos" cada matrícula é um **cartão em grade**
+  (`.cursos-lista`: `repeat(auto-fill, minmax(min(100%, 320px), 1fr))`, `gap` de 16 px; 3 colunas ou mais a 1280 px, 2 a 768 px,
+  1 a 390 px; `auto-fill` e não `auto-fit` para o cartão único ocupar uma coluna, e `min(100%, 320px)` para não estourar a 320 px).
+  Tudo fica dentro do cartão, em coluna: linha do ícone de iniciais com o selo de status à direita, nome, "Matrícula em ...",
+  turma, barra de progresso (`role="progressbar"`) com o percentual e a ação "Entrar no curso" (largura total, 44 px) ou a
+  mensagem de sem acesso; embaixo, o bloco secundário `#f7f9fb` com divisória (materiais, certificado, avaliação e
+  cancelamento). Os cartões da mesma linha têm a mesma altura; com subgrade (`grid-template-rows: subgrid`) a ação e o bloco
+  secundário também ficam à mesma altura de um cartão para o outro, e sem subgrade o cartão em coluna (`flex`, `height: 100%`,
+  ação com `margin-top: auto`) mantém o bloco secundário na base. A avaliação quebra em linhas (`flex-wrap`): o comentário ocupa a
+  linha e a nota e o Enviar vêm embaixo. Nenhum `overflow` no cartão: nada é cortado.
 - **Janela de confirmação (DS1):** toda ação destrutiva ou irreversível usa `ConfirmacaoService.confirmar({titulo, texto?,
   rotuloConfirmar, destrutiva?})`, que abre o `ConfirmacaoComponent` único da casca (`role="alertdialog"`,
   `[data-testid=confirmacao]`, botões `confirmacao-voltar` e `confirmacao-confirmar`). Foco preso na janela, Esc = Voltar,
@@ -111,7 +123,7 @@ Regras:
   subpainel; seções em `h3`/`h4`. Quando o nível subiu, a classe de tamanho antiga ficou (`<h1 class="card-title h4">`), para
   o visual não mudar.
 - **Abas do painel:** a aba ativa tem o texto em `--gt-link` e um indicador teal (preenchimento) desliza até ela
-  (`.gt-abas-indicador`).
+  (`.gt-abas-indicador`). Vale para o painel da gestão e para a área do aluno (R3-3, D125).
 - **Chat:** bolhas; resposta do assistente revelada de cima para baixo; avatar "GT".
 
 ## Landing (DS4, D124)
