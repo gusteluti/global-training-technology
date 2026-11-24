@@ -56,6 +56,13 @@ CONTRATO (o dev-frontend implementa; a FORMA é do orquestrador, este arquivo é
      pending/cancelled/refunded (selo + a mensagem de sem acesso de sempre, nenhum link nem URL de material: AGENTS.md, item 4),
      erro de carga (alerta "Não foi possível carregar suas matrículas." no painel, sem cartões) e aluno com um só curso.
 
+R3-4 (D126, pedido do PM de 23/11/2026) altera, por autoridade 4.3 (D125 -> D126), o que este contrato diz do "Assistente": o atalho
+transitório `atalho-assistente` e a seção `#secao-assistente` SAÍRAM; o chat é o painel de um botão flutuante
+(`assistente-botao`, detalhes em test_r3d_assistente_flutuante.py). Neste arquivo: T6 e T7 deixam de tratar o "Assistente" da barra
+(T7 passa a provar que ele não existe mais); T9 passa a ser "o chat é acessível pelo botão com a aba Financeiro ativa";
+`_violacoes_paineis` passa a exigir que `#secao-assistente` NÃO exista; `_pedir_acao` abre o painel antes de usar o chat. O resto
+(abas, indicador, KPIs, cartões, estados, D115) não mudou.
+
 Seed (harness isolado D58; reaproveita o semeador da DS2b e acrescenta quatro alunos), todos com a mesma senha da DS2:
   Marina (DS2b): ativa 1 de 2 (Excel) + pendente (Power BI)             -> 2 cartões; pagamentos Aprovado e Pendente
   Rafael (DS2b): ativa com turma, 2 de 2, certificado + ativa sem materiais -> 2 cartões
@@ -72,10 +79,10 @@ Testes (cada um lista TODAS as violações, não só a primeira; ids no nome do 
   T3  troca para Financeiro e volta: aria-current, painel único no DOM
   T4  indicador sob a aba ativa (inicial e após cada troca) a 1280, 768 e 390 px
   T5  indicador acompanha o resize (recalcula quando a geometria muda)
-  T6  Meu perfil e Assistente: na mesma barra, fora do conjunto de abas, mesma aparência
-  T7  Assistente rola até o chat sem trocar de aba; Meu perfil navega para /student/perfil
+  T6  Meu perfil: na mesma barra, fora do conjunto de abas, mesma aparência [R3-4: o "Assistente" saiu da barra]
+  T7  o atalho "Assistente" não existe mais; Meu perfil navega para /student/perfil [R3-4]
   T8  KPIs acima das abas, visíveis nas duas, mesmos valores
-  T9  chat sempre abaixo do painel, testids intactos, e funciona com a aba Financeiro ativa
+  T9  o chat (painel do botão flutuante) tem os testids intactos e funciona com a aba Financeiro ativa [R3-4]
   T10 trocar de aba não faz chamada nova à API
   T11 recibo aberto continua aberto ao voltar ao Financeiro
   T12 troca de aba com avaliação em edição e cancelamento aberto: sem erro de console
@@ -142,6 +149,7 @@ E2E_DIR = Path(__file__).resolve().parent
 if str(E2E_DIR) not in sys.path:
     sys.path.insert(0, str(E2E_DIR))
 
+from apoio_assistente_flutuante import abrir_assistente  # noqa: E402
 from apoio_contraste import descrever, fontes_abaixo_de, varrer_contraste  # noqa: E402
 from apoio_harness_h1 import abrir_banco, ambiente_isolado  # noqa: E402
 from test_ds1_componentes_angular import _JS_MEDIR  # noqa: E402
@@ -261,9 +269,10 @@ _JS_PAINEIS = r"""
                     visivel: !!(e[0] && e[0].getClientRects().length && getComputedStyle(e[0]).visibility !== 'hidden'),
                     h3: e[0] && e[0].querySelector('h3') ? (e[0].querySelector('h3').innerText || '').replace(/\s+/g, ' ').trim() : null }; };
   const porId = id => { const e = document.getElementById(id); return e ? e.getAttribute('data-testid') : null; };
+  const temAssistenteAntigo = !!document.getElementById('secao-assistente');  // R3-4 (D126): a seção saiu
   return { cursos: um('[data-testid="secao-cursos"]'), financeiro: um('[data-testid="secao-financeiro"]'),
            chat: um('[data-testid="chat-panel"]'), idCursos: porId('secao-cursos'), idFinanceiro: porId('secao-financeiro'),
-           idAssistente: porId('secao-assistente'),
+           idAssistente: porId('secao-assistente'), temAssistenteAntigo,
            cards: document.querySelectorAll('[data-testid="curso-card"]').length,
            pagamentos: Array.from(document.querySelectorAll('[data-testid="pagamento-status"]')).map(e => (e.innerText || '').trim()),
            recibos: document.querySelectorAll('.aluno-recibo').length, janela: window.innerHeight, rolagem: window.scrollY };
@@ -619,8 +628,8 @@ def _violacoes_paineis(page, ativa, rotulo):
         v.append(f"{rotulo}: {p['cards']} cartão(ões) de curso no DOM da aba Financeiro")
     if p["idCursos" if ativa == "cursos" else "idFinanceiro"] != f"secao-{ativa}":
         v.append(f"{rotulo}: #secao-{ativa} não é o [data-testid=secao-{ativa}] (id mantido)")
-    if p["idAssistente"] != "chat-panel":
-        v.append(f"{rotulo}: #secao-assistente não é o [data-testid=chat-panel] (id mantido)")
+    if p["temAssistenteAntigo"]:
+        v.append(f"{rotulo}: #secao-assistente continua no DOM (R3-4, D126: a seção saiu; o chat é o painel do botão flutuante)")
     return v
 
 
@@ -658,6 +667,7 @@ def _pedir_acao(page, acao, texto="Quero abrir (R3C)"):
 
     page.route(_rota_chat, tratar)
     try:
+        abrir_assistente(page, TIMEOUT)  # R3-4 (D126): o chat é o painel do botão flutuante (idempotente)
         page.locator('[data-testid="chat-input"]').fill(texto, timeout=TIMEOUT)
         with page.expect_response(lambda r: r.request.method == "POST" and _rota_chat(r.url), timeout=TIMEOUT * 2):
             page.locator('[data-testid="chat-send"]').click(timeout=TIMEOUT)
@@ -834,14 +844,15 @@ def test_t5_indicador_acompanha_o_resize(sessao):
 
 
 @pytest.mark.parametrize("largura", (1280, 390))
-def test_t6_perfil_e_assistente_na_barra_fora_das_abas(sessao, largura):
+def test_t6_perfil_na_barra_fora_das_abas(sessao, largura):
+    """R3-4 (D126): só "Meu perfil" fica no fim da barra; o "Assistente" saiu (é o botão flutuante, ver o arquivo da R3-4)."""
     with sessao.pagina("marina", largura) as page:
         m = page.evaluate(_JS_ABAS)
     r = f"@{largura}px"
     if m["nUl"] != 1:
-        raise Falha(f"{r}: {m['nUl']} elemento(s) {SEL_BARRA}: os dois itens extras ficam no fim da mesma barra de abas")
+        raise Falha(f"{r}: {m['nUl']} elemento(s) {SEL_BARRA}: o item extra fica no fim da mesma barra de abas")
     v = []
-    for chave, tag, texto in (("perfil", "a", "Meu perfil"), ("assistente", "button", "Assistente")):
+    for chave, tag, texto in (("perfil", "a", "Meu perfil"),):
         x = m[chave]
         if x["n"] != 1:
             v.append(f"{r}: [data-testid=atalho-{chave}] aparece {x['n']} vez(es) (esperado 1)")
@@ -884,28 +895,21 @@ def test_t6_perfil_e_assistente_na_barra_fora_das_abas(sessao, largura):
                 v.append(f"{r}: atalho-{chave} fora da janela ({_r(i['rect'])}) e a barra não rola na horizontal "
                          f"(overflow-x {m['ul']['overflowX']!r}): o item ficaria inalcançável")
     if len([a for a in m["abas"]]) != 2:
-        v.append(f"{r}: {len(m['abas'])} elementos com data-aba (esperado 2: perfil e assistente não são abas)")
-    _exigir(v, "Meu perfil e Assistente na barra")
+        v.append(f"{r}: {len(m['abas'])} elementos com data-aba (esperado 2: perfil não é aba)")
+    _exigir(v, "Meu perfil na barra")
 
 
-def test_t7_assistente_rola_e_perfil_navega(sessao):
+def test_t7_sem_atalho_assistente_e_perfil_navega(sessao):
+    """R3-4 (D126): o atalho transitório "Assistente" (que rolava até o chat) não existe mais; Meu perfil navega."""
     v = []
     with sessao.pagina("carla", 1280) as page:
         _abas_existem(page)
-        page.set_viewport_size({"width": 1280, "height": 600})
-        page.evaluate("window.scrollTo(0, 0)")
-        page.wait_for_timeout(300)
-        antes = page.evaluate(_JS_NA_VISTA, '[data-testid="chat-panel"]')
-        if antes["visivel"]:
-            raise Falha("pré-condição: o chat já está na janela antes do clique em Assistente (página curta demais para provar a rolagem)")
-        page.locator('[data-testid="atalho-assistente"]').click(timeout=TIMEOUT)
-        page.wait_for_timeout(1300)
-        v += _violacoes_na_vista(page, '[data-testid="chat-panel"]', "Assistente")
-        if urlsplit(page.url).path != "/student":
-            v.append(f"Assistente navegou para {page.url} (deveria só rolar)")
-        v += _violacoes_estado_abas(page, "cursos", "depois de Assistente")
-        v += _violacoes_indicador(page, "cursos", "depois de Assistente")
-        page.evaluate("window.scrollTo(0, 0)")
+        n = page.locator('[data-testid="atalho-assistente"]').count()
+        if n:
+            v.append(f"[data-testid=atalho-assistente] ainda aparece {n} vez(es) (o botão da barra saiu: o chat abre pelo botão flutuante)")
+        if page.locator(f"{SEL_BARRA} button:not([data-aba])").count():
+            v.append(f"a barra de abas tem {page.locator(f'{SEL_BARRA} button:not([data-aba])').count()} botão(ões) que não é aba")
+        v += _violacoes_estado_abas(page, "cursos", "tela inicial")
         page.locator('[data-testid="atalho-perfil"]').click(timeout=TIMEOUT)
         try:
             page.wait_for_url("**/student/perfil", timeout=TIMEOUT)
@@ -914,7 +918,7 @@ def test_t7_assistente_rola_e_perfil_navega(sessao):
         else:
             if page.locator("h1").count() != 1:
                 v.append("tela do perfil sem um único h1")
-    _exigir(v, "Assistente e Meu perfil")
+    _exigir(v, "atalho Assistente removido e Meu perfil")
 
 
 def test_t8_kpis_acima_das_abas_e_visiveis_nas_duas(sessao):
@@ -943,26 +947,30 @@ def test_t8_kpis_acima_das_abas_e_visiveis_nas_duas(sessao):
     _exigir(v, "faixa de KPIs")
 
 
-def test_t9_chat_abaixo_do_painel_e_funcional(sessao):
+def test_t9_chat_pelo_botao_com_a_aba_financeiro(sessao):
+    """R3-4 (D126): antes, o chat ficava sempre visível abaixo do painel. Agora é o painel do botão flutuante: abre nas duas abas,
+    com os testids intactos, e funciona de ponta a ponta com a aba Financeiro ativa."""
     v = []
     with sessao.pagina("marina", 1280) as page:
         _abas_existem(page)
         for chave in ("cursos", "financeiro"):
             if chave != "cursos":
                 _ir_para_aba(page, chave)
+            abrir_assistente(page, TIMEOUT)
             p = page.evaluate(_JS_PAINEIS)
             r = f"aba {chave}"
             if p["chat"]["n"] != 1 or not p["chat"]["visivel"]:
                 v.append(f"{r}: [data-testid=chat-panel] aparece {p['chat']['n']} vez(es), visível={p['chat']['visivel']}")
                 continue
-            if p[chave]["rect"] and p["chat"]["rect"]["t"] < p[chave]["rect"]["b"] - 1:
-                v.append(f"{r}: o chat {_r(p['chat']['rect'])} não está abaixo do painel {_r(p[chave]['rect'])}")
-            if p["chat"]["h3"] != "Assistente virtual":
-                v.append(f"{r}: h3 do chat {p['chat']['h3']!r} (esperado 'Assistente virtual')")
+            titulo = page.locator('[data-testid="chat-panel"]').get_by_role("heading", name="Assistente virtual", exact=True)
+            if titulo.count() != 1:
+                v.append(f"{r}: {titulo.count()} título(s) 'Assistente virtual' dentro do painel do chat (esperado 1)")
             for tid in ("chat-input", "chat-send", "chat-aviso-gravacao"):
                 if page.locator(f'[data-testid="{tid}"]').count() != 1:
                     v.append(f"{r}: [data-testid={tid}] aparece {page.locator(f'[data-testid={tid}]').count()} vez(es) (esperado 1)")
         # Com a aba Financeiro ativa o chat funciona de ponta a ponta (resposta do backend de teste).
+        _ir_para_aba(page, "financeiro")
+        abrir_assistente(page, TIMEOUT)
         antes = page.locator('[data-testid="chat-message"]').count()
         page.locator('[data-testid="chat-input"]').fill(PERGUNTA_CHAT)
         page.locator('[data-testid="chat-send"]').click(timeout=TIMEOUT)
@@ -975,7 +983,7 @@ def test_t9_chat_abaixo_do_painel_e_funcional(sessao):
             papeis = page.eval_on_selector_all('[data-testid="chat-message"]', "els => els.map(e => e.getAttribute('data-role'))")
             if papeis[-2:] != ["user", "assistant"]:
                 v.append(f"Financeiro: papéis das duas últimas mensagens do chat {papeis[-2:]} (esperado ['user', 'assistant'])")
-    _exigir(v, "chat abaixo das abas")
+    _exigir(v, "chat pelo botão flutuante")
 
 
 def test_t10_trocar_de_aba_nao_chama_a_api(sessao):
