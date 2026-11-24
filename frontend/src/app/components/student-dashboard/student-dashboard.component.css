@@ -9,21 +9,15 @@
 }
 .btn-cta:hover, .btn-cta:focus-visible { background: var(--gt-cta-hover); color: var(--gt-text); text-decoration: none; }
 
-/* DS2b: barra de atalhos em texto, com indicador inferior no hover/foco e divisória fina. */
-.aluno-atalhos { display: flex; flex-wrap: wrap; gap: 0 8px; border-bottom: 1px solid #d8e0e8; margin-bottom: 1.5rem; }
-.aluno-atalho {
-  display: inline-flex; align-items: center; text-decoration: none; font-family: inherit; line-height: 1.5;
-  background: transparent; border: 0; border-bottom: 2px solid transparent; border-radius: 0; margin-bottom: -1px;
-  color: #17212b; padding: 0 16px; font-weight: 600; font-size: 15px; cursor: pointer;
-  transition: border-color .2s, color .2s; min-height: 44px; /* DS1 (D115): alvo de toque de 44 px */
-}
-.aluno-atalho:hover, .aluno-atalho:focus-visible { border-bottom-color: var(--gt-link); color: var(--gt-link); text-decoration: none; }
+/* R3-3 (D125): as abas são as da gestão (.nav-tabs.gt-abas e o indicador estão no styles.css). "Meu perfil" e "Assistente" não são
+   abas: ficam no fim da mesma barra, à direita, com a aparência das abas inativas (nenhuma regra própria de cor, fonte ou borda). */
+.aluno-abas-extra { margin-left: auto; }
 
 /* DS2 (D115): faixa de números única. Borda só no contêiner; divisória por border-left entre os itens
    (border-top quando empilha no celular); sem cartão nem sombra por item. */
 .aluno-resumo {
   display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin: 0 0 2rem; background: #ffffff; border: 1px solid #d8e0e8; border-radius: 10px;
+  margin: 0 0 1.5rem; background: #ffffff; border: 1px solid #d8e0e8; border-radius: 10px;
 }
 .aluno-resumo-item { min-width: 0; padding: 16px 20px; }
 .aluno-resumo-item + .aluno-resumo-item { border-left: 1px solid #d8e0e8; }
@@ -39,35 +33,53 @@
 .aluno-secao { margin-bottom: 2.5rem; scroll-margin-top: 96px; }
 .aluno-secao > h3 { font-size: 30px; margin-bottom: 1rem; }
 
-/* DS2b: cartão em linha (ícone, corpo, ação) e bloco secundário. */
+/* R3-3 (D125): um cartão por curso, em grade (>= 3 colunas a 1280 px, 2 a 768 px, 1 a 390 px). `min(100%, 320px)` evita o estouro em
+   telas de 320 px; `auto-fill` (não `auto-fit`) mantém o cartão único na largura de uma coluna. */
 .curso-card, .chat-card, .aluno-secao > .card { border-radius: 10px; box-shadow: none; }
-.cursos-lista { display: flex; flex-direction: column; gap: 16px; }
-.curso-card { transition: border-color .2s; overflow: hidden; }
+.cursos-lista {
+  display: grid; gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+}
+/* Cartão em coluna, esticado à altura da linha. Nada é cortado: sem `overflow` no cartão. */
+.curso-card { display: flex; flex-direction: column; height: 100%; min-width: 0; transition: border-color .2s; }
 .curso-card:hover { border-color: #9fd3e4; }
-.curso-linha { display: flex; align-items: flex-start; gap: 16px; padding: 20px; }
-.curso-corpo { flex: 1 1 auto; min-width: 0; }
-.curso-titulo-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-bottom: 4px; }
-.curso-acao { flex-shrink: 0; align-self: flex-start; }
-.curso-acao .btn { min-height: 44px; display: inline-flex; align-items: center; padding: 0 22px; font-weight: 700; }
+.curso-topo { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; padding: 20px; }
+.curso-cabeca { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; margin-bottom: 12px; }
+/* A ação fica no fim da parte de cima: com `margin-top: auto` ela encosta no bloco secundário e, na mesma linha de cartões, fica
+   à mesma altura. */
+.curso-acao { margin-top: auto; padding-top: 16px; }
+.curso-acao .btn { width: 100%; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; padding: 0 22px; font-weight: 700; }
 .curso-icone {
   width: 48px; height: 48px; border-radius: 12px; flex-shrink: 0;
   background: #eaf8fc; border: 1.5px solid #b8e7f1; color: #0077a3;
   display: flex; align-items: center; justify-content: center;
   font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-weight: 900; font-size: 20px;
 }
-.curso-nome { font-size: 20px; font-weight: 800; margin: 0; }
+.curso-nome { font-size: 20px; font-weight: 800; margin: 0 0 4px; }
 .curso-subtitulo { font-size: 14px; font-weight: 700; color: #66707c; margin-bottom: 8px; }
-.curso-aviso { background: #f7f9fb; border-radius: 8px; padding: 10px 12px; max-width: 280px; }
+.curso-aviso { background: #f7f9fb; border-radius: 8px; padding: 10px 12px; }
 .curso-progresso-bloco { margin-top: 10px; }
 .curso-progresso-linha { display: flex; align-items: center; gap: 12px; }
 .curso-progresso-linha .progress { flex: 1 1 auto; }
 .curso-percentual { font-size: 14px; font-weight: 700; color: #17212b; min-width: 44px; text-align: right; font-variant-numeric: tabular-nums; }
-.curso-secundario { background: #f7f9fb; border-top: 1px solid #d8e0e8; padding: 16px 20px; }
-.curso-cancelamento-solto { padding: 0 20px 16px; }
+/* Bloco secundário (materiais, certificado, avaliação, cancelamento): fundo #f7f9fb e divisória, encostado na base do cartão. */
+.curso-secundario { background: #f7f9fb; border-top: 1px solid #d8e0e8; border-radius: 0 0 9px 9px; padding: 16px 20px; min-width: 0; }
+.curso-cancelamento-solto { padding: 0 20px 16px; min-width: 0; }
 .curso-cancelamento-solto:empty { display: none; }
-.avaliacao-linha { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; }
-.avaliacao-comentario { flex: 1 1 auto; min-width: 0; }
+/* A linha da avaliação quebra: o comentário ocupa a linha (nunca abaixo de 200 px) e a nota e o Enviar vêm embaixo. */
+.avaliacao-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.avaliacao-comentario { flex: 1 1 100%; min-width: 0; }
 .avaliacao-linha .btn, .avaliacao-linha .form-select, .avaliacao-linha .form-control { min-height: 44px; }
+
+/* Com subgrade, os cartões da mesma linha dividem as duas linhas da grade (parte de cima e bloco secundário): "Entrar no curso" e
+   o bloco secundário ficam alinhados de um cartão para o outro. Sem suporte, vale o cartão em coluna acima. */
+@supports (grid-template-rows: subgrid) {
+  .curso-card {
+    display: grid; grid-row: span 2; grid-template-rows: subgrid; grid-template-columns: minmax(0, 1fr); row-gap: 0; height: auto;
+  }
+  .curso-topo { grid-row: 1; }
+  .curso-secundario, .curso-cancelamento-solto { grid-row: 2; }
+}
 
 .aluno-recibo { border-width: 1.5px; }
 
@@ -114,15 +126,9 @@
   .aluno-titulo { font-size: 30px; }
   .aluno-cabecalho { flex-direction: column; align-items: stretch; }
   .btn-cta { width: 100%; }
-  .aluno-atalho { padding: 0 10px; font-size: 14px; }
-  .curso-linha { flex-direction: column; padding: 16px; gap: 12px; }
-  .curso-acao { align-self: stretch; }
-  .curso-acao .btn { width: 100%; justify-content: center; }
-  .curso-aviso { max-width: none; }
+  .curso-topo { padding: 16px; }
   .curso-secundario { padding: 16px; }
   .curso-cancelamento-solto { padding: 0 16px 16px; }
-  .avaliacao-linha { flex-wrap: wrap; }
-  .avaliacao-comentario { flex-basis: 100%; }
   /* Faixa empilhada: rótulo à esquerda, valor à direita, divisória por cima. */
   .aluno-resumo { grid-template-columns: minmax(0, 1fr); }
   .aluno-resumo-item {

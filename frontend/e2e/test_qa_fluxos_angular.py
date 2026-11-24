@@ -84,6 +84,7 @@ def test_fluxo_compra(s, navegador):
     campo(pagina, "curso-entrar").wait_for()
     assert "Ativ" in campo(pagina, "curso-card").first.inner_text()
     foto(pagina, "Compra", "Volta depois do pagamento aprovado", "Curso ativo e botão Entrar no curso")
+    campo(pagina, "atalho-financeiro").click()  # R3-3 (D125): o histórico financeiro e o recibo estão na aba Financeiro
     with pagina.expect_download() as baixado:
         campo(pagina, "recibo-pdf").first.click()
     assert open(baixado.value.path(), "rb").read().startswith(b"%PDF-")

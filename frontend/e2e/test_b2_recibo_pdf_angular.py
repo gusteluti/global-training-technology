@@ -179,8 +179,10 @@ def login_na_tela(page, email, senha, rotulo):
         page.locator("button[type=submit]").first.click(timeout=TIMEOUT)
         page.wait_for_url("**/student", timeout=TIMEOUT * 2)
         page.wait_for_load_state("networkidle")
+        # R3-3 (D125): o histórico financeiro é a aba "Financeiro"; só o painel da aba ativa existe no DOM.
+        page.locator('[data-testid="atalho-financeiro"]').click(timeout=TIMEOUT)
     except sync_api.TimeoutError:
-        raise Falha(f"{rotulo}: login não levou a /student (URL atual {page.url})")
+        raise Falha(f"{rotulo}: login não levou a /student com a aba Financeiro (URL atual {page.url})")
 
 
 def linha_do_curso(page, nome_curso):
