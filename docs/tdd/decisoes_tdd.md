@@ -2412,4 +2412,22 @@ até 600 px o painel FECHA depois de uma ação "Abrir Financeiro/Cursos" do ass
 chat está com texto branco sobre o verde da landing (D93), 2,3:1, abaixo do AA da D115; o teste A1b exige o AA (a D115 tem número maior);
 se o PM preferir manter a cor, basta dispensar o A1b. (5) O rodapé ganha espaço embaixo para o botão não cobri-lo. (6) A 390 px o painel
 aberto cobre a barra de abas. (7) "Assistente" sai da barra de abas, como a D125 já previa. **Ciclo:** red no commit `test(r3d)` desta
-sub-branch (`feature/fase2-design-r3-assistente`, a partir de `feature/fase2-design-r3` em `343b996`); green e merge a preencher.
+sub-branch (`feature/fase2-design-r3-assistente`, a partir de `feature/fase2-design-r3` em `343b996`); green no commit `966ea71`
+(`student-dashboard.component.{html,ts,css}` e `docs/DESIGN.md`; build sem erro nem warning novo). **Verificado pelo orquestrador** (24/11/2026):
+`test_r3d_assistente_flutuante.py` 45/45 (antes: 43 vermelhos e 2 guardas); regressão um arquivo por vez: r3c 61/61, d2, d3, d4 2/2, ds2 2/2,
+ds2b, e5, f6, gr1 2/2, gr4 2/2, gr5 2/2, u7, sg4 6/6, qa_fluxos 18/18, jornadas 74/74, e os da landing (r3b 40/40, ds4 landing, ds4 script
+inalterado 8/8, e6 8/8) passam; f5b (só o G5) e gr3 (P3 e L3) falham como na linha de base; `qa_istqb` (rodado pelo dev-frontend): 523 passam e
+3 falham (CT-UI-14, CT-UI-15 e o intermitente `test_arquivo_limite[0-201]`, que passa isolado). Screenshots revistos a 1280, 768 e 390 px, com o
+painel aberto e fechado, e o fim da página a 390 px (botão sobre a folga do rodapé).
+**Decisões do orquestrador sobre os pontos abertos do agente-testes:** (1) `secao_no_topo` de 50% para 60% nos testes de jornadas: aceito
+(mecânico, o mesmo "na vista" da D125). (2) Botão do WhatsApp: texto escuro `#0b2e13` só dentro do painel (6,5:1); fora dele a cor não mudou.
+(3) Rodapé: folga de 96 px por classe `gt-assistente-flutuante` no `<body>`, posta no `ngOnInit` e removida no `ngOnDestroy` do componente, com
+regra `::ng-deep body.gt-assistente-flutuante .gt-footer` no CSS do componente; `app.component.ts` e `styles.css` ficaram intactos; o dev conferiu
+que login, perfil, catálogo e sala mantêm o rodapé de hoje (66 px), inclusive depois de visitar `/student`. (4) A 390 px o painel aberto cobre a
+barra de abas: aceito.
+**Escolhas do dev-frontend:** título do painel em `h2` (a tela segue com um só `h1`); sem avatar nem texto novo no cabeçalho; `Esc` ignora o
+evento já tratado (`defaultPrevented`) pela janela de confirmação da casca, então o primeiro `Esc` fecha só a confirmação; o foco volta ao botão
+também depois de uma ação `open` a <= 600 px; folga do rodapé incondicional (96 px também em desktop em `/student`).
+**Fica para o PM (não implementado):** a área de mensagens abre rolada ao topo e não rola até a última mensagem ao abrir ou ao chegar resposta
+(já era assim no chat de 360 px de antes); rolar até o fim é comportamento novo, fora desta entrega. Merge em `feature/fase2-design-r3` com
+`--no-ff` (hash no log do git).
